@@ -6,6 +6,10 @@ plugins {
 android {
     namespace = "io.github.vitalyostanin.markdownorg"
     compileSdk = 37
+    // Pinned to what the build image ships. Left unset, AGP asks for the
+    // version it defaults to, and every run inside a throwaway container
+    // downloads it again — around a minute added to each build.
+    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "io.github.vitalyostanin.markdownorg"
