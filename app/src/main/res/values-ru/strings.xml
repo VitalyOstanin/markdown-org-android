@@ -12,6 +12,29 @@
     <string name="agenda_section_untimed">Без времени и впереди</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>
 
+    <string name="sync_now">Синхронизировать</string>
+    <string name="sync_running">Синхронизация…</string>
+    <string name="sync_cloned">Заметки склонированы</string>
+    <string name="sync_updated">Заметки обновлены</string>
+    <string name="sync_already_current">Уже актуально</string>
+    <string name="sync_checkout">%1$s · %2$s</string>
+    <string name="sync_failed_auth">Сервер отклонил токен</string>
+    <string name="sync_failed_network">Сервер недоступен</string>
+    <string name="sync_failed_diverged">Локальные коммиты расходятся с удалёнными</string>
+    <string name="sync_failed_dirty">Незафиксированные изменения были бы затёрты</string>
+    <string name="sync_failed_repository">Синхронизация не удалась</string>
+
+    <string name="settings_title">Репозиторий заметок</string>
+    <string name="settings_hint">Репозиторий клонируется в собственное хранилище приложения. Выполняется только получение изменений: локальные правки пока не отправляются.</string>
+    <string name="settings_url">Адрес репозитория</string>
+    <string name="settings_branch">Ветка</string>
+    <string name="settings_branch_default">по умолчанию — ветка удалённого репозитория</string>
+    <string name="settings_token">Токен доступа</string>
+    <string name="settings_token_kept">сохранён; оставьте пустым, чтобы не менять</string>
+    <string name="settings_token_none">нужен для приватного репозитория</string>
+    <string name="settings_save">Сохранить</string>
+    <string name="settings_cancel">Отмена</string>
+
     <plurals name="agenda_days_overdue">
         <item quantity="one">просрочено на %d день</item>
         <item quantity="few">просрочено на %d дня</item>

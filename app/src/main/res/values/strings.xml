@@ -14,6 +14,30 @@
     <!-- Start and end of a collapsed empty stretch on the hour axis. -->
     <string name="agenda_free_between">free %1$s — %2$s</string>
 
+    <string name="sync_now">Sync now</string>
+    <string name="sync_running">Syncing…</string>
+    <string name="sync_cloned">Notes cloned</string>
+    <string name="sync_updated">Notes updated</string>
+    <string name="sync_already_current">Already up to date</string>
+    <!-- Branch, then the summary of the commit at its tip. -->
+    <string name="sync_checkout">%1$s · %2$s</string>
+    <string name="sync_failed_auth">The server rejected the token</string>
+    <string name="sync_failed_network">The server could not be reached</string>
+    <string name="sync_failed_diverged">Local commits differ from the remote</string>
+    <string name="sync_failed_dirty">Uncommitted changes would be overwritten</string>
+    <string name="sync_failed_repository">Sync failed</string>
+
+    <string name="settings_title">Notes repository</string>
+    <string name="settings_hint">The repository is cloned into the application\'s own storage. Only fetching happens: local changes are never pushed yet.</string>
+    <string name="settings_url">Repository URL</string>
+    <string name="settings_branch">Branch</string>
+    <string name="settings_branch_default">the remote default</string>
+    <string name="settings_token">Access token</string>
+    <string name="settings_token_kept">saved; leave blank to keep it</string>
+    <string name="settings_token_none">needed for a private repository</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_cancel">Cancel</string>
+
     <plurals name="agenda_days_overdue">
         <item quantity="one">%d day late</item>
         <item quantity="other">%d days late</item>

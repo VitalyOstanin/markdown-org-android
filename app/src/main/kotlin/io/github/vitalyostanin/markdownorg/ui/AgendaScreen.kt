@@ -42,6 +42,9 @@ fun AgendaScreen(
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
     modifier: Modifier = Modifier,
+    sync: SyncUiState = SyncUiState(),
+    onSync: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (state) {
@@ -54,7 +57,8 @@ fun AgendaScreen(
             is AgendaUiState.Ready -> Column(Modifier.fillMaxSize()) {
                 // Outside the scrolling area: the switch is how the user gets
                 // back to the other layout, and it must not scroll away.
-                AgendaHeader(state.date, layout, onLayoutChange)
+                AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
+                SyncBanner(sync)
                 when (layout) {
                     AgendaLayout.TIME -> TimeLayout(state.timeline)
                     AgendaLayout.LIST -> ListLayout(state.sections)
@@ -69,6 +73,9 @@ private fun AgendaHeader(
     date: LocalDate,
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
+    sync: SyncUiState,
+    onSync: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     // The device locale, not the application's: the interface is English, but
     // a date is read in whatever language the user reads dates in.
@@ -101,7 +108,96 @@ private fun AgendaHeader(
                 color = MaterialTheme.colorScheme.outline,
             )
         }
+        // Sync and settings sit next to the layout switch rather than in a
+        // menu: with three controls on the screen a menu would hide two of
+        // them behind a tap for no gain.
+        HeaderAction(
+            glyph = "⟳",
+            label = stringResource(R.string.sync_now),
+            tag = "sync-now",
+            enabled = sync.configured && !sync.running,
+            onClick = onSync,
+        )
+        HeaderAction(
+            glyph = "⚙",
+            label = stringResource(R.string.settings_title),
+            tag = "open-settings",
+            onClick = onOpenSettings,
+        )
+        Spacer(Modifier.width(4.dp))
         LayoutSwitch(layout, onLayoutChange)
+    }
+}
+
+@Composable
+private fun HeaderAction(
+    glyph: String,
+    label: String,
+    tag: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClickLabel = label, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 7.dp)
+            .testTag(tag),
+    ) {
+        Text(
+            text = glyph,
+            style = MaterialTheme.typography.titleMedium,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        )
+    }
+}
+
+/**
+ * One line under the header: what the last sync did, or where the checkout
+ * stands when nothing has been attempted yet.
+ *
+ * Nothing is shown before a remote is configured — an empty state that says
+ * "not configured" on every launch would be noise.
+ */
+@Composable
+private fun SyncBanner(sync: SyncUiState) {
+    val colors = LocalAgendaColors.current
+    val text = when {
+        sync.running -> stringResource(R.string.sync_running)
+        sync.message != null -> stringResource(sync.message.text)
+        sync.repository != null -> stringResource(
+            R.string.sync_checkout,
+            sync.repository.branch,
+            sync.repository.headSummary,
+        )
+
+        else -> return
+    }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (sync.message?.failed == true) {
+                colors.deadline.tone
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+            modifier = Modifier.testTag("sync-banner"),
+        )
+        sync.message?.detail?.takeIf { sync.message.failed }?.let { detail ->
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+            )
+        }
     }
 }
 

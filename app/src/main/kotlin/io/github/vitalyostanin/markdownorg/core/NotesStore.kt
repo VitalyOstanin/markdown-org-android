@@ -7,16 +7,25 @@ import java.time.LocalDate
 /**
  * Where the markdown lives on the device.
  *
- * For now a directory inside the application's own storage, seeded with a
- * sample on first run so there is something to render. Once git
- * synchronisation lands this becomes the working copy and the seeding goes
- * away.
+ * A directory inside the application's own storage, which is also the git
+ * working copy once a remote is configured. Until then it is seeded with a
+ * sample, so a fresh install has something to show.
  */
 class NotesStore(context: Context) {
 
     val root: File = File(context.filesDir, "notes")
 
-    fun ensureSeeded(today: LocalDate) {
+    /**
+     * Writes the sample unless the directory already holds notes.
+     *
+     * Skipped once a remote is configured: the directory is then a checkout,
+     * and dropping an untracked file into it would show up as a dirty working
+     * copy and block the next sync.
+     */
+    fun ensureSeeded(today: LocalDate, synced: Boolean) {
+        if (synced) {
+            return
+        }
         if (!root.exists()) {
             root.mkdirs()
         }
@@ -24,6 +33,16 @@ class NotesStore(context: Context) {
             return
         }
         File(root, "sample.md").writeText(sampleNotes(today))
+    }
+
+    /**
+     * Clears the checkout so a different remote can be cloned into it.
+     *
+     * The core clones into an empty directory; pointing the application at
+     * another repository has to start from one.
+     */
+    fun reset() {
+        root.deleteRecursively()
     }
 
     /**
