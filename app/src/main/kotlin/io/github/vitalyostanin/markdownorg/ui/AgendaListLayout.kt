@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import uniffi.markdown_org_ffi.Task
 
 /**
  * One line per task, grouped the way the sections come.
@@ -36,7 +38,11 @@ import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
  * nothing about the gaps between them.
  */
 @Composable
-internal fun ListLayout(sections: AgendaSections, modifier: Modifier = Modifier) {
+internal fun ListLayout(
+    sections: AgendaSections,
+    modifier: Modifier = Modifier,
+    onTaskClick: (Task) -> Unit = {},
+) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
@@ -45,38 +51,43 @@ internal fun ListLayout(sections: AgendaSections, modifier: Modifier = Modifier)
         if (sections.isEmpty) {
             item { EmptyAgenda() }
         }
-        section(R.string.agenda_section_overdue, sections.overdue, warn = true)
-        section(R.string.agenda_section_timed, sections.timed)
-        section(R.string.agenda_section_untimed, sections.untimed)
+        section(R.string.agenda_section_overdue, sections.overdue, onTaskClick, warn = true)
+        section(R.string.agenda_section_timed, sections.timed, onTaskClick)
+        section(R.string.agenda_section_untimed, sections.untimed, onTaskClick)
     }
 }
 
 private fun LazyListScope.section(
     labelRes: Int,
     rows: List<AgendaRow>,
+    onTaskClick: (Task) -> Unit,
     warn: Boolean = false,
 ) {
     if (rows.isEmpty()) {
         return
     }
     item { SectionLabel(stringResource(labelRes), rows.size, warn) }
-    items(rows, key = AgendaRow::key) { row -> TaskRow(row) }
+    items(rows, key = AgendaRow::key) { row -> TaskRow(row, onTaskClick) }
 }
 
 /** Where the task is, which is what makes a row unique across a rebuild. */
 internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
 
 @Composable
-private fun TaskRow(row: AgendaRow) {
+private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val kind = row.task.kind()
     val role = LocalAgendaColors.current.role(kind)
     val overdue = row.daysOffset < 0
     val trailing = daysLabel(row.daysOffset)
 
+    val actionsLabel = stringResource(R.string.agenda_task_actions)
+
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) },
     ) {
         Row(
             modifier = Modifier.padding(end = 11.dp),

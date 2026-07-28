@@ -28,6 +28,26 @@ class SyncSettings(context: Context) {
         get() = preferences.getString(KEY_TOKEN, null)
         set(value) = preferences.edit().putString(KEY_TOKEN, value?.trim()?.ifEmpty { null }).apply()
 
+    /**
+     * Who edits made here are attributed to.
+     *
+     * A device carries no git configuration to read, and the defaults name
+     * the application rather than guessing at the person holding the phone:
+     * a wrong name in the history of someone's notes is worse than an
+     * obviously generic one. Both are overridable from the settings screen.
+     */
+    var authorName: String
+        get() = preferences.getString(KEY_AUTHOR_NAME, null) ?: DEFAULT_AUTHOR_NAME
+        set(value) = preferences.edit()
+            .putString(KEY_AUTHOR_NAME, value.trim().ifEmpty { null })
+            .apply()
+
+    var authorEmail: String
+        get() = preferences.getString(KEY_AUTHOR_EMAIL, null) ?: DEFAULT_AUTHOR_EMAIL
+        set(value) = preferences.edit()
+            .putString(KEY_AUTHOR_EMAIL, value.trim().ifEmpty { null })
+            .apply()
+
     /** When the last successful sync finished, or `0` if there was none. */
     var lastSyncedAt: Long
         get() = preferences.getLong(KEY_LAST_SYNCED, 0)
@@ -44,6 +64,10 @@ class SyncSettings(context: Context) {
         const val KEY_URL = "remote_url"
         const val KEY_BRANCH = "branch"
         const val KEY_TOKEN = "token"
+        const val KEY_AUTHOR_NAME = "author_name"
+        const val KEY_AUTHOR_EMAIL = "author_email"
         const val KEY_LAST_SYNCED = "last_synced_at"
+        const val DEFAULT_AUTHOR_NAME = "markdown-org"
+        const val DEFAULT_AUTHOR_EMAIL = "markdown-org@localhost"
     }
 }

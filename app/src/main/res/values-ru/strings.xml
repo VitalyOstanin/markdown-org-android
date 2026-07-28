@@ -35,6 +35,22 @@
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
 
+    <string name="agenda_task_actions">Действия с задачей</string>
+    <string name="action_complete">Готово</string>
+    <string name="action_complete_repeating">Готово, перенести на следующий раз</string>
+    <string name="action_cancel_task">Отменить задачу</string>
+    <string name="action_reopen">Вернуть в работу</string>
+    <string name="action_priority_set">Поставить приоритет A</string>
+    <string name="action_priority_clear">Убрать приоритет</string>
+    <string name="action_shift_back">На день раньше</string>
+    <string name="action_shift_forward">На день позже</string>
+
+    <string name="edit_failed">Не удалось изменить задачу</string>
+    <string name="edit_failed_stale">Файл изменился: синхронизируйте и повторите</string>
+    <string name="edit_failed_no_planning">У задачи нет даты, которую можно перенести</string>
+    <string name="edit_failed_unsupported">Такой повтор пока не переносится</string>
+    <string name="edit_failed_missing">Файла больше нет</string>
+
     <plurals name="agenda_days_overdue">
         <item quantity="one">просрочено на %d день</item>
         <item quantity="few">просрочено на %d дня</item>

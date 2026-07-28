@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.AgendaSource
+import io.github.vitalyostanin.markdownorg.core.NotesEditor
 import io.github.vitalyostanin.markdownorg.core.NotesStore
 import io.github.vitalyostanin.markdownorg.core.NotesSync
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
@@ -21,11 +22,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Scope
+import uniffi.markdown_org_ffi.Task
 
 class AgendaViewModel(
     private val store: NotesStore,
     private val sync: NotesSync,
     private val settings: SyncSettings,
+    private val editor: NotesEditor,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AgendaUiState>(AgendaUiState.Loading)
@@ -41,6 +44,15 @@ class AgendaViewModel(
     private val _sync = MutableStateFlow(SyncUiState())
     val syncState: StateFlow<SyncUiState> = _sync.asStateFlow()
 
+    /**
+     * The task whose actions are open, if any.
+     *
+     * Held here rather than in the composition so it survives a rebuild of
+     * the agenda: an edit refreshes the list underneath the sheet.
+     */
+    private val _selected = MutableStateFlow<Task?>(null)
+    val selected: StateFlow<Task?> = _selected.asStateFlow()
+
     init {
         refresh()
         readCheckout()
@@ -48,6 +60,40 @@ class AgendaViewModel(
 
     fun setLayout(layout: AgendaLayout) {
         _layout.value = layout
+    }
+
+    fun select(task: Task?) {
+        _selected.value = task
+    }
+
+    /**
+     * Apply an action to the selected task, then rebuild the agenda.
+     *
+     * The sheet closes first: every action writes to the file and commits,
+     * and leaving the sheet up over a list that is being rebuilt reads as the
+     * tap not having registered.
+     */
+    fun apply(task: Task, action: TaskAction) {
+        _selected.value = null
+
+        viewModelScope.launch {
+            val outcome = when (action) {
+                TaskAction.Complete -> editor.complete(task, LocalDate.now())
+                is TaskAction.Status -> editor.setStatus(task, action.status)
+                is TaskAction.Priority -> editor.setPriority(task, action.value)
+                is TaskAction.Shift -> editor.shift(task, action.keyword, action.days)
+            }
+
+            outcome.fold(
+                onSuccess = {
+                    _sync.update { it.copy(message = null) }
+                    refresh()
+                },
+                onFailure = { error ->
+                    _sync.update { it.copy(message = error.toEditMessage()) }
+                },
+            )
+        }
     }
 
     fun refresh(scope: Scope = Scope.DAY) {
@@ -167,10 +213,12 @@ class AgendaViewModel(
                 val application = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as Application
                 val store = NotesStore(application)
+                val settings = SyncSettings(application)
                 AgendaViewModel(
                     store = store,
                     sync = NotesSync(application, store.root),
-                    settings = SyncSettings(application),
+                    settings = settings,
+                    editor = NotesEditor(store.root, settings),
                 )
             }
         }

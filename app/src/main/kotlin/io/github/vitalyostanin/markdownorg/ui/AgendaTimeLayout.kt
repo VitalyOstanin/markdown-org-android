@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import uniffi.markdown_org_ffi.Task
 
 /** Height of one hour on the axis, and of the tile that sits in it. */
 private val HourHeight = 46.dp
@@ -48,7 +50,11 @@ private val TileHeight = 40.dp
  * they ride above it as bands — in the same order the list layout shows them.
  */
 @Composable
-internal fun TimeLayout(timeline: Timeline, modifier: Modifier = Modifier) {
+internal fun TimeLayout(
+    timeline: Timeline,
+    modifier: Modifier = Modifier,
+    onTaskClick: (Task) -> Unit = {},
+) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
@@ -65,7 +71,7 @@ internal fun TimeLayout(timeline: Timeline, modifier: Modifier = Modifier) {
                     warn = true,
                 )
             }
-            items(timeline.overdue, key = AgendaRow::key) { row -> OverdueRow(row) }
+            items(timeline.overdue, key = AgendaRow::key) { row -> OverdueRow(row, onTaskClick) }
         }
 
         if (timeline.allDay.isNotEmpty()) {
@@ -82,7 +88,7 @@ internal fun TimeLayout(timeline: Timeline, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    pair.forEach { row -> Band(row, Modifier.weight(1f)) }
+                    pair.forEach { row -> Band(row, onTaskClick, Modifier.weight(1f)) }
                     if (pair.size == 1) {
                         Spacer(Modifier.weight(1f))
                     }
@@ -92,7 +98,7 @@ internal fun TimeLayout(timeline: Timeline, modifier: Modifier = Modifier) {
 
         items(timeline.axis, key = ::axisKey) { entry ->
             when (entry) {
-                is AxisEntry.Hour -> HourRow(entry)
+                is AxisEntry.Hour -> HourRow(entry, onTaskClick)
                 is AxisEntry.Gap -> GapRow(entry)
                 AxisEntry.Now -> NowLine()
             }
@@ -111,7 +117,7 @@ private fun axisKey(entry: AxisEntry): String = when (entry) {
 }
 
 @Composable
-private fun HourRow(entry: AxisEntry.Hour) {
+private fun HourRow(entry: AxisEntry.Hour, onTaskClick: (Task) -> Unit) {
     val hairline = MaterialTheme.colorScheme.outlineVariant
 
     Row(
@@ -140,15 +146,16 @@ private fun HourRow(entry: AxisEntry.Hour) {
             modifier = Modifier.weight(1f).padding(start = 6.dp, top = 3.dp, bottom = 3.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            entry.entries.forEach { row -> Tile(row) }
+            entry.entries.forEach { row -> Tile(row, onTaskClick) }
         }
     }
 }
 
 @Composable
-private fun Tile(row: AgendaRow) {
+private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val kind = row.task.kind()
     val role = LocalAgendaColors.current.role(kind)
+    val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Row(
         modifier = Modifier
@@ -156,6 +163,7 @@ private fun Tile(row: AgendaRow) {
             .height(TileHeight)
             .clip(RoundedCornerShape(12.dp))
             .background(role.container)
+            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -199,10 +207,11 @@ private fun Tile(row: AgendaRow) {
  * says what was missed.
  */
 @Composable
-private fun OverdueRow(row: AgendaRow) {
+private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val colors = LocalAgendaColors.current
     val kind = row.task.kind()
     val trailing = daysLabel(row.daysOffset)
+    val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Row(
         modifier = Modifier
@@ -210,6 +219,7 @@ private fun OverdueRow(row: AgendaRow) {
             .padding(bottom = 6.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(colors.deadline.tone)
+            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
             .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -257,16 +267,18 @@ private fun OverdueRow(row: AgendaRow) {
 
 /** An all-day task or a deadline still ahead, as a light container. */
 @Composable
-private fun Band(row: AgendaRow, modifier: Modifier = Modifier) {
+private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier = Modifier) {
     val kind = row.task.kind()
     val role = LocalAgendaColors.current.role(kind)
     val trailing = daysLabel(row.daysOffset)
     val date = row.task.timestampDate.orEmpty()
+    val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(13.dp))
             .background(role.container)
+            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {

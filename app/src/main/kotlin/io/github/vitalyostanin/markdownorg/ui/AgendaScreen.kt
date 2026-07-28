@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -45,6 +46,7 @@ fun AgendaScreen(
     sync: SyncUiState = SyncUiState(),
     onSync: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onTaskClick: (Task) -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (state) {
@@ -60,8 +62,8 @@ fun AgendaScreen(
                 AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
                 SyncBanner(sync)
                 when (layout) {
-                    AgendaLayout.TIME -> TimeLayout(state.timeline)
-                    AgendaLayout.LIST -> ListLayout(state.sections)
+                    AgendaLayout.TIME -> TimeLayout(state.timeline, onTaskClick = onTaskClick)
+                    AgendaLayout.LIST -> ListLayout(state.sections, onTaskClick = onTaskClick)
                 }
             }
         }

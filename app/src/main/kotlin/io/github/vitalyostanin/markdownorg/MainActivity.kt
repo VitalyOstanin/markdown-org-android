@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.vitalyostanin.markdownorg.ui.AgendaScreen
 import io.github.vitalyostanin.markdownorg.ui.AgendaViewModel
 import io.github.vitalyostanin.markdownorg.ui.SyncSettingsScreen
+import io.github.vitalyostanin.markdownorg.ui.TaskActionsSheet
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 
 class MainActivity : ComponentActivity() {
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
                 val state by model.state.collectAsStateWithLifecycle()
                 val layout by model.layout.collectAsStateWithLifecycle()
                 val sync by model.syncState.collectAsStateWithLifecycle()
+                val selected by model.selected.collectAsStateWithLifecycle()
 
                 // Two screens and no navigation library: settings is the only
                 // place to go, and it comes back to the agenda.
@@ -70,7 +72,18 @@ class MainActivity : ComponentActivity() {
                         sync = sync,
                         onSync = model::syncNow,
                         onOpenSettings = { settingsOpen = true },
+                        onTaskClick = model::select,
                     )
+
+                    // Over the agenda rather than instead of it: the list is
+                    // the context for what was tapped.
+                    selected?.let { task ->
+                        TaskActionsSheet(
+                            task = task,
+                            onAction = { action -> model.apply(task, action) },
+                            onDismiss = { model.select(null) },
+                        )
+                    }
                 }
             }
         }
