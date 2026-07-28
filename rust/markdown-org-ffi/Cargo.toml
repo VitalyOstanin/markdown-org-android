@@ -1,0 +1,28 @@
+[package]
+name = "markdown-org-ffi"
+version = "0.1.0"
+description = "UniFFI bindings over markdown-org-extract for the Android application"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# cdylib is what the app loads; lib keeps the crate usable from Rust tests.
+# The resulting file is libmarkdown_org_ffi.so — UniFFI requires the "lib"
+# prefix, and the name must not be "android" (libandroid.so is a system
+# library). Add "staticlib" here if an iOS target is ever added.
+crate-type = ["cdylib", "lib"]
+name = "markdown_org_ffi"
+
+[dependencies]
+uniffi = { workspace = true }
+thiserror = "2"
+# Pinned to a commit rather than a crates.io release: the library API used
+# here landed after 0.11.1 and has not been published yet. Switch to a
+# version requirement once the release carrying src/lib.rs is out.
+markdown-org-extract = { git = "https://github.com/VitalyOstanin/markdown-org-extract", rev = "5ec5eec20a4f63da4aaedf8c05cea0e5ea6e4e7c" }
+
+[dev-dependencies]
+tempfile = "3"

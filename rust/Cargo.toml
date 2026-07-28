@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = ["markdown-org-ffi", "uniffi-bindgen"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+authors = ["Vitaly Ostanin <vitaly.ostanin@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/VitalyOstanin/markdown-org-android"
+
+[workspace.dependencies]
+uniffi = "0.32"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+# "debuginfo", not "symbols": UniFFI stores the interface metadata in the
+# library's symbols, and stripping those leaves the generator with
+# "No UniFFI metadata found". Debug info is the bulk of the size anyway.
+strip = "debuginfo"
+# No panic = "abort": UniFFI turns a panic crossing the boundary into a
+# foreign exception, which requires unwinding. Aborting would take the whole
+# application process down instead.

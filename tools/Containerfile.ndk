@@ -1,0 +1,24 @@
+# Cross-compilation environment for the Rust core.
+#
+# The toolchain lives in the container, never on the host: an NDK plus three
+# Rust targets is around 700 MB of build-only tooling that nothing else needs.
+FROM docker.io/library/rust:latest
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# LTS NDK r27d (27.3.13750724)
+RUN curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27d-linux.zip \
+    && unzip -q /tmp/ndk.zip -d /opt \
+    && rm /tmp/ndk.zip
+
+ENV ANDROID_NDK_HOME=/opt/android-ndk-r27d
+ENV ANDROID_NDK_ROOT=/opt/android-ndk-r27d
+
+# arm64-v8a is what nearly every device runs; armeabi-v7a covers older ones
+# and x86_64 the emulator.
+RUN rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+RUN cargo install cargo-ndk --locked
+
+WORKDIR /src

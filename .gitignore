@@ -1,0 +1,15 @@
+/rust/target/
+/rust/jniLibs/
+/generated/
+
+# Android / Gradle
+/app/build/
+/build/
+/.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+
+.idea/
+.DS_Store
