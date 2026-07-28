@@ -21,9 +21,15 @@ android {
         ndk {
             // JNA ships libjnidispatch.so for ABIs Android dropped years ago
             // — mips, mips64, armeabi. Without this filter they ride along at
-            // around 0.4 MB of dead weight, and the core is only built for
-            // the ABIs listed here anyway.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // around 0.4 MB of dead weight.
+            //
+            // The list matches what tools/build-core.sh actually builds:
+            // arm64-v8a for devices, x86_64 for the emulator. Listing an ABI
+            // the core is not built for is worse than leaving it out — the
+            // APK installs, JNA finds its own library, and the app dies on
+            // the first call into the core. 32-bit ARM would need the core
+            // built for it first.
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
