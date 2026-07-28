@@ -2,7 +2,15 @@
 <resources>
     <string name="agenda_failed">Не удалось построить агенду</string>
     <string name="agenda_empty">На сегодня ничего не запланировано</string>
-    <string name="agenda_title_day">Сегодня</string>
+
+    <string name="agenda_layout_time">Раскладка «Время»</string>
+    <string name="agenda_layout_list">Раскладка «Список»</string>
+    <string name="agenda_now">Текущее время</string>
+
+    <string name="agenda_section_overdue">Просрочено</string>
+    <string name="agenda_section_timed">Назначено на сегодня</string>
+    <string name="agenda_section_untimed">Без времени и впереди</string>
+    <string name="agenda_free_between">свободно %1$s — %2$s</string>
 
     <plurals name="agenda_days_overdue">
         <item quantity="one">просрочено на %d день</item>

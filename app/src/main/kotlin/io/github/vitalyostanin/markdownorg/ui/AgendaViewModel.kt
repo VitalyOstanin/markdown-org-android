@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.vitalyostanin.markdownorg.core.AgendaSource
 import io.github.vitalyostanin.markdownorg.core.NotesStore
 import java.time.LocalDate
+import java.time.LocalTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,19 @@ class AgendaViewModel(private val store: NotesStore) : ViewModel() {
     private val _state = MutableStateFlow<AgendaUiState>(AgendaUiState.Loading)
     val state: StateFlow<AgendaUiState> = _state.asStateFlow()
 
+    /**
+     * Kept apart from [state] so switching the layout redraws without going
+     * back through Loading — the data is the same, only its shape changes.
+     */
+    private val _layout = MutableStateFlow(AgendaLayout.TIME)
+    val layout: StateFlow<AgendaLayout> = _layout.asStateFlow()
+
     init {
         refresh()
+    }
+
+    fun setLayout(layout: AgendaLayout) {
+        _layout.value = layout
     }
 
     fun refresh(scope: Scope = Scope.DAY) {
@@ -34,7 +46,15 @@ class AgendaViewModel(private val store: NotesStore) : ViewModel() {
 
             _state.value = AgendaSource(store.root).load(scope, today).fold(
                 onSuccess = { result ->
-                    AgendaUiState.Ready(title = today.toString(), rows = result.toRows())
+                    val sections = result.toSections()
+                    AgendaUiState.Ready(
+                        date = today,
+                        sections = sections,
+                        // The agenda is always for today so far; once a date
+                        // can be picked, another day passes null and loses
+                        // the marker line.
+                        timeline = sections.toTimeline(now = LocalTime.now()),
+                    )
                 },
                 onFailure = { error ->
                     AgendaUiState.Failed(error.message ?: error::class.java.simpleName)

@@ -26,9 +26,12 @@ class MainActivity : ComponentActivity() {
             MarkdownOrgTheme {
                 val model: AgendaViewModel = viewModel(factory = AgendaViewModel.Factory)
                 val state by model.state.collectAsStateWithLifecycle()
+                val layout by model.layout.collectAsStateWithLifecycle()
 
                 AgendaScreen(
                     state = state,
+                    layout = layout,
+                    onLayoutChange = model::setLayout,
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.safeDrawing)
