@@ -17,6 +17,7 @@ run. Nothing has been run on a physical device yet.
 - [Building the core](#building-the-core)
 - [Building the application](#building-the-application)
 - [Running it on an emulator](#running-it-on-an-emulator)
+- [Continuous integration](#continuous-integration)
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
 - [Colour](#colour)
 - [Testing](#testing)
@@ -177,6 +178,46 @@ falls back to software emulation and the boot takes tens of minutes.
 
 An emulator is x86_64; how fast the core parses on ARM has to be measured on
 a device.
+
+## Continuous integration
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) builds the same
+two ABIs and publishes the APK. Two jobs:
+
+| № | Job     | What it does                                                                      |
+|---|---------|-----------------------------------------------------------------------------------|
+| 1 | `check` | `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for the host      |
+| 2 | `build` | the core for both ABIs, the unit tests, the APK, and the release that carries it   |
+
+The core is built by `tools/build-core.sh` with `NATIVE=1`, which runs the
+steps directly instead of in a container. The workflow does not repeat them:
+the order of build, binding generation and stripping is the one thing that
+must not drift between the two, since generating from a stripped library
+fails.
+
+What comes out depends on the trigger:
+
+| № | Trigger              | Variant | Published as                                     |
+|---|----------------------|---------|--------------------------------------------------|
+| 1 | push to `master`     | release | prerelease `v<version>.<run number>`             |
+| 2 | tag `v*`             | release | release under that tag                           |
+| 3 | `workflow_dispatch`  | release | prerelease, or the tag given as an input         |
+| 4 | pull request         | debug   | build artefact only                              |
+
+A pull request builds the debug variant: it has no access to the signing key
+and does not need one. Everything else is signed with the release key, which
+has to stay the same from build to build — an APK signed with a different key
+does not install over the one already on the phone, and registering the
+application id under Google's developer verification pins it to that key.
+
+Four repository secrets carry it: `APP_KEYSTORE_BASE64`,
+`APP_KEYSTORE_PASSWORD`, `APP_KEYSTORE_ALIAS`, `APP_KEY_PASSWORD`. The key is
+decoded into `RUNNER_TEMP`, outside the workspace, so that no later step can
+pick it up as a build input.
+
+Actions are pinned by commit SHA with the tag in a comment, and the runner is
+`ubuntu-24.04` rather than `ubuntu-latest`: an image that moves under an
+unchanged commit makes a build that passed once impossible to reproduce.
 
 ## The generated Kotlin surface
 

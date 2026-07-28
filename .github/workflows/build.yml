@@ -1,0 +1,225 @@
+name: Build
+
+# One APK per run, carrying both ABIs the core is built for. A push to master
+# publishes it as a prerelease so that the current build is always one link
+# away from a phone; a v-tag publishes a release under that tag. A pull
+# request builds and tests without touching the signing key or the releases.
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag to publish the APK under
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# A second push to the same branch makes the build in flight pointless. Tags
+# are excluded: their runs publish, and cancelling one would leave a tag with
+# no assets.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  # LTS r27d, the version tools/Containerfile.ndk installs. The two are
+  # separate installations of the same NDK, and a build that passed locally
+  # should not meet a different compiler here.
+  NDK_VERSION: '27.3.13750724'
+
+jobs:
+  # The core is plain Rust: its tests, its lints and its formatting are
+  # checked for the host, without an NDK. Kept apart from the APK build so
+  # that a lint failure is visible in a minute rather than after the Android
+  # toolchain has been installed.
+  check:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: rust
+
+      - name: Check the formatting
+        working-directory: rust
+        run: cargo fmt --all --check
+
+      - name: Lint
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: rust
+        run: cargo test
+
+  build:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      # Only this job publishes; the rest of the workflow reads.
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          # What tools/Containerfile.sdk runs Gradle on.
+          java-version: '17'
+
+      - name: Setup the Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: 'platforms;android-37.0 build-tools;37.0.0'
+
+      - name: Install the NDK
+        run: |
+          echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --install "ndk;${NDK_VERSION}" > /dev/null
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install the Rust Android targets
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
+
+      - name: Install cargo-ndk
+        # A prebuilt binary rather than `cargo install`: building it here costs
+        # a couple of minutes on every cache miss and produces the same tool.
+        run: cargo binstall --no-confirm cargo-ndk
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: rust
+          # The vendored libgit2 and OpenSSL are the bulk of the build and do
+          # not change with the sources; a per-ABI key keeps both of them.
+          key: ndk-${{ env.NDK_VERSION }}
+
+      - name: Build the core and the bindings
+        # The same script the working copy uses, in its podman-less mode: the
+        # order of build, binding generation and stripping is stated once.
+        env:
+          NATIVE: '1'
+          ABIS: arm64-v8a x86_64
+        run: tools/build-core.sh
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          # A pull request reads the cache master filled and writes nothing
+          # back, so a branch cannot poison it.
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Decide what to build
+        id: variant
+        # A pull request has no access to the signing key (and should not
+        # need one), so it builds the debug variant.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=debug" >> "$GITHUB_OUTPUT"
+            echo "task=assembleDebug" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=release" >> "$GITHUB_OUTPUT"
+            echo "task=assembleRelease" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Decode the signing key
+        if: steps.variant.outputs.name == 'release'
+        # Written outside the workspace so that no later step can pick it up
+        # as a build input; the runner discards RUNNER_TEMP with the machine.
+        run: printf '%s' '${{ secrets.APP_KEYSTORE_BASE64 }}' | base64 -d > "$RUNNER_TEMP/keystore.jks"
+
+      - name: Build the APK
+        run: |
+          args=()
+          if [ "${{ steps.variant.outputs.name }}" = "release" ]; then
+            args+=(
+              -Pandroid.injected.signing.store.file="$RUNNER_TEMP/keystore.jks"
+              -Pandroid.injected.signing.store.password='${{ secrets.APP_KEYSTORE_PASSWORD }}'
+              -Pandroid.injected.signing.key.alias='${{ secrets.APP_KEYSTORE_ALIAS }}'
+              -Pandroid.injected.signing.key.password='${{ secrets.APP_KEY_PASSWORD }}'
+            )
+          fi
+          ./gradlew ${{ steps.variant.outputs.task }} "${args[@]}"
+
+      - name: Report what was built
+        run: |
+          {
+            echo '| APK | size |'
+            echo '|-----|------|'
+            for apk in app/build/outputs/apk/${{ steps.variant.outputs.name }}/*.apk; do
+              echo "| $(basename "$apk") | $(du -h "$apk" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apk-${{ steps.variant.outputs.name }}
+          path: app/build/outputs/apk/${{ steps.variant.outputs.name }}/*.apk
+          if-no-files-found: error
+
+      # A v-tag publishes under its own name as a release. Anything else is a
+      # prerelease tagged with the version being built plus the run number,
+      # which keeps the tags ordered and never collides with a rerun of an
+      # older commit. A rerun of the same run reuses the tag and replaces the
+      # asset rather than being refused.
+      - name: Publish the release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apks=(app/build/outputs/apk/release/*.apk)
+          version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
+
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+            prerelease=()
+          else
+            tag="${{ inputs.release_tag }}"
+            tag="${tag:-v${version}.${{ github.run_number }}}"
+            prerelease=(--prerelease)
+          fi
+
+          notes=$(printf '%s\n' \
+            "commit: ${{ github.sha }}" \
+            "ABIs: arm64-v8a, x86_64")
+
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" "${apks[@]}" --clobber
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes "$notes" \
+              "${prerelease[@]}" \
+              "${apks[@]}"
+          fi
+          echo "released as $tag" >> "$GITHUB_STEP_SUMMARY"
