@@ -31,8 +31,11 @@ podman run -d --rm --name "${NAME}" --network host --device /dev/kvm "${IMAGE}" 
 echo "==> waiting for boot (up to ${BOOT_TIMEOUT}s)"
 deadline=$((SECONDS + BOOT_TIMEOUT))
 adb start-server > /dev/null 2>&1 || true
+# -e addresses the emulator explicitly. Plain `adb shell` picks whatever is
+# ready, and while the emulator is still offline that is a phone plugged into
+# USB — which then answers sys.boot_completed=1 a second after start.
 while (( SECONDS < deadline )); do
-    if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+    if [[ "$(adb -e shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
         echo "==> booted after $((SECONDS))s"
         adb devices
         exit 0
