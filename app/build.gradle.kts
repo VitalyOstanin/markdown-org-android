@@ -16,6 +16,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         ndk {
             // JNA ships libjnidispatch.so for ABIs Android dropped years ago
             // — mips, mips64, armeabi. Without this filter they ride along at
@@ -38,6 +40,11 @@ android {
             jniLibs.directories.add("../rust/jniLibs")
             kotlin.directories.add("../generated")
         }
+        // The task factories are shared: the JVM tests exercise the
+        // projections, the instrumented ones feed the same shapes to the
+        // screen, and duplicating the builders would let the two drift.
+        getByName("test") { kotlin.directories.add("src/sharedTest/kotlin") }
+        getByName("androidTest") { kotlin.directories.add("src/sharedTest/kotlin") }
     }
 
     packaging {
@@ -69,4 +76,15 @@ dependencies {
     implementation(variantOf(libs.jna) { artifactType("aar") })
 
     debugImplementation(libs.compose.ui.tooling)
+
+    // The agenda projections are plain Kotlin over UniFFI records, which are
+    // data classes — no native library is loaded, so they run on the JVM.
+    testImplementation(libs.junit)
+
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    // Supplies the empty activity ComposeTestRule launches into.
+    debugImplementation(libs.compose.ui.test.manifest)
 }
