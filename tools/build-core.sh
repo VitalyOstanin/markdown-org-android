@@ -30,6 +30,13 @@ for abi in ${ABIS}; do
     targets+=(-t "${abi}")
 done
 
+# Stripped libraries from an earlier run have to go before anything is built.
+# cargo-ndk copies out of target/ only when the artefact there is newer, so a
+# cached build leaves the stripped copy in place — and the binding generator
+# then fails with "No UniFFI metadata found", because stripping is exactly
+# what removes that metadata.
+rm -rf "${REPO_ROOT}/rust/jniLibs"
+
 echo "==> building the core for: ${ABIS} (${PROFILE})"
 podman run --rm --network host "${proxy_args[@]}" \
     -v "${REPO_ROOT}/rust:/src:z" -w /src \

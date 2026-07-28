@@ -1,0 +1,49 @@
+# Build environment for the Android application.
+#
+# Like the NDK image, this keeps build-only tooling off the host: the SDK,
+# the platform and the build tools are several gigabytes that nothing but a
+# build needs. The Rust core is built by Containerfile.ndk; this image only
+# assembles the APK from the sources and the libraries that build produced.
+FROM docker.io/library/eclipse-temurin:17-jdk
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip curl ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+
+# cmdline-tools 22.0. sdkmanager insists on living in cmdline-tools/latest;
+# unpacked anywhere else it fails to resolve its own location.
+RUN curl -fsSL -o /tmp/tools.zip \
+        https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip \
+    && mkdir -p "${ANDROID_HOME}/cmdline-tools" \
+    && unzip -q /tmp/tools.zip -d "${ANDROID_HOME}/cmdline-tools" \
+    && mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest" \
+    && rm /tmp/tools.zip
+
+ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+
+# Compiling against 37 while targeting 36: androidx.lifecycle 2.11 refuses to
+# be consumed by a project on an older compileSdk, and the two are separate
+# knobs — compileSdk decides which APIs are visible, targetSdk which runtime
+# behaviour the app opts into. platform-tools carries adb.
+RUN yes | sdkmanager --licenses > /dev/null \
+    && sdkmanager --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" \
+    && rm -rf "${ANDROID_HOME}/.temp"
+
+# Gradle itself comes from the wrapper the project commits; this copy exists
+# only to generate that wrapper the first time.
+ARG GRADLE_VERSION=9.6.1
+RUN curl -fsSL -o /tmp/gradle.zip \
+        "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+    && unzip -q /tmp/gradle.zip -d /opt \
+    && rm /tmp/gradle.zip
+ENV PATH="/opt/gradle-${GRADLE_VERSION}/bin:${PATH}"
+
+# A writable home for the Gradle cache; the build mounts a volume over it so
+# dependencies survive between runs.
+ENV GRADLE_USER_HOME=/gradle
+RUN mkdir -p /gradle && chmod 777 /gradle
+
+WORKDIR /src
