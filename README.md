@@ -5,8 +5,10 @@ the same format the [`markdown-org-vscode`](https://github.com/VitalyOstanin/mar
 extension reads, kept in sync over git.
 
 **Status: early.** The Rust core, its Kotlin bindings and a Compose
-application that renders the agenda all build. The notes are a sample the
-application writes on first run; git synchronisation is not there yet.
+application that renders the agenda all build. The agenda syncs over git and
+takes point edits — status, priority, a planning date, completion. Until a
+remote is configured the notes are a sample the application writes on first
+run. Nothing has been run on a physical device yet.
 
 ## Table of contents
 
@@ -59,7 +61,7 @@ back for data the same process is about to render.
 `markdown-org-ffi` is a thin projection layer. It does not re-export the
 extractor's own types; it flattens them into records UniFFI can carry, so
 the extractor stays free to change its internals and only this crate has to
-follow. Two functions are exported:
+follow. Reading the notes:
 
 - `scan(dir, options)` — walk a directory, return every task found;
 - `scanAgenda(dir, scope, currentDate, timezone, includeDone, options)` —
@@ -70,6 +72,29 @@ follow. Two functions are exported:
 rather than letting the library read the clock, so the same files render the
 same agenda whenever they are asked for — the contract the CLI follows
 through `--current-date`.
+
+Writing to them, one line at a time:
+
+- `setStatus(target, status)` — set, replace or clear the keyword;
+- `setPriority(target, priority)` — the same for the `[#A]` cookie;
+- `shiftPlanning(target, keyword, days)` — move a `SCHEDULED` or `DEADLINE`
+  date;
+- `completeTask(target, today)` — mark done, or move a repeating task to its
+  next occurrence and leave it open, following upstream Org-mode's
+  `org-auto-repeat-maybe`;
+- `commitChanges(dir, message, author)` — commit the working copy.
+
+There is no text editor and no whole-file write: each call rewrites exactly
+one line, keeping the rest of the file byte-for-byte. That is what lets git
+merge an edit made on the phone with one made on a laptop instead of
+reporting a conflict. `target` carries the file, the line and the heading the
+caller believes is there — a file that moved on since the agenda was built is
+refused rather than overwritten.
+
+The grammar itself stays in the extractor: it reports where each token of a
+heading or a timestamp sits (`parseHeadingLine`, `parseTimestampParts`), and
+this crate splices the replacement in. A second copy of those rules here
+would drift from the one that reads the files.
 
 ## Building the core
 
@@ -203,8 +228,12 @@ cd rust && cargo test
 ```
 
 The extractor has its own suite; these tests cover what this crate adds —
-the projection onto the FFI types and the mapping of failures onto the error
-enum a Kotlin caller catches.
+the projection onto the FFI types, the mapping of failures onto the error
+enum a Kotlin caller catches, the sync against a repository on disk, and the
+editing surface. The editing tests assert on the whole file rather than on
+the line under test: an edit that disturbs a neighbouring line is exactly the
+failure that turns a merge into a conflict, and an assertion scoped to one
+line would not see it.
 
 Running the built library outside Android is not possible: it links against
 Android's C library, so `libdl.so` is missing on a desktop Linux host. The

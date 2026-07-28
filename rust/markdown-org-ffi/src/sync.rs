@@ -9,11 +9,12 @@ use std::os::raw::c_int;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use foreign_types::ForeignType;
 use git2::build::{CheckoutBuilder, RepoBuilder};
 use git2::{
-    Cred, ErrorClass, ErrorCode, FetchOptions, RemoteCallbacks, Repository, StatusOptions,
+    Cred, ErrorClass, ErrorCode, FetchOptions, IndexAddOption, RemoteCallbacks, Repository,
+    Signature, StatusOptions,
 };
-use foreign_types::ForeignType;
 use libgit2_sys as raw;
 use openssl::x509::X509;
 
@@ -149,6 +150,65 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
     }
 }
 
+/// Who a commit is attributed to.
+///
+/// The application has no git configuration to read: it is not a git client,
+/// and the device carries no `~/.gitconfig`. The caller supplies the identity
+/// from its own settings.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct CommitAuthor {
+    /// Name recorded as both author and committer.
+    pub name: String,
+    /// Email recorded as both author and committer.
+    pub email: String,
+}
+
+/// Commit everything the working copy holds, or report that there was nothing
+/// to commit.
+///
+/// Called right after an edit rather than on a timer or a button. An edited
+/// but uncommitted file makes the checkout dirty, and a dirty checkout is
+/// refused by [`sync_repository`] — so postponing the commit would leave the
+/// application unable to sync until it happened.
+///
+/// Returns the new commit's id, or `None` when the tree already matched HEAD.
+#[uniffi::export]
+pub fn commit_changes(
+    dir: String,
+    message: String,
+    author: CommitAuthor,
+) -> Result<Option<String>, SyncError> {
+    let repository = Repository::open(Path::new(&dir))?;
+
+    let mut index = repository.index()?;
+    // `add_all` picks up new and modified files; `update_all` is what notices
+    // a tracked file that is gone. Both are needed to leave nothing behind
+    // that would still show as a change.
+    index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+    index.update_all(["*"].iter(), None)?;
+    index.write()?;
+
+    let tree_id = index.write_tree()?;
+    let parent = repository
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_commit().ok());
+
+    if parent
+        .as_ref()
+        .is_some_and(|commit| commit.tree_id() == tree_id)
+    {
+        return Ok(None);
+    }
+
+    let tree = repository.find_tree(tree_id)?;
+    let who = Signature::now(&author.name, &author.email)?;
+    let parents: Vec<&git2::Commit> = parent.iter().collect();
+    let id = repository.commit(Some("HEAD"), &who, &who, &message, &tree, &parents)?;
+
+    Ok(Some(id.to_string()))
+}
+
 /// Read the checkout's state without contacting the remote.
 ///
 /// Returns `None` when the directory holds no repository, which is how the
@@ -188,11 +248,10 @@ fn use_ca_bundle(pem: &str) -> Result<(), SyncError> {
     // this one re-states the default and changes nothing.
     git2::opts::strict_hash_verification(true);
 
-    let certificates = X509::stack_from_pem(pem.as_bytes()).map_err(|error| {
-        SyncError::Repository {
+    let certificates =
+        X509::stack_from_pem(pem.as_bytes()).map_err(|error| SyncError::Repository {
             detail: format!("the certificate bundle could not be read: {error}"),
-        }
-    })?;
+        })?;
 
     if certificates.is_empty() {
         return Err(SyncError::Repository {
@@ -284,7 +343,11 @@ fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, S
 }
 
 /// How many commits lie between `from` (exclusive) and `to`.
-fn count_commits(repository: &Repository, from: git2::Oid, to: git2::Oid) -> Result<u32, SyncError> {
+fn count_commits(
+    repository: &Repository,
+    from: git2::Oid,
+    to: git2::Oid,
+) -> Result<u32, SyncError> {
     let mut walk = repository.revwalk()?;
     walk.push(to)?;
     walk.hide(from)?;
@@ -348,7 +411,12 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
             .map(str::to_string)
             .unwrap_or_else(|_| commit.id().to_string()),
         head_id: commit.id().to_string(),
-        head_summary: commit.summary().ok().flatten().unwrap_or_default().to_string(),
+        head_summary: commit
+            .summary()
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+            .to_string(),
         head_time: commit.time().seconds(),
         dirty: !repository.statuses(Some(&mut options))?.is_empty(),
     })

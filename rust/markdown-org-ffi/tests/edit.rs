@@ -1,0 +1,265 @@
+//! Tests for the editing surface.
+//!
+//! Every case asserts on the whole file, not on the edited line alone: an
+//! edit that changes a neighbouring line is exactly the failure that makes
+//! git merges conflict, and it would go unnoticed by an assertion scoped to
+//! the line under test.
+
+use std::fs;
+use std::path::Path;
+
+use markdown_org_ffi::{set_priority, set_status, EditError, EditTarget, TaskType};
+
+fn vault(body: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join("notes.md"), body).expect("write");
+    dir
+}
+
+fn target(dir: &Path, line: u32, heading: &str) -> EditTarget {
+    EditTarget {
+        dir: dir.display().to_string(),
+        file: "notes.md".to_string(),
+        line,
+        heading: heading.to_string(),
+    }
+}
+
+fn body(dir: &Path) -> String {
+    fs::read_to_string(dir.join("notes.md")).expect("read")
+}
+
+const TWO_TASKS: &str = "\
+# TODO Write the report
+`SCHEDULED: <2026-07-28 Tue>`
+
+# TODO Water the plants
+";
+
+#[test]
+fn setting_a_status_rewrites_only_the_keyword() {
+    let vault = vault(TWO_TASKS);
+
+    let outcome = set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    assert_eq!(outcome.line, "# DONE Write the report");
+    assert!(outcome.changed);
+    assert_eq!(
+        body(vault.path()),
+        "\
+# DONE Write the report
+`SCHEDULED: <2026-07-28 Tue>`
+
+# TODO Water the plants
+"
+    );
+}
+
+#[test]
+fn clearing_a_status_leaves_the_title_in_place() {
+    let vault = vault("## TODO [#A] Write the report\n");
+
+    let outcome = set_status(target(vault.path(), 1, "Write the report"), None).expect("edit");
+
+    assert_eq!(outcome.line, "## [#A] Write the report");
+}
+
+#[test]
+fn a_status_is_inserted_ahead_of_the_priority_cookie() {
+    let vault = vault("# [#A] Write the report\n");
+
+    let outcome = set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Todo),
+    )
+    .expect("edit");
+
+    assert_eq!(outcome.line, "# TODO [#A] Write the report");
+}
+
+#[test]
+fn the_cancelled_spelling_already_in_the_file_is_kept() {
+    let vault = vault("# CANCELED Old plan\n");
+
+    let outcome = set_status(
+        target(vault.path(), 1, "Old plan"),
+        Some(TaskType::Cancelled),
+    )
+    .expect("edit");
+
+    // Both spellings are the same status, so the file is left alone rather
+    // than respelled: the user's file, the user's spelling.
+    assert_eq!(outcome.line, "# CANCELED Old plan");
+    assert!(!outcome.changed);
+}
+
+#[test]
+fn text_between_the_keyword_and_the_cookie_survives() {
+    let vault = vault("# TODO leftover [#B] Title\n");
+
+    let outcome = set_status(target(vault.path(), 1, "Title"), Some(TaskType::Done)).expect("edit");
+
+    assert_eq!(outcome.line, "# DONE leftover [#B] Title");
+}
+
+#[test]
+fn setting_a_priority_replaces_the_cookie() {
+    let vault = vault("# TODO [#A] Write the report\n");
+
+    let outcome = set_priority(
+        target(vault.path(), 1, "Write the report"),
+        Some("B".to_string()),
+    )
+    .expect("edit");
+
+    assert_eq!(outcome.line, "# TODO [#B] Write the report");
+}
+
+#[test]
+fn a_priority_is_inserted_after_the_keyword() {
+    let vault = vault("# TODO Write the report\n");
+
+    let outcome = set_priority(
+        target(vault.path(), 1, "Write the report"),
+        Some("A".to_string()),
+    )
+    .expect("edit");
+
+    assert_eq!(outcome.line, "# TODO [#A] Write the report");
+}
+
+#[test]
+fn clearing_a_priority_removes_the_cookie_and_its_gap() {
+    let vault = vault("# TODO [#A] Write the report\n");
+
+    let outcome = set_priority(target(vault.path(), 1, "Write the report"), None).expect("edit");
+
+    assert_eq!(outcome.line, "# TODO Write the report");
+}
+
+#[test]
+fn a_priority_outside_the_accepted_range_is_refused() {
+    let vault = vault("# TODO Write the report\n");
+
+    let error = set_priority(
+        target(vault.path(), 1, "Write the report"),
+        Some("65".to_string()),
+    )
+    .expect_err("must refuse");
+
+    assert!(
+        matches!(error, EditError::InvalidPriority { .. }),
+        "{error:?}"
+    );
+    assert_eq!(body(vault.path()), "# TODO Write the report\n");
+}
+
+#[test]
+fn a_heading_that_moved_is_refused_rather_than_overwritten() {
+    let vault = vault(TWO_TASKS);
+
+    // The agenda said the heading was on line 4; by the time the edit runs
+    // the file holds a different heading there.
+    let error = set_status(
+        target(vault.path(), 4, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::Stale { .. }), "{error:?}");
+    assert_eq!(body(vault.path()), TWO_TASKS);
+}
+
+#[test]
+fn a_line_that_is_not_a_heading_is_refused() {
+    let vault = vault(TWO_TASKS);
+
+    let error = set_status(
+        target(vault.path(), 2, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::Stale { .. }), "{error:?}");
+}
+
+#[test]
+fn a_line_past_the_end_of_the_file_is_refused() {
+    let vault = vault(TWO_TASKS);
+
+    let error = set_status(
+        target(vault.path(), 99, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::Stale { .. }), "{error:?}");
+}
+
+#[test]
+fn a_missing_file_is_refused() {
+    let vault = vault(TWO_TASKS);
+    let mut where_to = target(vault.path(), 1, "Write the report");
+    where_to.file = "gone.md".to_string();
+
+    let error = set_status(where_to, Some(TaskType::Done)).expect_err("must refuse");
+
+    assert!(matches!(error, EditError::NotFound { .. }), "{error:?}");
+}
+
+#[test]
+fn a_path_pointing_outside_the_vault_is_refused() {
+    let vault = vault(TWO_TASKS);
+    let mut where_to = target(vault.path(), 1, "Write the report");
+    where_to.file = "../outside.md".to_string();
+
+    let error = set_status(where_to, Some(TaskType::Done)).expect_err("must refuse");
+
+    assert!(matches!(error, EditError::NotFound { .. }), "{error:?}");
+}
+
+#[test]
+fn windows_line_endings_are_preserved() {
+    let vault = vault("# TODO Write the report\r\n# TODO Water the plants\r\n");
+
+    set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "# DONE Write the report\r\n# TODO Water the plants\r\n"
+    );
+}
+
+#[test]
+fn a_file_without_a_trailing_newline_does_not_grow_one() {
+    let vault = vault("# TODO Write the report");
+
+    set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    assert_eq!(body(vault.path()), "# DONE Write the report");
+}
+
+#[test]
+fn a_multibyte_heading_is_edited_on_a_character_boundary() {
+    let vault = vault("# TODO [#A] Отчёт за неделю\n");
+
+    let outcome = set_status(
+        target(vault.path(), 1, "Отчёт за неделю"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    assert_eq!(outcome.line, "# DONE [#A] Отчёт за неделю");
+}

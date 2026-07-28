@@ -9,7 +9,9 @@ use std::fs;
 use std::path::Path;
 
 use git2::{Repository, Signature};
-use markdown_org_ffi::{repository_status, sync_repository, SyncError, SyncRequest};
+use markdown_org_ffi::{
+    commit_changes, repository_status, sync_repository, CommitAuthor, SyncError, SyncRequest,
+};
 
 /// A repository with one commit in it, standing in for the remote.
 fn origin(files: &[(&str, &str)]) -> tempfile::TempDir {
@@ -41,7 +43,11 @@ fn commit(repository: &Repository, files: &[(&str, &str)], message: &str) {
     // A local identity, never a global one: the test must not depend on, or
     // touch, whatever git configuration the machine has.
     let who = Signature::now("Test", "test@example.invalid").expect("signature");
-    let parents = match repository.head().ok().and_then(|head| head.peel_to_commit().ok()) {
+    let parents = match repository
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_commit().ok())
+    {
         Some(parent) => vec![parent],
         None => Vec::new(),
     };
@@ -137,7 +143,11 @@ fn uncommitted_changes_stop_the_sync_before_the_checkout() {
     sync_repository(request(&checkout, remote.path())).expect("clone");
 
     let upstream = Repository::open(remote.path()).expect("open");
-    commit(&upstream, &[("notes.md", "# TODO Something else\n")], "theirs");
+    commit(
+        &upstream,
+        &[("notes.md", "# TODO Something else\n")],
+        "theirs",
+    );
     fs::write(checkout.join("notes.md"), "# TODO Edited here\n").expect("write");
 
     let error = sync_repository(request(&checkout, remote.path())).expect_err("must fail");
@@ -159,7 +169,10 @@ fn an_unreachable_remote_fails_without_leaving_a_repository() {
     let error = sync_repository(request(&checkout, &nowhere)).expect_err("must fail");
 
     assert!(
-        matches!(error, SyncError::Repository { .. } | SyncError::Network { .. }),
+        matches!(
+            error,
+            SyncError::Repository { .. } | SyncError::Network { .. }
+        ),
         "got {error:?}",
     );
     assert!(
@@ -210,4 +223,99 @@ fn an_edited_working_copy_reports_itself_dirty() {
         .expect("cloned");
 
     assert!(status.dirty);
+}
+
+fn author() -> CommitAuthor {
+    CommitAuthor {
+        name: "Test".to_string(),
+        email: "test@example.invalid".to_string(),
+    }
+}
+
+#[test]
+fn committing_an_edit_leaves_the_working_copy_clean() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+    fs::write(checkout.join("notes.md"), "# DONE Write the report\n").expect("write");
+
+    let id = commit_changes(
+        checkout.display().to_string(),
+        "Mark \"Write the report\" as DONE".to_string(),
+        author(),
+    )
+    .expect("commit")
+    .expect("something to commit");
+
+    assert_eq!(id.len(), 40);
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("cloned");
+    // The point of committing right after an edit: a dirty checkout is what
+    // makes the next fast-forward refuse.
+    assert!(!status.dirty);
+    assert_eq!(status.head_summary, "Mark \"Write the report\" as DONE");
+    assert_eq!(status.head_id, id);
+}
+
+#[test]
+fn committing_with_nothing_to_commit_leaves_head_where_it_was() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    let before = sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let committed = commit_changes(
+        checkout.display().to_string(),
+        "nothing happened".to_string(),
+        author(),
+    )
+    .expect("commit");
+
+    assert!(committed.is_none(), "an empty commit must not be created");
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("cloned");
+    assert_eq!(status.head_id, before.head.head_id);
+}
+
+#[test]
+fn committing_picks_up_a_new_file_as_well_as_a_changed_one() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+    fs::write(checkout.join("notes.md"), "# DONE Write the report\n").expect("write");
+    fs::write(checkout.join("inbox.md"), "# TODO Captured\n").expect("write");
+
+    commit_changes(
+        checkout.display().to_string(),
+        "edit and capture".to_string(),
+        author(),
+    )
+    .expect("commit")
+    .expect("something to commit");
+
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("cloned");
+    assert!(
+        !status.dirty,
+        "an untracked file left behind would block the next sync"
+    );
+}
+
+#[test]
+fn committing_outside_a_repository_is_an_error() {
+    let plain = tempfile::tempdir().expect("tempdir");
+
+    let error = commit_changes(
+        plain.path().display().to_string(),
+        "no repository here".to_string(),
+        author(),
+    )
+    .expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
 }

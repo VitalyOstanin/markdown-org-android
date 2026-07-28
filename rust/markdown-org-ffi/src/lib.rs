@@ -17,9 +17,17 @@ use markdown_org_extract::{
     filter_agenda, scan_directory, AgendaDates, AgendaOutput, AgendaScope, AppError, ScanOptions,
 };
 
+mod document;
+mod edit;
+mod planning;
 mod sync;
 
-pub use sync::{repository_status, sync_repository, RepoStatus, SyncError, SyncOutcome, SyncRequest};
+pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
+pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};
+pub use sync::{
+    commit_changes, repository_status, sync_repository, CommitAuthor, RepoStatus, SyncError,
+    SyncOutcome, SyncRequest,
+};
 
 uniffi::setup_scaffolding!();
 
@@ -80,8 +88,9 @@ impl From<AppError> for ExtractError {
 }
 
 /// Org keyword a task carries. The two spellings of the cancelled keyword
-/// collapse into one variant: the distinction matters when writing a file
-/// back, which the extractor handles, not when displaying it.
+/// collapse into one variant: nothing displayed depends on which one a file
+/// uses. Writing keeps the spelling that is already there — see
+/// [`set_status`] — so the distinction never has to cross this boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum TaskType {
     /// `TODO`.
