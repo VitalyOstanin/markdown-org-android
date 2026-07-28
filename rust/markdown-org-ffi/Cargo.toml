@@ -19,6 +19,25 @@ name = "markdown_org_ffi"
 [dependencies]
 uniffi = { workspace = true }
 thiserror = "2"
+# Vendored on purpose. libgit2 is not installed on an Android device, and
+# `vendored-openssl` builds the TLS stack into the library rather than looking
+# for a system one that is not there either. Beware LIBGIT2_NO_VENDOR in the
+# environment: it overrides the feature and sends the build looking for a
+# system libgit2.
+git2 = { version = "0.21", default-features = false, features = [
+    "https",
+    "vendored-libgit2",
+    "vendored-openssl",
+] }
+# For GIT_OPT_ADD_SSL_X509_CERT, which git2 0.21 does not wrap, and for
+# parsing the CA bundle it takes. The certificates cannot be loaded from a
+# file on Android — see use_ca_bundle in src/sync.rs. Both crates resolve to
+# the same builds git2 already pulls in, so nothing extra is compiled.
+libgit2-sys = "0.18"
+openssl = "0.10"
+# The trait that hands out the raw X509 pointer libgit2 wants; openssl builds
+# its types on it and does not re-export it.
+foreign-types = "0.3"
 # Pinned to a commit rather than a crates.io release: the library API used
 # here landed after 0.11.1 and has not been published yet. Switch to a
 # version requirement once the release carrying src/lib.rs is out.

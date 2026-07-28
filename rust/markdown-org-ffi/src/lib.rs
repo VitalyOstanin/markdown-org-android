@@ -17,6 +17,10 @@ use markdown_org_extract::{
     filter_agenda, scan_directory, AgendaDates, AgendaOutput, AgendaScope, AppError, ScanOptions,
 };
 
+mod sync;
+
+pub use sync::{repository_status, sync_repository, RepoStatus, SyncError, SyncOutcome, SyncRequest};
+
 uniffi::setup_scaffolding!();
 
 /// What went wrong. The extractor's error type carries an `io::Error` that

@@ -4,8 +4,12 @@
 # Rust targets is around 700 MB of build-only tooling that nothing else needs.
 FROM docker.io/library/rust:latest
 
+# cmake, make and perl are what the vendored builds need: libgit2 is built
+# with cmake, OpenSSL configures itself with perl. They are build-only, which
+# is exactly why they live here and not on the host.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends unzip curl ca-certificates \
+    && apt-get install -y --no-install-recommends \
+        unzip curl ca-certificates cmake make perl \
     && rm -rf /var/lib/apt/lists/*
 
 # LTS NDK r27d (27.3.13750724)
