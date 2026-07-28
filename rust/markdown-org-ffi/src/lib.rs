@@ -20,52 +20,57 @@ use markdown_org_extract::{
 uniffi::setup_scaffolding!();
 
 /// What went wrong. The extractor's error type carries an `io::Error` that
-/// cannot cross the boundary, so it is rendered to a message here.
+/// cannot cross the boundary, so it is rendered to a string here.
+///
+/// The field is `detail`, not `message`: UniFFI turns a variant field into a
+/// constructor property of the generated Kotlin exception, and a property
+/// named `message` collides with `Throwable.message` — the generated file
+/// then declares it twice and does not compile.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum ExtractError {
     /// The path does not exist or is not a directory.
-    #[error("invalid directory: {message}")]
+    #[error("invalid directory: {detail}")]
     InvalidDirectory {
         /// Human-readable detail.
-        message: String,
+        detail: String,
     },
     /// A date argument could not be parsed, or the window is inverted.
-    #[error("invalid date: {message}")]
+    #[error("invalid date: {detail}")]
     InvalidDate {
         /// Human-readable detail.
-        message: String,
+        detail: String,
     },
     /// The timezone name is not one of the IANA zones.
-    #[error("invalid timezone: {message}")]
+    #[error("invalid timezone: {detail}")]
     InvalidTimezone {
         /// Human-readable detail.
-        message: String,
+        detail: String,
     },
     /// The file glob is malformed.
-    #[error("invalid glob: {message}")]
+    #[error("invalid glob: {detail}")]
     InvalidGlob {
         /// Human-readable detail.
-        message: String,
+        detail: String,
     },
     /// Anything else, including IO failures.
-    #[error("{message}")]
+    #[error("{detail}")]
     Other {
         /// Human-readable detail.
-        message: String,
+        detail: String,
     },
 }
 
 impl From<AppError> for ExtractError {
     fn from(error: AppError) -> Self {
-        let message = error.to_string();
+        let detail = error.to_string();
         match error {
-            AppError::InvalidDirectory(_) => ExtractError::InvalidDirectory { message },
+            AppError::InvalidDirectory(_) => ExtractError::InvalidDirectory { detail },
             AppError::InvalidDate(_) | AppError::DateRange(_) => {
-                ExtractError::InvalidDate { message }
+                ExtractError::InvalidDate { detail }
             }
-            AppError::InvalidTimezone(_) => ExtractError::InvalidTimezone { message },
-            AppError::InvalidGlob(_) => ExtractError::InvalidGlob { message },
-            _ => ExtractError::Other { message },
+            AppError::InvalidTimezone(_) => ExtractError::InvalidTimezone { detail },
+            AppError::InvalidGlob(_) => ExtractError::InvalidGlob { detail },
+            _ => ExtractError::Other { detail },
         }
     }
 }
