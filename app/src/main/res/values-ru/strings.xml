@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agenda_failed">Не удалось построить агенду</string>
+    <string name="agenda_empty">На сегодня ничего не запланировано</string>
+    <string name="agenda_title_day">Сегодня</string>
+
+    <plurals name="agenda_days_overdue">
+        <item quantity="one">просрочено на %d день</item>
+        <item quantity="few">просрочено на %d дня</item>
+        <item quantity="many">просрочено на %d дней</item>
+        <item quantity="other">просрочено на %d дня</item>
+    </plurals>
+    <plurals name="agenda_days_ahead">
+        <item quantity="one">через %d день</item>
+        <item quantity="few">через %d дня</item>
+        <item quantity="many">через %d дней</item>
+        <item quantity="other">через %d дня</item>
+    </plurals>
+</resources>

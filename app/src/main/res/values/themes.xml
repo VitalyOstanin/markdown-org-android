@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Only what the window needs before Compose takes over: the scheme itself
+      lives in Theme.kt. The dark counterpart is in values-night, so the first
+      frame does not flash the wrong colour.
+    -->
+    <style name="Theme.MarkdownOrg" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

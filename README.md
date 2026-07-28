@@ -4,15 +4,19 @@ An Android client for markdown files carrying Emacs Org-mode task markers —
 the same format the [`markdown-org-vscode`](https://github.com/VitalyOstanin/markdown-org-vscode)
 extension reads, kept in sync over git.
 
-**Status: prototype.** The Rust core and its Kotlin bindings build and are
-tested; there is no application on top of them yet.
+**Status: early.** The Rust core, its Kotlin bindings and a Compose
+application that renders the agenda all build. The notes are a sample the
+application writes on first run; git synchronisation is not there yet.
 
 ## Table of contents
 
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
 - [Building the core](#building-the-core)
+- [Building the application](#building-the-application)
+- [Running it on an emulator](#running-it-on-an-emulator)
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
+- [Colour](#colour)
 - [Testing](#testing)
 - [Why the toolchain lives in a container](#why-the-toolchain-lives-in-a-container)
 
@@ -20,6 +24,10 @@ tested; there is no application on top of them yet.
 
 ```
 markdown-org-android/
+├── app/                      # the Compose application
+│   └── src/main/kotlin/…/
+│       ├── core/             # the bridge to the Rust core, and where notes live
+│       └── ui/               # the agenda screen and the palette
 ├── rust/
 │   ├── markdown-org-ffi/     # UniFFI wrapper over markdown-org-extract
 │   │   ├── src/lib.rs        # the exported surface and its type projection
@@ -28,7 +36,11 @@ markdown-org-android/
 ├── tools/
 │   ├── Containerfile.ndk     # Rust + Android NDK + cargo-ndk
 │   ├── Containerfile.ndk-build  # adds cmake/perl, needed once libgit2 is linked
-│   └── build-core.sh         # build for the ABIs, then generate the bindings
+│   ├── Containerfile.sdk     # JDK + Android SDK + Gradle, for the APK
+│   ├── Containerfile.emulator   # adds the emulator and a system image
+│   ├── build-core.sh         # build for the ABIs, then generate the bindings
+│   ├── build-app.sh          # assemble the APK
+│   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── rust/jniLibs/<abi>/       # build output, not committed
 └── generated/                # generated Kotlin, not committed
 ```
@@ -100,6 +112,47 @@ before the library is stripped; the entry points the application calls live
 in the dynamic symbol table and survive stripping. Building with
 `strip = "symbols"` instead fails with `No UniFFI metadata found`.
 
+## Building the application
+
+The core has to be built first: the APK packages the libraries and compiles
+the Kotlin the binding generator produced.
+
+```bash
+ABIS="arm64-v8a x86_64" tools/build-core.sh
+tools/build-app.sh                  # debug
+VARIANT=release tools/build-app.sh
+```
+
+Output is `app/build/outputs/apk/<variant>/app-<variant>.apk`. The Gradle
+cache lives in a named podman volume, so only the first run downloads the
+dependency graph.
+
+| № | Setting      | Value | Why                                                                          |
+|---|--------------|-------|------------------------------------------------------------------------------|
+| 1 | `compileSdk` | 37    | androidx.lifecycle 2.11 refuses to be consumed by a project compiled below it |
+| 2 | `targetSdk`  | 36    | what Google Play requires of new applications from 31.08.2026                 |
+| 3 | `minSdk`     | 26    | `java.time` without desugaring, and the agenda is date arithmetic throughout  |
+
+`compileSdk` and `targetSdk` are separate knobs: the first decides which APIs
+are visible at compile time, the second which runtime behaviour the
+application opts into.
+
+## Running it on an emulator
+
+```bash
+tools/run-emulator.sh                       # starts headless, waits for boot
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n io.github.vitalyostanin.markdownorg/.MainActivity
+tools/run-emulator.sh --stop
+```
+
+The container shares the host network, so the host's `adb` reaches the
+emulator without going inside. `/dev/kvm` is passed through — without it qemu
+falls back to software emulation and the boot takes tens of minutes.
+
+An emulator is x86_64; how fast the core parses on ARM has to be measured on
+a device.
+
 ## The generated Kotlin surface
 
 Names arrive idiomatic — `scanAgenda`, `filesProcessed` — and the Rust
@@ -124,6 +177,24 @@ Loading the library needs [JNA](https://github.com/java-native-access/jna),
 and the library name has to start with `lib` — hence `markdown-org-ffi`
 producing `libmarkdown_org_ffi.so`. The crate must also not be named
 `android`: `libandroid.so` is a system library.
+
+## Colour
+
+The scheme is written out, not derived from the device wallpaper. Dynamic
+colour puts every role on one hue, and the agenda uses colour to tell one
+kind of entry from another — a deadline from something merely scheduled, a
+repeating task from a one-off. Both themes are drawn separately rather than
+inverted: the tone lightens in the dark theme while the container darkens.
+
+Beyond the Material roles the agenda carries its own set — deadline,
+scheduled, repeat, done, cancelled — in `ui/theme/AgendaColors.kt`, reached
+through `LocalAgendaColors`. The values are the ones the VS Code extension
+uses, so the same file reads the same way in both.
+
+Contrast was measured against WCAG 2.1: text pairs clear 4.5, rails and
+glyphs clear 3.0. A container fill sits below 3.0 by design — it is a
+backdrop, and the meaning is carried by the glyph, the rail and the label,
+each of which clears the threshold on its own.
 
 ## Testing
 

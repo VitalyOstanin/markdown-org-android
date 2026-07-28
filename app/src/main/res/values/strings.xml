@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">markdown-org</string>
+    <string name="agenda_failed">The agenda could not be built</string>
+    <string name="agenda_empty">Nothing scheduled</string>
+    <string name="agenda_title_day">Today</string>
+
+    <plurals name="agenda_days_overdue">
+        <item quantity="one">%d day late</item>
+        <item quantity="other">%d days late</item>
+    </plurals>
+    <plurals name="agenda_days_ahead">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+</resources>

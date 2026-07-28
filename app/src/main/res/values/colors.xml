@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors LightBackground in Color.kt. -->
+    <color name="window_background">#FCFAFF</color>
+
+    <!-- Icon background: the primary tone of the light scheme. -->
+    <color name="ic_launcher_background">#6A3FD1</color>
+</resources>
