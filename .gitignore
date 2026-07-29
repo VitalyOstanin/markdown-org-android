@@ -13,5 +13,8 @@ local.properties
 *.aab
 *.keystore
 
+# Local review output, not part of the repository.
+/docs/__check/
+
 .idea/
 .DS_Store

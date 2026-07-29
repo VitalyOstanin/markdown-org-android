@@ -103,8 +103,8 @@ Requires [podman](https://podman.io/) and nothing else; the first run builds
 the container image, which downloads around 700 MB of NDK.
 
 ```bash
-# All three ABIs, release, stripped
-ABIS="arm64-v8a armeabi-v7a x86_64" tools/build-core.sh
+# Both ABIs the APK carries, release, stripped
+ABIS="arm64-v8a x86_64" tools/build-core.sh
 
 # Just the one that matters for a device, keeping symbols for debugging
 ABIS=arm64-v8a STRIP=0 tools/build-core.sh
@@ -123,14 +123,14 @@ Output:
 
 Library sizes, release, stripped:
 
-| № | ABI           | Size    |
-|---|---------------|---------|
-| 1 | `armeabi-v7a` | 3.08 MB |
-| 2 | `arm64-v8a`   | 4.79 MB |
-| 3 | `x86_64`      | 5.09 MB |
+| № | ABI         | Size     |
+|---|-------------|----------|
+| 1 | `arm64-v8a` | 10.76 MB |
+| 2 | `x86_64`    | 11.56 MB |
 
-Around 13 MB for all three, which is why per-ABI APKs (or an App Bundle)
-matter here rather than one universal APK.
+Most of that is vendored: libgit2 and the TLS stack it syncs over are built
+into the library because neither is present on an Android device. The APK
+carries both ABIs and comes to around 31 MB.
 
 The order in `build-core.sh` is not incidental. UniFFI keeps the interface
 metadata in the library's symbol table, so the bindings must be generated
