@@ -8,7 +8,7 @@
 # Report: app/build/reports/androidTests/connected/index.html
 set -euo pipefail
 
-readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # The target is pinned to the emulator. Without this the Gradle task installs
 # on every attached device, and a phone plugged into USB for something else

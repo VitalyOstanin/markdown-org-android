@@ -5,7 +5,7 @@
 # Report: app/build/reports/tests/testDebugUnitTest/index.html
 set -euo pipefail
 
-readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 echo "==> testDebugUnitTest"
 "${REPO_ROOT}/tools/gradle.sh" testDebugUnitTest "$@"

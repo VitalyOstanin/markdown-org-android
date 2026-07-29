@@ -2,7 +2,14 @@
 #
 # The toolchain lives in the container, never on the host: an NDK plus three
 # Rust targets is around 700 MB of build-only tooling that nothing else needs.
+#
+# Built by the scripts in this directory, which pass the versions from
+# tools/versions.env. NDK_RELEASE has no default on purpose: a build that
+# does not supply it fails here rather than producing an image pinned to
+# something nobody wrote down.
 FROM docker.io/library/rust:latest
+
+ARG NDK_RELEASE
 
 # cmake, make and perl are what the vendored builds need: libgit2 is built
 # with cmake, OpenSSL configures itself with perl. They are build-only, which
@@ -12,17 +19,21 @@ RUN apt-get update \
         unzip curl ca-certificates cmake make perl \
     && rm -rf /var/lib/apt/lists/*
 
-# LTS NDK r27d (27.3.13750724)
-RUN curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27d-linux.zip \
+RUN curl -fsSL -o /tmp/ndk.zip \
+        "https://dl.google.com/android/repository/android-ndk-${NDK_RELEASE}-linux.zip" \
     && unzip -q /tmp/ndk.zip -d /opt \
     && rm /tmp/ndk.zip
 
-ENV ANDROID_NDK_HOME=/opt/android-ndk-r27d
-ENV ANDROID_NDK_ROOT=/opt/android-ndk-r27d
+ENV ANDROID_NDK_HOME=/opt/android-ndk-${NDK_RELEASE}
+ENV ANDROID_NDK_ROOT=/opt/android-ndk-${NDK_RELEASE}
 
 # arm64-v8a is what nearly every device runs; armeabi-v7a covers older ones
 # and x86_64 the emulator.
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 RUN cargo install cargo-ndk --locked
+
+# The base image ships the minimal profile, so the two components CI fails on
+# are missing — tools/check-core.sh runs them here.
+RUN rustup component add rustfmt clippy
 
 WORKDIR /src

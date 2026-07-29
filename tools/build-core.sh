@@ -11,18 +11,11 @@
 #   generated/uniffi/markdown_org_ffi/*.kt      — the Kotlin surface
 set -euo pipefail
 
-readonly IMAGE="${IMAGE:-localhost/markdown-org-ndk:r27d}"
-readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 readonly ABIS="${ABIS:-arm64-v8a}"
 readonly PROFILE="${PROFILE:-release}"
 readonly NATIVE="${NATIVE:-0}"
-
-# The container has no route to a proxy listening on the host loopback
-# unless it shares the host network.
-proxy_args=()
-if [[ -n "${HTTPS_PROXY:-}" ]]; then
-    proxy_args+=(-e "HTTPS_PROXY=${HTTPS_PROXY}" -e "HTTP_PROXY=${HTTPS_PROXY}")
-fi
 
 mkdir -p "${REPO_ROOT}/generated"
 
@@ -36,14 +29,14 @@ if [[ "${NATIVE}" == "1" ]]; then
 else
     core_dir=/src
     out_dir=/out
-    if ! podman image exists "${IMAGE}"; then
-        echo "==> building ${IMAGE}"
-        podman build -t "${IMAGE}" -f "${REPO_ROOT}/tools/Containerfile.ndk" "${REPO_ROOT}/tools"
-    fi
+    ensure_ndk_image
+    # The container has no route to a proxy listening on the host loopback
+    # unless it shares the host network — building the image needs the same,
+    # which is why both go through tools/lib.sh.
     run_core() {
-        podman run --rm --network host "${proxy_args[@]}" \
+        podman run --rm --network host "${proxy_run_args[@]}" \
             -v "${REPO_ROOT}/rust:/src:z" -v "${REPO_ROOT}/generated:/out:z" -w /src \
-            "${IMAGE}" "$@"
+            "${NDK_IMAGE}" "$@"
     }
 fi
 

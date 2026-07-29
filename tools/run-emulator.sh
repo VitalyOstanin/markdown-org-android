@@ -9,7 +9,8 @@
 #   tools/run-emulator.sh --stop     # stop it
 set -euo pipefail
 
-readonly IMAGE="${IMAGE:-localhost/markdown-org-emulator:36}"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 readonly NAME="${NAME:-markdown-org-emulator}"
 readonly BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"
 
@@ -23,10 +24,15 @@ if podman container exists "${NAME}"; then
     podman rm -f "${NAME}" > /dev/null
 fi
 
+# Two images on first use: the emulator one extends the SDK one. Together
+# they are several gigabytes and tens of minutes, so the build says what it
+# is doing rather than appearing to hang.
+ensure_emulator_image
+
 echo "==> starting ${NAME}"
 # /dev/kvm is what makes this usable: without it qemu falls back to software
 # emulation and the boot takes tens of minutes.
-podman run -d --rm --name "${NAME}" --network host --device /dev/kvm "${IMAGE}" > /dev/null
+podman run -d --rm --name "${NAME}" --network host --device /dev/kvm "${EMULATOR_IMAGE}" > /dev/null
 
 echo "==> waiting for boot (up to ${BOOT_TIMEOUT}s)"
 deadline=$((SECONDS + BOOT_TIMEOUT))

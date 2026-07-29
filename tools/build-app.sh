@@ -6,7 +6,8 @@
 #   app/build/outputs/apk/<variant>/app-<variant>.apk
 set -euo pipefail
 
-readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 readonly VARIANT="${VARIANT:-debug}"
 
 task="assemble${VARIANT^}"

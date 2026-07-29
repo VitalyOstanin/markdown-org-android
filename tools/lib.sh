@@ -1,0 +1,67 @@
+# Shared by the scripts in this directory: the repository root, the pinned
+# versions, the proxy plumbing and building an image the first time it is
+# needed.
+#
+# Sourced, never executed; each script keeps its own `set -euo pipefail`.
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly REPO_ROOT
+
+# shellcheck source=versions.env
+source "${REPO_ROOT}/tools/versions.env"
+
+# The tag carries the version the image was built for, so a bump to
+# versions.env asks for a new image instead of silently reusing the old one.
+readonly NDK_IMAGE="${NDK_IMAGE:-localhost/markdown-org-ndk:${NDK_RELEASE}}"
+readonly SDK_IMAGE="${SDK_IMAGE:-localhost/markdown-org-sdk:${ANDROID_COMPILE_SDK}}"
+readonly EMULATOR_IMAGE="${EMULATOR_IMAGE:-localhost/markdown-org-emulator:${ANDROID_EMULATOR_API}}"
+
+# A proxy listening on the host loopback is unreachable from a container on
+# its own network, which is why every run and every build below shares the
+# host's. HTTP_PROXY is set from the same value: curl and apt pick the
+# variable matching the scheme of the URL, and the images fetch over both.
+proxy_run_args=()
+proxy_build_args=()
+if [[ -n "${HTTPS_PROXY:-}" ]]; then
+    proxy_run_args+=(-e "HTTPS_PROXY=${HTTPS_PROXY}" -e "HTTP_PROXY=${HTTPS_PROXY}")
+    proxy_build_args+=(--build-arg "HTTPS_PROXY=${HTTPS_PROXY}" --build-arg "HTTP_PROXY=${HTTPS_PROXY}")
+fi
+
+# ensure_image IMAGE CONTAINERFILE [build args...]
+#
+# podman build has no -e: run-time and build-time variables are different
+# flags, and passing the run-time form here fails the build outright.
+ensure_image() {
+    local image="$1" containerfile="$2"
+    shift 2
+
+    if podman image exists "${image}"; then
+        return 0
+    fi
+
+    echo "==> building ${image}"
+    podman build --network host "${proxy_build_args[@]}" "$@" \
+        -t "${image}" -f "${REPO_ROOT}/tools/${containerfile}" "${REPO_ROOT}/tools"
+}
+
+ensure_ndk_image() {
+    ensure_image "${NDK_IMAGE}" Containerfile.ndk \
+        --build-arg "NDK_RELEASE=${NDK_RELEASE}"
+}
+
+ensure_sdk_image() {
+    ensure_image "${SDK_IMAGE}" Containerfile.sdk \
+        --build-arg "JDK_VERSION=${JDK_VERSION}" \
+        --build-arg "ANDROID_PLATFORM=${ANDROID_PLATFORM}" \
+        --build-arg "ANDROID_BUILD_TOOLS=${ANDROID_BUILD_TOOLS}" \
+        --build-arg "GRADLE_VERSION=${GRADLE_VERSION}"
+}
+
+# The emulator image is the SDK one plus a system image, so the base has to
+# exist before it can be built.
+ensure_emulator_image() {
+    ensure_sdk_image
+    ensure_image "${EMULATOR_IMAGE}" Containerfile.emulator \
+        --build-arg "SDK_IMAGE=${SDK_IMAGE}" \
+        --build-arg "ANDROID_EMULATOR_API=${ANDROID_EMULATOR_API}"
+}

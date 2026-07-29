@@ -3,13 +3,19 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// The versions the build image installs and CI sets up, read from the one
+// file that states them. Written out here as well, they would drift: a
+// compileSdk the image has no platform for fails inside the container, and a
+// build-tools version it does not ship is downloaded again on every run.
+val toolVersions: Map<String, String> = rootProject.file("tools/versions.env")
+    .readLines()
+    .filter { it.isNotBlank() && !it.startsWith("#") }
+    .associate { line -> line.substringBefore('=').trim() to line.substringAfter('=').trim() }
+
 android {
     namespace = "io.github.vitalyostanin.markdownorg"
-    compileSdk = 37
-    // Pinned to what the build image ships. Left unset, AGP asks for the
-    // version it defaults to, and every run inside a throwaway container
-    // downloads it again — around a minute added to each build.
-    buildToolsVersion = "37.0.0"
+    compileSdk = toolVersions.getValue("ANDROID_COMPILE_SDK").toInt()
+    buildToolsVersion = toolVersions.getValue("ANDROID_BUILD_TOOLS")
 
     defaultConfig {
         applicationId = "io.github.vitalyostanin.markdownorg"
@@ -70,6 +76,13 @@ android {
             isMinifyEnabled = false
         }
     }
+}
+
+// The JDK the build image and CI run, stated so that ./gradlew on a machine
+// with a different one compiles against the same Java and fails loudly
+// instead of producing subtly different output.
+kotlin {
+    jvmToolchain(toolVersions.getValue("JDK_VERSION").toInt())
 }
 
 dependencies {

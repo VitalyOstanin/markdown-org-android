@@ -12,6 +12,7 @@ run. Nothing has been run on a physical device yet.
 
 ## Table of contents
 
+- [Requirements](#requirements)
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
 - [Building the core](#building-the-core)
@@ -21,7 +22,27 @@ run. Nothing has been run on a physical device yet.
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
 - [Colour](#colour)
 - [Testing](#testing)
+- [Environment variables](#environment-variables)
 - [Why the toolchain lives in a container](#why-the-toolchain-lives-in-a-container)
+
+## Requirements
+
+| № | What                           | Needed for                                                        |
+|---|--------------------------------|-------------------------------------------------------------------|
+| 1 | [podman](https://podman.io/)   | every build; the toolchain never touches the host                 |
+| 2 | `adb` (Android platform-tools) | installing on a device or emulator, and picking the target        |
+| 3 | Access to `/dev/kvm`           | the emulator; without it qemu boots in software for tens of minutes |
+| 4 | Around 11 GB of disk           | the images: NDK 4.3 GB, SDK 1.2 GB, emulator 6.9 GB including the SDK layers |
+
+The images are built on first use — no separate step, but the first run of
+each script takes a while and says which image it is building. Behind a
+proxy, export `HTTPS_PROXY`: the scripts pass it to both the image build and
+the container, and run on the host network so a proxy on the loopback is
+reachable.
+
+The pinned versions of the SDK, the NDK, the JDK and Gradle live in
+[`tools/versions.env`](tools/versions.env) — read by the scripts, by the
+Gradle build and by the CI workflow, so the three cannot drift apart.
 
 ## Layout
 
@@ -37,12 +58,19 @@ markdown-org-android/
 │   │   └── tests/            # tests for the projection and error mapping
 │   └── uniffi-bindgen/       # binding generator entry point
 ├── tools/
+│   ├── versions.env          # the pinned SDK, NDK, JDK and Gradle versions
+│   ├── lib.sh                # shared by the scripts: proxy, images, versions
 │   ├── Containerfile.ndk     # Rust + Android NDK + cargo-ndk
-│   ├── Containerfile.ndk-build  # adds cmake/perl, needed once libgit2 is linked
 │   ├── Containerfile.sdk     # JDK + Android SDK + Gradle, for the APK
 │   ├── Containerfile.emulator   # adds the emulator and a system image
 │   ├── build-core.sh         # build for the ABIs, then generate the bindings
+│   ├── test-core.sh          # the Rust tests, in the NDK image
+│   ├── check-core.sh         # cargo fmt --check and clippy, in the same image
+│   ├── gradle.sh             # any Gradle task, in the SDK image
 │   ├── build-app.sh          # assemble the APK
+│   ├── test.sh               # the JVM tests of the application
+│   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
+│   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── rust/jniLibs/<abi>/       # build output, not committed
 └── generated/                # generated Kotlin, not committed
@@ -110,10 +138,6 @@ ABIS="arm64-v8a x86_64" tools/build-core.sh
 ABIS=arm64-v8a STRIP=0 tools/build-core.sh
 ```
 
-Behind a proxy, export `HTTPS_PROXY` — the script passes it through and runs
-the container on the host network, so a proxy on the host loopback is
-reachable.
-
 Output:
 
 | № | Path                                          | What it is                       |
@@ -159,6 +183,11 @@ dependency graph.
 | 2 | `targetSdk`  | 36    | what Google Play requires of new applications from 31.08.2026                 |
 | 3 | `minSdk`     | 26    | `java.time` without desugaring, and the agenda is date arithmetic throughout  |
 
+`compileSdk` comes from `tools/versions.env` along with the build tools and
+the JDK, since the image has to ship the platform the build asks for;
+`minSdk` and `targetSdk` are decisions of the application alone and stay in
+`app/build.gradle.kts`.
+
 `compileSdk` and `targetSdk` are separate knobs: the first decides which APIs
 are visible at compile time, the second which runtime behaviour the
 application opts into.
@@ -167,10 +196,15 @@ application opts into.
 
 ```bash
 tools/run-emulator.sh                       # starts headless, waits for boot
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n io.github.vitalyostanin.markdownorg/.MainActivity
+tools/run-app.sh                            # assemble, install, start
 tools/run-emulator.sh --stop
 ```
+
+`run-emulator.sh` builds the emulator image the first time it is called, and
+the SDK image it extends before that — around 7 GB and a good while, once.
+`run-app.sh` is the short loop for a change to the interface; the three steps
+it replaces are still available separately (`tools/build-app.sh`, `adb
+install -r`, `adb shell am start`).
 
 The container shares the host network, so the host's `adb` reaches the
 emulator without going inside. `/dev/kvm` is passed through — without it qemu
@@ -265,7 +299,8 @@ each of which clears the threshold on its own.
 ## Testing
 
 ```bash
-cd rust && cargo test
+tools/test-core.sh        # the Rust tests, in the NDK image
+tools/check-core.sh       # cargo fmt --check and clippy, what CI fails on
 ```
 
 The extractor has its own suite; these tests cover what this crate adds —
@@ -289,6 +324,27 @@ Running the built library outside Android is not possible: it links against
 Android's C library, so `libdl.so` is missing on a desktop Linux host. The
 FFI path itself was exercised by generating Python bindings from a host
 build and calling through them.
+
+## Environment variables
+
+Every script reads its configuration from the environment, with the default
+in the script itself. The versions of the toolchain are not here — they live
+in `tools/versions.env`.
+
+| № | Variable         | Read by                                        | Default                                   |
+|---|------------------|------------------------------------------------|-------------------------------------------|
+| 1 | `HTTPS_PROXY`    | all container scripts, through `tools/lib.sh`   | unset; also passed as `HTTP_PROXY`        |
+| 2 | `ABIS`           | `build-core.sh`                                 | `arm64-v8a`                               |
+| 3 | `PROFILE`        | `build-core.sh`                                 | `release`                                 |
+| 4 | `STRIP`          | `build-core.sh`                                 | `1`; `0` keeps the symbols for debugging  |
+| 5 | `NATIVE`         | `build-core.sh`                                 | `0`; `1` runs on the host, as CI does     |
+| 6 | `VARIANT`        | `build-app.sh`                                  | `debug`                                   |
+| 7 | `ANDROID_SERIAL` | `test-instrumented.sh`, `run-app.sh`, `gradle.sh` | the booted emulator, from `adb devices` |
+| 8 | `NAME`           | `run-emulator.sh`                               | `markdown-org-emulator`                   |
+| 9 | `BOOT_TIMEOUT`   | `run-emulator.sh`                               | `300` seconds                             |
+| 10 | `NDK_IMAGE`, `SDK_IMAGE`, `EMULATOR_IMAGE` | `tools/lib.sh`       | `localhost/markdown-org-*` tagged by version |
+| 11 | `CACHE_VOLUME`   | `gradle.sh`, `test-core.sh`, `check-core.sh`    | `markdown-org-gradle` / `markdown-org-cargo` |
+| 12 | `KEY_VOLUME`     | `gradle.sh`                                     | `markdown-org-android-home`, the debug signing key |
 
 ## Why the toolchain lives in a container
 

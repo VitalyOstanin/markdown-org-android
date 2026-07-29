@@ -2,9 +2,14 @@
 #
 # Split from the SDK image on purpose: the system image alone is well over a
 # gigabyte, and an ordinary build has no use for it.
-FROM localhost/markdown-org-sdk:37
+#
+# Built by tools/run-emulator.sh, which builds the base image first and
+# passes both arguments from tools/versions.env.
+ARG SDK_IMAGE
+FROM ${SDK_IMAGE}
 
-ARG API_IMAGE=system-images;android-36;google_apis;x86_64
+ARG ANDROID_EMULATOR_API
+ENV API_IMAGE=system-images;android-${ANDROID_EMULATOR_API};google_apis;x86_64
 
 # The emulator binary links against X11 and friends even when told not to open
 # a window: -no-window suppresses the window, not the dependency.

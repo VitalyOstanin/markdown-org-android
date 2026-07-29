@@ -31,12 +31,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
-env:
-  # LTS r27d, the version tools/Containerfile.ndk installs. The two are
-  # separate installations of the same NDK, and a build that passed locally
-  # should not meet a different compiler here.
-  NDK_VERSION: '27.3.13750724'
-
 jobs:
   # The core is plain Rust: its tests, its lints and its formatting are
   # checked for the host, without an NDK. Kept apart from the APK build so
@@ -80,20 +74,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Read the pinned versions
+        # The same file the build images and Gradle read, so this job installs
+        # what a local build uses instead of a copy that drifts from it. Only
+        # the assignments: comments and blank lines are not valid there.
+        run: grep -E '^[A-Z][A-Z0-9_]*=' tools/versions.env >> "$GITHUB_ENV"
+
       - name: Setup Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
-          # What tools/Containerfile.sdk runs Gradle on.
-          java-version: '17'
+          java-version: ${{ env.JDK_VERSION }}
 
       - name: Setup the Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           log-accepted-android-sdk-licenses: false
-          packages: 'platforms;android-37.0 build-tools;37.0.0'
+          packages: 'platforms;${{ env.ANDROID_PLATFORM }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
       - name: Install the NDK
+        # The same release tools/Containerfile.ndk unpacks, spelled the way
+        # the SDK manager names it: two installations of one NDK, so a build
+        # that passed locally does not meet a different compiler here.
         run: |
           echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             --install "ndk;${NDK_VERSION}" > /dev/null

@@ -4,7 +4,15 @@
 # the platform and the build tools are several gigabytes that nothing but a
 # build needs. The Rust core is built by Containerfile.ndk; this image only
 # assembles the APK from the sources and the libraries that build produced.
-FROM docker.io/library/eclipse-temurin:17-jdk
+#
+# Built by the scripts in this directory, which pass the versions from
+# tools/versions.env; none of the arguments has a default, so a build that
+# omits one fails instead of pinning a version nobody wrote down.
+ARG JDK_VERSION
+FROM docker.io/library/eclipse-temurin:${JDK_VERSION}-jdk
+
+ARG ANDROID_PLATFORM
+ARG ANDROID_BUILD_TOOLS
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip curl ca-certificates git \
@@ -24,17 +32,17 @@ RUN curl -fsSL -o /tmp/tools.zip \
 
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-# Compiling against 37 while targeting 36: androidx.lifecycle 2.11 refuses to
-# be consumed by a project on an older compileSdk, and the two are separate
-# knobs — compileSdk decides which APIs are visible, targetSdk which runtime
-# behaviour the app opts into. platform-tools carries adb.
+# The platform is the one app/build.gradle.kts compiles against — both read
+# tools/versions.env, so the image cannot ship a platform the build does not
+# ask for. platform-tools carries adb.
 RUN yes | sdkmanager --licenses > /dev/null \
-    && sdkmanager --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" \
+    && sdkmanager --install "platform-tools" \
+        "platforms;${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}" \
     && rm -rf "${ANDROID_HOME}/.temp"
 
 # Gradle itself comes from the wrapper the project commits; this copy exists
 # only to generate that wrapper the first time.
-ARG GRADLE_VERSION=9.6.1
+ARG GRADLE_VERSION
 RUN curl -fsSL -o /tmp/gradle.zip \
         "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
     && unzip -q /tmp/gradle.zip -d /opt \

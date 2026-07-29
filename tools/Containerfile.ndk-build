@@ -1,8 +1,0 @@
-# Adds what libgit2 (cmake) and OpenSSL (perl, make) need to build from
-# source. Only required once git synchronisation is linked in; the extractor
-# core builds without any of it.
-FROM localhost/markdown-org-ndk:r27d
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends cmake make perl pkg-config \
-    && rm -rf /var/lib/apt/lists/*
