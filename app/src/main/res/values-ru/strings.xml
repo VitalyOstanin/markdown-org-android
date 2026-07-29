@@ -24,6 +24,7 @@
     <string name="sync_failed_dirty">Незафиксированные изменения были бы затёрты</string>
     <string name="sync_failed_address">Адрес использовать нельзя; ничего не отправлено</string>
     <string name="sync_failed_repository">Синхронизация не удалась</string>
+    <string name="sync_diverged_detail">%1$s и origin/%1$s разошлись; приложение не выполняет слияние</string>
     <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 
     <string name="settings_title">Репозиторий заметок</string>
@@ -60,6 +61,14 @@
     <string name="edit_failed_unnamed">Имя файла не в UTF-8, задачу изменить нельзя</string>
 
     <string name="agenda_truncated">Достигнут предел числа задач, список неполон</string>
+    <string name="agenda_failed_unknown">Причина записана в журнал</string>
+
+    <plurals name="sync_dirty_detail">
+        <item quantity="one">с последнего коммита изменён %d файл</item>
+        <item quantity="few">с последнего коммита изменено %d файла</item>
+        <item quantity="many">с последнего коммита изменено %d файлов</item>
+        <item quantity="other">с последнего коммита изменено %d файла</item>
+    </plurals>
 
     <plurals name="agenda_days_overdue">
         <item quantity="one">просрочено на %d день</item>

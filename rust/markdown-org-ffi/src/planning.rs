@@ -87,7 +87,14 @@ pub fn shift_planning(
         .value
         .checked_add_signed(Duration::days(days as i64))
         .ok_or_else(|| EditError::InvalidDate {
-            detail: format!("{} shifted by {days} day(s) is out of range", parts.value),
+            // `day(s)` reads as a placeholder for the form nobody picked;
+            // this detail is diagnostics and stays in English, so English is
+            // what it is written in properly.
+            detail: format!(
+                "{} shifted by {days} {} is out of range",
+                parts.value,
+                if days.abs() == 1 { "day" } else { "days" },
+            ),
         })?;
 
     let rewritten = rewrite_date(&line, &parts, moved)?;

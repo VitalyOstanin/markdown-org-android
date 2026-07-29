@@ -97,6 +97,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Adds en-XA and ar-XB, which lengthen every string and mirror the
+            // layout. Russian runs about a third longer than English here —
+            // `settings_branch_default` is 44 characters against 18 — and a
+            // label that is cut off in that direction shows up on en-XA
+            // before it shows up in a translation.
+            isPseudoLocalesEnabled = true
+        }
+
         release {
             isMinifyEnabled = false
             if (!keystore.isNullOrBlank()) {
@@ -106,6 +115,12 @@ android {
     }
 
     testOptions {
+        // The view model writes failures to logcat, and the JVM stub of
+        // android.util.Log throws "not mocked" instead of doing nothing.
+        // Returning defaults lets the tests exercise the same path the device
+        // takes; nothing here asserts on what was logged.
+        unitTests.isReturnDefaultValues = true
+
         unitTests.all {
             // JUnit 4 interrupts nothing on its own: a loop that does not
             // end, or a coroutine waiting on something that never arrives,

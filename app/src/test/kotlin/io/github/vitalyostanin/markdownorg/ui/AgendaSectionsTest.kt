@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
+import java.time.LocalDate
+import java.time.LocalTime
 
 class AgendaSectionsTest {
 
@@ -55,21 +57,32 @@ class AgendaSectionsTest {
     }
 
     @Test
-    fun `a timed row shows its time`() {
+    fun `a timed row carries the time as a time, not as text`() {
         val row = agenda(
             day(scheduledTimed = listOf(task(time = "09:30"))),
         ).toSections().timed.single()
 
-        assertEquals("09:30", row.time)
+        assertEquals(RowTime.Clock(LocalTime.of(9, 30)), row.time)
     }
 
     @Test
-    fun `an overdue row without a time shows the date it slipped from`() {
+    fun `a time the note states in no readable form is passed through`() {
+        val row = agenda(
+            day(scheduledTimed = listOf(task(time = "half past nine"))),
+        ).toSections().timed.single()
+
+        assertEquals(RowTime.Verbatim("half past nine"), row.time)
+    }
+
+    @Test
+    fun `an overdue row without a time carries the date it slipped from`() {
         val row = agenda(
             day(overdue = listOf(task(date = "2026-07-24", daysOffset = -4))),
         ).toSections().overdue.single()
 
-        assertEquals("24.07", row.time)
+        // A date, not `24.07`: the order of day and month belongs to the
+        // locale of the reader and cannot be decided here.
+        assertEquals(RowTime.Since(LocalDate.of(2026, 7, 24)), row.time)
         assertEquals(-4L, row.daysOffset)
     }
 
@@ -79,7 +92,7 @@ class AgendaSectionsTest {
             day(upcoming = listOf(task(date = "2026-08-02", daysOffset = 5))),
         ).toSections().untimed.single()
 
-        assertEquals("", row.time)
+        assertEquals(RowTime.None, row.time)
     }
 
     @Test

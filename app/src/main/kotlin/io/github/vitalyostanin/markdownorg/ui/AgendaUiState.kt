@@ -6,12 +6,42 @@ import io.github.vitalyostanin.markdownorg.R
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
+import java.time.LocalTime
+
+/**
+ * What stands in the time column of a row.
+ *
+ * Kept as a time and a date rather than as the text of either, for the same
+ * reason as [AgendaRow.daysOffset]: the order of day and month, the clock the
+ * hour is written on and the separator between its parts all belong to the
+ * locale of the reader, and this projection is built before the screen knows
+ * which locale that is.
+ */
+sealed interface RowTime {
+    /** The hour the note gives the task. */
+    data class Clock(val at: LocalTime) : RowTime
+
+    /** The date an overdue row slipped from, shown where its time would be. */
+    data class Since(val date: LocalDate) : RowTime
+
+    /**
+     * A time the note states in a form that is not one.
+     *
+     * Nothing stops a note from writing `<2026-07-03 half past nine>`, and
+     * dropping what cannot be parsed would take the only clue the row has
+     * about when the task is due. It is shown as written.
+     */
+    data class Verbatim(val text: String) : RowTime
+
+    /** Nothing to show: an all-day task still ahead. */
+    data object None : RowTime
+}
 
 /** One line of the agenda: the task plus what the row shows around it. */
 data class AgendaRow(
     val task: Task,
     /** Start time, or the date for an entry that has passed. */
-    val time: String,
+    val time: RowTime,
     /**
      * Days from the agenda date, negative when overdue. Kept as a number
      * rather than a formatted label: the wording is plural-sensitive and
@@ -117,7 +147,13 @@ sealed interface AgendaUiState {
         val refreshing: Boolean = false,
     ) : AgendaUiState
 
-    data class Failed(val message: String) : AgendaUiState
+    /**
+     * The scan failed and there is no agenda to show.
+     *
+     * A message the resources word rather than a finished string: the reason
+     * is shown on a screen that is otherwise in the language of the reader.
+     */
+    data class Failed(val reason: SyncMessage) : AgendaUiState
 }
 
 /**
@@ -138,18 +174,20 @@ fun AgendaResult.toSections(): AgendaSections = AgendaSections(
 internal fun Task.toAgendaRow(): AgendaRow =
     AgendaRow(task = this, time = rowTime(), daysOffset = daysOffset ?: 0)
 
-private fun Task.rowTime(): String = when {
-    timestampTime != null -> timestampTime!!
+private fun Task.rowTime(): RowTime = when {
+    timestampTime != null -> timestampTime!!.let { stated ->
+        runCatching { LocalTime.parse(stated) }
+            .fold({ RowTime.Clock(it) }, { RowTime.Verbatim(stated) })
+    }
 
     // A date that has passed replaces the empty time column: without it an
     // overdue row would say how many days late it is but not since when.
-    (daysOffset ?: 0) < 0 -> timestampDate?.let(::asDayMonth) ?: ""
+    (daysOffset ?: 0) < 0 -> slippedFrom() ?: RowTime.None
 
-    else -> ""
+    else -> RowTime.None
 }
 
-/** `YYYY-MM-DD` shown as `DD.MM`, the form the rest of the agenda uses. */
-private fun asDayMonth(date: String): String {
-    val parts = date.split('-')
-    return if (parts.size == 3) "${parts[2]}.${parts[1]}" else date
-}
+/** The date of the task, when it states one that reads as a date. */
+private fun Task.slippedFrom(): RowTime.Since? = timestampDate
+    ?.let { stated -> runCatching { LocalDate.parse(stated) }.getOrNull() }
+    ?.let(RowTime::Since)

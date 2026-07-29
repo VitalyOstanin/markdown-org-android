@@ -151,7 +151,15 @@ fn a_local_commit_stops_the_sync_instead_of_merging() {
 
     // Reported, not resolved: merging belongs with the editing this
     // application does not do yet.
-    assert!(matches!(error, SyncError::Diverged { .. }), "got {error:?}");
+    //
+    // The branch travels as a field of its own: the caller words the
+    // explanation in the language of its reader and needs the name to put in
+    // it, and taking it back out of an English sentence is not a way to get
+    // it.
+    match error {
+        SyncError::Diverged { branch, .. } => assert_eq!("master", branch),
+        other => panic!("got {other:?}"),
+    }
 }
 
 #[test]
@@ -171,7 +179,13 @@ fn uncommitted_changes_stop_the_sync_before_the_checkout() {
 
     let error = sync_repository(request(&checkout, remote.path())).expect_err("must fail");
 
-    assert!(matches!(error, SyncError::Dirty { .. }), "got {error:?}");
+    // How many files stand in the way is a number, not a word: `1 file` and
+    // `2 files` are two forms in English and four in Russian, and only the
+    // caller knows which language it is writing in.
+    match &error {
+        SyncError::Dirty { changed, .. } => assert_eq!(1, *changed),
+        other => panic!("got {other:?}"),
+    }
     assert_eq!(
         fs::read_to_string(checkout.join("notes.md")).expect("read"),
         "# TODO Edited here\n",

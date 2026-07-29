@@ -28,6 +28,8 @@
     <string name="sync_failed_dirty">Uncommitted changes would be overwritten</string>
     <string name="sync_failed_address">The address cannot be used; nothing was sent</string>
     <string name="sync_failed_repository">Sync failed</string>
+    <!-- Under the diverged wording; the branch that moved on both sides. -->
+    <string name="sync_diverged_detail">%1$s and origin/%1$s have both moved; this application does not merge</string>
     <string name="sync_status_unreadable">The checkout could not be read; it was left as it is</string>
 
     <string name="settings_title">Notes repository</string>
@@ -68,6 +70,14 @@
     <string name="edit_failed_unnamed">The file name is not UTF-8, so the task cannot be changed</string>
 
     <string name="agenda_truncated">The task limit was reached; the list is incomplete</string>
+    <!-- Shown when a failure carries nothing readable of its own. -->
+    <string name="agenda_failed_unknown">The reason is in the log</string>
+
+    <!-- Under the dirty wording; how many files stand in the way. -->
+    <plurals name="sync_dirty_detail">
+        <item quantity="one">%d file changed since the last commit</item>
+        <item quantity="other">%d files changed since the last commit</item>
+    </plurals>
 
     <plurals name="agenda_days_overdue">
         <item quantity="one">%d day late</item>

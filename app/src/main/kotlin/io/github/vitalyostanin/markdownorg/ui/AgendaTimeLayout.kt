@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -138,11 +140,14 @@ private fun HourRow(entry: AxisEntry.Hour, onTaskClick: (Task) -> Unit) {
             },
     ) {
         Text(
-            text = "%02d:00".format(entry.hour),
+            text = hourLabel(entry.hour, LocalLocale.current.platformLocale, use24Hour()),
             style = MaterialTheme.typography.labelMedium,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.width(Sizes.hourLabel).padding(top = Spacing.xs),
+            maxLines = 1,
+            // A minimum, not a fixed width: the column is cut to `09:00` and
+            // a 12-hour label does not fit in it.
+            modifier = Modifier.widthIn(min = Sizes.hourLabel).padding(top = Spacing.xs),
         )
         // An hour with several entries grows instead of squeezing them: the
         // row height is a minimum, not a fixed size.
@@ -171,11 +176,13 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val time = rowTimeLabel(row)
+
         TaskRowHead(row.task, glyph = role.onContainer)
-        if (row.time.isNotEmpty()) {
+        if (time.isNotEmpty()) {
             Spacer(Modifier.width(Spacing.sm))
             TrailingTag(
-                text = row.time,
+                text = time,
                 // A veil of the text colour rather than of white: it has to
                 // darken the tile in the light theme and lighten it in the
                 // dark one, which one fixed colour cannot do.
@@ -208,11 +215,13 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val time = rowTimeLabel(row)
+
         TaskRowHead(row.task, glyph = colors.onSolid, bold = true, onDenseFill = true)
-        if (row.time.isNotEmpty()) {
+        if (time.isNotEmpty()) {
             Spacer(Modifier.width(Spacing.sm))
             Text(
-                text = row.time,
+                text = time,
                 style = MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 color = colors.onSolid,
@@ -270,11 +279,14 @@ private fun GapRow(entry: AxisEntry.Gap) {
             .padding(start = Sizes.hourLabel, top = Spacing.xs, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val locale = LocalLocale.current.platformLocale
+        val use24Hour = use24Hour()
+
         Text(
             text = stringResource(
                 R.string.agenda_free_between,
-                "%02d:00".format(entry.from),
-                "%02d:00".format(entry.until),
+                hourLabel(entry.from, locale, use24Hour),
+                hourLabel(entry.until, locale, use24Hour),
             ),
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,

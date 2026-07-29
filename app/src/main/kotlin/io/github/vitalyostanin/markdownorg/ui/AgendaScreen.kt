@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -281,7 +282,7 @@ private fun SyncBanner(sync: SyncUiState) {
         )
         sync.message?.detail?.takeIf { sync.message.failed }?.let { detail ->
             Text(
-                text = detail,
+                text = detailText(detail),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -442,18 +443,39 @@ private fun FailureMessage(state: AgendaUiState.Failed) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = stringResource(R.string.agenda_failed),
+            text = stringResource(state.reason.text),
             style = MaterialTheme.typography.titleMedium,
             color = LocalAgendaColors.current.deadline.tone,
         )
-        Spacer(Modifier.height(Spacing.sm))
-        Text(
-            text = state.message,
-            style = MaterialTheme.typography.bodyMedium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        state.reason.detail?.let { detail ->
+            Spacer(Modifier.height(Spacing.sm))
+            Text(
+                text = detailText(detail),
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
+}
+
+/**
+ * The second line of a message, whoever worded it.
+ *
+ * Diagnostics from a library go on screen as they arrived — nothing here can
+ * translate libgit2 — while everything the application words itself is read
+ * out of the resources of the current language.
+ */
+@Composable
+private fun detailText(detail: Detail): String = when (detail) {
+    is Detail.Verbatim -> detail.text
+
+    is Detail.Worded -> when (val arg = detail.arg) {
+        null -> stringResource(detail.text)
+        else -> stringResource(detail.text, arg)
+    }
+
+    is Detail.Counted -> pluralStringResource(detail.text, detail.count, detail.count)
 }
 
 /** Placeholder for a column that has nothing to show on this row. */
@@ -469,7 +491,13 @@ internal fun EmptyAgenda() {
     )
 }
 
-/** Fixed width of the time column, so headings line up down the list. */
+/**
+ * Width the time column starts at, so headings line up down the list.
+ *
+ * A minimum rather than a fixed size: `09:30` fits in it and `9:30 AM` does
+ * not, and a locale that writes the second one would have its times cut off
+ * mid-label.
+ */
 internal val TimeColumnWidth = Sizes.timeColumn
 
 @Composable
@@ -479,6 +507,7 @@ internal fun TimeCell(text: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelMedium,
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.outline,
-        modifier = modifier.width(TimeColumnWidth),
+        maxLines = 1,
+        modifier = modifier.widthIn(min = TimeColumnWidth),
     )
 }

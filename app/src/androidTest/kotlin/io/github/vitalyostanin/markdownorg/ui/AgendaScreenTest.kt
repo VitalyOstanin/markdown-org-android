@@ -1,9 +1,13 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalProvidableLocaleList
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -13,6 +17,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.TextDecoration
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -78,13 +84,16 @@ class AgendaScreenTest {
     fun timeLayoutDrawsTheHourAxisAndCollapsesTheEmptyStretch() {
         showAgenda(AgendaLayout.TIME)
 
-        compose.onNodeWithText("09:00").assertIsDisplayed()
+        // Written through the same formatter the axis uses rather than as
+        // `09:00`: the label follows the locale and the clock the device is
+        // set to, and the literal held on a 24-hour Russian phone only.
+        compose.onNodeWithText(hour(9)).assertIsDisplayed()
         // 10:00 through 12:59 is three empty hours, which is where collapsing
         // starts; the hours themselves must be gone.
         compose.onNodeWithText(
-            string(R.string.agenda_free_between, "10:00", "13:00"),
+            string(R.string.agenda_free_between, hour(10), hour(13)),
         ).assertIsDisplayed()
-        compose.onNodeWithText("11:00").assertDoesNotExist()
+        compose.onNodeWithText(hour(11)).assertDoesNotExist()
     }
 
     @Test
@@ -233,7 +242,9 @@ class AgendaScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 AgendaScreen(
-                    state = AgendaUiState.Failed("invalid directory: /nowhere"),
+                    state = AgendaUiState.Failed(
+                        IllegalStateException("invalid directory: /nowhere").toAgendaMessage(),
+                    ),
                     layout = AgendaLayout.TIME,
                     onLayoutChange = {},
                 )
@@ -242,6 +253,47 @@ class AgendaScreenTest {
 
         compose.onNodeWithText(string(R.string.agenda_failed)).assertIsDisplayed()
         compose.onNodeWithText("invalid directory: /nowhere").assertIsDisplayed()
+    }
+
+    /**
+     * `03.07` is the third of July in Russian and the seventh of March in
+     * English, and the column gives no clue which is meant. The order of the
+     * two parts has to come from the locale the screen is drawn in.
+     */
+    @Test
+    fun theDateOfAnOverdueRowFollowsTheLocaleOfTheScreen() {
+        val overdue = agenda(
+            day(
+                overdue = listOf(
+                    task(heading = "Renew certificate", date = "2026-07-24", daysOffset = -4),
+                ),
+            ),
+        ).toSections()
+
+        showAgenda(AgendaLayout.LIST, sections = overdue, locale = Locale("en-US"))
+
+        compose.onNodeWithText("7/24", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    /**
+     * The other half of the pair above, and what tells the two apart: the
+     * same row on the same device draws `24.07` for a Russian reader. It also
+     * says the locale of the composition is what decides, since the emulator
+     * itself runs in neither of the two on purpose.
+     */
+    @Test
+    fun theSameOverdueRowReadsTheOtherWayRoundInRussian() {
+        val overdue = agenda(
+            day(
+                overdue = listOf(
+                    task(heading = "Renew certificate", date = "2026-07-24", daysOffset = -4),
+                ),
+            ),
+        ).toSections()
+
+        showAgenda(AgendaLayout.LIST, sections = overdue, locale = Locale("ru-RU"))
+
+        compose.onNodeWithText("24.07", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
@@ -284,14 +336,30 @@ class AgendaScreenTest {
         layout: AgendaLayout,
         sections: AgendaSections = sample,
         now: LocalTime? = LocalTime.of(10, 0),
+        locale: Locale? = null,
     ) {
         compose.setContent {
             MarkdownOrgTheme {
-                AgendaScreen(
-                    state = readyState(sections, now),
-                    layout = layout,
-                    onLayoutChange = {},
-                )
+                val screen = @Composable {
+                    AgendaScreen(
+                        state = readyState(sections, now),
+                        layout = layout,
+                        onLayoutChange = {},
+                    )
+                }
+
+                if (locale == null) {
+                    screen()
+                } else {
+                    // Both LocalLocale and LocalLocaleList are read-only —
+                    // the first computes from the head of the second, and the
+                    // second reads the owner — so this is the one a test can
+                    // provide.
+                    CompositionLocalProvider(
+                        LocalProvidableLocaleList provides LocaleList(listOf(locale)),
+                        content = screen,
+                    )
+                }
             }
         }
     }
@@ -304,6 +372,13 @@ class AgendaScreenTest {
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
+
+    /** The label of a whole hour, as the device would write it. */
+    private fun hour(of: Int): String = hourLabel(
+        of,
+        compose.activity.resources.configuration.locales[0],
+        DateFormat.is24HourFormat(compose.activity),
+    )
 
     /**
      * How the text was actually laid out, which is where a strike-through

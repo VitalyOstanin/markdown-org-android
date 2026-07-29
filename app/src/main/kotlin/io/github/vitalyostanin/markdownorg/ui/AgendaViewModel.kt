@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -140,7 +141,13 @@ class AgendaViewModel(
                     _editIssue.value = null
                     refresh()
                 },
-                onFailure = { error -> _editIssue.value = error.toEditMessage() },
+                onFailure = { error ->
+                    // What the core wrote about it is an English sentence for
+                    // a log, and that is where it goes; the sheet answers in
+                    // the language of the interface.
+                    Log.w(TAG, "the edit failed", error)
+                    _editIssue.value = error.toEditMessage()
+                },
             )
         }
     }
@@ -181,7 +188,10 @@ class AgendaViewModel(
                     )
                 },
                 onFailure = { error ->
-                    AgendaUiState.Failed(error.message ?: error::class.java.simpleName)
+                    // The class and the stack go to the log, where they are
+                    // of use; the screen gets wording it can translate.
+                    Log.w(TAG, "the agenda could not be built", error)
+                    AgendaUiState.Failed(error.toAgendaMessage())
                 },
             )
         }
@@ -360,6 +370,9 @@ class AgendaViewModel(
     }
 
     companion object {
+        /** Where the failures the screen does not spell out are written. */
+        private const val TAG = "Agenda"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]

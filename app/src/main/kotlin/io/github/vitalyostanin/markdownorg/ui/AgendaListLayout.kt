@@ -112,7 +112,7 @@ private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
                     .background(role.tone),
             )
             Spacer(Modifier.width(Spacing.md))
-            TimeCell(row.time)
+            TimeCell(rowTimeLabel(row))
             // The glyph repeats what the rail says in a form that survives
             // without colour, which is what WCAG 1.4.1 asks for. The priority
             // badge leads the line after it: the eye reads left to right, and

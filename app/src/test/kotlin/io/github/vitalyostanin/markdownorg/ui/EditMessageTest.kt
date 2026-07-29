@@ -33,12 +33,10 @@ class EditMessageTest {
     @Test
     fun theRemainingVariantsShareTheGeneralWording() {
         // Nothing the user can do differently about a broken priority or a
-        // write that failed, so both land on the same line with the core's
-        // own detail under it.
+        // write that failed, so both land on the same line.
         val message = EditException.InvalidPriority("65").toEditMessage()
 
         assertEquals(R.string.edit_failed, message.text)
-        assertEquals("65", message.detail)
     }
 
     @Test
@@ -46,7 +44,30 @@ class EditMessageTest {
         val message = IOException("permission denied").toEditMessage()
 
         assertEquals(R.string.edit_failed, message.text)
-        assertEquals("permission denied", message.detail)
         assertTrue(message.failed)
+    }
+
+    /**
+     * The core words its details as English sentences — `HEAD does not point
+     * at a branch`, `line 9 is past the end of notes.md` — because that is
+     * what a log entry is read as. Putting one under a Russian heading makes
+     * a message that is half in each language and explains no more than the
+     * heading alone; the wording per variant is what carries the meaning, and
+     * the detail belongs in logcat.
+     */
+    @Test
+    fun theDetailOfTheCoreDoesNotReachTheScreen() {
+        val failures = listOf(
+            EditException.Stale("notes.md:4 is not a heading"),
+            EditException.NoPlanningLine("Renew certificate has no SCHEDULED:"),
+            EditException.Unsupported("an hourly repeater cannot be advanced yet"),
+            EditException.NotFound("gone.md"),
+            EditException.InvalidPriority("65"),
+            IOException("permission denied"),
+        )
+
+        for (error in failures) {
+            assertEquals("detail of $error", null, error.toEditMessage().detail)
+        }
     }
 }

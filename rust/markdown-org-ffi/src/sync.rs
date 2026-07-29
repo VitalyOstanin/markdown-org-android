@@ -85,16 +85,23 @@ pub enum SyncError {
         detail: String,
     },
     /// The checkout has commits the remote does not, so no fast-forward.
-    #[error("the checkout has diverged from the remote: {detail}")]
+    ///
+    /// The branch is a field rather than only a part of `detail`: the caller
+    /// puts the name into a sentence of its own language, and a name spelled
+    /// into English prose cannot be taken back out of it.
+    #[error("{branch} and origin/{branch} have both moved; this does not merge")]
     Diverged {
-        /// Human-readable detail.
-        detail: String,
+        /// The branch that moved on both sides.
+        branch: String,
     },
     /// Uncommitted changes would be overwritten by the update.
-    #[error("the working copy has uncommitted changes: {detail}")]
+    ///
+    /// How many is a number for the same reason: `1 file` and `2 files` are
+    /// two forms in English and four in Russian.
+    #[error("{changed} uncommitted change(s) in the working copy")]
     Dirty {
-        /// Human-readable detail.
-        detail: String,
+        /// How many files stand in the way.
+        changed: u32,
     },
     /// The remote address is one this application will not talk to.
     ///
@@ -510,12 +517,7 @@ fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, S
     // fast-forward from, and the first commit that arrives simply becomes the
     // branch.
     if !analysis.is_fast_forward() && !analysis.is_unborn() {
-        return Err(SyncError::Diverged {
-            detail: format!(
-                "{branch} and origin/{branch} have both moved; the application \
-                 does not merge"
-            ),
-        });
+        return Err(SyncError::Diverged { branch });
     }
 
     // Checked before touching the tree rather than letting the checkout fail
@@ -582,7 +584,7 @@ fn ensure_clean(repository: &Repository) -> Result<(), SyncError> {
 
     if changed > 0 {
         return Err(SyncError::Dirty {
-            detail: format!("{changed} file(s) changed since the last commit"),
+            changed: u32::try_from(changed).unwrap_or(u32::MAX),
         });
     }
 

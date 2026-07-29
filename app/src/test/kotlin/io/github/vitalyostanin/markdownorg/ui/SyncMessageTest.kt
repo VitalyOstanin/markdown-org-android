@@ -19,8 +19,8 @@ class SyncMessageTest {
         val wordings = listOf(
             SyncException.Auth("401") to R.string.sync_failed_auth,
             SyncException.Network("no route to host") to R.string.sync_failed_network,
-            SyncException.Diverged("2 commits ahead") to R.string.sync_failed_diverged,
-            SyncException.Dirty("notes/today.md") to R.string.sync_failed_dirty,
+            SyncException.Diverged("master") to R.string.sync_failed_diverged,
+            SyncException.Dirty(1u) to R.string.sync_failed_dirty,
             SyncException.Repository("not a repository") to R.string.sync_failed_repository,
             SyncException.Address("http:// is not encrypted") to R.string.sync_failed_address,
         )
@@ -33,10 +33,34 @@ class SyncMessageTest {
     }
 
     @Test
-    fun theDetailFromTheCoreIsCarriedThrough() {
-        // What the interface shows under the wording: the core's own words,
-        // which are the only thing that says which file or which host.
-        assertEquals("notes/today.md", SyncException.Dirty("notes/today.md").toSyncMessage().detail)
+    fun theDetailFromALibraryIsCarriedThrough() {
+        // What the interface shows under the wording: libgit2's own words,
+        // which are the only thing that says which host refused what. They
+        // stay as they came — a library writes in the language it writes in.
+        assertEquals(
+            Detail.Verbatim("no route to host"),
+            SyncException.Network("no route to host").toSyncMessage().detail,
+        )
+    }
+
+    @Test
+    fun theBranchThatDivergedIsWordedByTheApplication() {
+        // The core reports the name, not a sentence about it: the sentence
+        // is in the resources and exists in every language the app speaks.
+        assertEquals(
+            Detail.Worded(R.string.sync_diverged_detail, "master"),
+            SyncException.Diverged("master").toSyncMessage().detail,
+        )
+    }
+
+    @Test
+    fun theFilesInTheWayAreCountedRatherThanSpelledOut() {
+        // `3 file(s)` is a plural form nobody picked, and Russian has four of
+        // them; the number decides the form where the forms are declared.
+        assertEquals(
+            Detail.Counted(R.plurals.sync_dirty_detail, 3),
+            SyncException.Dirty(3u).toSyncMessage().detail,
+        )
     }
 
     /**
@@ -50,7 +74,7 @@ class SyncMessageTest {
         ).toSyncMessage()
 
         assertEquals(
-            "failed to connect to https://***@git.example.org/notes.git",
+            Detail.Verbatim("failed to connect to https://***@git.example.org/notes.git"),
             message.detail,
         )
     }
@@ -62,7 +86,27 @@ class SyncMessageTest {
         val message = IOException("permission denied").toSyncMessage()
 
         assertEquals(R.string.sync_failed_repository, message.text)
-        assertEquals("permission denied", message.detail)
+        assertEquals(Detail.Verbatim("permission denied"), message.detail)
         assertTrue(message.failed)
+    }
+
+    @Test
+    fun aFailedScanShowsWhatTheCoreSaid() {
+        val message = IOException("invalid directory: /nowhere").toAgendaMessage()
+
+        assertEquals(R.string.agenda_failed, message.text)
+        assertEquals(Detail.Verbatim("invalid directory: /nowhere"), message.detail)
+    }
+
+    /**
+     * A failure with no message of its own used to be reported by the name of
+     * its Java class — `UnknownHostException` on the screen, in the middle of
+     * a translated interface, as the whole explanation.
+     */
+    @Test
+    fun aFailureWithNothingToSayDoesNotNameItsJavaClass() {
+        val message = IOException().toAgendaMessage()
+
+        assertEquals(Detail.Worded(R.string.agenda_failed_unknown), message.detail)
     }
 }

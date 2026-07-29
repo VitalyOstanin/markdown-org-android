@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
@@ -25,13 +26,33 @@ data class SyncUiState(
  * What to tell the user about the last attempt.
  *
  * A resource id and an optional detail rather than a finished string: the
- * wording belongs to the resources, and the detail is whatever the core said.
+ * wording belongs to the resources, and the detail is either data the
+ * application words itself or diagnostics from a library.
  */
 data class SyncMessage(
     @param:StringRes val text: Int,
-    val detail: String? = null,
+    val detail: Detail? = null,
     val failed: Boolean = false,
 )
+
+/**
+ * The second line under a message, and where its words come from.
+ *
+ * The distinction is what keeps a Russian heading from standing over an
+ * English sentence: everything the application can word, it words from the
+ * resources, and what is left is the text of a library, which is written in
+ * whatever language that library writes in and cannot be translated here.
+ */
+sealed interface Detail {
+    /** Diagnostics from libgit2 or the core, shown as it arrived. */
+    data class Verbatim(val text: String) : Detail
+
+    /** Worded here, over a name the core reported when there is one. */
+    data class Worded(@param:StringRes val text: Int, val arg: String? = null) : Detail
+
+    /** Worded here around a number, which picks the plural form. */
+    data class Counted(@param:PluralsRes val text: Int, val count: Int) : Detail
+}
 
 /** What to tell the user about an address that cannot be used. */
 fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
@@ -48,26 +69,52 @@ fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
  * or dirty checkout needs a decision the application cannot make.
  */
 fun Throwable.toSyncMessage(): SyncMessage = when (this) {
-    is SyncException.Auth -> SyncMessage(R.string.sync_failed_auth, detail, failed = true)
+    is SyncException.Auth -> SyncMessage(
+        R.string.sync_failed_auth,
+        Detail.Verbatim(detail),
+        failed = true,
+    )
 
-    is SyncException.Network -> SyncMessage(R.string.sync_failed_network, detail, failed = true)
+    is SyncException.Network -> SyncMessage(
+        R.string.sync_failed_network,
+        Detail.Verbatim(detail),
+        failed = true,
+    )
 
-    is SyncException.Diverged -> SyncMessage(R.string.sync_failed_diverged, detail, failed = true)
+    // The two below carry data rather than prose, and the sentence around it
+    // is written where the translations are.
+    is SyncException.Diverged -> SyncMessage(
+        R.string.sync_failed_diverged,
+        Detail.Worded(R.string.sync_diverged_detail, branch),
+        failed = true,
+    )
 
-    is SyncException.Dirty -> SyncMessage(R.string.sync_failed_dirty, detail, failed = true)
+    is SyncException.Dirty -> SyncMessage(
+        R.string.sync_failed_dirty,
+        Detail.Counted(R.plurals.sync_dirty_detail, changed.toInt()),
+        failed = true,
+    )
 
     // Worth its own wording because nothing was attempted: the address was
     // refused before a connection was opened, so retrying changes nothing and
     // the token did not leave the device.
-    is SyncException.Address -> SyncMessage(R.string.sync_failed_address, detail, failed = true)
-
-    is SyncException.Repository -> SyncMessage(
-        R.string.sync_failed_repository,
-        detail,
+    is SyncException.Address -> SyncMessage(
+        R.string.sync_failed_address,
+        Detail.Verbatim(detail),
         failed = true,
     )
 
-    else -> SyncMessage(R.string.sync_failed_repository, message, failed = true)
+    is SyncException.Repository -> SyncMessage(
+        R.string.sync_failed_repository,
+        Detail.Verbatim(detail),
+        failed = true,
+    )
+
+    else -> SyncMessage(
+        R.string.sync_failed_repository,
+        message?.let(Detail::Verbatim),
+        failed = true,
+    )
 }.withoutCredentials()
 
 /**
@@ -75,46 +122,60 @@ fun Throwable.toSyncMessage(): SyncMessage = when (this) {
  *
  * Applied to every sync message rather than to the variants that are known to
  * name a host: the detail is libgit2's own text, and which failures carry the
- * address in it is not something this side decides.
+ * address in it is not something this side decides. A detail worded here
+ * cannot hold an address at all, so it is left alone.
  */
-private fun SyncMessage.withoutCredentials(): SyncMessage =
-    detail?.let { copy(detail = maskCredentials(it)) } ?: this
+private fun SyncMessage.withoutCredentials(): SyncMessage = when (val shown = detail) {
+    is Detail.Verbatim -> copy(detail = Detail.Verbatim(maskCredentials(shown.text)))
+    else -> this
+}
+
+/**
+ * Maps a failure of the scan onto what the screen shows in place of an agenda.
+ *
+ * What the core says about it is diagnostics — an invalid directory, a path
+ * that cannot be read — and travels as it came. A failure that carries no
+ * message at all used to be reported by the name of its Java class, which
+ * says nothing to whoever is holding the phone; the wording says instead
+ * where the reason can be found.
+ */
+fun Throwable.toAgendaMessage(): SyncMessage = SyncMessage(
+    R.string.agenda_failed,
+    message?.takeIf(String::isNotBlank)?.let(Detail::Verbatim)
+        ?: Detail.Worded(R.string.agenda_failed_unknown),
+    failed = true,
+)
 
 /**
  * Maps a failed edit onto something worth reading.
  *
  * `Stale` is the one the user can act on: the file moved on under the agenda,
  * and the answer is to look again. The rest describe a file or a request the
- * application cannot work with, and say so with whatever the core reported.
+ * application cannot work with, and the wording per variant is what says
+ * which.
+ *
+ * No detail travels with any of them. What the core reports there is an
+ * English sentence written for a log — `line 9 is past the end of notes.md` —
+ * and under a translated heading it makes a message that is half in each
+ * language while saying no more than the heading already did. It goes to
+ * logcat instead; see [AgendaViewModel.apply].
  *
  * The result belongs to a channel of its own — see
  * [AgendaViewModel.editIssue]. The banner under the header is about the
  * checkout, and "the task could not be changed" is not.
  */
 fun Throwable.toEditMessage(): SyncMessage = when (this) {
-    is EditException.Stale -> SyncMessage(R.string.edit_failed_stale, detail, failed = true)
+    is EditException.Stale -> SyncMessage(R.string.edit_failed_stale, failed = true)
 
-    is EditException.NoPlanningLine ->
-        SyncMessage(R.string.edit_failed_no_planning, detail, failed = true)
+    is EditException.NoPlanningLine -> SyncMessage(R.string.edit_failed_no_planning, failed = true)
 
-    is EditException.Unsupported ->
-        SyncMessage(R.string.edit_failed_unsupported, detail, failed = true)
+    is EditException.Unsupported -> SyncMessage(R.string.edit_failed_unsupported, failed = true)
 
-    is EditException.NotFound -> SyncMessage(R.string.edit_failed_missing, detail, failed = true)
+    is EditException.NotFound -> SyncMessage(R.string.edit_failed_missing, failed = true)
 
     // Actionable in its own way: the file is there and readable, it is simply
     // in another encoding, and converting it is what fixes every edit to it.
-    is EditException.NotUtf8 ->
-        SyncMessage(R.string.edit_failed_encoding, detail, failed = true)
+    is EditException.NotUtf8 -> SyncMessage(R.string.edit_failed_encoding, failed = true)
 
-    // Nothing the user can do differently about these three, so they share
-    // the general wording with the core's own detail under it. Listed one by
-    // one rather than as the sealed parent, which carries no detail of its own.
-    is EditException.InvalidPriority -> SyncMessage(R.string.edit_failed, detail, failed = true)
-
-    is EditException.InvalidDate -> SyncMessage(R.string.edit_failed, detail, failed = true)
-
-    is EditException.Io -> SyncMessage(R.string.edit_failed, detail, failed = true)
-
-    else -> SyncMessage(R.string.edit_failed, message, failed = true)
+    else -> SyncMessage(R.string.edit_failed, failed = true)
 }

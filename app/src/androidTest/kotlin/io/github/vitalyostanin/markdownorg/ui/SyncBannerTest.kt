@@ -69,6 +69,35 @@ class SyncBannerTest {
         compose.onNodeWithText("401 Unauthorized").assertIsDisplayed()
     }
 
+    /**
+     * The core used to spell this out itself — `master and origin/master have
+     * both moved; the application does not merge` — and that English sentence
+     * appeared under a Russian heading whatever the language of the phone.
+     * Now the core reports the branch and the sentence lives in the resources.
+     */
+    @Test
+    fun theExplanationOfADivergenceIsReadFromTheResources() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncException.Diverged("master").toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_diverged_detail, "master"))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theFilesInTheWayAreCountedInTheLanguageOfTheInterface() {
+        showAgenda(
+            SyncUiState(configured = true, message = SyncException.Dirty(3u).toSyncMessage()),
+        )
+
+        // `3 file(s) changed` was the old wording, in a form no language has.
+        compose.onNodeWithText(plural(R.plurals.sync_dirty_detail, 3)).assertIsDisplayed()
+    }
+
     @Test
     fun aSuccessfulSyncReportsWhatItDid() {
         showAgenda(SyncUiState(configured = true, message = SyncMessage(R.string.sync_updated)))
