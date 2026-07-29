@@ -1,6 +1,9 @@
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kover)
 }
 
 // The versions the build image installs and CI sets up, read from the one
@@ -27,6 +30,10 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The instrumented half of the same bound the unit tests get below.
+        // A Compose test that waits for an idle state that never arrives
+        // would otherwise hold the device until the whole run is killed.
+        testInstrumentationRunnerArguments["timeout_msec"] = "120000"
 
         ndk {
             // JNA ships libjnidispatch.so for ABIs Android dropped years ago
@@ -74,6 +81,16 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+        }
+    }
+
+    testOptions {
+        unitTests.all {
+            // JUnit 4 interrupts nothing on its own: a loop that does not
+            // end, or a coroutine waiting on something that never arrives,
+            // holds the Gradle task for as long as the build may run. Two
+            // minutes is far above the whole suite, which runs in seconds.
+            it.timeout.set(Duration.ofMinutes(2))
         }
     }
 }

@@ -38,6 +38,10 @@ jobs:
   # toolchain has been installed.
   check:
     runs-on: ubuntu-24.04
+    # Runs in about a minute. The default is six hours, which is what a
+    # hung test would hold the runner for — libtest has no per-test timeout
+    # of its own.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -65,6 +69,9 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
+    # Around four minutes warm, more on a cold cache: the vendored libgit2
+    # and OpenSSL are built for both ABIs.
+    timeout-minutes: 45
 
     permissions:
       # Only this job publishes; the rest of the workflow reads.

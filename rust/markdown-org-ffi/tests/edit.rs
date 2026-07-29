@@ -5,29 +5,11 @@
 //! git merges conflict, and it would go unnoticed by an assertion scoped to
 //! the line under test.
 
-use std::fs;
-use std::path::Path;
+use markdown_org_ffi::{set_priority, set_status, EditError, TaskType};
 
-use markdown_org_ffi::{set_priority, set_status, EditError, EditTarget, TaskType};
+mod common;
 
-fn vault(body: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().expect("tempdir");
-    fs::write(dir.path().join("notes.md"), body).expect("write");
-    dir
-}
-
-fn target(dir: &Path, line: u32, heading: &str) -> EditTarget {
-    EditTarget {
-        dir: dir.display().to_string(),
-        file: "notes.md".to_string(),
-        line,
-        heading: heading.to_string(),
-    }
-}
-
-fn body(dir: &Path) -> String {
-    fs::read_to_string(dir.join("notes.md")).expect("read")
-}
+use common::{body, target, vault};
 
 const TWO_TASKS: &str = "\
 # TODO Write the report

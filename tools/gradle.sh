@@ -38,7 +38,7 @@ fi
 # --network host for the same reason the core build needs it: a proxy on the
 # host loopback is not reachable from the container's own network. It is also
 # how the container reaches an emulator started by tools/run-emulator.sh.
-exec podman run --rm --network host "${proxy_run_args[@]}" "${env_args[@]}" \
+exec podman run --rm --network host "${proxy_run_args[@]}" "${limit_args[@]}" "${env_args[@]}" \
     -v "${REPO_ROOT}:/src:z" -v "${CACHE_VOLUME}:/gradle" \
     -v "${KEY_VOLUME}:/root/.android" -w /src \
     "${SDK_IMAGE}" \

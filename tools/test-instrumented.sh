@@ -30,4 +30,6 @@ fi
 
 export ANDROID_SERIAL
 echo "==> connectedDebugAndroidTest on ${ANDROID_SERIAL}"
-"${REPO_ROOT}/tools/gradle.sh" connectedDebugAndroidTest "$@"
+# Per-test the runner is bounded by timeout_msec; this bounds the run,
+# including the install and the emulator going unresponsive under it.
+timeout "${TIMEOUT:-40m}" "${REPO_ROOT}/tools/gradle.sh" connectedDebugAndroidTest "$@"

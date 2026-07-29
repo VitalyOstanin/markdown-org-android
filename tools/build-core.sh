@@ -34,7 +34,7 @@ else
     # unless it shares the host network — building the image needs the same,
     # which is why both go through tools/lib.sh.
     run_core() {
-        podman run --rm --network host "${proxy_run_args[@]}" \
+        podman run --rm --network host "${proxy_run_args[@]}" "${limit_args[@]}" \
             -v "${REPO_ROOT}/rust:/src:z" -v "${REPO_ROOT}/generated:/out:z" -w /src \
             "${NDK_IMAGE}" "$@"
     }
@@ -53,7 +53,8 @@ done
 rm -rf "${REPO_ROOT}/rust/jniLibs"
 
 echo "==> building the core for: ${ABIS} (${PROFILE})"
-run_core cargo ndk "${targets[@]}" -o "${core_dir}/jniLibs" build "--${PROFILE}" -p markdown-org-ffi
+run_core cargo ndk "${targets[@]}" -o "${core_dir}/jniLibs" build \
+    "--${PROFILE}" -j "${JOBS}" -p markdown-org-ffi
 
 # Library mode reads the UniFFI metadata out of a built library. The metadata
 # is architecture-agnostic, so the bindings can be generated from any of the

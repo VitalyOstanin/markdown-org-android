@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import java.time.LocalDate
+import kotlin.math.abs
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -45,29 +46,19 @@ class NotesEditor(
     /** Mark done, or move a repeating task to its next occurrence. */
     override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = write(task) {
         val outcome = coreComplete(task.target(), today.toString())
-        if (outcome.repeated) {
-            "Move \"${task.heading}\" to its next occurrence"
-        } else {
-            "Mark \"${task.heading}\" as done"
-        }
+        completionMessage(task.heading, outcome.repeated)
     }
 
     /** Set or clear the keyword outright, without the repeater semantics. */
     override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = write(task) {
         coreSetStatus(task.target(), status)
-        when (status) {
-            null -> "Clear the keyword on \"${task.heading}\""
-            else -> "Set \"${task.heading}\" to ${status.keyword()}"
-        }
+        statusMessage(task.heading, status)
     }
 
     /** Set or clear the priority cookie. */
     override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = write(task) {
         coreSetPriority(task.target(), priority)
-        when (priority) {
-            null -> "Drop the priority of \"${task.heading}\""
-            else -> "Set the priority of \"${task.heading}\" to $priority"
-        }
+        priorityMessage(task.heading, priority)
     }
 
     /** Move a planning date by whole days. */
@@ -77,7 +68,7 @@ class NotesEditor(
         days: Int,
     ): Result<Unit> = write(task) {
         coreShiftPlanning(task.target(), keyword, days)
-        "Move \"${task.heading}\" by $days day(s)"
+        shiftMessage(task.heading, keyword, days)
     }
 
     /**
@@ -115,10 +106,52 @@ class NotesEditor(
         name = settings.authorName,
         email = settings.authorEmail,
     )
+}
 
-    private fun TaskType.keyword() = when (this) {
-        TaskType.TODO -> "TODO"
-        TaskType.DONE -> "DONE"
-        TaskType.CANCELLED -> "CANCELLED"
+/*
+ * The commit messages, apart from the edits that produce them.
+ *
+ * They are what the history of someone's notes will read like, and they are
+ * the one part of an edit that can be pinned down without a device: the calls
+ * around them go through the native library, these do not.
+ */
+
+/** A completion that turned out to be a repeat says so. */
+internal fun completionMessage(heading: String, repeated: Boolean): String = when {
+    repeated -> "Move \"$heading\" to its next occurrence"
+    else -> "Mark \"$heading\" as done"
+}
+
+internal fun statusMessage(heading: String, status: TaskType?): String = when (status) {
+    null -> "Clear the keyword on \"$heading\""
+    else -> "Set \"$heading\" to ${status.keyword()}"
+}
+
+internal fun priorityMessage(heading: String, priority: String?): String = when (priority) {
+    null -> "Drop the priority of \"$heading\""
+    else -> "Set the priority of \"$heading\" to $priority"
+}
+
+/** Which date moved, which way and by how much. */
+internal fun shiftMessage(heading: String, keyword: PlanningKeyword, days: Int): String {
+    val date = keyword.keyword()
+    val count = abs(days)
+    val unit = if (count == 1) "day" else "days"
+
+    return when {
+        days > 0 -> "Move the $date of \"$heading\" forward by $count $unit"
+        days < 0 -> "Move the $date of \"$heading\" back by $count $unit"
+        else -> "Leave the $date of \"$heading\" where it is"
     }
+}
+
+private fun TaskType.keyword() = when (this) {
+    TaskType.TODO -> "TODO"
+    TaskType.DONE -> "DONE"
+    TaskType.CANCELLED -> "CANCELLED"
+}
+
+private fun PlanningKeyword.keyword() = when (this) {
+    PlanningKeyword.SCHEDULED -> "SCHEDULED"
+    PlanningKeyword.DEADLINE -> "DEADLINE"
 }

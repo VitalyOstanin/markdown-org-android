@@ -6,29 +6,11 @@
 //! today. Marking a repeating task done therefore moves it forward and leaves
 //! it open rather than closing it.
 
-use std::fs;
-use std::path::Path;
+use markdown_org_ffi::{complete_task, shift_planning, EditError, PlanningKeyword};
 
-use markdown_org_ffi::{complete_task, shift_planning, EditError, EditTarget, PlanningKeyword};
+mod common;
 
-fn vault(body: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().expect("tempdir");
-    fs::write(dir.path().join("notes.md"), body).expect("write");
-    dir
-}
-
-fn target(dir: &Path, line: u32, heading: &str) -> EditTarget {
-    EditTarget {
-        dir: dir.display().to_string(),
-        file: "notes.md".to_string(),
-        line,
-        heading: heading.to_string(),
-    }
-}
-
-fn body(dir: &Path) -> String {
-    fs::read_to_string(dir.join("notes.md")).expect("read")
-}
+use common::{body, target, vault};
 
 const TODAY: &str = "2026-07-28";
 

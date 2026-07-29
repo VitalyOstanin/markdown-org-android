@@ -70,6 +70,7 @@ markdown-org-android/
 │   ├── build-app.sh          # assemble the APK
 │   ├── test.sh               # the JVM tests of the application
 │   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
+│   ├── coverage.sh           # what the JVM tests reach, as a Kover report
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── rust/jniLibs/<abi>/       # build output, not committed
@@ -301,7 +302,17 @@ each of which clears the threshold on its own.
 ```bash
 tools/test-core.sh        # the Rust tests, in the NDK image
 tools/check-core.sh       # cargo fmt --check and clippy, what CI fails on
+tools/test.sh             # the JVM tests of the application
+tools/run-emulator.sh && tools/test-instrumented.sh   # the instrumented ones
+tools/coverage.sh         # what the JVM tests reach, as a Kover report
 ```
+
+Every run is bounded: each JVM test by `testOptions` in
+`app/build.gradle.kts`, each instrumented one by the runner's `timeout_msec`,
+and each script by a `TIMEOUT` around the whole thing. JUnit 4 interrupts
+nothing on its own and libtest has no per-test timeout at all, so without
+these a test that stops making progress holds the machine until something
+else kills it.
 
 The extractor has its own suite; these tests cover what this crate adds —
 the projection onto the FFI types, the mapping of failures onto the error
@@ -345,6 +356,13 @@ in `tools/versions.env`.
 | 10 | `NDK_IMAGE`, `SDK_IMAGE`, `EMULATOR_IMAGE` | `tools/lib.sh`       | `localhost/markdown-org-*` tagged by version |
 | 11 | `CACHE_VOLUME`   | `gradle.sh`, `test-core.sh`, `check-core.sh`    | `markdown-org-gradle` / `markdown-org-cargo` |
 | 12 | `KEY_VOLUME`     | `gradle.sh`                                     | `markdown-org-android-home`, the debug signing key |
+| 13 | `JOBS`, `MEMORY` | `tools/lib.sh` — every container                | `8` cores and `8g`; also `cargo -j`       |
+| 14 | `TEST_THREADS`   | `test-core.sh`                                  | `8`                                       |
+| 15 | `TIMEOUT`        | every script that runs tests                    | `20m` JVM, `30m` core, `40m` instrumented |
+
+The container limits are deliberate: left alone a cargo build takes every
+core on the machine, and the vendored libgit2 and OpenSSL are a lot of C to
+compile. Raise them by hand when nothing else is running.
 
 ## Why the toolchain lives in a container
 

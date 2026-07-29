@@ -27,6 +27,14 @@ if [[ -n "${HTTPS_PROXY:-}" ]]; then
     proxy_build_args+=(--build-arg "HTTPS_PROXY=${HTTPS_PROXY}" --build-arg "HTTP_PROXY=${HTTPS_PROXY}")
 fi
 
+# How much of the machine a container may take. Left alone, a cargo build
+# takes every core: the vendored libgit2 and OpenSSL are a lot of C to
+# compile, and the machine has other work to do. Raise deliberately, with
+# JOBS and MEMORY, rather than by default.
+readonly JOBS="${JOBS:-8}"
+readonly MEMORY="${MEMORY:-8g}"
+limit_args=(--cpus "${JOBS}" --memory "${MEMORY}")
+
 # ensure_image IMAGE CONTAINERFILE [build args...]
 #
 # podman build has no -e: run-time and build-time variables are different
