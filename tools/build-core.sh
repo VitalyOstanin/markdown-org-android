@@ -53,15 +53,18 @@ done
 rm -rf "${REPO_ROOT}/rust/jniLibs"
 
 echo "==> building the core for: ${ABIS} (${PROFILE})"
+# --locked throughout: Cargo re-resolves the lock file without saying so when
+# a manifest and the lock disagree, and what gets built then differs from
+# what the repository records — for a release that is published, silently.
 run_core cargo ndk "${targets[@]}" -o "${core_dir}/jniLibs" build \
-    "--${PROFILE}" -j "${JOBS}" -p markdown-org-ffi
+    "--${PROFILE}" --locked -j "${JOBS}" -p markdown-org-ffi
 
 # Library mode reads the UniFFI metadata out of a built library. The metadata
 # is architecture-agnostic, so the bindings can be generated from any of the
 # ABIs just built.
 first_abi="${ABIS%% *}"
 echo "==> generating the Kotlin bindings from ${first_abi}"
-run_core cargo run -q -p uniffi-bindgen -- generate \
+run_core cargo run -q --locked -p uniffi-bindgen -- generate \
     --library "${core_dir}/jniLibs/${first_abi}/libmarkdown_org_ffi.so" \
     --language kotlin --out-dir "${out_dir}" --no-format
 

@@ -23,6 +23,6 @@ echo "==> cargo fmt --all --check"
 run_core cargo fmt --all --check
 
 echo "==> cargo clippy --all-targets -- -D warnings"
-run_core cargo clippy --all-targets -j "${JOBS}" -- -D warnings
+run_core cargo clippy --all-targets --locked -j "${JOBS}" -- -D warnings
 
 echo "==> done"

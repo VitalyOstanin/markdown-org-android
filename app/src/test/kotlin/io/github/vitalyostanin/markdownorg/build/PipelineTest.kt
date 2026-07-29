@@ -1,9 +1,9 @@
 package io.github.vitalyostanin.markdownorg.build
 
-import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * What the build itself has to keep to.
@@ -15,7 +15,6 @@ import org.junit.Test
  * project would notice them until they had already happened.
  */
 class PipelineTest {
-
     private val root = File(System.getProperty("repo.root") ?: "..")
 
     private val workflow = root.resolve(".github/workflows/build.yml").readText()
@@ -88,7 +87,12 @@ class PipelineTest {
     /** A key generated locally must never be a candidate for `git add`. */
     @Test
     fun theIgnoreListCoversEveryShapeOfSigningKey() {
-        val ignored = root.resolve(".gitignore").readLines().map(String::trim).toSet()
+        val ignored =
+            root
+                .resolve(".gitignore")
+                .readLines()
+                .map(String::trim)
+                .toSet()
 
         for (mask in listOf("*.keystore", "*.jks", "*.p12", "*.pfx")) {
             assertTrue("$mask is not ignored", mask in ignored)
@@ -133,6 +137,156 @@ class PipelineTest {
     }
 
     /**
+     * A step that hangs — a Gradle daemon waiting on a lock, a download that
+     * never answers — holds the runner for the six hours GitHub allows by
+     * default. Every job states what it is worth waiting for.
+     */
+    @Test
+    fun everyJobIsBounded() {
+        val unbounded =
+            jobNames(workflows()).filter { (file, name) ->
+                !jobBody(file.readText(), name).contains("timeout-minutes:")
+            }
+
+        assertTrue(
+            "no timeout: ${unbounded.joinToString { "${it.first.name}:${it.second}" }}",
+            unbounded.isEmpty(),
+        )
+    }
+
+    /**
+     * The instrumented tests are the only ones that load the native library
+     * and the only ones that see a screen, which makes them the ones a
+     * release must not go out without.
+     */
+    @Test
+    fun theInstrumentedTestsRunSomewhereInCi() {
+        assertTrue(
+            "nothing in .github/workflows runs the instrumented tests",
+            workflows().any { it.readText().contains("connectedDebugAndroidTest") },
+        )
+    }
+
+    /**
+     * Rust is held to `cargo fmt --check` and clippy with warnings denied.
+     * The Kotlin half is the larger one; it is checked as well, by a
+     * formatter and by Android Lint.
+     */
+    @Test
+    fun theKotlinSourcesAreCheckedToo() {
+        val text = workflows().joinToString("\n") { it.readText() }
+
+        assertTrue("no formatting check for Kotlin", text.contains("ktlintCheck"))
+        assertTrue("Android Lint is never run", text.contains("lintDebug"))
+        assertTrue(
+            "the ktlint plugin is not applied",
+            root.resolve("build.gradle.kts").readText().contains("ktlint"),
+        )
+    }
+
+    /**
+     * Cargo re-resolves the lock file without a word when a manifest and the
+     * lock disagree, and the published APK then carries versions nothing in
+     * the repository records.
+     */
+    @Test
+    fun everyCargoCommandIsLocked() {
+        val scripts =
+            root
+                .resolve("tools")
+                .listFiles()
+                .orEmpty()
+                .filter { it.name.endsWith(".sh") }
+                .map { it.name to commands(it.readLines()) } +
+                listOf(".github/workflows/build.yml" to commands(shellScripts(workflow)))
+
+        val loose =
+            scripts.flatMap { (name, commands) ->
+                commands
+                    .map(String::trim)
+                    .filter { !it.startsWith("#") && !it.startsWith("echo") }
+                    .filter {
+                        RESOLVES_DEPENDENCIES.containsMatchIn(
+                            it,
+                        ) && !it.contains("--locked")
+                    }.map { "$name: $it" }
+            }
+
+        assertTrue(
+            "these resolve dependencies freely:\n${loose.joinToString("\n")}",
+            loose.isEmpty(),
+        )
+    }
+
+    /**
+     * A test that fails in CI is a test whose report is wanted; the step log
+     * carries the assertion but not the trace, and an upload that runs only
+     * after a green run is an upload of the case nobody needs.
+     */
+    @Test
+    fun theTestReportsOutliveAFailedRun() {
+        val steps = workflows().joinToString("\n") { it.readText() }.split("      - name:")
+
+        assertTrue(
+            "no step keeps the test reports of a failed run",
+            steps.any {
+                it.contains("upload-artifact") &&
+                    it.contains("test-results") &&
+                    (it.contains("if: always()") || it.contains("if: failure()"))
+            },
+        )
+    }
+
+    /**
+     * The release variant is signed with a key CI holds and nothing else
+     * reads. A build that silently fell back to the debug key would be
+     * published all the same — the release step only checks that a file is
+     * there.
+     */
+    @Test
+    fun theReleaseApkIsCheckedBeforeItIsPublished() {
+        assertTrue(
+            "nothing verifies the signature of the APK that gets published",
+            workflow.contains("apksigner") && workflow.contains("verify --print-certs"),
+        )
+    }
+
+    /** The workflow files, in a fixed order so a failure names the same one twice. */
+    private fun workflows(): List<File> = root
+        .resolve(".github/workflows")
+        .listFiles()
+        .orEmpty()
+        .sortedBy(File::getName)
+
+    /** Every job of every workflow, as the file it stands in and its name. */
+    private fun jobNames(files: List<File>): List<Pair<File, String>> = files.flatMap { file ->
+        val lines = file.readLines()
+        val start = lines.indexOfFirst { it.trimEnd() == "jobs:" }
+        lines
+            .drop(start + 1)
+            .mapNotNull { JOB.matchEntire(it)?.groupValues?.get(1) }
+            .map { file to it }
+    }
+
+    /**
+     * Shell lines joined at their continuations, so that a command split over
+     * several lines is examined as the one command it is.
+     */
+    private fun commands(lines: List<String>): List<String> {
+        val joined = mutableListOf<String>()
+
+        for (line in lines) {
+            if (joined.isNotEmpty() && joined.last().endsWith("\\")) {
+                joined[joined.size - 1] = joined.last().dropLast(1) + line.trim()
+            } else {
+                joined += line
+            }
+        }
+
+        return joined
+    }
+
+    /**
      * Every `run:` script in the workflow, as a flat list of lines.
      *
      * A block scalar (`run: |`) runs until the indentation falls back to the
@@ -146,7 +300,8 @@ class PipelineTest {
         for (line in lines) {
             if (indent >= 0) {
                 val blank = line.isBlank()
-                val deeper = line.length > indent && line.takeWhile(Char::isWhitespace).length > indent
+                val deeper =
+                    line.length > indent && line.takeWhile(Char::isWhitespace).length > indent
 
                 if (blank || deeper) {
                     if (!blank) script += line
@@ -156,7 +311,7 @@ class PipelineTest {
             }
 
             val key = line.substringBefore("run:", missingDelimiterValue = "")
-            if (!line.contains("run:") || key.isNotBlank() && key.trim() != "-") {
+            if (!line.contains("run:") || (key.isNotBlank() && key.trim() != "-")) {
                 continue
             }
 
@@ -178,8 +333,23 @@ class PipelineTest {
         assertTrue("there is no job named $name", start >= 0)
 
         val rest = lines.drop(start + 1)
-        val end = rest.indexOfFirst { it.isNotBlank() && !it.startsWith("    ") && !it.startsWith("  #") }
+        val end =
+            rest.indexOfFirst {
+                it.isNotBlank() && !it.startsWith("    ") &&
+                    !it.startsWith("  #")
+            }
 
         return rest.take(if (end < 0) rest.size else end).joinToString("\n")
+    }
+
+    private companion object {
+        /** A key one level below `jobs:`, which is a job and nothing else. */
+        val JOB = Regex("""^ {2}([a-z][a-z0-9-]*):\s*$""")
+
+        /**
+         * The cargo subcommands that read Cargo.lock and will rewrite it.
+         * `cargo fmt` reads no manifest and takes no such flag.
+         */
+        val RESOLVES_DEPENDENCIES = Regex("""\bcargo\s+(ndk|build|test|run|clippy)\b""")
     }
 }

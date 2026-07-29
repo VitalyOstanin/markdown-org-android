@@ -70,6 +70,7 @@ markdown-org-android/
 │   ├── test-core.sh          # the Rust tests, in the NDK image
 │   ├── check-core.sh         # cargo fmt --check and clippy, in the same image
 │   ├── gradle.sh             # any Gradle task, in the SDK image
+│   ├── lint.sh               # ktlint and Android Lint, the Kotlin half
 │   ├── build-app.sh          # assemble the APK
 │   ├── test.sh               # the JVM tests of the application
 │   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
@@ -281,12 +282,18 @@ a device.
 ## Continuous integration
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) builds the same
-two ABIs and publishes the APK. Two jobs:
+two ABIs and publishes the APK. Four jobs:
 
-| № | Job     | What it does                                                                      |
-|---|---------|-----------------------------------------------------------------------------------|
-| 1 | `check` | `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for the host      |
-| 2 | `build` | the core for both ABIs, the unit tests, the APK, and the release that carries it   |
+| № | Job            | What it does                                                                                 |
+|---|----------------|-----------------------------------------------------------------------------------------------|
+| 1 | `check`        | `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for the host                  |
+| 2 | `build`        | the core for both ABIs, ktlint and Android Lint, the unit tests, the APK and its signature     |
+| 3 | `instrumented` | the emulator tests, against the core `build` produced; skipped on a pull request               |
+| 4 | `publish`      | the release carrying the APK — a job of its own, so the token that writes never builds sources |
+
+Every cargo command carries `--locked`: Cargo re-resolves the lock file
+without saying so when a manifest and the lock disagree, and what gets
+published would then differ from what the repository records.
 
 The core is built by `tools/build-core.sh` with `NATIVE=1`, which runs the
 steps directly instead of in a container. The workflow does not repeat them:
@@ -313,6 +320,12 @@ Four repository secrets carry it: `APP_KEYSTORE_BASE64`,
 `APP_KEYSTORE_PASSWORD`, `APP_KEYSTORE_ALIAS`, `APP_KEY_PASSWORD`. The key is
 decoded into `RUNNER_TEMP`, outside the workspace, so that no later step can
 pick it up as a build input.
+
+The instrumented job takes the libraries and the generated Kotlin as an
+artefact from `build` rather than building them again, so it needs neither
+the NDK nor a Rust toolchain: an emulator boot is what it costs, and that is
+why it runs on a push and not on every pull request. `publish` waits for it,
+so nothing goes out over a failed run of the tests that load the core.
 
 Actions are pinned by commit SHA with the tag in a comment, and the runner is
 `ubuntu-24.04` rather than `ubuntu-latest`: an image that moves under an
@@ -366,6 +379,7 @@ each of which clears the threshold on its own.
 ```bash
 tools/test-core.sh        # the Rust tests, in the NDK image
 tools/check-core.sh       # cargo fmt --check and clippy, what CI fails on
+tools/lint.sh             # ktlint and Android Lint; --format rewrites what it can
 tools/test.sh             # the JVM tests of the application
 tools/run-emulator.sh && tools/test-instrumented.sh   # the instrumented ones
 tools/coverage.sh         # what the JVM tests reach, as a Kover report

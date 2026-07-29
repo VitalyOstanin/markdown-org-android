@@ -61,11 +61,15 @@ jobs:
 
       - name: Lint
         working-directory: rust
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Test
         working-directory: rust
-        run: cargo test
+        # --locked here and in tools/build-core.sh: Cargo re-resolves the lock
+        # file without saying so when a manifest and the lock disagree, and
+        # what is tested — or published — then differs from what the
+        # repository records.
+        run: cargo test --locked
 
   build:
     runs-on: ubuntu-24.04
@@ -165,8 +169,27 @@ jobs:
             echo "task=assembleRelease" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check the Kotlin sources
+        # The counterpart of the fmt and clippy steps above, for the larger
+        # half of the project: ktlint holds the formatting, Android Lint the
+        # things a compiler has no opinion on — a deprecated API, a string
+        # missing from a translation, a resource nothing uses.
+        run: ./gradlew ktlintCheck lintDebug
+
       - name: Run the unit tests
         run: ./gradlew testDebugUnitTest
+
+      - name: Keep the test reports
+        # The step log carries the assertion and not the trace, and this is
+        # the run whose report is wanted, so: always, not on success.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/**
+            app/build/test-results/**
+          if-no-files-found: ignore
 
       - name: Decode the signing key
         if: steps.variant.outputs.name == 'release'
@@ -193,6 +216,20 @@ jobs:
           TASK: ${{ steps.variant.outputs.task }}
         run: ./gradlew "$TASK"
 
+      - name: Check the signature of the APK
+        if: steps.variant.outputs.name == 'release'
+        # What gets published is signed with the key held in the secrets. A
+        # build that fell back to the debug key, or to none, would be
+        # published all the same — the release step only checks that a file
+        # is there.
+        env:
+          VARIANT: ${{ steps.variant.outputs.name }}
+        run: |
+          apksigner="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
+          for apk in "app/build/outputs/apk/$VARIANT"/*.apk; do
+            "$apksigner" verify --print-certs "$apk"
+          done
+
       - name: Report what was built
         env:
           VARIANT: ${{ steps.variant.outputs.name }}
@@ -212,12 +249,99 @@ jobs:
           path: app/build/outputs/apk/${{ steps.variant.outputs.name }}/*.apk
           if-no-files-found: error
 
+      - name: Upload the core
+        # For the instrumented job, so that it needs neither the NDK nor a
+        # Rust toolchain: the libraries and the generated Kotlin are the whole
+        # of what the application takes from the core.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core
+          path: |
+            rust/jniLibs/**
+            generated/**
+          if-no-files-found: error
+
+  # The tests that load the native library and the tests that see a screen,
+  # which are the same 40 methods the unit tests cannot reach. On a push
+  # rather than on a pull request: booting an emulator and running against it
+  # takes longer than everything else here put together.
+  instrumented:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    # Around fifteen minutes, most of it the emulator coming up.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the pinned versions
+        run: grep -E '^[A-Z][A-Z0-9_]*=' tools/versions.env >> "$GITHUB_ENV"
+
+      - name: Setup Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+
+      - name: Setup the Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: 'platforms;${{ env.ANDROID_PLATFORM }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Download the core
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: core
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-read-only: true
+
+      - name: Enable KVM
+        # Without it the emulator falls back to software rendering of the
+        # whole machine and the run takes long enough to hit the timeout.
+        # This is the rule the emulator action's own documentation gives.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the instrumented tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          # The same image tools/Containerfile.emulator builds an AVD from,
+          # and x86_64 is one of the two ABIs the core is built for.
+          api-level: ${{ env.ANDROID_EMULATOR_API }}
+          target: google_apis
+          arch: x86_64
+          # The action's own defaults, with the cameras off as well: nothing
+          # here opens one, and emulating them costs a boot.
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: ./gradlew connectedDebugAndroidTest
+
+      - name: Keep the test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: instrumented-reports
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+          if-no-files-found: ignore
+
   # Publishing is a job of its own so that the token able to write to the
   # repository never sits in the job that compiles the sources under review.
   # This one checks out the tree for the version string and downloads the APK
   # the build produced; it runs nothing from the working copy.
   publish:
-    needs: build
+    # Both, so that nothing is published over a failed run of the tests that
+    # exercise the native library.
+    needs: [build, instrumented]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

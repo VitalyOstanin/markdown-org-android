@@ -27,4 +27,4 @@ echo "==> cargo test"
 timeout "${TIMEOUT}" podman run --rm --network host "${proxy_run_args[@]}" "${limit_args[@]}" \
     -v "${REPO_ROOT}/rust:/src:z" -v "${CACHE_VOLUME}:/usr/local/cargo/registry" -w /src \
     "${NDK_IMAGE}" \
-    cargo test -j "${JOBS}" "$@" -- --test-threads "${TEST_THREADS}"
+    cargo test --locked -j "${JOBS}" "$@" -- --test-threads "${TEST_THREADS}"
