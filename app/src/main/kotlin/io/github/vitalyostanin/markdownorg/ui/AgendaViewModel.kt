@@ -17,6 +17,8 @@ import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
+import io.github.vitalyostanin.markdownorg.core.UiPreferences
+import io.github.vitalyostanin.markdownorg.core.UiSettings
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import kotlinx.coroutines.Job
@@ -36,6 +38,7 @@ class AgendaViewModel(
     private val agenda: AgendaLoader,
     private val sync: NotesSyncer,
     private val settings: SyncPreferences,
+    private val ui: UiPreferences,
     private val editor: NotesWriter,
 ) : ViewModel() {
 
@@ -45,12 +48,25 @@ class AgendaViewModel(
     /**
      * Kept apart from [state] so switching the layout redraws without going
      * back through Loading — the data is the same, only its shape changes.
+     * Read from the stored preference, so the agenda opens the way it was
+     * left rather than always on the hour axis.
      */
-    private val _layout = MutableStateFlow(AgendaLayout.TIME)
+    private val _layout = MutableStateFlow(ui.layout)
     val layout: StateFlow<AgendaLayout> = _layout.asStateFlow()
 
     private val _syncState = MutableStateFlow(SyncUiState())
     val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
+
+    /**
+     * The last edit that could not be made, until it has been shown.
+     *
+     * A channel of its own rather than the sync banner: that line reports the
+     * state of the checkout, and "the task could not be changed" is about a
+     * tap the user just made. Sharing one slot meant an edit failure sat under
+     * the header until the next sync, and displaced the checkout it describes.
+     */
+    private val _editIssue = MutableStateFlow<SyncMessage?>(null)
+    val editIssue: StateFlow<SyncMessage?> = _editIssue.asStateFlow()
 
     /**
      * The task whose actions are open, if any.
@@ -79,10 +95,16 @@ class AgendaViewModel(
 
     fun setLayout(layout: AgendaLayout) {
         _layout.value = layout
+        ui.layout = layout
     }
 
     fun select(task: Task?) {
         _selected.value = task
+    }
+
+    /** The edit failure has been shown, so it is not shown again. */
+    fun editIssueShown() {
+        _editIssue.value = null
     }
 
     /**
@@ -99,15 +121,7 @@ class AgendaViewModel(
         // does not exist, so every edit would come back as "file not found" —
         // refused here with a reason instead.
         if (!task.isEditable()) {
-            _syncState.update {
-                it.copy(
-                    message = SyncMessage(
-                        R.string.edit_failed_unnamed,
-                        failed = true,
-                        source = MessageSource.EDIT,
-                    ),
-                )
-            }
+            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
             return
         }
 
@@ -121,19 +135,12 @@ class AgendaViewModel(
 
             outcome.fold(
                 onSuccess = {
-                    // Clears the failure this edit answers, and leaves a
-                    // message about the checkout standing: it is about
-                    // something else.
-                    _syncState.update { state ->
-                        state.copy(
-                            message = state.message?.takeIf { it.source != MessageSource.EDIT },
-                        )
-                    }
+                    // Clears whatever the previous attempt left unanswered:
+                    // this one went through.
+                    _editIssue.value = null
                     refresh()
                 },
-                onFailure = { error ->
-                    _syncState.update { it.copy(message = error.toEditMessage()) }
-                },
+                onFailure = { error -> _editIssue.value = error.toEditMessage() },
             )
         }
     }
@@ -148,7 +155,15 @@ class AgendaViewModel(
     fun refresh(scope: Scope = Scope.DAY) {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
-            _state.value = AgendaUiState.Loading
+            // An agenda already on screen stays on screen: the scan that
+            // follows an edit answers with almost the same list, and blanking
+            // the screen for it costs the header and the scroll position.
+            _state.update { current ->
+                when (current) {
+                    is AgendaUiState.Ready -> current.copy(refreshing = true)
+                    else -> AgendaUiState.Loading
+                }
+            }
             val today = LocalDate.now()
             notes.ensureSeeded(today) { settings.isConfigured }
 
@@ -296,16 +311,7 @@ class AgendaViewModel(
         }
 
         syncJob = viewModelScope.launch {
-            // Clears the previous sync result, and only that: an edit that
-            // failed is still unanswered and stays up.
-            _syncState.update { state ->
-                state.copy(
-                    running = true,
-                    message = state.message?.takeIf {
-                        it.failed && it.source == MessageSource.EDIT
-                    },
-                )
-            }
+            _syncState.update { it.copy(running = true, message = null) }
 
             val outcome = sync.sync(settings)
             // A sync that went through hands back the state of the checkout it
@@ -330,10 +336,7 @@ class AgendaViewModel(
                     running = false,
                     repository = status,
                     lastSyncedAt = settings.lastSyncedAt,
-                    // A failed edit stays up: the sync result does not answer
-                    // it, and read-modify-write here rather than a fresh
-                    // object keeps whatever else arrived meanwhile.
-                    message = current.message.notDisplacedBy(message),
+                    message = message,
                 )
             }
 
@@ -368,6 +371,7 @@ class AgendaViewModel(
                     agenda = AgendaSource(notes),
                     sync = NotesSync(application, notes),
                     settings = settings,
+                    ui = UiSettings(application),
                     editor = NotesEditor(notes, settings),
                 )
             }

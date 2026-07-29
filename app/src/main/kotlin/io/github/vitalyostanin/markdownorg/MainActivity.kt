@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
                 val layout by model.layout.collectAsStateWithLifecycle()
                 val sync by model.syncState.collectAsStateWithLifecycle()
                 val selected by model.selected.collectAsStateWithLifecycle()
+                val editIssue by model.editIssue.collectAsStateWithLifecycle()
 
                 // Two screens and no navigation library: settings is the only
                 // place to go, and it comes back to the agenda.
@@ -70,6 +71,8 @@ class MainActivity : ComponentActivity() {
                         onLayoutChange = model::setLayout,
                         modifier = insets,
                         sync = sync,
+                        editIssue = editIssue,
+                        onEditIssueShown = model::editIssueShown,
                         onSync = model::syncNow,
                         onOpenSettings = { settingsOpen = true },
                         onTaskClick = model::select,

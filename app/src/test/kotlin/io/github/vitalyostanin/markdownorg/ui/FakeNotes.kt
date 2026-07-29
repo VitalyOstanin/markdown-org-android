@@ -5,6 +5,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
+import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -152,6 +153,9 @@ class FakeWriter(var outcome: Result<Unit> = Result.success(Unit)) : NotesWriter
         return outcome
     }
 }
+
+/** What the user chose about the interface, in memory. */
+class FakeUiPreferences(override var layout: AgendaLayout = AgendaLayout.TIME) : UiPreferences
 
 /** Settings in memory, with the same defaults the stored ones fall back to. */
 class FakePreferences(

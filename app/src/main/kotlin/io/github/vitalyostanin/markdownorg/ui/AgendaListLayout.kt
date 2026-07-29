@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,10 +27,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 
 /**
@@ -41,12 +44,14 @@ import uniffi.markdown_org_ffi.Task
 internal fun ListLayout(
     sections: AgendaSections,
     modifier: Modifier = Modifier,
+    scroll: LazyListState = rememberLazyListState(),
     onTaskClick: (Task) -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        state = scroll,
+        contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         if (sections.isEmpty) {
             item { EmptyAgenda() }
@@ -75,8 +80,7 @@ internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
 
 @Composable
 private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
-    val kind = row.task.kind()
-    val role = LocalAgendaColors.current.role(kind)
+    val role = LocalAgendaColors.current.role(row.task.kind())
     val overdue = row.daysOffset < 0
     val trailing = daysLabel(row.daysOffset)
 
@@ -84,50 +88,41 @@ private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) },
     ) {
         Row(
-            modifier = Modifier.padding(end = 11.dp),
+            modifier = Modifier.padding(end = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The rail carries the kind of entry without spending width on a
             // label; it clears the 3.0 contrast a non-text carrier needs.
             Box(
                 Modifier
-                    .width(4.dp)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                    .width(Sizes.rail)
+                    .height(Sizes.railHeight)
+                    .clip(
+                        MaterialTheme.shapes.medium.copy(
+                            topEnd = ZeroCornerSize,
+                            bottomEnd = ZeroCornerSize,
+                        ),
+                    )
                     .background(role.tone),
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Spacing.md))
             TimeCell(row.time)
             // The glyph repeats what the rail says in a form that survives
-            // without colour, which is what WCAG 1.4.1 asks for.
-            Text(
-                text = kind.glyph,
-                style = MaterialTheme.typography.labelLarge,
-                color = role.tone,
+            // without colour, which is what WCAG 1.4.1 asks for. The priority
+            // badge leads the line after it: the eye reads left to right, and
+            // a column of badges is what a scrolled list is scanned by.
+            TaskRowHead(
+                row.task,
+                glyph = role.tone,
+                heading = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(Modifier.width(8.dp))
-            // The priority badge leads the line: the eye reads left to right,
-            // and a column of badges is what a scrolled list is scanned by.
-            row.task.priority?.let { priority ->
-                PriorityBadge(priority)
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                text = row.task.heading,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textDecoration = kind.decoration(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             if (trailing.isEmpty()) {
                 Text(
                     text = EMPTY_CELL,

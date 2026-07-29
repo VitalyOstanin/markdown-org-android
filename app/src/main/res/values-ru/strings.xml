@@ -44,10 +44,10 @@
     <string name="agenda_task_actions">Действия с задачей</string>
     <string name="action_complete">Готово</string>
     <string name="action_complete_repeating">Готово, перенести на следующий раз</string>
-    <string name="action_cancel_task">Отменить задачу</string>
+    <string name="action_cancel_task">Снять задачу</string>
     <string name="action_reopen">Вернуть в работу</string>
-    <string name="action_priority_set">Поставить приоритет A</string>
-    <string name="action_priority_clear">Убрать приоритет</string>
+    <string name="action_priority">Приоритет</string>
+    <string name="action_priority_none">Без</string>
     <string name="action_shift_back">На день раньше</string>
     <string name="action_shift_forward">На день позже</string>
 

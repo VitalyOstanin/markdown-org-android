@@ -31,30 +31,7 @@ data class SyncMessage(
     @param:StringRes val text: Int,
     val detail: String? = null,
     val failed: Boolean = false,
-    val source: MessageSource = MessageSource.SYNC,
 )
-
-/**
- * What the message is about.
- *
- * Both kinds share one line of the interface, and they arrive from coroutines
- * that run independently, so which one may replace which has to be a rule
- * rather than whichever finished last — see [notDisplacedBy].
- */
-enum class MessageSource { SYNC, EDIT }
-
-/**
- * Keeps a failed edit on screen when the sync has nothing to say about it.
- *
- * A sync that went through does not answer "the task could not be changed",
- * and overwriting the line would leave the user believing the edit landed. A
- * failed sync does replace it: that one is about the same directory and is
- * the more immediate problem.
- */
-fun SyncMessage?.notDisplacedBy(next: SyncMessage?): SyncMessage? = when {
-    this != null && failed && source == MessageSource.EDIT && next?.failed != true -> this
-    else -> next
-}
 
 /** What to tell the user about an address that cannot be used. */
 fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
@@ -109,6 +86,10 @@ private fun SyncMessage.withoutCredentials(): SyncMessage =
  * `Stale` is the one the user can act on: the file moved on under the agenda,
  * and the answer is to look again. The rest describe a file or a request the
  * application cannot work with, and say so with whatever the core reported.
+ *
+ * The result belongs to a channel of its own — see
+ * [AgendaViewModel.editIssue]. The banner under the header is about the
+ * checkout, and "the task could not be changed" is not.
  */
 fun Throwable.toEditMessage(): SyncMessage = when (this) {
     is EditException.Stale -> SyncMessage(R.string.edit_failed_stale, detail, failed = true)
@@ -136,4 +117,4 @@ fun Throwable.toEditMessage(): SyncMessage = when (this) {
     is EditException.Io -> SyncMessage(R.string.edit_failed, detail, failed = true)
 
     else -> SyncMessage(R.string.edit_failed, message, failed = true)
-}.copy(source = MessageSource.EDIT)
+}

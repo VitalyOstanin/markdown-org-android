@@ -31,12 +31,6 @@ data class AgendaColors(
      * on top has to invert with the theme.
      */
     val onSolid: Color,
-    /**
-     * Muted backing for grouped controls such as the layout switch. Material's
-     * `surfaceVariant` is the primary container here, which is saturated
-     * enough to read as a selection of its own.
-     */
-    val hairSoft: Color,
 )
 
 internal val LightAgendaColors = AgendaColors(
@@ -48,7 +42,6 @@ internal val LightAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF2E7D4F), Color(0xFFC4F0D4), Color(0xFF00210F)),
     cancelled = AgendaRole(Color(0xFF6E6A78), Color(0xFFE6E2EF), Color(0xFF2A2733)),
     onSolid = Color(0xFFFFFFFF),
-    hairSoft = Color(0xFFEAE6F4),
 )
 
 internal val DarkAgendaColors = AgendaColors(
@@ -58,7 +51,6 @@ internal val DarkAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF7ED8A0), Color(0xFF14512F), Color(0xFFCFF3DC)),
     cancelled = AgendaRole(Color(0xFFA29DAF), Color(0xFF3A3745), Color(0xFFDFDAEA)),
     onSolid = Color(0xFF1B1620),
-    hairSoft = Color(0xFF262432),
 )
 
 val LocalAgendaColors = staticCompositionLocalOf { LightAgendaColors }

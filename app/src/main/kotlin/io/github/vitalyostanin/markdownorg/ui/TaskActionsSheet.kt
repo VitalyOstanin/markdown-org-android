@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -18,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
@@ -59,9 +61,9 @@ fun TaskActionsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = Spacing.gutter)
+                .padding(bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(
                 text = task.heading,
@@ -76,17 +78,29 @@ fun TaskActionsSheet(
             )
 
             val repeating = task.timestampRepeater != null
-            SheetButton(
-                label = stringResource(
-                    if (repeating) R.string.action_complete_repeating else R.string.action_complete,
-                ),
-                tag = "action-complete",
-            ) { onAction(TaskAction.Complete) }
+            // A task that is already done has nothing to complete — writing
+            // the keyword back would commit a change that changes nothing. A
+            // repeating one is the exception: there "done" means the next
+            // occurrence, whatever the keyword says now.
+            if (repeating || task.taskType != TaskType.DONE) {
+                SheetButton(
+                    label = stringResource(
+                        if (repeating) {
+                            R.string.action_complete_repeating
+                        } else {
+                            R.string.action_complete
+                        },
+                    ),
+                    tag = "action-complete",
+                ) { onAction(TaskAction.Complete) }
+            }
 
-            SheetButton(
-                label = stringResource(R.string.action_cancel_task),
-                tag = "action-cancel",
-            ) { onAction(TaskAction.Status(TaskType.CANCELLED)) }
+            if (task.taskType != TaskType.CANCELLED) {
+                SheetButton(
+                    label = stringResource(R.string.action_cancel_task),
+                    tag = "action-cancel",
+                ) { onAction(TaskAction.Status(TaskType.CANCELLED)) }
+            }
 
             if (task.taskType != TaskType.TODO) {
                 SheetButton(
@@ -95,18 +109,7 @@ fun TaskActionsSheet(
                 ) { onAction(TaskAction.Status(TaskType.TODO)) }
             }
 
-            SheetButton(
-                label = stringResource(
-                    if (task.priority ==
-                        null
-                    ) {
-                        R.string.action_priority_set
-                    } else {
-                        R.string.action_priority_clear
-                    },
-                ),
-                tag = "action-priority",
-            ) { onAction(TaskAction.Priority(if (task.priority == null) "A" else null)) }
+            PriorityChoice(task.priority, onAction)
 
             // Which planning line the task carries decides which one can move;
             // the extractor reports the kind it found.
@@ -116,7 +119,7 @@ fun TaskActionsSheet(
                 else -> null
             }
             if (keyword != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     SheetButton(
                         label = stringResource(R.string.action_shift_back),
                         tag = "action-shift-back",
@@ -132,6 +135,49 @@ fun TaskActionsSheet(
         }
     }
 }
+
+/**
+ * Which priority the task carries, as the whole scale rather than one switch.
+ *
+ * The badge in the agenda tells A, B and C apart, and a task that arrived from
+ * the notes with B could otherwise only be cleared and set back to A. The
+ * level already in force is drawn as the selection and does nothing when
+ * tapped: writing the same cookie back would be a commit with no change in it.
+ */
+@Composable
+private fun PriorityChoice(current: String?, onAction: (TaskAction) -> Unit) {
+    Text(
+        text = stringResource(R.string.action_priority),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        for (level in levels(current)) {
+            val selected = level == current
+            FilterChip(
+                selected = selected,
+                onClick = { if (!selected) onAction(TaskAction.Priority(level)) },
+                label = { Text(level ?: stringResource(R.string.action_priority_none)) },
+                modifier = Modifier.testTag("priority-${level ?: "none"}"),
+            )
+        }
+    }
+}
+
+/**
+ * What to offer: org-mode's default range, whatever this task already carries,
+ * and no priority at all.
+ *
+ * The core accepts any uppercase letter and any number in `0..=64`, which is
+ * 91 values and no row of chips. Three of them are what org-mode uses out of
+ * the box and what the badge in the agenda gives its own colour; the rest
+ * appear one at a time, when a task arrives from the notes carrying one — so
+ * a task with `[#D]` can be set back to `D` after being changed.
+ */
+private fun levels(current: String?): List<String?> =
+    (DEFAULT_RANGE + listOfNotNull(current)).distinct() + null
+
+private val DEFAULT_RANGE = listOf("A", "B", "C")
 
 @Composable
 private fun SheetButton(

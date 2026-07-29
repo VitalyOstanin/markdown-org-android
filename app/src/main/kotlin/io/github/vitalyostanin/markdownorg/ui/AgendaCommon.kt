@@ -2,7 +2,10 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,11 +18,14 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.AgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.AgendaRole
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 
@@ -87,6 +93,49 @@ fun daysLabel(daysOffset: Long): String = when {
 }
 
 /**
+ * What a row says about its task: the glyph for its kind, the priority cookie
+ * if it carries one, and the heading.
+ *
+ * Written once for every kind of row — tile, overdue line, band, list row —
+ * because this is where the promise the layouts make is kept: they differ in
+ * visual language, not in how much they show. As four copies they had already
+ * drifted apart, and the overdue row had lost the strike-through of a
+ * cancelled task. What is left to the caller is the visual language itself:
+ * which colours the row is drawn in and how heavy the heading sits.
+ */
+@Composable
+fun RowScope.TaskRowHead(
+    task: Task,
+    glyph: Color,
+    heading: Color = glyph,
+    bold: Boolean = false,
+    onDenseFill: Boolean = false,
+) {
+    val kind = task.kind()
+
+    Text(
+        text = kind.glyph,
+        style = MaterialTheme.typography.labelLarge,
+        color = glyph,
+    )
+    Spacer(Modifier.width(Spacing.sm))
+    task.priority?.let { priority ->
+        PriorityBadge(priority, onDenseFill = onDenseFill)
+        Spacer(Modifier.width(Spacing.xs))
+    }
+    Text(
+        text = task.heading,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (bold) FontWeight.SemiBold else null,
+        color = heading,
+        textDecoration = kind.decoration(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+    )
+}
+
+/**
  * The priority cookie, coloured by the priority rather than by the kind of
  * entry: it has to stay legible on top of a tile already filled with the
  * kind's own colour, and A/B/C is its own scale.
@@ -107,8 +156,8 @@ fun PriorityBadge(priority: String, modifier: Modifier = Modifier, onDenseFill: 
 
     Box(
         modifier = modifier
-            .size(18.dp)
-            .clip(RoundedCornerShape(5.dp))
+            .size(Sizes.badge)
+            .clip(MaterialTheme.shapes.extraSmall)
             .background(if (onDenseFill) colors.onSolid else tone),
         contentAlignment = Alignment.Center,
     ) {

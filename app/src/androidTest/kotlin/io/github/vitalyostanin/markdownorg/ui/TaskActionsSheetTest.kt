@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -75,20 +76,68 @@ class TaskActionsSheetTest {
     }
 
     @Test
-    fun aTaskWithoutAPriorityIsOfferedOne() {
+    fun aTaskAlreadyDoneIsNotOfferedCompletion() {
+        // Completing it again writes the same keyword back and commits, which
+        // is a commit that changes nothing.
+        show(task(taskType = TaskType.DONE))
+
+        compose.onNodeWithTag("action-complete").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRepeatingTaskIsOfferedCompletionEvenWhenDone() {
+        // For a repeater "done" means the next occurrence, so it stays
+        // meaningful however the keyword reads now.
+        show(task(taskType = TaskType.DONE, repeater = "+1w"))
+
+        compose.onNodeWithTag("action-complete").assertExists()
+    }
+
+    @Test
+    fun aTaskAlreadyCancelledIsNotOfferedCancelling() {
+        show(task(taskType = TaskType.CANCELLED))
+
+        compose.onNodeWithTag("action-cancel").assertDoesNotExist()
+    }
+
+    @Test
+    fun everyPriorityTheAgendaCanShowCanAlsoBeSet() {
+        // The badge tells A, B and C apart; the sheet used to offer A alone,
+        // so a task that arrived from the notes with B could only be cleared.
         show(task(priority = null))
 
-        compose.onNodeWithTag("action-priority").performClick()
+        compose.onNodeWithTag("priority-B").performClick()
+
+        assertEquals(listOf<TaskAction>(TaskAction.Priority("B")), actions)
+    }
+
+    @Test
+    fun thePriorityAlreadySetIsNotWrittenAgain() {
+        show(task(priority = "B"))
+
+        compose.onNodeWithTag("priority-B").performClick()
+
+        assertEquals(emptyList<TaskAction>(), actions)
+    }
+
+    @Test
+    fun aPriorityOutsideTheDefaultRangeCanBeSetBack() {
+        // The core takes any uppercase letter and any number in 0..64, so a
+        // task can arrive from the notes with [#D]. Offering A, B and C alone
+        // would leave no way back to the value it had.
+        show(task(priority = "D"))
+
+        compose.onNodeWithTag("priority-D").assertIsSelected()
+        compose.onNodeWithTag("priority-A").performClick()
 
         assertEquals(listOf<TaskAction>(TaskAction.Priority("A")), actions)
     }
 
     @Test
-    fun aTaskWithAPriorityIsOfferedToDropIt() {
+    fun aPriorityCanBeDropped() {
         show(task(priority = "B"))
 
-        compose.onNodeWithText(string(R.string.action_priority_clear)).assertIsDisplayed()
-        compose.onNodeWithTag("action-priority").performClick()
+        compose.onNodeWithTag("priority-none").performClick()
 
         assertEquals(listOf<TaskAction>(TaskAction.Priority(null)), actions)
     }

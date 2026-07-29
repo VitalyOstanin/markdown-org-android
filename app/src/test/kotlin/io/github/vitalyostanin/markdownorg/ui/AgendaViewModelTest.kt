@@ -34,6 +34,7 @@ class AgendaViewModelTest {
     private val notes = FakeNotesArea()
     private val loader = FakeAgendaLoader()
     private val settings = FakePreferences()
+    private val ui = FakeUiPreferences()
     private val writer = FakeWriter()
 
     @Before
@@ -162,7 +163,79 @@ class AgendaViewModelTest {
     }
 
     @Test
-    fun aSyncResultDoesNotHideAFailedEdit() = runTest(dispatcher) {
+    fun anAgendaOnScreenStaysThereWhileTheNextOneIsBuilt() = runTest(dispatcher) {
+        // Going back through Loading takes the header with it — the layout
+        // switch included — and drops the scroll position of a list that is
+        // about to come back with one line changed.
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+        val shown = model.state.value as AgendaUiState.Ready
+
+        model.refresh()
+        advanceUntilIdle()
+
+        val during = model.state.value as AgendaUiState.Ready
+        assertEquals(shown.sections, during.sections)
+        assertTrue(during.refreshing)
+    }
+
+    @Test
+    fun theFirstAgendaOfAllIsStillLoading() = runTest(dispatcher) {
+        // Nothing to keep on screen before the first scan answers, so that one
+        // does get the spinner.
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        assertEquals(AgendaUiState.Loading, model.state.value)
+    }
+
+    @Test
+    fun anAgendaThatArrivedIsNoLongerMarkedAsRefreshing() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.refresh()
+        advanceUntilIdle()
+        loader.pending[1].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        assertFalse((model.state.value as AgendaUiState.Ready).refreshing)
+    }
+
+    @Test
+    fun theAgendaOpensInTheLayoutItWasClosedIn() = runTest(dispatcher) {
+        // The switch sits in the header as a control meant to be used often,
+        // and the choice used to live in the view model alone: it survived a
+        // rotation but not the process being killed.
+        ui.layout = AgendaLayout.LIST
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        assertEquals(AgendaLayout.LIST, model.layout.value)
+    }
+
+    @Test
+    fun switchingTheLayoutIsRemembered() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.setLayout(AgendaLayout.LIST)
+
+        assertEquals(AgendaLayout.LIST, ui.layout)
+    }
+
+    @Test
+    fun aFailedEditIsReportedApartFromTheSync() = runTest(dispatcher) {
+        // One slot for both meant "the task could not be changed" sat under
+        // the header until the next sync, in place of the line describing the
+        // checkout, and a sync result could read as the edit having landed.
         val syncer = FakeSyncer()
         settings.remoteUrl = REMOTE
         writer.outcome = Result.failure(IllegalStateException("the file moved on"))
@@ -171,15 +244,29 @@ class AgendaViewModelTest {
 
         model.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
-        val failure = model.syncState.value.message
-        assertEquals(MessageSource.EDIT, failure?.source)
+        val failure = model.editIssue.value
+        assertEquals(R.string.edit_failed, failure?.text)
+        assertNull(model.syncState.value.message)
 
         model.syncNow()
         advanceUntilIdle()
 
-        // "Already up to date" over "the task could not be changed" would read
-        // as the edit having landed.
-        assertEquals(failure, model.syncState.value.message)
+        assertEquals(failure, model.editIssue.value)
+        assertEquals(R.string.sync_cloned, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun anEditFailureIsDroppedOnceItHasBeenShown() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        writer.outcome = Result.failure(IllegalStateException("the file moved on"))
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+        model.editIssueShown()
+
+        assertNull(model.editIssue.value)
     }
 
     @Test
@@ -195,9 +282,8 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, writer.calls)
-        val message = model.syncState.value.message
-        assertEquals(R.string.edit_failed_unnamed, message?.text)
-        assertEquals(MessageSource.EDIT, message?.source)
+        assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
+        assertNull(model.syncState.value.message)
     }
 
     @Test
@@ -323,6 +409,7 @@ class AgendaViewModelTest {
         agenda = loader,
         sync = syncer,
         settings = settings,
+        ui = ui,
         editor = writer,
     )
 

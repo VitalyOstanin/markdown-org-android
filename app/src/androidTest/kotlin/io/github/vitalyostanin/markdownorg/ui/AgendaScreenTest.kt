@@ -4,12 +4,16 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextDecoration
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
@@ -133,6 +137,91 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun anAgendaBeingRebuiltKeepsItsHeaderAndItsRows() {
+        // The rebuild follows an edit, and what it produces differs from what
+        // is on screen by one line. Replacing the whole screen with a spinner
+        // takes away the layout switch and the place in the list.
+        compose.setContent {
+            MarkdownOrgTheme {
+                AgendaScreen(
+                    state = readyState(sample, now = LocalTime.of(10, 0)).copy(refreshing = true),
+                    layout = AgendaLayout.TIME,
+                    onLayoutChange = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(AgendaLayout.LIST.testTag).assertExists()
+        compose.onNodeWithText("Renew the certificate").assertIsDisplayed()
+        compose.onNodeWithTag("agenda-refreshing").assertExists()
+    }
+
+    @Test
+    fun anAgendaThatIsNotBeingRebuiltShowsNoProgress() {
+        showAgenda(AgendaLayout.TIME)
+
+        compose.onNodeWithTag("agenda-refreshing").assertDoesNotExist()
+    }
+
+    @Test
+    fun anOverdueCancelledTaskReadsTheSameInBothLayouts() {
+        // The head of a task row — glyph, priority badge, heading — used to be
+        // written out once per row kind, and the copies had drifted: the
+        // overdue row on the axis dropped the strike-through that says the
+        // task is no longer going to happen.
+        val sections = agenda(
+            day(
+                overdue = listOf(
+                    task(
+                        heading = "Drop the endpoint",
+                        taskType = TaskType.CANCELLED,
+                        priority = "B",
+                        date = "2026-07-26",
+                        daysOffset = -2,
+                    ),
+                ),
+            ),
+        ).toSections()
+        var layout by mutableStateOf(AgendaLayout.TIME)
+        compose.setContent {
+            MarkdownOrgTheme {
+                AgendaScreen(
+                    state = readyState(sections, now = LocalTime.of(10, 0)),
+                    layout = layout,
+                    onLayoutChange = { layout = it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("B").assertExists()
+        val onAxis = decorationOf("Drop the endpoint")
+
+        layout = AgendaLayout.LIST
+        compose.waitForIdle()
+
+        compose.onNodeWithText("B").assertExists()
+        val inList = decorationOf("Drop the endpoint")
+        assertEquals(
+            "axis and list disagree",
+            TextDecoration.LineThrough to TextDecoration.LineThrough,
+            onAxis to inList,
+        )
+    }
+
+    @Test
+    fun everyControlInTheHeaderIsNamed() {
+        // The controls used to be bare glyphs whose only label was the one
+        // spoken by the screen reader — a sighted user found out what ◫ did by
+        // trying it, and a device whose font lacks the character showed an
+        // empty box.
+        showAgenda(AgendaLayout.TIME)
+
+        for (name in controls) {
+            compose.onNodeWithContentDescription(string(name)).assertExists()
+        }
+    }
+
+    @Test
     fun anEmptyAgendaSaysSo() {
         showAgenda(AgendaLayout.TIME, sections = agenda(day()).toSections())
 
@@ -176,6 +265,13 @@ class AgendaScreenTest {
         assertTrue(sections.timed.single().task.kind() == AgendaKind.CANCELLED)
     }
 
+    private val controls = listOf(
+        R.string.sync_now,
+        R.string.settings_title,
+        R.string.agenda_layout_time,
+        R.string.agenda_layout_list,
+    )
+
     private val headings = listOf(
         "Renew the certificate",
         "Daily standup",
@@ -208,4 +304,19 @@ class AgendaScreenTest {
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
+
+    /**
+     * How the text was actually laid out, which is where a strike-through
+     * shows.
+     *
+     * Read off the unmerged tree: a row merges the semantics of everything in
+     * it, and the layout of the merged node is that of its first text — the
+     * time, not the heading.
+     */
+    private fun decorationOf(text: String): TextDecoration? {
+        val laid = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(text, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
+        return laid.first().layoutInput.style.textDecoration
+    }
 }

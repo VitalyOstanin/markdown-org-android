@@ -29,6 +29,7 @@ class SyncBannerTest {
 
     private var synced = 0
     private var settingsOpened = false
+    private var issuesShown = 0
 
     @Test
     fun beforeARemoteIsConfiguredNothingIsSaid() {
@@ -101,6 +102,26 @@ class SyncBannerTest {
     }
 
     @Test
+    fun aFailedEditIsAnsweredWithoutTakingOverTheBanner() {
+        // Both used to share the line under the header, so an edit failure
+        // stood in place of the checkout it says nothing about — and stayed
+        // there until the next sync.
+        showAgenda(
+            SyncUiState(configured = true, repository = status()),
+            editIssue = SyncMessage(R.string.edit_failed_stale, failed = true),
+        )
+
+        compose.onNodeWithText(string(R.string.edit_failed_stale)).assertIsDisplayed()
+        compose.onNodeWithText(
+            string(R.string.sync_checkout, "main", "Add the quarterly report"),
+        ).assertIsDisplayed()
+        // Dropped once it has been read rather than when it is put up: the
+        // message has to outlive the redraw that follows the edit, and
+        // clearing it early would take the snackbar down with it.
+        compose.waitUntil(timeoutMillis = SNACKBAR_LIFETIME) { issuesShown == 1 }
+    }
+
+    @Test
     fun aNoteSkippedForItsEncodingIsNamedAboveTheAgenda() {
         showAgenda(
             SyncUiState(configured = true),
@@ -127,12 +148,16 @@ class SyncBannerTest {
         dirty = false,
     )
 
-    private fun showAgenda(sync: SyncUiState, notices: List<ScanNotice> = emptyList()) =
-        showAgenda(mutableStateOf(sync), notices)
+    private fun showAgenda(
+        sync: SyncUiState,
+        notices: List<ScanNotice> = emptyList(),
+        editIssue: SyncMessage? = null,
+    ) = showAgenda(mutableStateOf(sync), notices, editIssue)
 
     private fun showAgenda(
         sync: MutableState<SyncUiState>,
         notices: List<ScanNotice> = emptyList(),
+        editIssue: SyncMessage? = null,
     ) {
         val sections = agenda(
             day(scheduledTimed = listOf(task(heading = "Daily standup", time = "09:30"))),
@@ -150,6 +175,8 @@ class SyncBannerTest {
                     layout = AgendaLayout.TIME,
                     onLayoutChange = {},
                     sync = sync.value,
+                    editIssue = editIssue,
+                    onEditIssueShown = { issuesShown++ },
                     onSync = { synced++ },
                     onOpenSettings = { settingsOpened = true },
                 )
@@ -162,4 +189,9 @@ class SyncBannerTest {
 
     private fun plural(id: Int, count: Int): String =
         compose.activity.resources.getQuantityString(id, count, count)
+
+    private companion object {
+        /** Long enough for a short snackbar to come and go on the emulator. */
+        const val SNACKBAR_LIFETIME = 10_000L
+    }
 }

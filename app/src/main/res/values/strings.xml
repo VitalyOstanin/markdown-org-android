@@ -48,10 +48,14 @@
     <string name="agenda_task_actions">Task actions</string>
     <string name="action_complete">Done</string>
     <string name="action_complete_repeating">Done, move to next occurrence</string>
-    <string name="action_cancel_task">Cancel the task</string>
+    <!-- Worded away from "cancel": in the sheet it writes CANCELLED into the
+         note and commits, while "Cancel" on the settings form throws an edit
+         away. Two opposite kinds of action must not share a word. -->
+    <string name="action_cancel_task">Drop the task</string>
     <string name="action_reopen">Reopen</string>
-    <string name="action_priority_set">Set priority A</string>
-    <string name="action_priority_clear">Drop the priority</string>
+    <string name="action_priority">Priority</string>
+    <!-- The option that leaves the task without a priority cookie. -->
+    <string name="action_priority_none">None</string>
     <string name="action_shift_back">A day earlier</string>
     <string name="action_shift_forward">A day later</string>
 

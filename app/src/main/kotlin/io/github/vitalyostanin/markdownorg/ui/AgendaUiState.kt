@@ -91,6 +91,7 @@ fun AgendaResult.notices(): List<ScanNotice> = buildList {
 fun Task.isEditable(): Boolean = !file.contains('�')
 
 sealed interface AgendaUiState {
+    /** Before the first agenda of the session, and only then — see [Ready.refreshing]. */
     data object Loading : AgendaUiState
 
     /**
@@ -104,6 +105,16 @@ sealed interface AgendaUiState {
         val timeline: Timeline,
         /** What the walk behind this agenda skipped, if anything. */
         val notices: List<ScanNotice> = emptyList(),
+        /**
+         * Another scan is under way over what is on screen.
+         *
+         * Every edit and every sync ends in one, and what comes back differs
+         * from what is shown by a line or two. Going back through [Loading]
+         * for that would take the header away — the layout switch with it —
+         * and rebuild the list from its first row, losing the place the user
+         * was at.
+         */
+        val refreshing: Boolean = false,
     ) : AgendaUiState
 
     data class Failed(val message: String) : AgendaUiState

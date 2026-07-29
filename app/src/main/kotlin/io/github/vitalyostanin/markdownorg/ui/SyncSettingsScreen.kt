@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 
 /**
  * Where the notes are fetched from.
@@ -71,8 +72,8 @@ fun SyncSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(
                 text = stringResource(R.string.settings_title),
@@ -156,7 +157,7 @@ fun SyncSettingsScreen(
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(Spacing.xs))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -166,7 +167,7 @@ fun SyncSettingsScreen(
                 TextButton(onClick = onDismiss, modifier = Modifier.testTag("settings-cancel")) {
                     Text(stringResource(R.string.settings_cancel))
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Spacing.sm))
                 Button(
                     onClick = { onSave(url, branch, token, dropToken) },
                     enabled = problem == null,

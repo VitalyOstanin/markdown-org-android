@@ -1,7 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,14 +11,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -33,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -45,31 +58,95 @@ fun AgendaScreen(
     onLayoutChange: (AgendaLayout) -> Unit,
     modifier: Modifier = Modifier,
     sync: SyncUiState = SyncUiState(),
+    editIssue: SyncMessage? = null,
+    onEditIssueShown: () -> Unit = {},
     onSync: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onTaskClick: (Task) -> Unit = {},
 ) {
+    // What an edit answered with, if it could not be made. A snackbar rather
+    // than the banner: it is about the tap that was just made, it goes away on
+    // its own, and it leaves the line under the header to the checkout.
+    val snackbar = remember { SnackbarHostState() }
+    val issue = editIssue?.let { stringResource(it.text) }
+    LaunchedEffect(editIssue) {
+        if (issue != null) {
+            snackbar.showSnackbar(issue)
+            onEditIssueShown()
+        }
+    }
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        when (state) {
-            AgendaUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator()
-            }
+        Box(Modifier.fillMaxSize()) {
+            AgendaBody(state, layout, onLayoutChange, sync, onSync, onOpenSettings, onTaskClick)
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
 
-            is AgendaUiState.Failed -> FailureMessage(state)
+@Composable
+private fun AgendaBody(
+    state: AgendaUiState,
+    layout: AgendaLayout,
+    onLayoutChange: (AgendaLayout) -> Unit,
+    sync: SyncUiState,
+    onSync: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onTaskClick: (Task) -> Unit,
+) {
+    // Held above the state, so a rebuild of the agenda comes back to the same
+    // place in the list; one per layout, since the two scroll independently.
+    val timeScroll = rememberLazyListState()
+    val listScroll = rememberLazyListState()
 
-            is AgendaUiState.Ready -> Column(Modifier.fillMaxSize()) {
-                // Outside the scrolling area: the switch is how the user gets
-                // back to the other layout, and it must not scroll away.
-                AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
-                SyncBanner(sync)
-                ScanNotices(state.notices)
-                when (layout) {
-                    AgendaLayout.TIME -> TimeLayout(state.timeline, onTaskClick = onTaskClick)
-                    AgendaLayout.LIST -> ListLayout(state.sections, onTaskClick = onTaskClick)
-                }
+    when (state) {
+        AgendaUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+            CircularProgressIndicator()
+        }
+
+        is AgendaUiState.Failed -> FailureMessage(state)
+
+        is AgendaUiState.Ready -> Column(Modifier.fillMaxSize()) {
+            // Outside the scrolling area: the switch is how the user gets
+            // back to the other layout, and it must not scroll away.
+            AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
+            RefreshingLine(state.refreshing)
+            SyncBanner(sync)
+            ScanNotices(state.notices)
+            when (layout) {
+                AgendaLayout.TIME -> TimeLayout(
+                    state.timeline,
+                    scroll = timeScroll,
+                    onTaskClick = onTaskClick,
+                )
+
+                AgendaLayout.LIST -> ListLayout(
+                    state.sections,
+                    scroll = listScroll,
+                    onTaskClick = onTaskClick,
+                )
             }
         }
     }
+}
+
+/**
+ * That another scan is under way, as a line under the header.
+ *
+ * A line rather than a spinner in place of the agenda: what is on screen is
+ * still the agenda, one edit behind.
+ */
+@Composable
+private fun RefreshingLine(refreshing: Boolean) {
+    if (!refreshing) {
+        return
+    }
+    LinearProgressIndicator(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(Sizes.marker)
+            .testTag("agenda-refreshing"),
+    )
 }
 
 @Composable
@@ -98,7 +175,12 @@ private fun AgendaHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 18.dp, end = 14.dp, top = 10.dp, bottom = 12.dp),
+            .padding(
+                start = Spacing.gutter,
+                end = Spacing.sm,
+                top = Spacing.sm,
+                bottom = Spacing.sm,
+            ),
         verticalAlignment = Alignment.Bottom,
     ) {
         Column(Modifier.weight(1f)) {
@@ -119,46 +201,45 @@ private fun AgendaHeader(
         // menu: with three controls on the screen a menu would hide two of
         // them behind a tap for no gain.
         HeaderAction(
-            glyph = "⟳",
+            icon = R.drawable.ic_sync,
             label = stringResource(R.string.sync_now),
             tag = "sync-now",
             enabled = sync.configured && !sync.running,
             onClick = onSync,
         )
         HeaderAction(
-            glyph = "⚙",
+            icon = R.drawable.ic_settings,
             label = stringResource(R.string.settings_title),
             tag = "open-settings",
             onClick = onOpenSettings,
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(Spacing.xs))
         LayoutSwitch(layout, onLayoutChange)
     }
 }
 
+/**
+ * One control in the header.
+ *
+ * [IconButton] rather than a hand-built `Box`: the ripple, the size of the
+ * touch target and how a disabled control reads all come with it, and they
+ * are the same ones the buttons on the other screens get.
+ */
 @Composable
 private fun HeaderAction(
-    glyph: String,
+    @DrawableRes icon: Int,
     label: String,
     tag: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .clickable(enabled = enabled, onClickLabel = label, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 7.dp)
-            .testTag(tag),
-    ) {
-        Text(
-            text = glyph,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (enabled) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            },
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
+        Icon(
+            painter = painterResource(icon),
+            // Named rather than described: what the button does is what the
+            // user needs to hear, and it is the same wording the settings
+            // screen uses for the place it leads to.
+            contentDescription = label,
         )
     }
 }
@@ -187,7 +268,7 @@ private fun SyncBanner(sync: SyncUiState) {
         else -> return
     }
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter)) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
@@ -226,7 +307,7 @@ private fun ScanNotices(notices: List<ScanNotice>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 2.dp)
+            .padding(horizontal = Spacing.gutter)
             .testTag("scan-notices"),
     ) {
         notices.forEach { notice ->
@@ -244,49 +325,42 @@ private fun ScanNotices(notices: List<ScanNotice>) {
     }
 }
 
+/**
+ * Which of the two layouts is on screen.
+ *
+ * A segmented button is what Material 3 offers for a choice of two or three
+ * views of the same content, and it is what this was hand-built out of before.
+ */
 @Composable
 private fun LayoutSwitch(current: AgendaLayout, onLayoutChange: (AgendaLayout) -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(LocalAgendaColors.current.hairSoft)
-            .padding(3.dp),
-    ) {
-        for (option in AgendaLayout.entries) {
-            val selected = option == current
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    )
-                    .clickable(onClickLabel = stringResource(option.labelRes)) {
-                        onLayoutChange(option)
-                    }
-                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                    // Tagged rather than found by its glyph: the tests should
-                    // survive a change of symbol.
-                    .testTag(option.testTag),
+    SingleChoiceSegmentedButtonRow {
+        AgendaLayout.entries.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == current,
+                onClick = { onLayoutChange(option) },
+                shape = SegmentedButtonDefaults.itemShape(index, AgendaLayout.entries.size),
+                // The check mark the default slot draws would say the same
+                // thing the fill already says, in the space the icon needs.
+                icon = {},
+                // Tagged rather than found by its icon: the tests should
+                // survive a change of drawable.
+                modifier = Modifier.testTag(option.testTag),
             ) {
-                Text(
-                    text = option.glyph,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                Icon(
+                    painter = painterResource(option.iconRes),
+                    contentDescription = stringResource(option.labelRes),
+                    modifier = Modifier.size(Sizes.icon),
                 )
             }
         }
     }
 }
 
-/** Glyph shown on the switch: a filled block for the axis, ruled lines for the list. */
-private val AgendaLayout.glyph: String
+/** Icon on the switch: a day band for the axis, ruled lines for the list. */
+private val AgendaLayout.iconRes: Int
     get() = when (this) {
-        AgendaLayout.TIME -> "◫"
-        AgendaLayout.LIST -> "▤"
+        AgendaLayout.TIME -> R.drawable.ic_layout_time
+        AgendaLayout.LIST -> R.drawable.ic_layout_list
     }
 
 private val AgendaLayout.labelRes: Int
@@ -305,7 +379,7 @@ internal val AgendaLayout.testTag: String get() = "layout-$name"
 @Composable
 internal fun SectionLabel(text: String, count: Int, warn: Boolean = false) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -347,9 +421,9 @@ internal fun TrailingTag(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(7.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(background)
-            .padding(horizontal = 7.dp, vertical = 2.dp),
+            .padding(horizontal = Spacing.sm),
     ) {
         Text(
             text = text,
@@ -364,7 +438,7 @@ internal fun TrailingTag(
 @Composable
 private fun FailureMessage(state: AgendaUiState.Failed) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
@@ -372,7 +446,7 @@ private fun FailureMessage(state: AgendaUiState.Failed) {
             style = MaterialTheme.typography.titleMedium,
             color = LocalAgendaColors.current.deadline.tone,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.sm))
         Text(
             text = state.message,
             style = MaterialTheme.typography.bodyMedium,
@@ -391,12 +465,12 @@ internal fun EmptyAgenda() {
         text = stringResource(R.string.agenda_empty),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+        modifier = Modifier.padding(vertical = Spacing.md),
     )
 }
 
 /** Fixed width of the time column, so headings line up down the list. */
-internal val TimeColumnWidth = 46.dp
+internal val TimeColumnWidth = Sizes.timeColumn
 
 @Composable
 internal fun TimeCell(text: String, modifier: Modifier = Modifier) {

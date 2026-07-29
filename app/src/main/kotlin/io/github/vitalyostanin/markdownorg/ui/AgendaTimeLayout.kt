@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -31,16 +33,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
+import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 
 /** Height of one hour on the axis, and of the tile that sits in it. */
-private val HourHeight = 46.dp
-private val TileHeight = 40.dp
+private val HourHeight = Sizes.hourRow
+private val TileHeight = Sizes.tile
 
 /**
  * The agenda on an hour axis: a filled tile per entry, empty hours left empty
@@ -53,11 +55,13 @@ private val TileHeight = 40.dp
 internal fun TimeLayout(
     timeline: Timeline,
     modifier: Modifier = Modifier,
+    scroll: LazyListState = rememberLazyListState(),
     onTaskClick: (Task) -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+        state = scroll,
+        contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.xs),
     ) {
         if (timeline.overdue.isEmpty() && timeline.allDay.isEmpty() && timeline.axis.isEmpty()) {
             item { EmptyAgenda() }
@@ -85,8 +89,8 @@ internal fun TimeLayout(
             // of them would push the axis off the screen.
             items(timeline.allDay.chunked(2), key = { pair -> pair.first().key }) { pair ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     pair.forEach { row -> Band(row, onTaskClick, Modifier.weight(1f)) }
                     if (pair.size == 1) {
@@ -129,7 +133,7 @@ private fun HourRow(entry: AxisEntry.Hour, onTaskClick: (Task) -> Unit) {
                     color = hairline,
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
-                    strokeWidth = 1.dp.toPx(),
+                    strokeWidth = Sizes.hairline.toPx(),
                 )
             },
     ) {
@@ -138,13 +142,14 @@ private fun HourRow(entry: AxisEntry.Hour, onTaskClick: (Task) -> Unit) {
             style = MaterialTheme.typography.labelMedium,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.width(40.dp).padding(top = 4.dp),
+            modifier = Modifier.width(Sizes.hourLabel).padding(top = Spacing.xs),
         )
         // An hour with several entries grows instead of squeezing them: the
         // row height is a minimum, not a fixed size.
         Column(
-            modifier = Modifier.weight(1f).padding(start = 6.dp, top = 3.dp, bottom = 3.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.weight(1f)
+                .padding(start = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             entry.entries.forEach { row -> Tile(row, onTaskClick) }
         }
@@ -153,41 +158,22 @@ private fun HourRow(entry: AxisEntry.Hour, onTaskClick: (Task) -> Unit) {
 
 @Composable
 private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
-    val kind = row.task.kind()
-    val role = LocalAgendaColors.current.role(kind)
+    val role = LocalAgendaColors.current.role(row.task.kind())
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(TileHeight)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(MaterialTheme.shapes.medium)
             .background(role.container)
             .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = kind.glyph,
-            style = MaterialTheme.typography.labelLarge,
-            color = role.onContainer,
-        )
-        Spacer(Modifier.width(8.dp))
-        row.task.priority?.let { priority ->
-            PriorityBadge(priority)
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(
-            text = row.task.heading,
-            style = MaterialTheme.typography.bodyMedium,
-            color = role.onContainer,
-            textDecoration = kind.decoration(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        TaskRowHead(row.task, glyph = role.onContainer)
         if (row.time.isNotEmpty()) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             TrailingTag(
                 text = row.time,
                 // A veil of the text colour rather than of white: it has to
@@ -209,41 +195,22 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
 @Composable
 private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val colors = LocalAgendaColors.current
-    val kind = row.task.kind()
     val trailing = daysLabel(row.daysOffset)
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .padding(bottom = Spacing.sm)
+            .clip(MaterialTheme.shapes.medium)
             .background(colors.deadline.tone)
             .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = kind.glyph,
-            style = MaterialTheme.typography.labelLarge,
-            color = colors.onSolid,
-        )
-        Spacer(Modifier.width(8.dp))
-        row.task.priority?.let { priority ->
-            PriorityBadge(priority, onDenseFill = true)
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(
-            text = row.task.heading,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.onSolid,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        TaskRowHead(row.task, glyph = colors.onSolid, bold = true, onDenseFill = true)
         if (row.time.isNotEmpty()) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             Text(
                 text = row.time,
                 style = MaterialTheme.typography.labelMedium,
@@ -252,7 +219,7 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
             )
         }
         if (trailing.isNotEmpty()) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             // Inverted rather than veiled: white on a veil over a dense tone
             // lands around 2.6, and the label has to stay readable.
             TrailingTag(
@@ -268,40 +235,21 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
 /** An all-day task or a deadline still ahead, as a light container. */
 @Composable
 private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier = Modifier) {
-    val kind = row.task.kind()
-    val role = LocalAgendaColors.current.role(kind)
+    val role = LocalAgendaColors.current.role(row.task.kind())
     val trailing = daysLabel(row.daysOffset)
     val date = row.task.timestampDate.orEmpty()
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(13.dp))
+            .clip(MaterialTheme.shapes.medium)
             .background(role.container)
             .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = kind.glyph,
-                style = MaterialTheme.typography.labelLarge,
-                color = role.onContainer,
-            )
-            Spacer(Modifier.width(6.dp))
-            row.task.priority?.let { priority ->
-                PriorityBadge(priority)
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                text = row.task.heading,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = role.onContainer,
-                textDecoration = kind.decoration(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            TaskRowHead(row.task, glyph = role.onContainer, bold = true)
         }
         Text(
             text = listOf(date, trailing).filter(String::isNotEmpty).joinToString(" · "),
@@ -318,7 +266,8 @@ private fun GapRow(entry: AxisEntry.Gap) {
     val hairline = MaterialTheme.colorScheme.outlineVariant
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 40.dp, top = 5.dp, bottom = 5.dp),
+        modifier = Modifier.fillMaxWidth()
+            .padding(start = Sizes.hourLabel, top = Spacing.xs, bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -331,11 +280,11 @@ private fun GapRow(entry: AxisEntry.Gap) {
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.outline,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Spacing.sm))
         Box(
             Modifier
                 .weight(1f)
-                .height(1.dp)
+                .height(Sizes.hairline)
                 .drawBehind {
                     drawLine(
                         color = hairline,
@@ -343,7 +292,7 @@ private fun GapRow(entry: AxisEntry.Gap) {
                         end = Offset(size.width, 0f),
                         strokeWidth = size.height,
                         pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
+                            floatArrayOf(Spacing.xs.toPx(), Spacing.xs.toPx()),
                         ),
                     )
                 },
@@ -360,12 +309,12 @@ private fun NowLine() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(8.dp)
+            .height(Sizes.markerDot)
             .semantics { contentDescription = label },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(Modifier.width(36.dp))
-        Box(Modifier.size(8.dp).clip(CircleShape).background(marker))
-        Box(Modifier.weight(1f).height(2.dp).background(marker))
+        Spacer(Modifier.width(Sizes.markerInset))
+        Box(Modifier.size(Sizes.markerDot).clip(CircleShape).background(marker))
+        Box(Modifier.weight(1f).height(Sizes.marker).background(marker))
     }
 }
