@@ -1,11 +1,11 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
-import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.SyncException
+import java.io.IOException
 
 /**
  * Every failure the core raises has to land on wording of its own — that is

@@ -1,8 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import androidx.test.platform.app.InstrumentationRegistry
-import java.time.LocalDate
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -13,6 +11,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The directory the notes live in, which is also the git working copy.

@@ -33,10 +33,14 @@ fun remoteUrlProblem(url: String): RemoteUrlProblem? {
 
     return when {
         value.isEmpty() -> RemoteUrlProblem.EMPTY
+
         value.startsWith("/") -> null
+
         value.startsWith(FILE) ->
             if (value.startsWith("$FILE/")) null else RemoteUrlProblem.INCOMPLETE
+
         value.startsWith(HTTPS) -> httpsProblem(value.removePrefix(HTTPS))
+
         else -> RemoteUrlProblem.SCHEME
     }
 }

@@ -1,7 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import androidx.test.platform.app.InstrumentationRegistry
-import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -9,6 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * The sync as the application sees it, across the boundary into the core.

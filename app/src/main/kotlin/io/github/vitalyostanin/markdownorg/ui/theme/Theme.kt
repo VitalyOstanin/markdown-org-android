@@ -59,10 +59,7 @@ private val DarkScheme = darkColorScheme(
  * user's wallpaper puts those hues at the mercy of the wallpaper.
  */
 @Composable
-fun MarkdownOrgTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun MarkdownOrgTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     CompositionLocalProvider(
         LocalAgendaColors provides if (darkTheme) DarkAgendaColors else LightAgendaColors,
     ) {

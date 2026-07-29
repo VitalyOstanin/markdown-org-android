@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">markdown-org</string>
+    <!-- The name of the project, which reads the same in every language. -->
+    <string name="app_name" translatable="false">markdown-org</string>
     <string name="agenda_failed">The agenda could not be built</string>
     <string name="agenda_empty">Nothing scheduled</string>
 

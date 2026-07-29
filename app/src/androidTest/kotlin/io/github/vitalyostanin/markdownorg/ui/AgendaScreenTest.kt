@@ -12,13 +12,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
-import java.time.LocalDate
-import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
+import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * The screen over a state built by hand.
@@ -160,7 +160,11 @@ class AgendaScreenTest {
         val sections = agenda(
             day(
                 scheduledTimed = listOf(
-                    task(heading = "Drop the endpoint", time = "16:00", taskType = TaskType.CANCELLED),
+                    task(
+                        heading = "Drop the endpoint",
+                        time = "16:00",
+                        taskType = TaskType.CANCELLED,
+                    ),
                 ),
             ),
         ).toSections()

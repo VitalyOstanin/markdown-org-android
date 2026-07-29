@@ -1,9 +1,9 @@
 package io.github.vitalyostanin.markdownorg.ui
 
-import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalTime
 
 class TimelineTest {
 
@@ -178,8 +178,7 @@ private fun sections(
     day(overdue = overdue, scheduledTimed = timed, scheduledNoTime = untimed),
 ).toSections()
 
-private fun List<AxisEntry>.hours(): List<Int> =
-    filterIsInstance<AxisEntry.Hour>().map { it.hour }
+private fun List<AxisEntry>.hours(): List<Int> = filterIsInstance<AxisEntry.Hour>().map { it.hour }
 
 /** The axis as short tags, so a test can assert on order and not on fields. */
 private fun List<AxisEntry>.shape(): List<String> = map { entry ->

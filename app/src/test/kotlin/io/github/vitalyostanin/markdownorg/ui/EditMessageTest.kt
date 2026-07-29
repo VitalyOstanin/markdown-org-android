@@ -1,11 +1,11 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
-import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.EditException
+import java.io.IOException
 
 /**
  * A failed edit has to say which kind of failure it was: the answer differs

@@ -1,15 +1,15 @@
 package io.github.vitalyostanin.markdownorg.core
 
-import java.time.LocalDate
-import kotlin.math.abs
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.commitChanges
-import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.holdsRepository
+import java.time.LocalDate
+import kotlin.math.abs
+import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -38,10 +38,8 @@ interface NotesWriter {
  * the remote is set up) is edited all the same; there is simply nothing to
  * commit.
  */
-class NotesEditor(
-    private val notes: NotesArea,
-    private val settings: SyncPreferences,
-) : NotesWriter {
+class NotesEditor(private val notes: NotesArea, private val settings: SyncPreferences) :
+    NotesWriter {
 
     /** Mark done, or move a repeating task to its next occurrence. */
     override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = write(task) {
@@ -62,14 +60,11 @@ class NotesEditor(
     }
 
     /** Move a planning date by whole days. */
-    override suspend fun shift(
-        task: Task,
-        keyword: PlanningKeyword,
-        days: Int,
-    ): Result<Unit> = write(task) {
-        coreShiftPlanning(task.target(), keyword, days)
-        shiftMessage(task.heading, keyword, days)
-    }
+    override suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit> =
+        write(task) {
+            coreShiftPlanning(task.target(), keyword, days)
+            shiftMessage(task.heading, keyword, days)
+        }
 
     /**
      * Run [edit] off the main thread and commit what it changed.
@@ -82,22 +77,21 @@ class NotesEditor(
      * actually happened — a completion that turned out to be a repeat says
      * so.
      */
-    private suspend fun write(task: Task, edit: () -> String): Result<Unit> =
-        notes.exclusive {
-            runCatching {
-                val message = edit()
-                // No repository yet: the sample notes are edited too, they
-                // just have no history to write to. Asked with the cheap
-                // question rather than by reading the state: the state is a
-                // walk of the whole working copy, and it used to fail outright
-                // on a checkout whose branch has no commits — turning an edit
-                // that had already reached the disk into a failure.
-                if (holdsRepository(notes.root.absolutePath)) {
-                    commitChanges(notes.root.absolutePath, message, author())
-                }
-                Unit
+    private suspend fun write(task: Task, edit: () -> String): Result<Unit> = notes.exclusive {
+        runCatching {
+            val message = edit()
+            // No repository yet: the sample notes are edited too, they
+            // just have no history to write to. Asked with the cheap
+            // question rather than by reading the state: the state is a
+            // walk of the whole working copy, and it used to fail outright
+            // on a checkout whose branch has no commits — turning an edit
+            // that had already reached the disk into a failure.
+            if (holdsRepository(notes.root.absolutePath)) {
+                commitChanges(notes.root.absolutePath, message, author())
             }
+            Unit
         }
+    }
 
     private fun Task.target() = EditTarget(
         dir = notes.root.absolutePath,

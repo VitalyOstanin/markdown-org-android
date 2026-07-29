@@ -3,9 +3,9 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
-import java.time.LocalDate
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Task
+import java.time.LocalDate
 
 /** One line of the agenda: the task plus what the row shows around it. */
 data class AgendaRow(
@@ -129,9 +129,11 @@ internal fun Task.toAgendaRow(): AgendaRow =
 
 private fun Task.rowTime(): String = when {
     timestampTime != null -> timestampTime!!
+
     // A date that has passed replaces the empty time column: without it an
     // overdue row would say how many days late it is but not since when.
     (daysOffset ?: 0) < 0 -> timestampDate?.let(::asDayMonth) ?: ""
+
     else -> ""
 }
 

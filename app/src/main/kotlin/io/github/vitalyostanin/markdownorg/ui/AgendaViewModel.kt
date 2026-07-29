@@ -19,8 +19,6 @@ import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
-import java.time.LocalDate
-import java.time.LocalTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +28,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.Task
+import java.time.LocalDate
+import java.time.LocalTime
 
 class AgendaViewModel(
     private val notes: NotesArea,
@@ -49,8 +49,8 @@ class AgendaViewModel(
     private val _layout = MutableStateFlow(AgendaLayout.TIME)
     val layout: StateFlow<AgendaLayout> = _layout.asStateFlow()
 
-    private val _sync = MutableStateFlow(SyncUiState())
-    val syncState: StateFlow<SyncUiState> = _sync.asStateFlow()
+    private val _syncState = MutableStateFlow(SyncUiState())
+    val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
 
     /**
      * The task whose actions are open, if any.
@@ -99,7 +99,7 @@ class AgendaViewModel(
         // does not exist, so every edit would come back as "file not found" —
         // refused here with a reason instead.
         if (!task.isEditable()) {
-            _sync.update {
+            _syncState.update {
                 it.copy(
                     message = SyncMessage(
                         R.string.edit_failed_unnamed,
@@ -124,7 +124,7 @@ class AgendaViewModel(
                     // Clears the failure this edit answers, and leaves a
                     // message about the checkout standing: it is about
                     // something else.
-                    _sync.update { state ->
+                    _syncState.update { state ->
                         state.copy(
                             message = state.message?.takeIf { it.source != MessageSource.EDIT },
                         )
@@ -132,7 +132,7 @@ class AgendaViewModel(
                     refresh()
                 },
                 onFailure = { error ->
-                    _sync.update { it.copy(message = error.toEditMessage()) }
+                    _syncState.update { it.copy(message = error.toEditMessage()) }
                 },
             )
         }
@@ -212,7 +212,7 @@ class AgendaViewModel(
         if (problem != null) {
             // Nothing is stored and nothing is deleted: the address is checked
             // before the destructive part, not after the clone fails.
-            _sync.update { it.copy(message = problem.toMessage()) }
+            _syncState.update { it.copy(message = problem.toMessage()) }
             return
         }
 
@@ -220,7 +220,7 @@ class AgendaViewModel(
             // A sync in flight owns the directory that is about to be emptied,
             // so it is stopped rather than raced with.
             syncJob?.cancelAndJoin()
-            _sync.update { it.copy(running = false) }
+            _syncState.update { it.copy(running = false) }
 
             // Which host the stored token was issued for: the settings, not
             // the checkout. A directory holding no repository yet says nothing
@@ -238,7 +238,7 @@ class AgendaViewModel(
                 settings.remoteUrl = address
                 settings.branch = branch
                 settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
-                _sync.update {
+                _syncState.update {
                     it.copy(
                         configured = settings.isConfigured,
                         message = SyncMessage(R.string.sync_status_unreadable, failed = true),
@@ -258,10 +258,10 @@ class AgendaViewModel(
 
             if (before != settings.remoteUrl) {
                 notes.reset()
-                _sync.update { it.copy(repository = null) }
+                _syncState.update { it.copy(repository = null) }
             }
 
-            _sync.update { it.copy(configured = settings.isConfigured) }
+            _syncState.update { it.copy(configured = settings.isConfigured) }
             // Unconditionally, not through syncNow(): the sync this replaced
             // has just been cancelled, and skipping the new one would leave an
             // emptied directory and a remote nobody fetched from.
@@ -298,10 +298,12 @@ class AgendaViewModel(
         syncJob = viewModelScope.launch {
             // Clears the previous sync result, and only that: an edit that
             // failed is still unanswered and stays up.
-            _sync.update { state ->
+            _syncState.update { state ->
                 state.copy(
                     running = true,
-                    message = state.message?.takeIf { it.failed && it.source == MessageSource.EDIT },
+                    message = state.message?.takeIf {
+                        it.failed && it.source == MessageSource.EDIT
+                    },
                 )
             }
 
@@ -322,7 +324,7 @@ class AgendaViewModel(
                 onFailure = Throwable::toSyncMessage,
             )
 
-            _sync.update { current ->
+            _syncState.update { current ->
                 current.copy(
                     configured = settings.isConfigured,
                     running = false,
@@ -344,7 +346,7 @@ class AgendaViewModel(
     private fun readCheckout() {
         viewModelScope.launch {
             val status = sync.status().getOrNull()
-            _sync.update {
+            _syncState.update {
                 it.copy(
                     configured = settings.isConfigured,
                     repository = status,

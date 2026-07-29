@@ -1,8 +1,5 @@
 package io.github.vitalyostanin.markdownorg.core
 
-import java.io.File
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -10,6 +7,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import uniffi.markdown_org_ffi.Scope
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * The core itself, on the device.

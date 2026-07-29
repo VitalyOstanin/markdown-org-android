@@ -97,7 +97,13 @@ fun TaskActionsSheet(
 
             SheetButton(
                 label = stringResource(
-                    if (task.priority == null) R.string.action_priority_set else R.string.action_priority_clear,
+                    if (task.priority ==
+                        null
+                    ) {
+                        R.string.action_priority_set
+                    } else {
+                        R.string.action_priority_clear
+                    },
                 ),
                 tag = "action-priority",
             ) { onAction(TaskAction.Priority(if (task.priority == null) "A" else null)) }

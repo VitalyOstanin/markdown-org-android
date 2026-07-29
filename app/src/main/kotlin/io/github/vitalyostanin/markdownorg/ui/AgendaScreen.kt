@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -36,7 +37,6 @@ import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Locale
 
 @Composable
 fun AgendaScreen(
@@ -82,8 +82,11 @@ private fun AgendaHeader(
     onOpenSettings: () -> Unit,
 ) {
     // The device locale, not the application's: the interface is English, but
-    // a date is read in whatever language the user reads dates in.
-    val locale = Locale.getDefault()
+    // a date is read in whatever language the user reads dates in. Read from
+    // the composition rather than from Locale.getDefault(), which is not
+    // observable — the header would keep yesterday's language until something
+    // else redrew it.
+    val locale = LocalLocale.current.platformLocale
     val weekday = remember(date, locale) {
         date.format(DateTimeFormatter.ofPattern("EEEE", locale))
             .replaceFirstChar { it.titlecase(locale) }
@@ -172,7 +175,9 @@ private fun SyncBanner(sync: SyncUiState) {
     val colors = LocalAgendaColors.current
     val text = when {
         sync.running -> stringResource(R.string.sync_running)
+
         sync.message != null -> stringResource(sync.message.text)
+
         sync.repository != null -> stringResource(
             R.string.sync_checkout,
             sync.repository.branch,
@@ -305,7 +310,7 @@ internal fun SectionLabel(text: String, count: Int, warn: Boolean = false) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = text.uppercase(Locale.getDefault()),
+            text = text.uppercase(LocalLocale.current.platformLocale),
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
             fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,

@@ -97,7 +97,9 @@ fun SyncSettingsScreen(
                     ?.let { { Text(stringResource(it.toMessage().text)) } },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
                 modifier = Modifier.fillMaxWidth().testTag("settings-url"),
             )
 
@@ -110,7 +112,9 @@ fun SyncSettingsScreen(
                 // field means has to be readable before touching it.
                 supportingText = { Text(stringResource(R.string.settings_branch_default)) },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
                 modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
             )
 
@@ -122,11 +126,8 @@ fun SyncSettingsScreen(
                 // whether one is saved has to be said in text that is visible
                 // without focusing the field.
                 supportingText = {
-                    Text(
-                        stringResource(
-                            if (hasToken) R.string.settings_token_kept else R.string.settings_token_none,
-                        ),
-                    )
+                    val kept = R.string.settings_token_kept
+                    Text(stringResource(if (hasToken) kept else R.string.settings_token_none))
                 },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),

@@ -61,7 +61,7 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
                             url = url,
                             token = settings.token,
                             branch = settings.branch,
-                        )
+                        ),
                     )
                 }
             }.onSuccess {

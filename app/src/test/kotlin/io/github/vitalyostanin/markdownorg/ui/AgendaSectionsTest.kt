@@ -27,8 +27,14 @@ class AgendaSectionsTest {
     @Test
     fun `days are flattened in order`() {
         val sections = agenda(
-            day(date = "2026-07-28", scheduledTimed = listOf(task(heading = "First", time = "10:00"))),
-            day(date = "2026-07-29", scheduledTimed = listOf(task(heading = "Second", time = "09:00"))),
+            day(
+                date = "2026-07-28",
+                scheduledTimed = listOf(task(heading = "First", time = "10:00")),
+            ),
+            day(
+                date = "2026-07-29",
+                scheduledTimed = listOf(task(heading = "Second", time = "09:00")),
+            ),
         ).toSections()
 
         assertEquals(listOf("First", "Second"), sections.timed.headings())
@@ -50,7 +56,9 @@ class AgendaSectionsTest {
 
     @Test
     fun `a timed row shows its time`() {
-        val row = agenda(day(scheduledTimed = listOf(task(time = "09:30")))).toSections().timed.single()
+        val row = agenda(
+            day(scheduledTimed = listOf(task(time = "09:30"))),
+        ).toSections().timed.single()
 
         assertEquals("09:30", row.time)
     }
@@ -83,7 +91,8 @@ class AgendaSectionsTest {
 
     @Test
     fun `the keyword outranks the timestamp when picking a kind`() {
-        val cancelled = task(taskType = TaskType.CANCELLED, timestampType = "DEADLINE", repeater = "++7d")
+        val cancelled =
+            task(taskType = TaskType.CANCELLED, timestampType = "DEADLINE", repeater = "++7d")
         val done = task(taskType = TaskType.DONE, repeater = "++7d")
         val repeating = task(timestampType = "DEADLINE", repeater = "++7d")
 

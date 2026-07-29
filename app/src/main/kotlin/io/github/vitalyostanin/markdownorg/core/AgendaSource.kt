@@ -1,11 +1,11 @@
 package io.github.vitalyostanin.markdownorg.core
 
-import java.time.LocalDate
-import java.time.ZoneId
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Options
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.scanAgenda
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Reads the agenda out of the notes directory. */
 interface AgendaLoader {

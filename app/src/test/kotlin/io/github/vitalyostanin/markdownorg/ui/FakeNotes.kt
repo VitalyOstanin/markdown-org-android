@@ -5,9 +5,6 @@ import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
-import java.io.File
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -18,6 +15,9 @@ import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Stand-ins for the core, so what the view model does with concurrent

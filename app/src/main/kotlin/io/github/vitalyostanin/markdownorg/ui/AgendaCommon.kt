@@ -60,8 +60,13 @@ fun AgendaColors.role(kind: AgendaKind): AgendaRole = when (kind) {
 }
 
 /** A finished or dropped task keeps its heading struck through in both layouts. */
-fun AgendaKind.decoration(): TextDecoration? =
-    if (this == AgendaKind.DONE || this == AgendaKind.CANCELLED) TextDecoration.LineThrough else null
+fun AgendaKind.decoration(): TextDecoration? = if (this == AgendaKind.DONE ||
+    this == AgendaKind.CANCELLED
+) {
+    TextDecoration.LineThrough
+} else {
+    null
+}
 
 /** How far off the date is, as text: `2 days late`, `in 5 days`, or nothing for today. */
 @Composable
@@ -91,11 +96,7 @@ fun daysLabel(daysOffset: Long): String = when {
  * row, leaving the letter floating with no badge around it.
  */
 @Composable
-fun PriorityBadge(
-    priority: String,
-    modifier: Modifier = Modifier,
-    onDenseFill: Boolean = false,
-) {
+fun PriorityBadge(priority: String, modifier: Modifier = Modifier, onDenseFill: Boolean = false) {
     val colors = LocalAgendaColors.current
     val tone: Color = when (priority.uppercase()) {
         "A" -> colors.deadline.tone

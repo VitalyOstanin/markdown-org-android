@@ -16,11 +16,7 @@ import androidx.compose.ui.graphics.Color
  * with [onContainer] for a filled tile.
  */
 @Immutable
-data class AgendaRole(
-    val tone: Color,
-    val container: Color,
-    val onContainer: Color,
-)
+data class AgendaRole(val tone: Color, val container: Color, val onContainer: Color)
 
 @Immutable
 data class AgendaColors(

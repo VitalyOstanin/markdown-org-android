@@ -1,12 +1,12 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
-import java.io.File
-import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.LocalDate
 
 /**
  * Where the markdown lives on the device.

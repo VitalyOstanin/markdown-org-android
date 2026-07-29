@@ -11,8 +11,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
-import java.time.LocalDate
-import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,6 +18,8 @@ import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
+import java.time.LocalDate
+import java.time.LocalTime
 
 /** What the agenda says about the checkout and the last sync attempt. */
 class SyncBannerTest {
@@ -127,10 +127,8 @@ class SyncBannerTest {
         dirty = false,
     )
 
-    private fun showAgenda(
-        sync: SyncUiState,
-        notices: List<ScanNotice> = emptyList(),
-    ) = showAgenda(mutableStateOf(sync), notices)
+    private fun showAgenda(sync: SyncUiState, notices: List<ScanNotice> = emptyList()) =
+        showAgenda(mutableStateOf(sync), notices)
 
     private fun showAgenda(
         sync: MutableState<SyncUiState>,

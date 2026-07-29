@@ -72,14 +72,24 @@ fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
  */
 fun Throwable.toSyncMessage(): SyncMessage = when (this) {
     is SyncException.Auth -> SyncMessage(R.string.sync_failed_auth, detail, failed = true)
+
     is SyncException.Network -> SyncMessage(R.string.sync_failed_network, detail, failed = true)
+
     is SyncException.Diverged -> SyncMessage(R.string.sync_failed_diverged, detail, failed = true)
+
     is SyncException.Dirty -> SyncMessage(R.string.sync_failed_dirty, detail, failed = true)
+
     // Worth its own wording because nothing was attempted: the address was
     // refused before a connection was opened, so retrying changes nothing and
     // the token did not leave the device.
     is SyncException.Address -> SyncMessage(R.string.sync_failed_address, detail, failed = true)
-    is SyncException.Repository -> SyncMessage(R.string.sync_failed_repository, detail, failed = true)
+
+    is SyncException.Repository -> SyncMessage(
+        R.string.sync_failed_repository,
+        detail,
+        failed = true,
+    )
+
     else -> SyncMessage(R.string.sync_failed_repository, message, failed = true)
 }.withoutCredentials()
 
@@ -102,6 +112,7 @@ private fun SyncMessage.withoutCredentials(): SyncMessage =
  */
 fun Throwable.toEditMessage(): SyncMessage = when (this) {
     is EditException.Stale -> SyncMessage(R.string.edit_failed_stale, detail, failed = true)
+
     is EditException.NoPlanningLine ->
         SyncMessage(R.string.edit_failed_no_planning, detail, failed = true)
 
@@ -109,6 +120,7 @@ fun Throwable.toEditMessage(): SyncMessage = when (this) {
         SyncMessage(R.string.edit_failed_unsupported, detail, failed = true)
 
     is EditException.NotFound -> SyncMessage(R.string.edit_failed_missing, detail, failed = true)
+
     // Actionable in its own way: the file is there and readable, it is simply
     // in another encoding, and converting it is what fixes every edit to it.
     is EditException.NotUtf8 ->
@@ -118,7 +130,10 @@ fun Throwable.toEditMessage(): SyncMessage = when (this) {
     // the general wording with the core's own detail under it. Listed one by
     // one rather than as the sealed parent, which carries no detail of its own.
     is EditException.InvalidPriority -> SyncMessage(R.string.edit_failed, detail, failed = true)
+
     is EditException.InvalidDate -> SyncMessage(R.string.edit_failed, detail, failed = true)
+
     is EditException.Io -> SyncMessage(R.string.edit_failed, detail, failed = true)
+
     else -> SyncMessage(R.string.edit_failed, message, failed = true)
 }.copy(source = MessageSource.EDIT)

@@ -46,11 +46,15 @@ class SyncSettings(context: Context) : SyncPreferences {
 
     override var branch: String?
         get() = preferences.getString(KEY_BRANCH, null)
-        set(value) = preferences.edit().putString(KEY_BRANCH, value?.trim()?.ifEmpty { null }).apply()
+        set(
+            value,
+        ) = preferences.edit().putString(KEY_BRANCH, value?.trim()?.ifEmpty { null }).apply()
 
     override var token: String?
         get() = preferences.getString(KEY_TOKEN, null)
-        set(value) = preferences.edit().putString(KEY_TOKEN, value?.trim()?.ifEmpty { null }).apply()
+        set(
+            value,
+        ) = preferences.edit().putString(KEY_TOKEN, value?.trim()?.ifEmpty { null }).apply()
 
     /**
      * Who edits made here are attributed to.
