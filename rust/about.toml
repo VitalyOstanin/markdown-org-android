@@ -1,0 +1,37 @@
+# What cargo-about collects, and under which terms.
+#
+# The list it produces is what the application shows and what NOTICE records,
+# so this file decides both. Run through tools/licenses.sh.
+
+# In priority order: where a crate offers a choice, the first licence here is
+# the one taken. Apache-2.0 before MIT for the same reason most of the
+# ecosystem picks it — the patent grant is stated rather than implied.
+accepted = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "Unlicense",
+    "OpenSSL",
+    "CC0-1.0",
+]
+
+# The two the APK carries. A crate reached only through a cfg() for some other
+# platform is not in the library and does not belong in the notices.
+targets = [
+    "aarch64-linux-android",
+    "x86_64-linux-android",
+]
+
+# Neither is compiled into the library: a build script runs on the machine
+# doing the building, and a dev-dependency only ever runs a test.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# The crates of this workspace are the project itself, covered by LICENSE.
+private = { ignore = true }

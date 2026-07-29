@@ -3,7 +3,9 @@ import java.time.Duration
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kover)
+    alias(libs.plugins.licensee)
 }
 
 // The versions the build image installs and CI sets up, read from the one
@@ -151,6 +153,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
+    // Reads the two licence lists the build collects into the assets.
+    implementation(libs.kotlinx.serialization.json)
 
     // The @aar classifier is what carries the Android native libraries.
     implementation(variantOf(libs.jna) { artifactType("aar") })
@@ -170,4 +174,30 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     // Supplies the empty activity ComposeTestRule launches into.
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// The list of what the APK carries besides this project, read out of the
+// dependency graph rather than written by hand: a list kept by hand is right
+// on the day it is written and wrong at the next dependency update.
+licensee {
+    // Every licence the graph is allowed to bring in. An artifact under
+    // anything else fails the build, which is the point — a dependency whose
+    // terms nobody looked at should not reach a published APK.
+    allow("Apache-2.0")
+    allow("MIT")
+    allow("BSD-2-Clause")
+    allow("BSD-3-Clause")
+    allow("EPL-1.0")
+
+    // JNA offers LGPL-2.1-or-later or Apache-2.0 and leaves the choice to
+    // whoever receives it. Apache-2.0 is the choice made here: it asks for
+    // attribution rather than for the recipient to be able to relink.
+    allowDependency("net.java.dev.jna", "jna", "5.19.1") {
+        because("dual-licensed; taken under Apache-2.0")
+    }
+
+    // Bundled into the APK as assets/licenses.json, which is what the
+    // licences screen reads at runtime.
+    bundleAndroidAsset = true
+    androidAssetReportPath = "licenses.json"
 }

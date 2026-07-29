@@ -46,6 +46,11 @@
     <string name="settings_url_incomplete">The address names no repository</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
+    <string name="settings_licences">Licences of what is inside</string>
+
+    <string name="licences_title">Licences</string>
+    <string name="licences_close">Back</string>
+    <string name="licences_unavailable">This build carries no licence list. It is written by tools/licenses.sh and by the build itself; a build that skipped both has nothing to show here.</string>
 
     <string name="agenda_task_actions">Task actions</string>
     <string name="action_complete">Done</string>

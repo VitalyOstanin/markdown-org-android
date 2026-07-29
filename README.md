@@ -58,7 +58,7 @@ markdown-org-android/
 │   ├── src/main/kotlin/…/
 │   │   ├── core/             # the bridge to the Rust core, and where notes live
 │   │   └── ui/               # the agenda screen and the palette
-│   ├── src/main/assets/      # cacert.pem — the trust store a sync goes over
+│   ├── src/main/assets/      # cacert.pem, and the licence list the app shows
 │   └── src/sharedTest/       # task fixtures both test suites build on
 ├── rust/
 │   ├── markdown-org-ffi/     # UniFFI wrapper over markdown-org-extract
@@ -84,6 +84,7 @@ markdown-org-android/
 │   ├── test.sh               # the JVM tests of the application
 │   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
 │   ├── coverage.sh           # what the JVM tests reach, as a Kover report
+│   ├── licenses.sh           # collects the notices; --check fails on a stale one
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── rust/jniLibs/<abi>/       # build output, not committed
@@ -535,10 +536,34 @@ rather than from someone's shell history.
 
 ## Licence
 
-This project is under the MIT licence — see [LICENSE](LICENSE).
+`SPDX-License-Identifier: MIT` — the full text is in [LICENSE](LICENSE).
 
-The published APK carries more than this repository: libgit2 and OpenSSL are
-compiled into the native library, `markdown-org-extract` and the UniFFI runtime
-come in as Rust dependencies, JNA loads the result, the Compose libraries draw
-it, and `cacert.pem` is Mozilla's root certificates as curl publishes them.
-Each is under its own terms.
+The published APK carries more than this repository, and each part comes under
+its own terms:
+
+| № | What                                     | Under                                      | How it gets in                       |
+|---|------------------------------------------|--------------------------------------------|--------------------------------------|
+| 1 | libgit2                                  | GPL-2.0 with a linking exception            | vendored, statically linked          |
+| 2 | OpenSSL                                  | Apache-2.0                                  | vendored, statically linked          |
+| 3 | `markdown-org-extract` and ~150 crates   | mostly MIT and Apache-2.0                   | compiled into the native library     |
+| 4 | the UniFFI runtime                       | MPL-2.0                                     | the same                             |
+| 5 | Compose, AndroidX, kotlinx-coroutines    | Apache-2.0                                  | Gradle dependencies                  |
+| 6 | JNA                                      | LGPL-2.1-or-later or Apache-2.0, at the recipient's choice — taken here under Apache-2.0 | Gradle dependency |
+| 7 | `cacert.pem`                             | MPL-2.0 (Mozilla's NSS data)                | packaged as an asset                 |
+
+The full notices are in [NOTICE](NOTICE), and the same list is in the
+application itself — settings, then "Licences of what is inside". Neither is
+written by hand: `tools/licenses.sh` collects the native half with
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) and the vendored
+sources, and the [licensee](https://github.com/cashapp/licensee) plugin
+collects the Gradle half into the APK while it is assembled. A list kept by
+hand would be right on the day it was written.
+
+```bash
+tools/licenses.sh           # rewrite NOTICE and the bundled list
+tools/licenses.sh --check   # what CI runs: fails if either is stale
+```
+
+`licensee` also fails the build on a licence outside the list in
+`app/build.gradle.kts`, so a dependency whose terms nobody looked at cannot
+reach a published APK.

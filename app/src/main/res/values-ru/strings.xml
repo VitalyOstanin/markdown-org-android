@@ -41,6 +41,11 @@
     <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
+    <string name="settings_licences">Лицензии того, что внутри</string>
+
+    <string name="licences_title">Лицензии</string>
+    <string name="licences_close">Назад</string>
+    <string name="licences_unavailable">В этой сборке нет списка лицензий. Он создаётся скриптом tools/licenses.sh и самой сборкой; если ни то, ни другое не выполнялось, показывать нечего.</string>
 
     <string name="agenda_task_actions">Действия с задачей</string>
     <string name="action_complete">Готово</string>

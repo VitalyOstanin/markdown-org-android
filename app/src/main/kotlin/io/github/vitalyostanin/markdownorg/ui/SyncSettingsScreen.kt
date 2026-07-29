@@ -53,6 +53,7 @@ fun SyncSettingsScreen(
     hasToken: Boolean,
     onSave: (url: String, branch: String, token: String, dropToken: Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var url by remember { mutableStateOf(initialUrl) }
@@ -158,6 +159,16 @@ fun SyncSettingsScreen(
             }
 
             Spacer(Modifier.height(Spacing.xs))
+
+            // The way to the notices of everything the APK carries. Here
+            // rather than on the agenda: it is read once, if ever, and the
+            // agenda's header is for what the reader came for.
+            TextButton(
+                onClick = onOpenLicences,
+                modifier = Modifier.testTag("settings-licences"),
+            ) {
+                Text(stringResource(R.string.settings_licences))
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

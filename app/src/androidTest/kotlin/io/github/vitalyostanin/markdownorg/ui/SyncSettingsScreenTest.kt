@@ -125,6 +125,8 @@ class SyncSettingsScreenTest {
         assertNull(saved)
     }
 
+    private var licencesOpened = false
+
     private fun showForm(url: String = "", branch: String = "", hasToken: Boolean = false) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -137,6 +139,7 @@ class SyncSettingsScreenTest {
                         droppedToken = dropToken
                     },
                     onDismiss = { dismissed = true },
+                    onOpenLicences = { licencesOpened = true },
                 )
             }
         }

@@ -12,7 +12,7 @@ source "${REPO_ROOT}/tools/versions.env"
 
 # The tag carries the version the image was built for, so a bump to
 # versions.env asks for a new image instead of silently reusing the old one.
-readonly NDK_IMAGE="${NDK_IMAGE:-localhost/markdown-org-ndk:${NDK_RELEASE}}"
+readonly NDK_IMAGE="${NDK_IMAGE:-localhost/markdown-org-ndk:${NDK_RELEASE}-${CARGO_ABOUT_VERSION}}"
 readonly SDK_IMAGE="${SDK_IMAGE:-localhost/markdown-org-sdk:${ANDROID_COMPILE_SDK}}"
 readonly EMULATOR_IMAGE="${EMULATOR_IMAGE:-localhost/markdown-org-emulator:${ANDROID_EMULATOR_API}}"
 
@@ -55,7 +55,9 @@ ensure_image() {
 ensure_ndk_image() {
     ensure_image "${NDK_IMAGE}" Containerfile.ndk \
         --build-arg "NDK_RELEASE=${NDK_RELEASE}" \
-        --build-arg "NDK_SHA256=${NDK_SHA256}"
+        --build-arg "NDK_SHA256=${NDK_SHA256}" \
+        --build-arg "CARGO_ABOUT_VERSION=${CARGO_ABOUT_VERSION}" \
+        --build-arg "CARGO_ABOUT_SHA256=${CARGO_ABOUT_SHA256}"
 }
 
 ensure_sdk_image() {

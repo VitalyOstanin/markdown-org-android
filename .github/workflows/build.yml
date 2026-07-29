@@ -71,6 +71,28 @@ jobs:
         # repository records.
         run: cargo test --locked
 
+      - name: Read the pinned versions
+        run: grep -E '^[A-Z][A-Z0-9_]*=' tools/versions.env >> "$GITHUB_ENV"
+
+      - name: Install the licence collector
+        # The published binary, checked against the digest in versions.env —
+        # the same one the build image installs, so CI and a laptop collect
+        # the notices with the same tool.
+        run: |
+          url="https://github.com/EmbarkStudios/cargo-about/releases/download"
+          archive="cargo-about-${CARGO_ABOUT_VERSION}-x86_64-unknown-linux-musl"
+          curl -fsSL -o /tmp/about.tar.gz "${url}/${CARGO_ABOUT_VERSION}/${archive}.tar.gz"
+          echo "${CARGO_ABOUT_SHA256}  /tmp/about.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/about.tar.gz -C /tmp
+          install -m 0755 "/tmp/${archive}/cargo-about" "$HOME/.cargo/bin/cargo-about"
+
+      - name: Check the notices
+        # NOTICE and the list the application shows are committed, and the
+        # crate graph behind them moves with every dependency bump. A build
+        # that publishes an APK whose notices name the wrong versions is the
+        # failure this catches.
+        run: NATIVE=1 tools/licenses.sh --check
+
   build:
     runs-on: ubuntu-24.04
     # Around four minutes warm, more on a cold cache: the vendored libgit2
