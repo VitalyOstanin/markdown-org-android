@@ -94,6 +94,11 @@ fun Throwable.toEditMessage(): SyncMessage = when (this) {
         SyncMessage(R.string.edit_failed_unsupported, detail, failed = true)
 
     is EditException.NotFound -> SyncMessage(R.string.edit_failed_missing, detail, failed = true)
+    // Actionable in its own way: the file is there and readable, it is simply
+    // in another encoding, and converting it is what fixes every edit to it.
+    is EditException.NotUtf8 ->
+        SyncMessage(R.string.edit_failed_encoding, detail, failed = true)
+
     // Nothing the user can do differently about these three, so they share
     // the general wording with the core's own detail under it. Listed one by
     // one rather than as the sealed parent, which carries no detail of its own.

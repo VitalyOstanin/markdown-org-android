@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,7 @@ fun AgendaScreen(
                 // back to the other layout, and it must not scroll away.
                 AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
                 SyncBanner(sync)
+                ScanNotices(state.notices)
                 when (layout) {
                     AgendaLayout.TIME -> TimeLayout(state.timeline, onTaskClick = onTaskClick)
                     AgendaLayout.LIST -> ListLayout(state.sections, onTaskClick = onTaskClick)
@@ -198,6 +200,40 @@ private fun SyncBanner(sync: SyncUiState) {
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
+            )
+        }
+    }
+}
+
+/**
+ * What the walk behind the agenda skipped.
+ *
+ * Above the list rather than in place of it: the tasks that were found are
+ * still worth showing, and a note that was skipped would otherwise leave no
+ * trace at all — an empty agenda reads as "nothing scheduled".
+ */
+@Composable
+private fun ScanNotices(notices: List<ScanNotice>) {
+    if (notices.isEmpty()) {
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 2.dp)
+            .testTag("scan-notices"),
+    ) {
+        notices.forEach { notice ->
+            Text(
+                text = when (notice) {
+                    is ScanNotice.Counted ->
+                        pluralStringResource(notice.text, notice.count, notice.count)
+
+                    is ScanNotice.Flag -> stringResource(notice.text)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = LocalAgendaColors.current.deadline.tone,
             )
         }
     }

@@ -193,18 +193,60 @@ pub struct Day {
     pub upcoming: Vec<Task>,
 }
 
-/// Result of a scan: the tasks, plus enough of the statistics to tell the
-/// user that the run was not clean.
+/// What a walk of the notes directory ran into, apart from the tasks it
+/// found.
+///
+/// The reasons are kept apart rather than summed: a file in another encoding
+/// is fixed by converting it, an unreadable one by fixing permissions, and a
+/// truncated result by raising the cap. A caller that only wants to know
+/// whether anything is worth saying reads `has_warnings`.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ScanStats {
+    /// Files read and searched to completion.
+    pub files_processed: u32,
+    /// Files that could not be opened, read or searched, plus directories the
+    /// walker could not enumerate.
+    pub files_failed: u32,
+    /// Files skipped because their bytes are not valid UTF-8 — typically a
+    /// note saved in a single-byte encoding. Their tasks are missing from the
+    /// result, which is otherwise indistinguishable from the file not being
+    /// there at all.
+    pub files_not_utf8: u32,
+    /// Files skipped for exceeding the extractor's size cap.
+    pub files_too_large: u32,
+    /// Files whose *path* is not valid UTF-8. Their tasks are present, but
+    /// `Task.file` carries U+FFFD in place of the invalid bytes and no longer
+    /// names a file on disk, so an edit aimed at one of them cannot succeed.
+    pub nonutf8_paths: u32,
+    /// The task cap was hit, so the list of tasks is truncated.
+    pub truncated: bool,
+    /// Any of the above is non-zero: the one flag an interface needs to
+    /// decide whether to say anything at all.
+    pub has_warnings: bool,
+}
+
+impl From<markdown_org_extract::ProcessingStats> for ScanStats {
+    fn from(stats: markdown_org_extract::ProcessingStats) -> Self {
+        Self {
+            files_processed: stats.files_processed as u32,
+            files_failed: (stats.files_failed_read + stats.files_failed_search + stats.walk_errors)
+                as u32,
+            files_not_utf8: stats.files_not_utf8 as u32,
+            files_too_large: stats.files_skipped_size as u32,
+            nonutf8_paths: stats.nonutf8_paths as u32,
+            truncated: stats.max_tasks_reached,
+            has_warnings: stats.has_warnings(),
+        }
+    }
+}
+
+/// Result of a scan: the tasks, plus what the walk ran into.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ScanResult {
     /// Every task found, in walk order.
     pub tasks: Vec<Task>,
-    /// Files read to completion.
-    pub files_processed: u32,
-    /// Files skipped or unreadable, summed across the failure kinds.
-    pub files_failed: u32,
-    /// The task cap was hit, so `tasks` is truncated.
-    pub truncated: bool,
+    /// What the walk ran into.
+    pub stats: ScanStats,
 }
 
 /// Result of building an agenda. Day scopes fill `days`; `Tasks` scope fills
@@ -216,6 +258,10 @@ pub struct AgendaResult {
     pub days: Vec<Day>,
     /// Flat list, for `Tasks`.
     pub tasks: Vec<Task>,
+    /// What the walk behind this agenda ran into. Carried here as well as in
+    /// [`ScanResult`] because the application builds agendas and never calls
+    /// [`scan`]: without it, a note the walk skipped simply disappears.
+    pub stats: ScanStats,
 }
 
 /// How to walk the directory. Every field has a working default, so a caller
@@ -252,16 +298,10 @@ pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
     };
 
     let outcome = scan_directory(Path::new(&dir), &scan_options, None)?;
-    let stats = outcome.stats;
 
     Ok(ScanResult {
         tasks: outcome.tasks.into_iter().map(Task::from).collect(),
-        files_processed: stats.files_processed as u32,
-        files_failed: (stats.files_skipped_size
-            + stats.files_failed_read
-            + stats.files_failed_search
-            + stats.walk_errors) as u32,
-        truncated: stats.max_tasks_reached,
+        stats: outcome.stats.into(),
     })
 }
 
@@ -297,6 +337,7 @@ pub fn scan_agenda(
     };
 
     let outcome = scan_directory(Path::new(&dir), &scan_options, None)?;
+    let stats = ScanStats::from(outcome.stats);
     // `Tasks` is the date-less scope, and the extractor rejects any date
     // argument under it rather than quietly ignoring one. `current_date` is
     // therefore dropped here instead of being forwarded — the caller passes
@@ -324,10 +365,12 @@ pub fn scan_agenda(
         AgendaOutput::Days(days) => AgendaResult {
             days: days.into_iter().map(Day::from).collect(),
             tasks: Vec::new(),
+            stats,
         },
         AgendaOutput::Tasks(tasks) => AgendaResult {
             days: Vec::new(),
             tasks: tasks.into_iter().map(Task::from).collect(),
+            stats,
         },
     })
 }

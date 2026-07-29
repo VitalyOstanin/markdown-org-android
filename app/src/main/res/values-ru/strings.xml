@@ -54,6 +54,10 @@
     <string name="edit_failed_no_planning">У задачи нет даты, которую можно перенести</string>
     <string name="edit_failed_unsupported">Такой повтор пока не переносится</string>
     <string name="edit_failed_missing">Файла больше нет</string>
+    <string name="edit_failed_encoding">Файл не в UTF-8: преобразуйте его и повторите</string>
+    <string name="edit_failed_unnamed">Имя файла не в UTF-8, задачу изменить нельзя</string>
+
+    <string name="agenda_truncated">Достигнут предел числа задач, список неполон</string>
 
     <plurals name="agenda_days_overdue">
         <item quantity="one">просрочено на %d день</item>
@@ -66,5 +70,31 @@
         <item quantity="few">через %d дня</item>
         <item quantity="many">через %d дней</item>
         <item quantity="other">через %d дня</item>
+    </plurals>
+
+    <!-- Что обход каталога заметок пропустил и почему. -->
+    <plurals name="agenda_skipped_encoding">
+        <item quantity="one">%d файл пропущен: не в UTF-8</item>
+        <item quantity="few">%d файла пропущено: не в UTF-8</item>
+        <item quantity="many">%d файлов пропущено: не в UTF-8</item>
+        <item quantity="other">%d файла пропущено: не в UTF-8</item>
+    </plurals>
+    <plurals name="agenda_unreadable">
+        <item quantity="one">%d файл не удалось прочитать</item>
+        <item quantity="few">%d файла не удалось прочитать</item>
+        <item quantity="many">%d файлов не удалось прочитать</item>
+        <item quantity="other">%d файла не удалось прочитать</item>
+    </plurals>
+    <plurals name="agenda_skipped_size">
+        <item quantity="one">%d файл пропущен: слишком большой</item>
+        <item quantity="few">%d файла пропущено: слишком большие</item>
+        <item quantity="many">%d файлов пропущено: слишком большие</item>
+        <item quantity="other">%d файла пропущено: слишком большие</item>
+    </plurals>
+    <plurals name="agenda_unnamed_paths">
+        <item quantity="one">у %d файла имя не в UTF-8, его задачи изменить нельзя</item>
+        <item quantity="few">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
+        <item quantity="many">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
+        <item quantity="other">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
     </plurals>
 </resources>

@@ -28,7 +28,7 @@ use markdown_org_extract::{
 };
 
 use crate::document::Document;
-use crate::edit::{splice, with_status, EditError, EditOutcome, EditTarget};
+use crate::edit::{splice, with_status, write_line, EditError, EditOutcome, EditTarget};
 use crate::TaskType;
 
 /// Which planning line an operation applies to.
@@ -90,14 +90,8 @@ pub fn shift_planning(
             detail: format!("{} shifted by {days} day(s) is out of range", parts.value),
         })?;
 
-    let rewritten = rewrite_date(&line, &parts, moved);
-    document.set(line_index, rewritten.clone());
-    document.save()?;
-
-    Ok(EditOutcome {
-        line: rewritten,
-        changed: true,
-    })
+    let rewritten = rewrite_date(&line, &parts, moved)?;
+    write_line(&mut document, line_index, rewritten)
 }
 
 /// Mark a task done, or move it to its next occurrence when it repeats.
@@ -140,7 +134,7 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
         let repeater = parts.repeater.as_ref().expect("filtered on Some");
         let next = next_occurrence(parts.value, today, repeater)?;
         let line = document.line(*line_index).unwrap_or_default();
-        moved.push((*line_index, rewrite_date(line, parts, next)));
+        moved.push((*line_index, rewrite_date(line, parts, next)?));
     }
 
     let planning = moved
@@ -197,36 +191,51 @@ fn planning_lines(
 
 /// Put `date` into the timestamp `parts` describes, keeping the weekday token
 /// in step.
-fn rewrite_date(line: &str, parts: &TimestampParts, date: NaiveDate) -> String {
-    let with_date = splice(
-        line,
-        parts.date.clone(),
-        &date.format("%Y-%m-%d").to_string(),
-    );
+///
+/// The two tokens are written right to left — the weekday first, then the
+/// date — so a replacement of a different width cannot move the range the
+/// other one was located by.
+fn rewrite_date(line: &str, parts: &TimestampParts, date: NaiveDate) -> Result<String, EditError> {
+    // Anything outside four digits comes back from chrono signed and of
+    // another width (`+10021-04-01`), which no reader of these files accepts
+    // — and the caller would be writing it into the user's notes.
+    if !(1000..=9999).contains(&date.year()) {
+        return Err(EditError::InvalidDate {
+            detail: format!("{date} is outside the four-digit years timestamps are written in"),
+        });
+    }
 
-    let Some(weekday) = parts.weekday.clone() else {
-        return with_date;
+    let with_weekday = match parts.weekday.clone() {
+        Some(weekday) => {
+            let written = &line[weekday.clone()];
+            splice(line, weekday, &weekday_like(written, date)?)
+        }
+        None => line.to_string(),
     };
 
-    // The date is always ten bytes wide, so the weekday range is unaffected
-    // by the splice above and can be reused as it is.
-    let written = &line[weekday.clone()];
-    splice(&with_date, weekday, &weekday_like(written, date))
+    Ok(splice(
+        &with_weekday,
+        parts.date.clone(),
+        &date.format("%Y-%m-%d").to_string(),
+    ))
 }
 
-/// The name of `date`'s weekday, in the language and length of `written`.
+/// The name of `date`'s weekday, written the way `written` is.
 ///
-/// A file written in Russian keeps its Russian weekdays, and an abbreviation
-/// stays an abbreviation: the extractor reads either, but a date that comes
-/// back in a different language than its neighbours is a visible change the
-/// user did not ask for.
-fn weekday_like(written: &str, date: NaiveDate) -> String {
-    let cyrillic = !written.is_ascii();
-    // Abbreviations are two characters in Russian and three in English; every
-    // full name is longer.
-    let full = written.chars().count() > 3;
-    let index = date.weekday().num_days_from_monday() as usize;
+/// A file written in Russian keeps its Russian weekdays, an abbreviation
+/// stays an abbreviation and a lowercase token stays lowercase: the extractor
+/// reads any of these, but a date that comes back spelled differently from
+/// its neighbours is a visible change the user did not ask for.
+///
+/// A token in neither of the two languages the ecosystem knows — Ukrainian
+/// `Нд`, Greek `Δευ` — is refused rather than replaced with a Russian or
+/// English name, for the same reason.
+fn weekday_like(written: &str, date: NaiveDate) -> Result<String, EditError> {
+    let (language, full) = language_of(written).ok_or_else(|| EditError::Unsupported {
+        detail: format!("{written:?} is not a weekday name this application can rewrite"),
+    })?;
 
+    let index = date.weekday().num_days_from_monday() as usize;
     // `Weekday::to_string` is the three-letter English form; the full names
     // are spelled out here because chrono has no unlocalised long form.
     let english = if full {
@@ -235,14 +244,60 @@ fn weekday_like(written: &str, date: NaiveDate) -> String {
         date.weekday().to_string()
     };
 
-    if !cyrillic {
-        return english;
+    let name = match language {
+        Language::English => english,
+        Language::Russian => RU_WEEKDAY_MAPPINGS
+            .iter()
+            .find(|(_, en)| *en == english)
+            .map_or(english, |(ru, _)| (*ru).to_string()),
+    };
+
+    // A file that spells its weekdays in lowercase keeps doing so. Anything
+    // else — capitalised, upper case — is written the canonical way, which is
+    // what it already was.
+    Ok(if written.chars().all(|c| !c.is_uppercase()) {
+        name.to_lowercase()
+    } else {
+        name
+    })
+}
+
+/// Which of the two languages a weekday token is written in, and whether it
+/// is the full name rather than an abbreviation.
+///
+/// Matched case-insensitively against the same tables the extractor reads
+/// with, so every token that reaches the agenda can also be rewritten.
+fn language_of(written: &str) -> Option<(Language, bool)> {
+    let token = written.to_lowercase();
+
+    if let Some((russian, _)) = RU_WEEKDAY_MAPPINGS
+        .iter()
+        .find(|(ru, _)| ru.to_lowercase() == token)
+    {
+        // The table pairs full names with full names and abbreviations with
+        // abbreviations, so the length of the entry says which this is.
+        return Some((Language::Russian, russian.chars().count() > 3));
     }
 
-    RU_WEEKDAY_MAPPINGS
+    if FULL_WEEKDAYS
         .iter()
-        .find(|(_, en)| *en == english)
-        .map_or(english, |(ru, _)| (*ru).to_string())
+        .any(|name| name.to_lowercase() == token)
+    {
+        return Some((Language::English, true));
+    }
+
+    let abbreviated = FULL_WEEKDAYS
+        .iter()
+        .any(|name| name[..3].to_lowercase() == token);
+    abbreviated.then_some((Language::English, false))
+}
+
+/// The languages weekday names are read and written in, matching the
+/// extractor's `SUPPORTED_LOCALES`.
+#[derive(Debug, Clone, Copy)]
+enum Language {
+    Russian,
+    English,
 }
 
 /// Monday-first, matching `Weekday::num_days_from_monday`.

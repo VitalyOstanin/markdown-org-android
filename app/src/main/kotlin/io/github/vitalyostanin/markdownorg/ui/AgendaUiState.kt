@@ -1,5 +1,8 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
+import io.github.vitalyostanin.markdownorg.R
 import java.time.LocalDate
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Task
@@ -36,6 +39,57 @@ data class AgendaSections(
     val isEmpty: Boolean get() = overdue.isEmpty() && timed.isEmpty() && untimed.isEmpty()
 }
 
+/**
+ * One thing the walk behind the agenda ran into.
+ *
+ * Kept as a resource id rather than a finished string for the same reason as
+ * [SyncMessage]: the wording, and its plural forms, belong to the resources.
+ */
+sealed interface ScanNotice {
+    /** Something that happened to a number of files, and to how many. */
+    data class Counted(@param:PluralsRes val text: Int, val count: Int) : ScanNotice
+
+    /** Something that either happened or did not, with nothing to count. */
+    data class Flag(@param:StringRes val text: Int) : ScanNotice
+}
+
+/**
+ * What is worth telling the user about the files the agenda was built from.
+ *
+ * Reasons are listed apart rather than summed into "N files skipped": a note
+ * in another encoding is fixed by converting it, an unreadable one by looking
+ * at permissions, and a truncated list by narrowing the scan.
+ */
+fun AgendaResult.notices(): List<ScanNotice> = buildList {
+    if (stats.filesNotUtf8 > 0u) {
+        add(ScanNotice.Counted(R.plurals.agenda_skipped_encoding, stats.filesNotUtf8.toInt()))
+    }
+    if (stats.filesFailed > 0u) {
+        add(ScanNotice.Counted(R.plurals.agenda_unreadable, stats.filesFailed.toInt()))
+    }
+    if (stats.filesTooLarge > 0u) {
+        add(ScanNotice.Counted(R.plurals.agenda_skipped_size, stats.filesTooLarge.toInt()))
+    }
+    if (stats.nonutf8Paths > 0u) {
+        add(ScanNotice.Counted(R.plurals.agenda_unnamed_paths, stats.nonutf8Paths.toInt()))
+    }
+    if (stats.truncated) {
+        add(ScanNotice.Flag(R.string.agenda_truncated))
+    }
+}
+
+/**
+ * Whether an edit aimed at this task can reach its file.
+ *
+ * A filename on Linux is an arbitrary byte sequence; one that is not UTF-8
+ * arrives here with U+FFFD in place of the invalid bytes and no longer names
+ * anything on disk, so every edit would come back as "file not found". The
+ * count of such paths is reported separately — see [notices]. A file whose
+ * name genuinely contains U+FFFD is treated the same way, which costs that
+ * one file its actions and needs no second channel to detect.
+ */
+fun Task.isEditable(): Boolean = !file.contains('�')
+
 sealed interface AgendaUiState {
     data object Loading : AgendaUiState
 
@@ -48,6 +102,8 @@ sealed interface AgendaUiState {
         val date: LocalDate,
         val sections: AgendaSections,
         val timeline: Timeline,
+        /** What the walk behind this agenda skipped, if anything. */
+        val notices: List<ScanNotice> = emptyList(),
     ) : AgendaUiState
 
     data class Failed(val message: String) : AgendaUiState

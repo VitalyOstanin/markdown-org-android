@@ -182,6 +182,24 @@ class AgendaViewModelTest {
         assertEquals(failure, model.syncState.value.message)
     }
 
+    @Test
+    fun aTaskWhoseFileNameIsNotUtf8IsRefusedWithoutReachingTheCore() = runTest(dispatcher) {
+        // The path arrived with U+FFFD in place of bytes that are not UTF-8,
+        // so it names nothing on disk. Going through the core would come back
+        // as "file not found", which reads as the note having been deleted.
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.apply(task(file = "bad�name.md"), TaskAction.Complete)
+        advanceUntilIdle()
+
+        assertEquals(0, writer.calls)
+        val message = model.syncState.value.message
+        assertEquals(R.string.edit_failed_unnamed, message?.text)
+        assertEquals(MessageSource.EDIT, message?.source)
+    }
+
     private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
         notes = notes,
         agenda = loader,

@@ -100,6 +100,24 @@ class SyncBannerTest {
         assertTrue(settingsOpened)
     }
 
+    @Test
+    fun aNoteSkippedForItsEncodingIsNamedAboveTheAgenda() {
+        showAgenda(
+            SyncUiState(configured = true),
+            notices = listOf(ScanNotice.Counted(R.plurals.agenda_skipped_encoding, 1)),
+        )
+
+        compose.onNodeWithTag("scan-notices").assertIsDisplayed()
+        compose.onNodeWithText(plural(R.plurals.agenda_skipped_encoding, 1)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aCleanScanSaysNothingAboutTheFilesBehindTheAgenda() {
+        showAgenda(SyncUiState(configured = true))
+
+        compose.onNodeWithTag("scan-notices").assertDoesNotExist()
+    }
+
     private fun status() = RepoStatus(
         url = "https://example.org/notes.git",
         branch = "main",
@@ -109,9 +127,15 @@ class SyncBannerTest {
         dirty = false,
     )
 
-    private fun showAgenda(sync: SyncUiState) = showAgenda(mutableStateOf(sync))
+    private fun showAgenda(
+        sync: SyncUiState,
+        notices: List<ScanNotice> = emptyList(),
+    ) = showAgenda(mutableStateOf(sync), notices)
 
-    private fun showAgenda(sync: MutableState<SyncUiState>) {
+    private fun showAgenda(
+        sync: MutableState<SyncUiState>,
+        notices: List<ScanNotice> = emptyList(),
+    ) {
         val sections = agenda(
             day(scheduledTimed = listOf(task(heading = "Daily standup", time = "09:30"))),
         ).toSections()
@@ -123,6 +147,7 @@ class SyncBannerTest {
                         date = LocalDate.of(2026, 7, 28),
                         sections = sections,
                         timeline = sections.toTimeline(LocalTime.of(10, 0)),
+                        notices = notices,
                     ),
                     layout = AgendaLayout.TIME,
                     onLayoutChange = {},
@@ -136,4 +161,7 @@ class SyncBannerTest {
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
+
+    private fun plural(id: Int, count: Int): String =
+        compose.activity.resources.getQuantityString(id, count, count)
 }

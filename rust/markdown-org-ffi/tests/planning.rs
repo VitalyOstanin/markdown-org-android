@@ -252,6 +252,102 @@ fn a_workday_repeater_skips_the_weekend() {
 }
 
 #[test]
+fn shifting_past_a_four_digit_year_is_refused_rather_than_rewriting_the_line() {
+    // chrono prints a year outside 0..10000 with a sign and without
+    // truncating, so the date would stop being ten bytes wide and the file
+    // would end up holding a timestamp nothing can read back.
+    let vault = vault("# TODO Отчёт\n`SCHEDULED: <2026-07-28 Вт>`\n");
+
+    let error = shift_planning(
+        target(vault.path(), 1, "Отчёт"),
+        PlanningKeyword::Scheduled,
+        2_920_000,
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::InvalidDate { .. }), "{error:?}");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Отчёт\n`SCHEDULED: <2026-07-28 Вт>`\n"
+    );
+}
+
+#[test]
+fn shifting_before_the_year_one_thousand_is_refused_rather_than_panicking() {
+    let vault = vault("# TODO Отчёт\n`SCHEDULED: <2026-07-28 Вт>`\n");
+
+    let error = shift_planning(
+        target(vault.path(), 1, "Отчёт"),
+        PlanningKeyword::Scheduled,
+        -800_000,
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::InvalidDate { .. }), "{error:?}");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Отчёт\n`SCHEDULED: <2026-07-28 Вт>`\n"
+    );
+}
+
+#[test]
+fn shifting_by_no_days_leaves_the_file_untouched() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n");
+    let path = vault.path().join("notes.md");
+    let before = std::fs::metadata(&path).expect("metadata");
+
+    let outcome = shift_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        0,
+    )
+    .expect("shift");
+
+    assert!(!outcome.changed, "nothing moved, so nothing was written");
+    let after = std::fs::metadata(&path).expect("metadata");
+    assert_eq!(
+        before.modified().expect("mtime"),
+        after.modified().expect("mtime"),
+        "the file was rewritten with its own content"
+    );
+}
+
+#[test]
+fn a_weekday_in_a_language_the_application_does_not_know_is_refused() {
+    // Ukrainian `Нд` is Sunday. Rewriting it as the Russian `Вс` would be a
+    // change of language the user did not ask for, so the edit is refused
+    // instead.
+    let vault = vault("# TODO Звіт\n`SCHEDULED: <2026-07-26 Нд>`\n");
+
+    let error = shift_planning(
+        target(vault.path(), 1, "Звіт"),
+        PlanningKeyword::Scheduled,
+        7,
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::Unsupported { .. }), "{error:?}");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Звіт\n`SCHEDULED: <2026-07-26 Нд>`\n"
+    );
+}
+
+#[test]
+fn a_lowercase_weekday_stays_lowercase() {
+    let vault = vault("# TODO Отчёт\n`SCHEDULED: <2026-07-28 вт>`\n");
+
+    let outcome = shift_planning(
+        target(vault.path(), 1, "Отчёт"),
+        PlanningKeyword::Scheduled,
+        1,
+    )
+    .expect("shift");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-07-29 ср>`");
+}
+
+#[test]
 fn completing_a_task_with_a_malformed_today_is_refused() {
     let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue +1d>`\n");
 

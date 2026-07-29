@@ -5,13 +5,26 @@
 //! trailing newline does not grow one. Lines nobody touched come back
 //! byte-for-byte, which is what keeps an edit to one task out of the way of a
 //! git merge with an edit to another.
+//!
+//! A byte-order mark is read as part of the first line and written back with
+//! it, so a file that carries one keeps it. Its heading is not editable
+//! either way: the extractor anchors the heading grammar at the start of the
+//! line, so a first line beginning with U+FEFF never becomes a task and never
+//! reaches an edit.
 
 use std::fs;
+use std::io::{ErrorKind, Write};
 use std::path::{Component, Path, PathBuf};
 
 use markdown_org_extract::{parse_heading_line, HeadingLine};
 
 use crate::edit::{EditError, EditTarget};
+
+/// Name prefix of the file [`Document::save`] writes before renaming it over
+/// the note. Nothing else in the notes directory is expected to carry it, so
+/// a leftover from a process killed mid-write is recognisable — the commit
+/// step skips anything named this way rather than committing it.
+pub(crate) const TEMPORARY_PREFIX: &str = ".markdown-org-";
 
 pub(crate) struct Document {
     path: PathBuf,
@@ -45,8 +58,20 @@ impl Document {
             });
         }
 
-        let content = fs::read_to_string(&path).map_err(|error| EditError::Io {
-            detail: format!("{}: {error}", path.display()),
+        let content = fs::read_to_string(&path).map_err(|error| {
+            // `InvalidData` from `read_to_string` has exactly one cause: the
+            // bytes are not UTF-8. Reported apart from the other IO failures
+            // because the answer differs — the file has to be converted, not
+            // the operation retried.
+            if error.kind() == ErrorKind::InvalidData {
+                EditError::NotUtf8 {
+                    detail: path.display().to_string(),
+                }
+            } else {
+                EditError::Io {
+                    detail: format!("{}: {error}", path.display()),
+                }
+            }
         })?;
 
         let lines = content
@@ -74,15 +99,59 @@ impl Document {
         self.lines.len()
     }
 
+    /// Write the file out as a whole.
+    ///
+    /// The content goes to a temporary file beside the target and is renamed
+    /// over it, because `rename` within one directory is atomic: a write that
+    /// runs out of space or is killed partway leaves the notes exactly as
+    /// they were, and `EditError::Io` therefore means "the file was not
+    /// changed". Writing over the file in place truncates it first, and the
+    /// next successful edit would commit that truncation to git.
     pub(crate) fn save(&self) -> Result<(), EditError> {
         let mut content = String::new();
         for (body, ending) in &self.lines {
             content.push_str(body);
             content.push_str(ending);
         }
-        fs::write(&self.path, content).map_err(|error| EditError::Io {
+
+        // The temporary has to share the directory with the target: `rename`
+        // is only atomic within one filesystem.
+        let directory = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let mut temporary = tempfile::Builder::new()
+            .prefix(TEMPORARY_PREFIX)
+            .suffix(".tmp")
+            .tempfile_in(directory)
+            .map_err(|error| self.failed(&error))?;
+
+        temporary
+            .write_all(content.as_bytes())
+            .map_err(|error| self.failed(&error))?;
+        // The rename below is atomic with respect to other readers, not with
+        // respect to power loss: without this the directory entry can point
+        // at a file whose content has not reached the device yet.
+        temporary
+            .as_file()
+            .sync_all()
+            .map_err(|error| self.failed(&error))?;
+
+        // A fresh temporary file is created 0600. The note keeps the mode it
+        // was written with instead — it is the user's file, and a checkout
+        // that syncs it back would otherwise show a mode change.
+        if let Ok(metadata) = fs::metadata(&self.path) {
+            fs::set_permissions(temporary.path(), metadata.permissions())
+                .map_err(|error| self.failed(&error))?;
+        }
+
+        temporary
+            .persist(&self.path)
+            .map_err(|error| self.failed(&error.error))?;
+        Ok(())
+    }
+
+    fn failed(&self, error: &std::io::Error) -> EditError {
+        EditError::Io {
             detail: format!("{}: {error}", self.path.display()),
-        })
+        }
     }
 
     /// Locate the heading `target` points at, checking that it is still the

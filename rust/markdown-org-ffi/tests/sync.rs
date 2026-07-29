@@ -307,6 +307,94 @@ fn committing_picks_up_a_new_file_as_well_as_a_changed_one() {
 }
 
 #[test]
+fn a_commit_message_that_is_not_utf8_is_shown_approximately_rather_than_as_nothing() {
+    // A commit made elsewhere may carry an `encoding` header and a message in
+    // a single-byte encoding. An empty summary is indistinguishable from a
+    // commit that has none, so the bytes are rendered lossily instead.
+    let remote = origin(&[("notes.md", NOTES)]);
+    let repository = Repository::open(remote.path()).expect("open");
+    let workdir = repository.workdir().expect("not bare").to_path_buf();
+    fs::write(workdir.join("later.md"), NOTES).expect("write");
+    let mut index = repository.index().expect("index");
+    index
+        .add_all(["*"], git2::IndexAddOption::DEFAULT, None)
+        .expect("add");
+    index.write().expect("write index");
+    let tree = repository
+        .find_tree(index.write_tree().expect("write tree"))
+        .expect("tree");
+    let who = Signature::now("Test", "test@example.invalid").expect("signature");
+    let parent = repository
+        .head()
+        .expect("head")
+        .peel_to_commit()
+        .expect("commit");
+    // `Отчёт` in CP1251.
+    let message = [0xCE, 0xF2, 0xF7, 0xB8, 0xF2];
+    repository
+        .commit_create_buffer(&who, &who, "", &tree, &[&parent])
+        .map(|buffer| buffer.as_str().expect("header is ascii").to_string())
+        .map(|header| {
+            let mut raw = header.into_bytes();
+            raw.extend_from_slice(&message);
+            let id = repository
+                .odb()
+                .expect("odb")
+                .write(git2::ObjectType::Commit, &raw);
+            repository
+                .reference("HEAD", id.expect("write commit"), true, "test")
+                .expect("update HEAD");
+        })
+        .expect("build commit");
+
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("cloned");
+
+    assert!(
+        !status.head_summary.is_empty(),
+        "the summary was dropped instead of being rendered lossily"
+    );
+}
+
+#[test]
+fn a_temporary_file_left_by_an_interrupted_write_is_not_committed() {
+    // `Document::save` writes beside the note and renames over it. A process
+    // killed between the two leaves that temporary behind, and committing it
+    // would push a half-written note to the remote under a name of its own.
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    fs::write(checkout.join("notes.md"), "# DONE Write the report\n").expect("write");
+    fs::write(checkout.join(".markdown-org-abc123.tmp"), "half a file").expect("write");
+
+    commit_changes(
+        checkout.display().to_string(),
+        "edit the report".to_string(),
+        author(),
+    )
+    .expect("commit")
+    .expect("something to commit");
+
+    let repository = Repository::open(&checkout).expect("open");
+    let tree = repository
+        .head()
+        .expect("head")
+        .peel_to_tree()
+        .expect("tree");
+    assert!(
+        tree.get_name(".markdown-org-abc123.tmp").is_none(),
+        "the temporary was committed"
+    );
+}
+
+#[test]
 fn committing_outside_a_repository_is_an_error() {
     let plain = tempfile::tempdir().expect("tempdir");
 

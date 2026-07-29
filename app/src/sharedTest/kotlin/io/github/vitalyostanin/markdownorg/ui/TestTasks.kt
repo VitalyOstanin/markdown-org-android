@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Day
+import uniffi.markdown_org_ffi.ScanStats
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 
@@ -43,12 +44,34 @@ internal fun day(
     upcoming: List<Task> = emptyList(),
 ): Day = Day(date, overdue, scheduledTimed, scheduledNoTime, upcoming)
 
-internal fun agenda(vararg days: Day): AgendaResult =
-    AgendaResult(days = days.toList(), tasks = emptyList())
+/** A walk that ran into nothing worth reporting. */
+internal fun cleanScan(
+    filesProcessed: UInt = 1u,
+    filesFailed: UInt = 0u,
+    filesNotUtf8: UInt = 0u,
+    filesTooLarge: UInt = 0u,
+    nonutf8Paths: UInt = 0u,
+    truncated: Boolean = false,
+): ScanStats = ScanStats(
+    filesProcessed = filesProcessed,
+    filesFailed = filesFailed,
+    filesNotUtf8 = filesNotUtf8,
+    filesTooLarge = filesTooLarge,
+    nonutf8Paths = nonutf8Paths,
+    truncated = truncated,
+    hasWarnings = filesFailed > 0u ||
+        filesNotUtf8 > 0u ||
+        filesTooLarge > 0u ||
+        nonutf8Paths > 0u ||
+        truncated,
+)
+
+internal fun agenda(vararg days: Day, stats: ScanStats = cleanScan()): AgendaResult =
+    AgendaResult(days = days.toList(), tasks = emptyList(), stats = stats)
 
 /** Tasks with no day buckets at all, as the `Tasks` scope returns them. */
 internal fun flatAgenda(vararg tasks: Task): AgendaResult =
-    AgendaResult(days = emptyList(), tasks = tasks.toList())
+    AgendaResult(days = emptyList(), tasks = tasks.toList(), stats = cleanScan())
 
 /** Rows at the given hour, in order, for asserting on an axis. */
 internal fun List<AxisEntry>.headingsAt(hour: Int): List<String> =

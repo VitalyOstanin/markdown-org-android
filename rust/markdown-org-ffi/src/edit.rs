@@ -95,6 +95,15 @@ pub enum EditError {
         /// Human-readable detail.
         detail: String,
     },
+    /// The file is not valid UTF-8 — typically a note written in a legacy
+    /// single-byte encoding and committed to the same repository. Separate
+    /// from [`EditError::Io`] because the two need different answers: this
+    /// one is fixed by converting the file, not by retrying.
+    #[error("the file is not valid UTF-8: {detail}")]
+    NotUtf8 {
+        /// Human-readable detail.
+        detail: String,
+    },
 }
 
 /// Set, replace or clear the `TODO` / `DONE` / `CANCELLED` keyword.
@@ -196,7 +205,20 @@ fn edit_heading(
     let line = document.line(index).unwrap_or_default().to_string();
 
     let rewritten = rewrite(&line, &heading);
-    if rewritten == line {
+    write_line(&mut document, index, rewritten)
+}
+
+/// Put `rewritten` on line `index`, writing the file only if that changes it.
+///
+/// Shared by every edit: rewriting a file with its own content would bump its
+/// timestamp, show up as a write to whatever is watching the directory, and
+/// report `changed: true` for an edit that changed nothing.
+pub(crate) fn write_line(
+    document: &mut Document,
+    index: usize,
+    rewritten: String,
+) -> Result<EditOutcome, EditError> {
+    if document.line(index) == Some(rewritten.as_str()) {
         return Ok(EditOutcome {
             line: rewritten,
             changed: false,

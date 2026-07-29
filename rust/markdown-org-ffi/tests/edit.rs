@@ -5,6 +5,8 @@
 //! git merges conflict, and it would go unnoticed by an assertion scoped to
 //! the line under test.
 
+use std::fs;
+
 use markdown_org_ffi::{set_priority, set_status, EditError, TaskType};
 
 mod common;
@@ -231,6 +233,72 @@ fn a_file_without_a_trailing_newline_does_not_grow_one() {
     .expect("edit");
 
     assert_eq!(body(vault.path()), "# DONE Write the report");
+}
+
+#[test]
+fn a_write_replaces_the_file_rather_than_truncating_it_in_place() {
+    // The notes live in a git checkout, so a write interrupted halfway
+    // through would leave a truncated file that the next successful edit
+    // commits. Writing beside the target and renaming over it is what makes
+    // an interrupted write leave the original alone; the inode changing is
+    // the observable trace of that rename.
+    use std::os::unix::fs::MetadataExt;
+
+    let vault = vault(TWO_TASKS);
+    let path = vault.path().join("notes.md");
+    let before = fs::metadata(&path).expect("metadata");
+
+    set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    let after = fs::metadata(&path).expect("metadata");
+    assert_ne!(before.ino(), after.ino(), "the file was written in place");
+
+    let left_behind: Vec<_> = fs::read_dir(vault.path())
+        .expect("read_dir")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "notes.md")
+        .collect();
+    assert!(left_behind.is_empty(), "left behind: {left_behind:?}");
+}
+
+#[test]
+fn a_write_keeps_the_permissions_the_file_had() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let vault = vault(TWO_TASKS);
+    let path = vault.path().join("notes.md");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).expect("chmod");
+
+    set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
+
+    let mode = fs::metadata(&path).expect("metadata").permissions().mode();
+    assert_eq!(mode & 0o777, 0o640, "mode is now {:o}", mode & 0o777);
+}
+
+#[test]
+fn a_file_that_is_not_utf8_is_named_as_such_rather_than_as_an_io_failure() {
+    // A note written in a Windows editor and committed to the same
+    // repository arrives as CP1251. "stream did not contain valid UTF-8" is
+    // indistinguishable from a filesystem failure for the person reading it.
+    let vault = vault("");
+    // `# TODO Отчёт` with the title in CP1251.
+    let mut cp1251 = b"# TODO ".to_vec();
+    cp1251.extend_from_slice(&[0xCE, 0xF2, 0xF7, 0xB8, 0xF2, b'\n']);
+    fs::write(vault.path().join("notes.md"), cp1251).expect("write");
+
+    let error = set_status(target(vault.path(), 1, "Отчёт"), Some(TaskType::Done))
+        .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::NotUtf8 { .. }), "{error:?}");
 }
 
 #[test]

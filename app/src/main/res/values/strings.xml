@@ -57,6 +57,10 @@
     <string name="edit_failed_no_planning">The task has no date to move</string>
     <string name="edit_failed_unsupported">This repeater cannot be advanced here yet</string>
     <string name="edit_failed_missing">The file is no longer there</string>
+    <string name="edit_failed_encoding">The file is not UTF-8; convert it and try again</string>
+    <string name="edit_failed_unnamed">The file name is not UTF-8, so the task cannot be changed</string>
+
+    <string name="agenda_truncated">The task limit was reached; the list is incomplete</string>
 
     <plurals name="agenda_days_overdue">
         <item quantity="one">%d day late</item>
@@ -65,5 +69,23 @@
     <plurals name="agenda_days_ahead">
         <item quantity="one">in %d day</item>
         <item quantity="other">in %d days</item>
+    </plurals>
+
+    <!-- What the walk behind the agenda skipped, and why. -->
+    <plurals name="agenda_skipped_encoding">
+        <item quantity="one">%d file was skipped: it is not UTF-8</item>
+        <item quantity="other">%d files were skipped: they are not UTF-8</item>
+    </plurals>
+    <plurals name="agenda_unreadable">
+        <item quantity="one">%d file could not be read</item>
+        <item quantity="other">%d files could not be read</item>
+    </plurals>
+    <plurals name="agenda_skipped_size">
+        <item quantity="one">%d file was skipped: too large</item>
+        <item quantity="other">%d files were skipped: too large</item>
+    </plurals>
+    <plurals name="agenda_unnamed_paths">
+        <item quantity="one">%d file has a name that is not UTF-8; its tasks cannot be changed</item>
+        <item quantity="other">%d files have names that are not UTF-8; their tasks cannot be changed</item>
     </plurals>
 </resources>

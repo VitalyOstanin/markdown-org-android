@@ -94,6 +94,22 @@ class AgendaViewModel(
     fun apply(task: Task, action: TaskAction) {
         _selected.value = null
 
+        // A task read out of a file whose name is not UTF-8 names a path that
+        // does not exist, so every edit would come back as "file not found" —
+        // refused here with a reason instead.
+        if (!task.isEditable()) {
+            _sync.update {
+                it.copy(
+                    message = SyncMessage(
+                        R.string.edit_failed_unnamed,
+                        failed = true,
+                        source = MessageSource.EDIT,
+                    ),
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             val outcome = when (action) {
                 TaskAction.Complete -> editor.complete(task, LocalDate.now())
@@ -145,6 +161,7 @@ class AgendaViewModel(
                         // can be picked, another day passes null and loses
                         // the marker line.
                         timeline = sections.toTimeline(now = LocalTime.now()),
+                        notices = result.notices(),
                     )
                 },
                 onFailure = { error ->

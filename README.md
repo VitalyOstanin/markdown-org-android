@@ -15,6 +15,7 @@ run. Nothing has been run on a physical device yet.
 - [Requirements](#requirements)
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
+- [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [Building the core](#building-the-core)
 - [Building the application](#building-the-application)
 - [Running it on an emulator](#running-it-on-an-emulator)
@@ -125,6 +126,29 @@ The grammar itself stays in the extractor: it reports where each token of a
 heading or a timestamp sits (`parseHeadingLine`, `parseTimestampParts`), and
 this crate splices the replacement in. A second copy of those rules here
 would drift from the one that reads the files.
+
+## What an edit refuses to do
+
+The notes are the user's files and live in a git checkout, so every write
+either lands whole or does not happen:
+
+| № | Situation                                    | What happens                                                                     |
+|---|----------------------------------------------|----------------------------------------------------------------------------------|
+| 1 | Any write                                    | Written to a temporary beside the note and renamed over it, so an interrupted write leaves the original untouched. The note keeps its permissions. |
+| 2 | The rewritten line equals the one in the file | Nothing is written and the outcome reports `changed: false`.                     |
+| 3 | A date leaving the four-digit years          | `InvalidDate`. Outside `1000..=9999` a year is printed signed and of another width, which no reader of these files accepts. |
+| 4 | A weekday in neither Russian nor English     | `Unsupported`. Rewriting Ukrainian `Нд` as Russian `Вс` is a change of language nobody asked for. |
+| 5 | The file is not UTF-8                        | `NotUtf8`, apart from `Io`: converting the file is what fixes it.                 |
+| 6 | The file name is not UTF-8                   | Refused before the core is called — the path arrives with U+FFFD and names nothing on disk. |
+| 7 | The heading on that line is not the one the agenda saw | `Stale`, the one failure mode that would damage notes.                  |
+
+A weekday is rewritten in the language, length and case it was written in:
+`Вт` stays `Вт`, `Tuesday` stays a full name, `вт` stays lowercase.
+
+The walk behind an agenda reports what it skipped — files not in UTF-8, files
+it could not read, files past the size cap, paths that are not UTF-8, and a
+truncated list — and the agenda shows that above the entries. Without it a
+note in CP1251 simply disappears: no tasks, no reason, no sign.
 
 ## Building the core
 
@@ -306,6 +330,20 @@ tools/test.sh             # the JVM tests of the application
 tools/run-emulator.sh && tools/test-instrumented.sh   # the instrumented ones
 tools/coverage.sh         # what the JVM tests reach, as a Kover report
 ```
+
+The instrumented tests need the core built for the emulator's own ABI, which
+is `x86_64`, while `build-core.sh` builds `arm64-v8a` alone unless `ABIS` says
+otherwise — and it clears `rust/jniLibs` first, so a build for the phone
+removes what the emulator needs:
+
+```bash
+ABIS="arm64-v8a x86_64" tools/build-core.sh
+```
+
+`test-instrumented.sh` reads the device's ABI and refuses to run when the
+matching library is missing, rather than letting the tests that load the core
+fail as `NoClassDefFoundError` on `UniffiLib` — a message that says nothing
+about what is absent.
 
 Every run is bounded: each JVM test by `testOptions` in
 `app/build.gradle.kts`, each instrumented one by the runner's `timeout_msec`,

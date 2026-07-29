@@ -127,14 +127,23 @@ class FakeAgendaLoader : AgendaLoader {
 /** An editor whose outcome the test sets. */
 class FakeWriter(var outcome: Result<Unit> = Result.success(Unit)) : NotesWriter {
 
-    override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = outcome
+    /** How many edits reached the writer, for asserting that one did not. */
+    var calls = 0
+        private set
 
-    override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = outcome
+    override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = record()
 
-    override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = outcome
+    override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = record()
+
+    override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = record()
 
     override suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit> =
-        outcome
+        record()
+
+    private fun record(): Result<Unit> {
+        calls += 1
+        return outcome
+    }
 }
 
 /** Settings in memory, with the same defaults the stored ones fall back to. */

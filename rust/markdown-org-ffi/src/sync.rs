@@ -18,6 +18,8 @@ use git2::{
 use libgit2_sys as raw;
 use openssl::x509::X509;
 
+use crate::document::TEMPORARY_PREFIX;
+
 /// What to sync, and with what credentials.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct SyncRequest {
@@ -181,10 +183,25 @@ pub fn commit_changes(
     let repository = Repository::open(Path::new(&dir))?;
 
     let mut index = repository.index()?;
+    // A file an interrupted write left beside a note is not part of the
+    // notes: committing it would push half a file to the remote under a name
+    // of its own. Returning a non-zero value from the callback is how libgit2
+    // is told to skip a path.
+    let mut skip_temporaries = |path: &Path, _spec: &[u8]| -> i32 {
+        let temporary = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(TEMPORARY_PREFIX));
+        i32::from(temporary)
+    };
     // `add_all` picks up new and modified files; `update_all` is what notices
     // a tracked file that is gone. Both are needed to leave nothing behind
     // that would still show as a change.
-    index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+    index.add_all(
+        ["*"].iter(),
+        IndexAddOption::DEFAULT,
+        Some(&mut skip_temporaries),
+    )?;
     index.update_all(["*"].iter(), None)?;
     index.write()?;
 
@@ -399,10 +416,16 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
     options.include_untracked(true).include_ignored(false);
 
     Ok(RepoStatus {
+        // Both of these are byte strings in git and only usually UTF-8: a
+        // remote URL may hold a percent-decoded path, and a commit made
+        // elsewhere may carry an `encoding` header. Rendered lossily rather
+        // than dropped — an empty URL reads as "no remote configured" and an
+        // empty summary as "a commit with no message", neither of which is
+        // what happened.
         url: repository
             .find_remote("origin")
             .ok()
-            .and_then(|remote| remote.url().ok().map(str::to_string))
+            .map(|remote| String::from_utf8_lossy(remote.url_bytes()).into_owned())
             .unwrap_or_default(),
         // A detached HEAD has no shorthand worth showing, so the commit id
         // stands in for the branch name.
@@ -412,11 +435,9 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
             .unwrap_or_else(|_| commit.id().to_string()),
         head_id: commit.id().to_string(),
         head_summary: commit
-            .summary()
-            .ok()
-            .flatten()
-            .unwrap_or_default()
-            .to_string(),
+            .summary_bytes()
+            .map(|summary| String::from_utf8_lossy(summary).into_owned())
+            .unwrap_or_default(),
         head_time: commit.time().seconds(),
         dirty: !repository.statuses(Some(&mut options))?.is_empty(),
     })

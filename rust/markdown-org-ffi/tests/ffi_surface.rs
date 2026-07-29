@@ -46,9 +46,10 @@ fn scan_projects_a_task_onto_the_ffi_record() {
     assert_eq!(task.timestamp_type.as_deref(), Some("SCHEDULED"));
     assert_eq!(task.timestamp_date.as_deref(), Some("2026-03-02"));
     assert_eq!(task.timestamp_time.as_deref(), Some("10:00"));
-    assert_eq!(result.files_processed, 1);
-    assert_eq!(result.files_failed, 0);
-    assert!(!result.truncated);
+    assert_eq!(result.stats.files_processed, 1);
+    assert_eq!(result.stats.files_failed, 0);
+    assert!(!result.stats.truncated);
+    assert!(!result.stats.has_warnings);
 }
 
 #[test]
@@ -84,7 +85,7 @@ fn the_task_cap_is_reported_rather_than_silently_applied() {
 
     assert_eq!(result.tasks.len(), 1);
     assert!(
-        result.truncated,
+        result.stats.truncated,
         "a truncated result must say so, or the UI shows a partial list as complete"
     );
 }
@@ -183,6 +184,70 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         "yesterday's task is overdue, and the offset says by how much"
     );
     assert_eq!(a_day_later.days[0].overdue[0].days_offset, Some(-1));
+}
+
+/// `# TODO Отчёт` plus a timestamp, with the title in CP1251 — a note saved
+/// by a Windows editor and committed to the same repository.
+fn cp1251_note() -> Vec<u8> {
+    let mut bytes = b"# TODO ".to_vec();
+    bytes.extend_from_slice(&[0xCE, 0xF2, 0xF7, 0xB8, 0xF2, b'\n']);
+    bytes.extend_from_slice(b"`SCHEDULED: <2026-03-02 Mon>`\n");
+    bytes
+}
+
+#[test]
+fn an_agenda_says_a_file_was_skipped_for_its_encoding_rather_than_hiding_it() {
+    // Without this the agenda of a directory holding one readable note and
+    // one CP1251 note is indistinguishable from the agenda of a directory
+    // holding one note: no tasks, no reason, no sign.
+    let vault = write_vault(&[("ok.md", TIMED)]);
+    fs::write(vault.path().join("cp1251.md"), cp1251_note()).expect("write file");
+
+    let result = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::Day,
+        "2026-03-02".to_string(),
+        "Europe/Moscow".to_string(),
+        false,
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(result.stats.files_processed, 1);
+    assert_eq!(result.stats.files_not_utf8, 1);
+    assert_eq!(result.stats.files_failed, 0);
+    assert!(result.stats.has_warnings);
+}
+
+#[test]
+fn a_scan_reports_the_same_statistics_as_an_agenda() {
+    let vault = write_vault(&[("ok.md", TIMED)]);
+    fs::write(vault.path().join("cp1251.md"), cp1251_note()).expect("write file");
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+
+    assert_eq!(result.stats.files_not_utf8, 1);
+    assert_eq!(result.stats.files_processed, 1);
+    assert!(result.stats.has_warnings);
+}
+
+#[test]
+fn a_task_whose_path_is_not_utf8_is_counted_so_it_can_be_marked_uneditable() {
+    // A filename on Linux is an arbitrary byte sequence. Such a path reaches
+    // the caller with U+FFFD in place of the invalid bytes, so an edit aimed
+    // at it looks for a file that does not exist; the count is what lets the
+    // interface refuse before the user taps.
+    use std::os::unix::ffi::OsStrExt;
+
+    let vault = write_vault(&[("ok.md", TIMED)]);
+    let name = std::ffi::OsStr::from_bytes(b"bad\xffname.md");
+    fs::write(vault.path().join(name), TIMED).expect("write file");
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+
+    assert_eq!(result.stats.files_processed, 2);
+    assert_eq!(result.stats.nonutf8_paths, 1);
+    assert!(result.stats.has_warnings);
 }
 
 #[test]
