@@ -17,6 +17,7 @@ run. Nothing has been run on a physical device yet.
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
+- [Where the token may travel](#where-the-token-may-travel)
 - [Building the core](#building-the-core)
 - [Building the application](#building-the-application)
 - [Running it on an emulator](#running-it-on-an-emulator)
@@ -170,6 +171,24 @@ pushes. What it does in the situations that are not a plain fast-forward:
 The certificate authorities are handed to the core once per process rather than
 with every sync: Android has no `/etc/ssl/certs`, the bundle is around 180 kB,
 and the store it goes into lives as long as the process.
+
+## Where the token may travel
+
+The access token is sent as the HTTP password, so what the address says decides
+where it goes. Both rules below are in the core rather than only on the settings
+screen: `SyncRequest` is the FFI surface, and whoever calls it gets the same
+answer the screen does.
+
+| № | Rule                                                                    | Why                                                                                              |
+|---|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| 1 | Only `https://`, `file://` and an absolute path are accepted            | `http://` and `git://` carry the token in the clear, and Android's ban on cleartext traffic does not reach libgit2 over a vendored OpenSSL. Refused before a connection is opened, so nothing leaves the device. |
+| 2 | The token is offered to the configured host and to no other             | libgit2 asks per request, and a redirect asks for somewhere else. git itself does not follow credentials across hosts either. |
+| 3 | Credentials written into the address are moved into the token           | `https://x:<token>@host/repo.git` is what a copied clone command looks like; the address field is shown in the clear, the token field is not. |
+| 4 | Whatever the core quotes back is masked before it reaches the screen    | libgit2's messages carry the address it was given, credentials included.                          |
+
+The token is stored in the application's private `SharedPreferences` with
+`allowBackup="false"`; it is never read back into the form, and a "forget the
+saved token" checkbox is the way to clear it.
 
 ## Building the core
 

@@ -11,7 +11,13 @@
 local.properties
 *.apk
 *.aab
+# Signing keys, under every name a keytool run may give them. The CI key is
+# a secret and never lands here, but one generated locally would otherwise be
+# offered up by `git add`.
 *.keystore
+*.jks
+*.p12
+*.pfx
 
 # Local review output, not part of the repository.
 /docs/__check/

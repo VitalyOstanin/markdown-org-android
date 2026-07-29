@@ -22,6 +22,7 @@
     <string name="sync_failed_network">Сервер недоступен</string>
     <string name="sync_failed_diverged">Локальные коммиты расходятся с удалёнными</string>
     <string name="sync_failed_dirty">Незафиксированные изменения были бы затёрты</string>
+    <string name="sync_failed_address">Адрес использовать нельзя; ничего не отправлено</string>
     <string name="sync_failed_repository">Синхронизация не удалась</string>
     <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 

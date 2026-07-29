@@ -54,7 +54,8 @@ ensure_image() {
 
 ensure_ndk_image() {
     ensure_image "${NDK_IMAGE}" Containerfile.ndk \
-        --build-arg "NDK_RELEASE=${NDK_RELEASE}"
+        --build-arg "NDK_RELEASE=${NDK_RELEASE}" \
+        --build-arg "NDK_SHA256=${NDK_SHA256}"
 }
 
 ensure_sdk_image() {
@@ -62,7 +63,10 @@ ensure_sdk_image() {
         --build-arg "JDK_VERSION=${JDK_VERSION}" \
         --build-arg "ANDROID_PLATFORM=${ANDROID_PLATFORM}" \
         --build-arg "ANDROID_BUILD_TOOLS=${ANDROID_BUILD_TOOLS}" \
-        --build-arg "GRADLE_VERSION=${GRADLE_VERSION}"
+        --build-arg "CMDLINE_TOOLS_RELEASE=${CMDLINE_TOOLS_RELEASE}" \
+        --build-arg "CMDLINE_TOOLS_SHA256=${CMDLINE_TOOLS_SHA256}" \
+        --build-arg "GRADLE_VERSION=${GRADLE_VERSION}" \
+        --build-arg "GRADLE_SHA256=${GRADLE_SHA256}"
 }
 
 # The emulator image is the SDK one plus a system image, so the base has to

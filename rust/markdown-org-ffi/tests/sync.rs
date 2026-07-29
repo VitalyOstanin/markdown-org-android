@@ -741,3 +741,76 @@ fn an_untracked_file_the_update_would_overwrite_stops_the_sync() {
         "the note captured locally must survive a refused sync",
     );
 }
+
+/// The token travels as the HTTP password, so the scheme decides whether it
+/// travels in the clear. The platform's ban on cleartext traffic does not
+/// reach this stack: the request leaves from libgit2 over a vendored OpenSSL,
+/// neither of which reads Android's network security policy.
+#[test]
+fn an_address_that_would_carry_the_token_in_the_clear_is_refused() {
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+
+    for url in [
+        "http://127.0.0.1:1/notes.git",
+        "git://127.0.0.1:1/notes.git",
+        "ssh://git@127.0.0.1:1/notes.git",
+        "git@127.0.0.1:notes.git",
+    ] {
+        let error = sync_repository(SyncRequest {
+            dir: checkout.display().to_string(),
+            url: url.to_string(),
+            token: Some("secret".to_string()),
+            branch: None,
+        })
+        .expect_err("must fail");
+
+        assert!(
+            matches!(error, SyncError::Address { .. }),
+            "{url} got {error:?}",
+        );
+        assert!(
+            !checkout.exists(),
+            "{url} left a directory behind, so the address reached the transport",
+        );
+    }
+}
+
+/// The check belongs before the fetch as much as before the clone: settings
+/// changed under an existing checkout go down this path.
+#[test]
+fn a_refused_address_stops_a_fetch_as_well_as_a_clone() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let error = sync_repository(SyncRequest {
+        dir: checkout.display().to_string(),
+        url: "http://127.0.0.1:1/notes.git".to_string(),
+        token: Some("secret".to_string()),
+        branch: None,
+    })
+    .expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Address { .. }), "{error:?}");
+}
+
+/// A checkout on disk is what every test here uses, and the production remote
+/// is `https://` — neither may be caught by the guard.
+#[test]
+fn a_local_path_and_a_file_url_stay_usable() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+
+    sync_repository(request(&local.path().join("by-path"), remote.path())).expect("path");
+
+    let by_url = local.path().join("by-url");
+    sync_repository(SyncRequest {
+        dir: by_url.display().to_string(),
+        url: format!("file://{}", remote.path().display()),
+        token: None,
+        branch: None,
+    })
+    .expect("file url");
+}

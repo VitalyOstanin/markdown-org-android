@@ -7,9 +7,13 @@
 # tools/versions.env. NDK_RELEASE has no default on purpose: a build that
 # does not supply it fails here rather than producing an image pinned to
 # something nobody wrote down.
-FROM docker.io/library/rust:latest
+# Pinned by digest as well as by tag: the tag moves, and the compiler that
+# builds a released APK should not change underfoot. Dependabot watches the
+# digest and opens a pull request when the tag moves on.
+FROM docker.io/library/rust:1.97-trixie@sha256:1bcff4befb740599103a2c7cb51058e14479b2e35e3a34a3f0dc4ede09927488
 
 ARG NDK_RELEASE
+ARG NDK_SHA256
 
 # cmake, make and perl are what the vendored builds need: libgit2 is built
 # with cmake, OpenSSL configures itself with perl. They are build-only, which
@@ -19,8 +23,12 @@ RUN apt-get update \
         unzip curl ca-certificates cmake make perl \
     && rm -rf /var/lib/apt/lists/*
 
+# The digest is checked before anything is unpacked: this archive is the
+# compiler the released native code is built with, and TLS to dl.google.com
+# only says who served it.
 RUN curl -fsSL -o /tmp/ndk.zip \
         "https://dl.google.com/android/repository/android-ndk-${NDK_RELEASE}-linux.zip" \
+    && echo "${NDK_SHA256}  /tmp/ndk.zip" | sha256sum -c - \
     && unzip -q /tmp/ndk.zip -d /opt \
     && rm /tmp/ndk.zip
 

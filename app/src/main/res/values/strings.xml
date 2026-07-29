@@ -25,6 +25,7 @@
     <string name="sync_failed_network">The server could not be reached</string>
     <string name="sync_failed_diverged">Local commits differ from the remote</string>
     <string name="sync_failed_dirty">Uncommitted changes would be overwritten</string>
+    <string name="sync_failed_address">The address cannot be used; nothing was sent</string>
     <string name="sync_failed_repository">Sync failed</string>
     <string name="sync_status_unreadable">The checkout could not be read; it was left as it is</string>
 

@@ -1,0 +1,34 @@
+version: 2
+
+# What has to be watched and why: the TLS stack is compiled into the
+# application. libgit2 and OpenSSL are vendored by `git2`, so an advisory
+# against either reaches users through a release of this project and through
+# nothing else — neither a system update nor an Android one touches them.
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+    groups:
+      # One pull request for the patch bumps, which are the bulk of them; a
+      # major version is worth its own review.
+      rust-patches:
+        update-types: ["patch"]
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # The base images of the build containers, pinned by digest: without this
+  # the pin is what stops them from ever being updated.
+  - package-ecosystem: "docker"
+    directories:
+      - "/tools"
+    schedule:
+      interval: "weekly"

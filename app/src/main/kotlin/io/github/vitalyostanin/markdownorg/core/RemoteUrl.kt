@@ -54,5 +54,63 @@ private fun httpsProblem(rest: String): RemoteUrlProblem? {
     }
 }
 
+/** An address with whatever credentials it carried taken out of it. */
+data class SplitRemoteUrl(
+    val url: String,
+    /** What stood in the userinfo section, or `null` when there was none. */
+    val token: String?,
+)
+
+/**
+ * Moves credentials out of the address and into the token.
+ *
+ * A clone command copied from a repository page reads
+ * `https://x-access-token:<token>@host/repo.git`, and git accepts it as it
+ * stands. Kept out of the stored address on purpose: the address is the one
+ * setting shown in the clear, in a monospace field the width of the screen,
+ * while the token field is masked and never read back.
+ *
+ * Only an address with a scheme is looked at — an `@` in a directory name on
+ * the device is part of the name.
+ */
+fun splitCredentials(url: String): SplitRemoteUrl {
+    val value = url.trim()
+    val scheme = value.indexOf(SEPARATOR)
+    if (scheme < 0) {
+        return SplitRemoteUrl(value, null)
+    }
+
+    val start = scheme + SEPARATOR.length
+    val authority = value.substring(start).substringBefore('/')
+    val at = authority.lastIndexOf('@')
+    if (at < 0) {
+        return SplitRemoteUrl(value, null)
+    }
+
+    val userinfo = authority.substring(0, at)
+
+    return SplitRemoteUrl(
+        url = value.substring(0, start) + value.substring(start + at + 1),
+        // `user:token` is the usual shape, but a token on its own is what a
+        // copied command often holds; either way what follows the colon, or
+        // the whole of it, is the secret.
+        token = userinfo.substringAfter(':', missingDelimiterValue = userinfo).ifEmpty { null },
+    )
+}
+
+/**
+ * Hides credentials in text on its way to the screen.
+ *
+ * The core passes libgit2's own words through, and those quote the address the
+ * request went to — which is the address as `origin` holds it, credentials and
+ * all, for a checkout cloned before [splitCredentials] existed or made
+ * elsewhere.
+ */
+fun maskCredentials(text: String): String = text.replace(CREDENTIALS, "$1***@")
+
+/** `://` up to the `@` that closes a userinfo section, on one line. */
+private val CREDENTIALS = Regex("""(://)[^/\s@]+@""")
+
 private const val HTTPS = "https://"
 private const val FILE = "file://"
+private const val SEPARATOR = "://"

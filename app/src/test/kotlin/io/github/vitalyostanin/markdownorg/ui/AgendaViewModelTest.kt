@@ -280,6 +280,28 @@ class AgendaViewModelTest {
         assertNull(settings.token)
     }
 
+    /**
+     * A clone command copied from a repository page carries the token in the
+     * address. Stored as typed, it would sit in the one field the settings
+     * screen shows in the clear.
+     */
+    @Test
+    fun aTokenPastedInsideTheAddressIsStoredAsATokenInstead() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(
+            url = "https://x-access-token:ghp_secret@example.test/notes.git",
+            branch = "main",
+            token = "",
+        )
+        advanceUntilIdle()
+
+        assertEquals(REMOTE, settings.remoteUrl)
+        assertEquals("ghp_secret", settings.token)
+    }
+
     @Test
     fun changingOnlyTheBranchKeepsTheCheckoutForTheCoreToMoveOver() = runTest(dispatcher) {
         // The core checks the branch out itself. Wiping the directory here

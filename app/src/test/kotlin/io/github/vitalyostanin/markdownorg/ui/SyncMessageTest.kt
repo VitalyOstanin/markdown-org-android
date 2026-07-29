@@ -22,6 +22,7 @@ class SyncMessageTest {
             SyncException.Diverged("2 commits ahead") to R.string.sync_failed_diverged,
             SyncException.Dirty("notes/today.md") to R.string.sync_failed_dirty,
             SyncException.Repository("not a repository") to R.string.sync_failed_repository,
+            SyncException.Address("http:// is not encrypted") to R.string.sync_failed_address,
         )
 
         for ((error, expected) in wordings) {
@@ -36,6 +37,22 @@ class SyncMessageTest {
         // What the interface shows under the wording: the core's own words,
         // which are the only thing that says which file or which host.
         assertEquals("notes/today.md", SyncException.Dirty("notes/today.md").toSyncMessage().detail)
+    }
+
+    /**
+     * libgit2 quotes the address it was given, and an address can hold a
+     * token. The banner is on the agenda screen, where a passer-by sees it.
+     */
+    @Test
+    fun credentialsInsideTheDetailAreNotPutOnScreen() {
+        val message = SyncException.Network(
+            "failed to connect to https://x:ghp_secret@git.example.org/notes.git",
+        ).toSyncMessage()
+
+        assertEquals(
+            "failed to connect to https://***@git.example.org/notes.git",
+            message.detail,
+        )
     }
 
     @Test

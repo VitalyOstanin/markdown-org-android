@@ -78,9 +78,30 @@ android {
         }
     }
 
+    // The release key, when there is one. Read from the environment rather
+    // than from `-Pandroid.injected.signing.*`: a property on the command line
+    // stands in the process arguments, where every build script, Gradle plugin
+    // and `build.rs` running in the same job can read it out of /proc. A
+    // build without these variables produces an unsigned release APK, which
+    // is what a local `assembleRelease` does.
+    val keystore = System.getenv("APP_KEYSTORE_FILE")
+    if (!keystore.isNullOrBlank()) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("APP_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("APP_KEYSTORE_ALIAS")
+                keyPassword = System.getenv("APP_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (!keystore.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -91,6 +112,10 @@ android {
             // holds the Gradle task for as long as the build may run. Two
             // minutes is far above the whole suite, which runs in seconds.
             it.timeout.set(Duration.ofMinutes(2))
+            // The tests that read the workflow, the ignore list and the build
+            // images need to find them; a JVM test otherwise knows nothing
+            // about where it is being run from.
+            it.systemProperty("repo.root", rootDir.absolutePath)
         }
     }
 }

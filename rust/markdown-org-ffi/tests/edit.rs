@@ -206,6 +206,34 @@ fn a_path_pointing_outside_the_vault_is_refused() {
     assert!(matches!(error, EditError::NotFound { .. }), "{error:?}");
 }
 
+/// `..` is not the only way out of the notes directory: a symlink inside it
+/// points anywhere, and an edit that follows one writes there. The path comes
+/// from a scan that does not follow links, but `EditTarget.file` is a plain
+/// string on the FFI surface and the guard is what the type promises.
+#[test]
+#[cfg(unix)]
+fn a_symlink_leading_out_of_the_vault_is_refused() {
+    let vault = vault(TWO_TASKS);
+    let elsewhere = tempfile::tempdir().expect("tempdir");
+    let outside = elsewhere.path().join("outside.md");
+    // The same content the vault holds, so the edit would go through and the
+    // test fails on the write rather than on a heading that does not match.
+    fs::write(&outside, TWO_TASKS).expect("write");
+    std::os::unix::fs::symlink(&outside, vault.path().join("link.md")).expect("symlink");
+
+    let mut where_to = target(vault.path(), 1, "Write the report");
+    where_to.file = "link.md".to_string();
+
+    let error = set_status(where_to, Some(TaskType::Done)).expect_err("must refuse");
+
+    assert!(matches!(error, EditError::NotFound { .. }), "{error:?}");
+    assert_eq!(
+        fs::read_to_string(&outside).expect("read"),
+        TWO_TASKS,
+        "the file behind the link must be untouched",
+    );
+}
+
 #[test]
 fn windows_line_endings_are_preserved() {
     let vault = vault("# TODO Write the report\r\n# TODO Water the plants\r\n");

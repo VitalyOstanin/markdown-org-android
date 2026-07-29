@@ -18,6 +18,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.Job
@@ -196,9 +197,18 @@ class AgendaViewModel(
      * stored one is dropped along with the URL it belonged to. [dropToken]
      * clears it outright, which is the only way to go back to a remote that
      * needs no credentials.
+     *
+     * An address that carries credentials of its own — which is how a clone
+     * command copied from a repository page reads — is split before anything
+     * else: the secret belongs in the token, not in the field the screen shows
+     * in the clear.
      */
     fun saveSettings(url: String, branch: String, token: String, dropToken: Boolean = false) {
-        val problem = remoteUrlProblem(url)
+        val split = splitCredentials(url)
+        val address = split.url
+        val secret = token.ifBlank { split.token.orEmpty() }
+
+        val problem = remoteUrlProblem(address)
         if (problem != null) {
             // Nothing is stored and nothing is deleted: the address is checked
             // before the destructive part, not after the clone fails.
@@ -225,9 +235,9 @@ class AgendaViewModel(
                 // The checkout is there but could not be read. Emptying it now
                 // would delete commits that exist nowhere else, so the address
                 // is stored and the directory left for a human to look at.
-                settings.remoteUrl = url
+                settings.remoteUrl = address
                 settings.branch = branch
-                settings.token = tokenFor(token, dropToken, changedHost = configuredUrl != url)
+                settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
                 _sync.update {
                     it.copy(
                         configured = settings.isConfigured,
@@ -237,10 +247,14 @@ class AgendaViewModel(
                 return@launch
             }
 
-            val before = previous.getOrNull()?.url
-            settings.remoteUrl = url
+            // Compared without the credentials the checkout's own `origin` may
+            // carry: a clone made before those were split off names the same
+            // repository, and treating it as another one would empty the
+            // directory and take local commits with it.
+            val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
+            settings.remoteUrl = address
             settings.branch = branch
-            settings.token = tokenFor(token, dropToken, changedHost = configuredUrl != url)
+            settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
 
             if (before != settings.remoteUrl) {
                 notes.reset()

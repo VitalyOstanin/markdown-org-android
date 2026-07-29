@@ -96,6 +96,16 @@ pub enum SyncError {
         /// Human-readable detail.
         detail: String,
     },
+    /// The remote address is one this application will not talk to.
+    ///
+    /// Apart from the failures above because nothing was attempted: the
+    /// address was refused before a connection was opened, and no credentials
+    /// left the device.
+    #[error("the address cannot be used: {detail}")]
+    Address {
+        /// Human-readable detail.
+        detail: String,
+    },
     /// Anything else: a broken repository, a path that cannot be read.
     #[error("{detail}")]
     Repository {
@@ -126,6 +136,7 @@ impl From<git2::Error> for SyncError {
 /// Safe to call on every refresh: the first call clones, the rest fetch.
 #[uniffi::export]
 pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
+    ensure_supported(&request.url)?;
     use_timeouts();
 
     let path = Path::new(&request.dir);
@@ -149,6 +160,41 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
         Err(error) => Err(error.into()),
     }
 }
+
+/// Refuse an address this application will not fetch over.
+///
+/// Checked here rather than left to the interface, because [`SyncRequest`] is
+/// the FFI surface: whoever calls the core gets the same guarantee the screen
+/// does. `https` is the one network scheme git2 is vendored with, and the
+/// reason to name an allowlist rather than ban `http` alone is the token — it
+/// travels as the HTTP password, and Android's ban on cleartext traffic does
+/// not reach libgit2 over a vendored OpenSSL. `git://` and `ssh://` would
+/// leave in the clear or not authenticate the server at all.
+///
+/// A `file://` URL and an absolute path stay usable: that is a repository
+/// copied onto the device, and every test here works that way.
+fn ensure_supported(url: &str) -> Result<(), SyncError> {
+    let refused = |what: &str| {
+        Err(SyncError::Address {
+            detail: format!("{what}; use https:// or a path on the device"),
+        })
+    };
+
+    match () {
+        () if url.trim().is_empty() => refused("no address given"),
+        () if url.starts_with('/') || url.starts_with(FILE_SCHEME) => Ok(()),
+        () if url.starts_with(HTTPS_SCHEME) => Ok(()),
+        () => match url.split_once("://") {
+            Some((scheme, _)) => refused(&format!("{scheme}:// is not encrypted")),
+            // `git@host:path` — ssh under another spelling, and git2 is built
+            // without ssh support, so it would fail later regardless.
+            None => refused("the address names no scheme"),
+        },
+    }
+}
+
+const HTTPS_SCHEME: &str = "https://";
+const FILE_SCHEME: &str = "file://";
 
 /// Who a commit is attributed to.
 ///
@@ -558,26 +604,81 @@ fn count_commits(
 fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
     let mut callbacks = RemoteCallbacks::new();
     let token = request.token.clone();
-    callbacks.credentials(move |_url, username, allowed| {
-        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
-            if let Some(token) = token.as_deref() {
-                // The username is ignored by GitHub when the password is a
-                // token, but it cannot be empty; gitea and GitLab accept the
-                // same shape.
-                return Cred::userpass_plaintext(username.unwrap_or("x-access-token"), token);
-            }
-        }
-        if allowed.contains(git2::CredentialType::DEFAULT) {
-            return Cred::default();
-        }
-        Err(git2::Error::from_str("no usable credentials"))
+    let configured = request.url.clone();
+    callbacks.credentials(move |asked, username, allowed| {
+        credentials_for(&configured, asked, token.as_deref(), username, allowed)
     });
 
     let mut options = FetchOptions::new();
     options.remote_callbacks(callbacks);
+    // Redirects to another host are refused outright rather than left to the
+    // credential callback to notice: `Initial` still allows the redirect from
+    // `/repo` to `/repo.git` that servers use, which is the only one a notes
+    // checkout needs.
+    options.follow_redirects(git2::RemoteRedirect::Initial);
     // Tags come with releases and are of no use to a notes checkout.
     options.download_tags(git2::AutotagOption::None);
     options
+}
+
+/// What to answer libgit2 when it asks for credentials for `asked`.
+///
+/// The token is only ever offered to the address the caller configured. libgit2
+/// asks per request, and a request can be for somewhere else than the settings
+/// name — a redirect, or a checkout whose `origin` was changed on disk. Git
+/// itself does not carry credentials across a redirect to another host, and
+/// this is the same rule stated here.
+fn credentials_for(
+    configured: &str,
+    asked: &str,
+    token: Option<&str>,
+    username: Option<&str>,
+    allowed: git2::CredentialType,
+) -> Result<Cred, git2::Error> {
+    if let Some(token) = token {
+        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+            if !same_endpoint(configured, asked) {
+                return Err(git2::Error::from_str(&format!(
+                    "{asked} is not the configured remote; the token was not sent"
+                )));
+            }
+            // The username is ignored by GitHub when the password is a token,
+            // but it cannot be empty; gitea and GitLab accept the same shape.
+            return Cred::userpass_plaintext(username.unwrap_or("x-access-token"), token);
+        }
+    }
+    if allowed.contains(git2::CredentialType::DEFAULT) {
+        return Cred::default();
+    }
+    Err(git2::Error::from_str("no usable credentials"))
+}
+
+/// Whether two URLs name the same server.
+///
+/// Scheme, host and port, with the userinfo dropped: `https://x:t@host/repo`
+/// and `https://host/repo.git` are the same endpoint asked for two ways. A
+/// port written out is not the same as one left implied — assuming 443 is a
+/// guess, and the safe guess here is "not the same".
+fn same_endpoint(configured: &str, asked: &str) -> bool {
+    match endpoint(configured) {
+        Some(configured) => endpoint(asked) == Some(configured),
+        // An address with no scheme is a path on the device; nothing there
+        // asks for a password.
+        None => false,
+    }
+}
+
+fn endpoint(url: &str) -> Option<(String, String)> {
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split('/').next().unwrap_or_default();
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_userinfo, host)| host);
+    if host.is_empty() {
+        return None;
+    }
+
+    Some((scheme.to_ascii_lowercase(), host.to_ascii_lowercase()))
 }
 
 fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
@@ -621,4 +722,99 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
             .unwrap_or_default(),
         dirty: !repository.statuses(Some(&mut options))?.is_empty(),
     })
+}
+
+/// Unit tests for the two guards that have no reachable surface of their own:
+/// the credential callback is handed to libgit2, and the address check runs
+/// before anything observable happens. The behaviour they defend against —
+/// a redirect to another host, a scheme that carries the token in the clear —
+/// cannot be produced from a test that stays off the network.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CONFIGURED: &str = "https://git.example.org/notes.git";
+
+    fn credentials(asked: &str) -> Result<Cred, git2::Error> {
+        credentials_for(
+            CONFIGURED,
+            asked,
+            Some("secret"),
+            Some("x-access-token"),
+            git2::CredentialType::USER_PASS_PLAINTEXT,
+        )
+    }
+
+    #[test]
+    fn the_token_goes_to_the_configured_host() {
+        assert!(credentials(CONFIGURED).is_ok());
+        // The same server, asked for by the shape libgit2 uses internally.
+        assert!(credentials("https://git.example.org/notes.git/info/refs").is_ok());
+    }
+
+    #[test]
+    fn the_token_is_withheld_from_any_other_host() {
+        for asked in [
+            "https://elsewhere.example.org/notes.git",
+            "https://git.example.org.attacker.test/notes.git",
+            "http://git.example.org/notes.git",
+            "https://git.example.org:8443/notes.git",
+        ] {
+            // `Cred` carries no Debug, so the outcome is unwrapped by hand
+            // rather than through `expect_err`.
+            let Err(error) = credentials(asked) else {
+                panic!("{asked}: the token was offered");
+            };
+            assert!(
+                error.message().contains("the token was not sent"),
+                "{asked}: {error}",
+            );
+        }
+    }
+
+    #[test]
+    fn a_url_carrying_credentials_still_names_its_host() {
+        assert!(same_endpoint(
+            CONFIGURED,
+            "https://x:secret@git.example.org/notes.git"
+        ));
+        assert!(same_endpoint(
+            "https://x:secret@git.example.org/notes.git",
+            CONFIGURED,
+        ));
+        assert!(same_endpoint(
+            CONFIGURED,
+            "https://GIT.EXAMPLE.ORG/notes.git"
+        ));
+    }
+
+    #[test]
+    fn a_path_on_the_device_is_never_treated_as_a_host() {
+        assert!(!same_endpoint("/data/notes", "/data/notes"));
+        assert!(!same_endpoint("file:///data/notes", "file:///data/notes"));
+    }
+
+    #[test]
+    fn the_addresses_the_application_talks_to() {
+        for url in [
+            "https://git.example.org/notes.git",
+            "file:///data/notes",
+            "/data/user/0/app/files/notes",
+        ] {
+            assert!(ensure_supported(url).is_ok(), "{url}");
+        }
+
+        for url in [
+            "http://git.example.org/notes.git",
+            "git://git.example.org/notes.git",
+            "ssh://git@git.example.org/notes.git",
+            "git@git.example.org:notes.git",
+            "",
+        ] {
+            assert!(
+                matches!(ensure_supported(url), Err(SyncError::Address { .. })),
+                "{url}",
+            );
+        }
+    }
 }

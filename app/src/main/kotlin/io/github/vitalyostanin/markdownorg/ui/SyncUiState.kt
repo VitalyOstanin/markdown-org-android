@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.maskCredentials
 import uniffi.markdown_org_ffi.EditException
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
@@ -74,9 +75,23 @@ fun Throwable.toSyncMessage(): SyncMessage = when (this) {
     is SyncException.Network -> SyncMessage(R.string.sync_failed_network, detail, failed = true)
     is SyncException.Diverged -> SyncMessage(R.string.sync_failed_diverged, detail, failed = true)
     is SyncException.Dirty -> SyncMessage(R.string.sync_failed_dirty, detail, failed = true)
+    // Worth its own wording because nothing was attempted: the address was
+    // refused before a connection was opened, so retrying changes nothing and
+    // the token did not leave the device.
+    is SyncException.Address -> SyncMessage(R.string.sync_failed_address, detail, failed = true)
     is SyncException.Repository -> SyncMessage(R.string.sync_failed_repository, detail, failed = true)
     else -> SyncMessage(R.string.sync_failed_repository, message, failed = true)
-}
+}.withoutCredentials()
+
+/**
+ * Takes credentials out of whatever the core quoted.
+ *
+ * Applied to every sync message rather than to the variants that are known to
+ * name a host: the detail is libgit2's own text, and which failures carry the
+ * address in it is not something this side decides.
+ */
+private fun SyncMessage.withoutCredentials(): SyncMessage =
+    detail?.let { copy(detail = maskCredentials(it)) } ?: this
 
 /**
  * Maps a failed edit onto something worth reading.

@@ -52,7 +52,14 @@ impl Document {
         }
 
         let path = Path::new(&target.dir).join(relative);
-        if !path.is_file() {
+        // `symlink_metadata` rather than `is_file`, which follows the link:
+        // `..` is not the only way out of the directory, and a link inside it
+        // points anywhere. The scan the path comes from does not follow links
+        // either, so a link is never a note the caller could have meant.
+        let found = fs::symlink_metadata(&path)
+            .map(|metadata| metadata.is_file())
+            .unwrap_or(false);
+        if !found {
             return Err(EditError::NotFound {
                 detail: path.display().to_string(),
             });

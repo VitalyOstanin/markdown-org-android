@@ -1,0 +1,78 @@
+name: Audit
+
+# What the build workflow cannot answer: whether anything the application
+# ships has since been found vulnerable. libgit2 and OpenSSL are vendored into
+# the native library, so the only way a TLS fix reaches a phone is a release of
+# this project — and an advisory is published when nobody is committing.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'rust/**'
+      - 'app/src/main/assets/cacert.pem'
+      - '.github/workflows/audit.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'rust/**'
+      - 'app/src/main/assets/cacert.pem'
+  schedule:
+    # Mondays, early. The point of the schedule is the advisory published
+    # after the last commit, not the commit itself.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      # A scheduled run has no pull request to report on, so the action opens
+      # an issue instead.
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Audit the Rust dependencies
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: rust
+
+  # The bundle of certificate authorities replaces the device's trust store
+  # for git traffic: a root Mozilla withdraws stays trusted here until this
+  # file is replaced and a new APK is released. Nothing else would notice.
+  certificates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check how old the bundle is
+        # Six months is chosen against how often the Mozilla store changes:
+        # a few times a year. Reported as a failure rather than a warning
+        # because a warning in a scheduled run is a warning nobody reads.
+        env:
+          BUNDLE: app/src/main/assets/cacert.pem
+          MAX_AGE_DAYS: '180'
+        run: |
+          newest=$(git log -1 --format=%ct -- "$BUNDLE")
+          age=$(( ( $(date +%s) - newest ) / 86400 ))
+
+          echo "$BUNDLE was last updated $age day(s) ago" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$age" -gt "$MAX_AGE_DAYS" ]; then
+            echo "::error::$BUNDLE is $age days old; refresh it from https://curl.se/docs/caextract.html"
+            exit 1
+          fi
