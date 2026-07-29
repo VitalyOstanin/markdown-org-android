@@ -25,6 +25,7 @@ class SyncSettingsScreenTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private var saved: Triple<String, String, String>? = null
+    private var droppedToken: Boolean? = null
     private var dismissed = false
 
     @Test
@@ -94,6 +95,26 @@ class SyncSettingsScreenTest {
     }
 
     @Test
+    fun theSavedTokenCanBeForgotten() {
+        // An empty field means "keep the stored one", and the stored one is
+        // never shown -- so without this there is no way back to a remote that
+        // needs no credentials.
+        showForm(url = "https://example.org/notes.git", hasToken = true)
+
+        compose.onNodeWithTag("settings-token-drop").performClick()
+        compose.onNodeWithTag("settings-save").performClick()
+
+        assertEquals(true, droppedToken)
+    }
+
+    @Test
+    fun withoutAStoredTokenThereIsNothingToForget() {
+        showForm(url = "https://example.org/notes.git")
+
+        compose.onNodeWithTag("settings-token-drop").assertDoesNotExist()
+    }
+
+    @Test
     fun cancellingChangesNothing() {
         showForm(url = "https://example.org/notes.git")
 
@@ -111,8 +132,9 @@ class SyncSettingsScreenTest {
                     initialUrl = url,
                     initialBranch = branch,
                     hasToken = hasToken,
-                    onSave = { savedUrl, savedBranch, token ->
+                    onSave = { savedUrl, savedBranch, token, dropToken ->
                         saved = Triple(savedUrl, savedBranch, token)
+                        droppedToken = dropToken
                     },
                     onDismiss = { dismissed = true },
                 )

@@ -56,8 +56,8 @@ class MainActivity : ComponentActivity() {
                         initialUrl = url,
                         initialBranch = branch,
                         hasToken = hasToken,
-                        onSave = { newUrl, newBranch, token ->
-                            model.saveSettings(newUrl, newBranch, token)
+                        onSave = { newUrl, newBranch, token, dropToken ->
+                            model.saveSettings(newUrl, newBranch, token, dropToken)
                             settingsOpen = false
                         },
                         onDismiss = { settingsOpen = false },

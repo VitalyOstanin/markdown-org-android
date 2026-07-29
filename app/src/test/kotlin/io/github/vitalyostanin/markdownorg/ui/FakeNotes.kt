@@ -71,6 +71,10 @@ class FakeSyncer(
     /** Set to `false` to make the checkout unreadable rather than absent. */
     var statusResult: Result<RepoStatus?> = Result.success(null)
 
+    /** How many times the checkout was read, to catch a read nobody needed. */
+    var statusReads = 0
+        private set
+
     /** Raised while a sync is in flight, so a test can assert on the overlap. */
     var running: Boolean = false
         private set
@@ -85,7 +89,10 @@ class FakeSyncer(
         }
     }
 
-    override suspend fun status(): Result<RepoStatus?> = statusResult
+    override suspend fun status(): Result<RepoStatus?> {
+        statusReads += 1
+        return statusResult
+    }
 
     companion object {
 

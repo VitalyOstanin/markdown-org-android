@@ -16,6 +16,7 @@ run. Nothing has been run on a physical device yet.
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
+- [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
 - [Building the core](#building-the-core)
 - [Building the application](#building-the-application)
 - [Running it on an emulator](#running-it-on-an-emulator)
@@ -149,6 +150,26 @@ The walk behind an agenda reports what it skipped — files not in UTF-8, files
 it could not read, files past the size cap, paths that are not UTF-8, and a
 truncated list — and the agenda shows that above the entries. Without it a
 note in CP1251 simply disappears: no tasks, no reason, no sign.
+
+## What a sync does with the checkout
+
+A sync clones once and fast-forwards afterwards; it never merges, and it never
+pushes. What it does in the situations that are not a plain fast-forward:
+
+| № | Situation                                          | What happens                                                                                  |
+|---|----------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| 1 | The remote has no commits yet                      | Cloned all the same. The status reports the branch with an empty head, and the first edit here becomes the first commit. |
+| 2 | The branch in the settings is not the one on disk  | The checkout is moved onto it, creating the local branch from what was fetched. The directory is not wiped — commits made on the device would go with it. |
+| 3 | The checkout has commits the remote does not       | `Diverged`. Merging belongs with editing that does not exist here yet.                          |
+| 4 | Anything is uncommitted, tracked or not            | `Dirty`, before the tree is touched. The checkout runs with `force()`, so an untracked note would otherwise be overwritten by one arriving under the same name. |
+| 5 | A temporary from an interrupted write is left over | Ignored by the check above: nothing else would ever clean it up, and it would block every sync from then on. |
+| 6 | The network fails                                  | Retried up to three times, waiting 0.5 s then 1 s. Rejected credentials, a divergence and a dirty checkout are not retried — they need someone to act first. |
+| 7 | The connection hangs                               | Bounded: 15 s to connect, 60 s per request. Without them the wait is whatever the operating system decides. |
+| 8 | The remote URL changes                             | The directory is emptied and cloned again, and the stored token is dropped with it — it was issued by the host that is being left. |
+
+The certificate authorities are handed to the core once per process rather than
+with every sync: Android has no `/etc/ssl/certs`, the bundle is around 180 kB,
+and the store it goes into lives as long as the process.
 
 ## Building the core
 

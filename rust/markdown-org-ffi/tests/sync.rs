@@ -10,7 +10,8 @@ use std::path::Path;
 
 use git2::{Repository, Signature};
 use markdown_org_ffi::{
-    commit_changes, repository_status, sync_repository, CommitAuthor, SyncError, SyncRequest,
+    commit_changes, holds_repository, load_ca_bundle, repository_status, sync_repository,
+    CommitAuthor, SyncError, SyncRequest,
 };
 
 /// A repository with one commit in it, standing in for the remote.
@@ -63,8 +64,26 @@ fn request(dir: &Path, url: &Path) -> SyncRequest {
         url: url.display().to_string(),
         token: None,
         branch: None,
-        ca_bundle_pem: None,
     }
+}
+
+fn request_on(dir: &Path, url: &Path, branch: &str) -> SyncRequest {
+    SyncRequest {
+        branch: Some(branch.to_string()),
+        ..request(dir, url)
+    }
+}
+
+/// Name of the branch the local git created, rather than an assumed `master`:
+/// `init.defaultBranch` is a machine setting and the tests must not depend on
+/// what it says.
+fn branch_of(repository: &Repository) -> String {
+    repository
+        .head()
+        .expect("head")
+        .shorthand()
+        .expect("branch name")
+        .to_string()
 }
 
 const NOTES: &str = "# TODO Write the report\n`SCHEDULED: <2026-03-02 Mon 10:00>`\n";
@@ -406,4 +425,319 @@ fn committing_outside_a_repository_is_an_error() {
     .expect_err("must fail");
 
     assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
+}
+
+/// A repository someone created for their notes and has not written to yet is
+/// the ordinary way to start, and it clones with no commits in it — HEAD names
+/// a branch that does not exist. Every read of the checkout has to survive
+/// that, or the application is unusable until the first commit arrives from
+/// somewhere else.
+#[test]
+fn a_remote_without_commits_clones_into_a_checkout_the_status_can_read() {
+    let remote = tempfile::tempdir().expect("tempdir");
+    Repository::init_bare(remote.path()).expect("init bare");
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+
+    let outcome = sync_repository(request(&checkout, remote.path())).expect("sync");
+
+    assert!(outcome.cloned);
+    assert!(
+        outcome.head.head_id.is_empty(),
+        "there is no commit to report, got {:?}",
+        outcome.head.head_id
+    );
+    assert!(!outcome.head.branch.is_empty(), "the branch is still named");
+
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("the directory holds a repository");
+    assert!(status.head_id.is_empty());
+    assert!(!status.dirty);
+}
+
+#[test]
+fn an_edit_in_a_checkout_without_commits_is_committed_as_the_first_one() {
+    let remote = tempfile::tempdir().expect("tempdir");
+    Repository::init_bare(remote.path()).expect("init bare");
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("sync");
+
+    fs::write(checkout.join("notes.md"), NOTES).expect("write");
+    let id = commit_changes(
+        checkout.display().to_string(),
+        "Capture the first note".to_string(),
+        author(),
+    )
+    .expect("commit")
+    .expect("something to commit");
+
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("cloned");
+    assert_eq!(status.head_id, id);
+    assert!(!status.dirty);
+}
+
+#[test]
+fn syncing_a_checkout_without_commits_reports_no_change_rather_than_failing() {
+    let remote = tempfile::tempdir().expect("tempdir");
+    Repository::init_bare(remote.path()).expect("init bare");
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let outcome = sync_repository(request(&checkout, remote.path())).expect("second sync");
+
+    assert!(!outcome.cloned);
+    assert_eq!(outcome.commits_applied, 0);
+}
+
+/// Changing only the branch in the settings leaves the directory alone, so the
+/// next sync meets a checkout of the previous branch. Cloning the new one is
+/// not an option either — an uncommitted note would go with the directory.
+#[test]
+fn switching_the_branch_moves_the_checkout_onto_it() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let upstream = Repository::open(remote.path()).expect("open");
+    let first = branch_of(&upstream);
+    let head = upstream
+        .head()
+        .expect("head")
+        .peel_to_commit()
+        .expect("commit");
+    upstream.branch("notes", &head, false).expect("branch");
+    upstream.set_head("refs/heads/notes").expect("set head");
+    commit(&upstream, &[("other.md", NOTES)], "only on notes");
+    upstream
+        .set_head(&format!("refs/heads/{first}"))
+        .expect("set head back");
+
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request_on(&checkout, remote.path(), &first)).expect("clone");
+
+    let outcome =
+        sync_repository(request_on(&checkout, remote.path(), "notes")).expect("switch branch");
+
+    assert_eq!(outcome.head.branch, "notes");
+    assert_eq!(outcome.head.head_summary, "only on notes");
+    assert!(
+        checkout.join("other.md").exists(),
+        "the file that only exists on the new branch has to reach the working copy"
+    );
+}
+
+/// The one legitimate reason to commit without a parent is a repository that
+/// has none yet. Everything else — a missing object, a HEAD pointing at an id
+/// that is not there — used to reach the same branch and silently rewrote the
+/// history as a root commit.
+#[test]
+fn a_head_whose_commit_is_gone_is_an_error_rather_than_a_new_root() {
+    // The object is removed from the store rather than the ref repointed:
+    // git2 refuses to point a reference at an id it cannot find, while a
+    // missing object is what a truncated copy or a damaged card actually
+    // leaves behind.
+    let dir = origin(&[("notes.md", NOTES)]);
+    let repository = Repository::open(dir.path()).expect("open");
+    let id = repository
+        .head()
+        .expect("head")
+        .peel_to_commit()
+        .expect("commit")
+        .id()
+        .to_string();
+    let (prefix, rest) = id.split_at(2);
+    fs::remove_file(
+        dir.path()
+            .join(".git")
+            .join("objects")
+            .join(prefix)
+            .join(rest),
+    )
+    .expect("remove the commit object");
+
+    fs::write(dir.path().join("notes.md"), "# DONE Write the report\n").expect("write");
+
+    let error = commit_changes(
+        dir.path().display().to_string(),
+        "edit on a broken checkout".to_string(),
+        author(),
+    )
+    .expect_err("a commit on a broken HEAD must not be reported as done");
+
+    let SyncError::Repository { detail } = &error else {
+        panic!("expected a repository error, got {error:?}");
+    };
+    // libgit2 does stop the commit itself -- it refuses to write one whose
+    // first parent is not the current tip -- but that message describes the
+    // symptom. Swallowing the failure to read HEAD is what turned "the commit
+    // this checkout is on cannot be read" into it.
+    assert!(
+        !detail.contains("current tip is not the first parent"),
+        "the reported reason has to be the unreadable HEAD, got {detail:?}"
+    );
+}
+
+/// `SyncError::Auth` is the variant that tells the user to replace the token.
+/// The whole HTTP class used to map onto it, so a 404 from a mistyped
+/// repository path asked for a new token instead.
+#[test]
+fn an_http_failure_that_is_not_about_credentials_is_not_reported_as_auth() {
+    let error = SyncError::from(git2::Error::new(
+        git2::ErrorCode::GenericError,
+        git2::ErrorClass::Http,
+        "unexpected http status code: 404",
+    ));
+
+    assert!(
+        matches!(
+            error,
+            SyncError::Repository { .. } | SyncError::Network { .. }
+        ),
+        "got {error:?}"
+    );
+}
+
+#[test]
+fn a_rejected_credential_is_still_reported_as_auth() {
+    let error = SyncError::from(git2::Error::new(
+        git2::ErrorCode::Auth,
+        git2::ErrorClass::Http,
+        "too many redirects or authentication replays",
+    ));
+
+    assert!(matches!(error, SyncError::Auth { .. }), "got {error:?}");
+}
+
+/// A self-signed certificate, which is all the loader needs: it parses the
+/// PEM and hands each certificate to libgit2, and neither step cares who
+/// signed it.
+fn self_signed_pem() -> String {
+    use openssl::asn1::Asn1Time;
+    use openssl::hash::MessageDigest;
+    use openssl::pkey::PKey;
+    use openssl::rsa::Rsa;
+    use openssl::x509::{X509Name, X509};
+
+    let key = PKey::from_rsa(Rsa::generate(2048).expect("rsa")).expect("key");
+    let mut name = X509Name::builder().expect("name builder");
+    name.append_entry_by_text("CN", "markdown-org test")
+        .expect("common name");
+    let name = name.build();
+
+    let mut builder = X509::builder().expect("certificate builder");
+    builder.set_version(2).expect("version");
+    builder.set_subject_name(&name).expect("subject");
+    builder.set_issuer_name(&name).expect("issuer");
+    builder.set_pubkey(&key).expect("public key");
+    builder
+        .set_not_before(&Asn1Time::days_from_now(0).expect("now"))
+        .expect("not before");
+    builder
+        .set_not_after(&Asn1Time::days_from_now(1).expect("tomorrow"))
+        .expect("not after");
+    builder.sign(&key, MessageDigest::sha256()).expect("sign");
+
+    String::from_utf8(builder.build().to_pem().expect("pem")).expect("pem is ascii")
+}
+
+/// The store the certificates go into is global to libgit2, and the loader
+/// used to guard it with a relaxed flag: two callers could fill it at once,
+/// and one could see the flag before the certificates behind it.
+#[test]
+fn the_certificate_bundle_can_be_loaded_from_several_threads_at_once() {
+    let pem = self_signed_pem();
+
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| load_ca_bundle(pem.clone()).expect("load"));
+        }
+    });
+
+    // Loading again is what every later sync would do; it must stay cheap and
+    // must not report a failure.
+    load_ca_bundle(pem).expect("load again");
+}
+
+#[test]
+fn a_bundle_that_holds_no_certificate_is_rejected_rather_than_remembered() {
+    let error = load_ca_bundle("not a certificate".to_string()).expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
+    // Not remembering the failure is the point: a sync that went ahead with an
+    // empty store would fail on every connection.
+    load_ca_bundle(self_signed_pem()).expect("a good bundle still loads");
+}
+
+/// Asked before every commit, so it cannot be the full status walk it used to
+/// borrow: that one collects untracked files across the whole checkout.
+#[test]
+fn a_directory_is_told_from_a_checkout_without_reading_its_state() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    let plain = local.path().join("plain");
+    fs::create_dir(&plain).expect("create");
+
+    assert!(!holds_repository(plain.display().to_string()));
+    assert!(!holds_repository(checkout.display().to_string()));
+
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    assert!(holds_repository(checkout.display().to_string()));
+}
+
+/// Without these the wait is whatever the operating system decides, which on
+/// a phone that has wandered onto a captive portal is "until the user gives
+/// up".
+#[test]
+fn a_sync_bounds_how_long_it_waits_on_the_network() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    // Safe: the values are read after the sync applied them, and nothing else
+    // in this test writes them.
+    let (connect, server) = unsafe {
+        (
+            git2::opts::get_server_connect_timeout_in_milliseconds().expect("connect timeout"),
+            git2::opts::get_server_timeout_in_milliseconds().expect("server timeout"),
+        )
+    };
+
+    assert!(connect > 0, "the connect timeout is still the default");
+    assert!(server > 0, "the request timeout is still the default");
+}
+
+/// The fast-forward checks out with `force()`, which overwrites whatever sits
+/// in the way — including a file git is not tracking. The check that guards it
+/// used to ignore untracked files entirely, so a note captured before the
+/// first commit disappeared without a word.
+#[test]
+fn an_untracked_file_the_update_would_overwrite_stops_the_sync() {
+    let remote = origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let upstream = Repository::open(remote.path()).expect("open");
+    commit(
+        &upstream,
+        &[("inbox.md", "# TODO Theirs\n")],
+        "add inbox.md",
+    );
+    fs::write(checkout.join("inbox.md"), "# TODO Captured here\n").expect("write");
+
+    let error = sync_repository(request(&checkout, remote.path())).expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Dirty { .. }), "got {error:?}");
+    assert_eq!(
+        fs::read_to_string(checkout.join("inbox.md")).expect("read"),
+        "# TODO Captured here\n",
+        "the note captured locally must survive a refused sync",
+    );
 }

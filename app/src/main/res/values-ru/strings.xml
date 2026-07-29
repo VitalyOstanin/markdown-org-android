@@ -33,6 +33,7 @@
     <string name="settings_token">Токен доступа</string>
     <string name="settings_token_kept">сохранён; оставьте пустым, чтобы не менять</string>
     <string name="settings_token_none">нужен для приватного репозитория</string>
+    <string name="settings_token_drop">Забыть сохранённый токен</string>
     <string name="settings_url_empty">Укажите адрес репозитория</string>
     <string name="settings_url_scheme">Поддерживаются только https:// и локальный путь</string>
     <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>

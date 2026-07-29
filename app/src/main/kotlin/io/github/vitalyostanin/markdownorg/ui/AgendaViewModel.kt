@@ -186,9 +186,18 @@ class AgendaViewModel(
      * The core clones into an empty directory, so both cases have to start
      * from one: the first setup, where the directory holds the sample notes,
      * and a change of remote, where it holds someone else's checkout. Only an
-     * existing checkout of the same URL is kept — that one is fetched into.
+     * existing checkout of the same URL is kept — that one is fetched into,
+     * including when the branch changed: the core moves the checkout onto the
+     * new branch, and wiping would take commits made here with it.
+     *
+     * [token] empty means "leave the stored one alone", since the form never
+     * shows it. That cannot hold across a change of host, though — a token is
+     * issued by one server and has no business reaching another — so the
+     * stored one is dropped along with the URL it belonged to. [dropToken]
+     * clears it outright, which is the only way to go back to a remote that
+     * needs no credentials.
      */
-    fun saveSettings(url: String, branch: String, token: String) {
+    fun saveSettings(url: String, branch: String, token: String, dropToken: Boolean = false) {
         val problem = remoteUrlProblem(url)
         if (problem != null) {
             // Nothing is stored and nothing is deleted: the address is checked
@@ -203,6 +212,11 @@ class AgendaViewModel(
             syncJob?.cancelAndJoin()
             _sync.update { it.copy(running = false) }
 
+            // Which host the stored token was issued for: the settings, not
+            // the checkout. A directory holding no repository yet says nothing
+            // about where the token came from.
+            val configuredUrl = settings.remoteUrl
+
             // Read off disk rather than from the state: the state is filled in
             // asynchronously after launch, and saving before it arrives would
             // throw away a checkout that did not need to go.
@@ -213,9 +227,7 @@ class AgendaViewModel(
                 // is stored and the directory left for a human to look at.
                 settings.remoteUrl = url
                 settings.branch = branch
-                if (token.isNotBlank()) {
-                    settings.token = token
-                }
+                settings.token = tokenFor(token, dropToken, changedHost = configuredUrl != url)
                 _sync.update {
                     it.copy(
                         configured = settings.isConfigured,
@@ -228,9 +240,7 @@ class AgendaViewModel(
             val before = previous.getOrNull()?.url
             settings.remoteUrl = url
             settings.branch = branch
-            if (token.isNotBlank()) {
-                settings.token = token
-            }
+            settings.token = tokenFor(token, dropToken, changedHost = configuredUrl != url)
 
             if (before != settings.remoteUrl) {
                 notes.reset()
@@ -243,6 +253,20 @@ class AgendaViewModel(
             // emptied directory and a remote nobody fetched from.
             startSync()
         }
+    }
+
+    /**
+     * Which token to store: the one just typed, none, or the one already
+     * there.
+     *
+     * Kept out of [saveSettings] because it is the whole of the rule and both
+     * branches of that function apply it.
+     */
+    private fun tokenFor(typed: String, dropped: Boolean, changedHost: Boolean): String? = when {
+        dropped -> null
+        typed.isNotBlank() -> typed
+        changedHost -> null
+        else -> settings.token
     }
 
     /** Current settings, for filling the form. */
@@ -268,7 +292,11 @@ class AgendaViewModel(
             }
 
             val outcome = sync.sync(settings)
-            val status = sync.status().getOrNull()
+            // A sync that went through hands back the state of the checkout it
+            // wrote. Asking again walks every file in the working copy,
+            // untracked ones included, for an answer already in hand; only a
+            // failed sync has nothing to report and has to read.
+            val status = outcome.getOrNull()?.head ?: sync.status().getOrNull()
             val message = outcome.fold(
                 onSuccess = { result ->
                     when {

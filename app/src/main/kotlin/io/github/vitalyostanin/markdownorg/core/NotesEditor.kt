@@ -9,7 +9,7 @@ import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.commitChanges
 import uniffi.markdown_org_ffi.completeTask as coreComplete
-import uniffi.markdown_org_ffi.repositoryStatus
+import uniffi.markdown_org_ffi.holdsRepository
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -87,8 +87,12 @@ class NotesEditor(
             runCatching {
                 val message = edit()
                 // No repository yet: the sample notes are edited too, they
-                // just have no history to write to.
-                if (repositoryStatus(notes.root.absolutePath) != null) {
+                // just have no history to write to. Asked with the cheap
+                // question rather than by reading the state: the state is a
+                // walk of the whole working copy, and it used to fail outright
+                // on a checkout whose branch has no commits — turning an edit
+                // that had already reached the disk into a failure.
+                if (holdsRepository(notes.root.absolutePath)) {
                     commitChanges(notes.root.absolutePath, message, author())
                 }
                 Unit

@@ -36,6 +36,7 @@
     <string name="settings_token">Access token</string>
     <string name="settings_token_kept">saved; leave blank to keep it</string>
     <string name="settings_token_none">needed for a private repository</string>
+    <string name="settings_token_drop">Forget the saved token</string>
     <string name="settings_url_empty">Enter the address of the repository</string>
     <string name="settings_url_scheme">Only https:// and a local path are supported</string>
     <string name="settings_url_incomplete">The address names no repository</string>

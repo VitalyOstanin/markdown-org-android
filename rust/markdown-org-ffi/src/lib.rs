@@ -25,8 +25,8 @@ mod sync;
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};
 pub use sync::{
-    commit_changes, repository_status, sync_repository, CommitAuthor, RepoStatus, SyncError,
-    SyncOutcome, SyncRequest,
+    commit_changes, holds_repository, load_ca_bundle, repository_status, sync_repository,
+    CommitAuthor, RepoStatus, SyncError, SyncOutcome, SyncRequest,
 };
 
 uniffi::setup_scaffolding!();

@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -49,13 +50,14 @@ fun SyncSettingsScreen(
     initialUrl: String,
     initialBranch: String,
     hasToken: Boolean,
-    onSave: (url: String, branch: String, token: String) -> Unit,
+    onSave: (url: String, branch: String, token: String, dropToken: Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var url by remember { mutableStateOf(initialUrl) }
     var branch by remember { mutableStateOf(initialBranch) }
     var token by remember { mutableStateOf("") }
+    var dropToken by remember { mutableStateOf(false) }
 
     // Saving empties the working copy, and edits made here are committed
     // locally and never pushed — so an address that cannot work is caught in
@@ -132,6 +134,27 @@ fun SyncSettingsScreen(
                 modifier = Modifier.fillMaxWidth().testTag("settings-token"),
             )
 
+            // Only way back to a remote that needs no credentials: an empty
+            // field means "keep what is stored", and the stored one is never
+            // shown to be deleted by hand.
+            if (hasToken) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Checkbox(
+                        checked = dropToken,
+                        onCheckedChange = { dropToken = it },
+                        modifier = Modifier.testTag("settings-token-drop"),
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_token_drop),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
             Spacer(Modifier.height(2.dp))
 
             Row(
@@ -144,7 +167,7 @@ fun SyncSettingsScreen(
                 }
                 Spacer(Modifier.width(8.dp))
                 Button(
-                    onClick = { onSave(url, branch, token) },
+                    onClick = { onSave(url, branch, token, dropToken) },
                     enabled = problem == null,
                     modifier = Modifier.testTag("settings-save"),
                 ) {

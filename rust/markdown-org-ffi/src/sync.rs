@@ -7,7 +7,7 @@
 
 use std::os::raw::c_int;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 use foreign_types::ForeignType;
 use git2::build::{CheckoutBuilder, RepoBuilder};
@@ -35,12 +35,6 @@ pub struct SyncRequest {
     /// Branch to track. The remote's default when unset.
     #[uniffi(default = None)]
     pub branch: Option<String>,
-    /// Certificate authorities as PEM text. Android ships no `/etc/ssl/certs`,
-    /// which is where the vendored OpenSSL looks by default, so the caller
-    /// passes the bundle in. Contents rather than a path — see
-    /// [`use_ca_bundle`].
-    #[uniffi(default = None)]
-    pub ca_bundle_pem: Option<String>,
 }
 
 /// Result of a sync.
@@ -114,8 +108,14 @@ impl From<git2::Error> for SyncError {
     fn from(error: git2::Error) -> Self {
         let detail = error.message().to_string();
         match (error.class(), error.code()) {
-            (ErrorClass::Http, _) | (_, ErrorCode::Auth) => SyncError::Auth { detail },
-            (ErrorClass::Net, _) | (ErrorClass::Ssl, _) => SyncError::Network { detail },
+            // Only the code says the credentials were the problem. The HTTP
+            // class as a whole carries a mistyped repository path (404) and a
+            // server that is having a bad day (5xx) too, and telling either of
+            // those to replace the token sends the user after the wrong thing.
+            (_, ErrorCode::Auth) => SyncError::Auth { detail },
+            (ErrorClass::Net, _) | (ErrorClass::Ssl, _) | (ErrorClass::Http, _) => {
+                SyncError::Network { detail }
+            }
             _ => SyncError::Repository { detail },
         }
     }
@@ -126,9 +126,7 @@ impl From<git2::Error> for SyncError {
 /// Safe to call on every refresh: the first call clones, the rest fetch.
 #[uniffi::export]
 pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
-    if let Some(bundle) = request.ca_bundle_pem.as_deref() {
-        use_ca_bundle(bundle)?;
-    }
+    use_timeouts();
 
     let path = Path::new(&request.dir);
     match Repository::open(path) {
@@ -197,6 +195,12 @@ pub fn commit_changes(
     // `add_all` picks up new and modified files; `update_all` is what notices
     // a tracked file that is gone. Both are needed to leave nothing behind
     // that would still show as a change.
+    //
+    // Over the whole working copy rather than the file just edited, and that
+    // is the point: what makes the next sync refuse is any uncommitted change,
+    // not only the one this edit made. A note captured elsewhere in the
+    // directory would sit there dirtying the checkout until something else
+    // happened to commit it.
     index.add_all(
         ["*"].iter(),
         IndexAddOption::DEFAULT,
@@ -206,10 +210,7 @@ pub fn commit_changes(
     index.write()?;
 
     let tree_id = index.write_tree()?;
-    let parent = repository
-        .head()
-        .ok()
-        .and_then(|head| head.peel_to_commit().ok());
+    let parent = head_commit(&repository)?;
 
     if parent
         .as_ref()
@@ -226,6 +227,62 @@ pub fn commit_changes(
     Ok(Some(id.to_string()))
 }
 
+/// The commit HEAD is on, or `None` when the branch has no commits yet.
+///
+/// A repository cloned from a remote nobody has written to is the ordinary way
+/// to start: HEAD names a branch that does not exist, and libgit2 reports that
+/// as `UnbornBranch` rather than as an absent reference. Every other failure —
+/// an id that is not in the object store, a damaged pack — is passed on.
+/// Treating those as "no parent" would build a root commit over an existing
+/// branch, and the history would be gone without a word.
+fn head_commit(repository: &Repository) -> Result<Option<git2::Commit<'_>>, SyncError> {
+    match repository.head() {
+        Ok(head) => Ok(Some(head.peel_to_commit()?)),
+        Err(error) if is_unborn(&error) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Whether the error means "this branch has no commits yet".
+///
+/// `NotFound` covers a repository so fresh that HEAD itself is missing.
+fn is_unborn(error: &git2::Error) -> bool {
+    matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound)
+}
+
+/// The branch HEAD names, with or without commits on it.
+///
+/// `Reference::shorthand` needs a resolved reference, which an unborn branch
+/// has none of; its name is read off the symbolic HEAD instead.
+fn head_branch(repository: &Repository) -> Result<String, SyncError> {
+    match repository.head() {
+        Ok(head) => Ok(head
+            .shorthand()
+            .map(str::to_string)
+            .unwrap_or_else(|_| head.target().map(|id| id.to_string()).unwrap_or_default())),
+        Err(error) if is_unborn(&error) => {
+            let head = repository.find_reference("HEAD")?;
+            Ok(head
+                .symbolic_target()?
+                .and_then(|target| target.strip_prefix("refs/heads/"))
+                .unwrap_or_default()
+                .to_string())
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Whether the directory is a checkout at all.
+///
+/// Separate from [`repository_status`] because the answer is needed before
+/// every commit, and the status is a walk of the whole working copy — it
+/// collects the untracked files to decide `dirty`, which is a great deal of
+/// work to establish that there is a `.git` here.
+#[uniffi::export]
+pub fn holds_repository(dir: String) -> bool {
+    Repository::open(Path::new(&dir)).is_ok()
+}
+
 /// Read the checkout's state without contacting the remote.
 ///
 /// Returns `None` when the directory holds no repository, which is how the
@@ -239,6 +296,47 @@ pub fn repository_status(dir: String) -> Result<Option<RepoStatus>, SyncError> {
     }
 }
 
+/// How long to wait for the connection to be made.
+///
+/// A phone changes networks mid-request and answers from a captive portal, so
+/// the default — libgit2 leaves this to the operating system, which can mean
+/// minutes — is not a value anyone chose. Long enough for a slow mobile
+/// connection to complete a TLS handshake.
+const CONNECT_TIMEOUT_MS: c_int = 15_000;
+
+/// How long a request may take once the connection stands.
+///
+/// Cloning a notes repository moves kilobytes; a request still running after
+/// this has stalled rather than started.
+const SERVER_TIMEOUT_MS: c_int = 60_000;
+
+/// Bound how long a sync can sit on the network.
+///
+/// Applied once per process, under a lock: the two options write into globals
+/// libgit2 documents as unsynchronized, and the caller is a phone that syncs
+/// from whichever coroutine the user was in.
+fn use_timeouts() {
+    static APPLIED: Mutex<bool> = Mutex::new(false);
+
+    let mut applied = APPLIED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if *applied {
+        return;
+    }
+
+    // Safe: serialised by the lock above, and both calls only write a global
+    // libgit2 reads when it opens a connection.
+    unsafe {
+        // The signature returns a Result the implementation never fills in
+        // with an error; nothing here can act on one either.
+        let _ = git2::opts::set_server_connect_timeout_in_milliseconds(CONNECT_TIMEOUT_MS);
+        let _ = git2::opts::set_server_timeout_in_milliseconds(SERVER_TIMEOUT_MS);
+    }
+
+    *applied = true;
+}
+
 /// Load the certificate authorities into the TLS stack.
 ///
 /// The bundle arrives as PEM text rather than as a path on purpose. OpenSSL
@@ -249,14 +347,34 @@ pub fn repository_status(dir: String) -> Result<Option<RepoStatus>, SyncError> {
 /// here and adding the certificates one by one is what libgit2 documents for
 /// exactly this case.
 ///
-/// Done once per process on success — the store is global to libgit2 and
-/// repeating it would be pointless work. A failure is *not* remembered: a
-/// sync that went ahead with an empty store would fail on every connection,
-/// so the next attempt has to try again rather than inherit the miss.
-fn use_ca_bundle(pem: &str) -> Result<(), SyncError> {
-    static LOADED: AtomicBool = AtomicBool::new(false);
+/// Called on its own rather than as part of a sync: the store is global to
+/// libgit2 and lives as long as the process, so handing the bundle over once
+/// spares every later sync the copy of ~180 kB across the FFI boundary.
+/// Calling it again is cheap and does nothing.
+///
+/// A failure is *not* remembered: a sync that went ahead with an empty store
+/// would fail on every connection, so the next attempt has to try again
+/// rather than inherit the miss.
+#[uniffi::export]
+pub fn load_ca_bundle(pem: String) -> Result<(), SyncError> {
+    use_ca_bundle(&pem)
+}
 
-    if LOADED.load(Ordering::Relaxed) {
+fn use_ca_bundle(pem: &str) -> Result<(), SyncError> {
+    static LOADED: Mutex<bool> = Mutex::new(false);
+
+    // Held across the whole load, not just the flag: `git_libgit2_opts` writes
+    // into a store global to the library, and two threads filling it at once
+    // is not something libgit2 promises to survive. Taking the lock first also
+    // gives the second caller the finished store rather than a flag set before
+    // the certificates behind it were visible.
+    let mut loaded = LOADED.lock().unwrap_or_else(|poisoned| {
+        // A panic while the store was half-filled leaves the flag as it was;
+        // the next caller loads the bundle again, which is what a failure does
+        // anyway.
+        poisoned.into_inner()
+    });
+    if *loaded {
         return Ok(());
     }
 
@@ -279,23 +397,20 @@ fn use_ca_bundle(pem: &str) -> Result<(), SyncError> {
     for certificate in &certificates {
         // Safe: the pointer is valid for the call, and libgit2 takes its own
         // reference on the certificate rather than keeping this one.
-        let code = unsafe { raw::git_libgit2_opts(ADD_SSL_X509_CERT, certificate.as_ptr()) };
+        let code = unsafe {
+            raw::git_libgit2_opts(
+                raw::GIT_OPT_ADD_SSL_X509_CERT as c_int,
+                certificate.as_ptr(),
+            )
+        };
         if code < 0 {
             return Err(git2::Error::last_error(code).into());
         }
     }
 
-    LOADED.store(true, Ordering::Relaxed);
+    *loaded = true;
     Ok(())
 }
-
-/// `GIT_OPT_ADD_SSL_X509_CERT`.
-///
-/// libgit2-sys 0.18.7 stops its copy of the enum one entry short of this
-/// option, while the two lists agree entry for entry up to there — so the
-/// value is derived from the last one both of them have rather than written
-/// out as a number.
-const ADD_SSL_X509_CERT: c_int = raw::GIT_OPT_GET_USER_AGENT_PRODUCT as c_int + 1;
 
 fn clone(request: &SyncRequest) -> Result<Repository, SyncError> {
     let mut builder = RepoBuilder::new();
@@ -309,23 +424,46 @@ fn clone(request: &SyncRequest) -> Result<Repository, SyncError> {
 
 /// Fetch and move the checkout forward, or explain why it cannot move.
 fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, SyncError> {
+    let checked_out = head_branch(repository)?;
     let branch = match request.branch.as_deref() {
         Some(branch) => branch.to_string(),
-        None => current_branch(repository)?,
+        None => checked_out.clone(),
     };
 
     let mut remote = repository.find_remote("origin")?;
     remote.fetch(&[&branch], Some(&mut fetch_options(request)), None)?;
 
-    let fetched = repository.find_reference("FETCH_HEAD")?;
-    let target = repository.reference_to_annotated_commit(&fetched)?;
+    let target = match repository.find_reference("FETCH_HEAD") {
+        Ok(fetched) => repository.reference_to_annotated_commit(&fetched)?,
+        // A remote whose branch has no commits leaves FETCH_HEAD empty, and
+        // libgit2 reads an empty reference file back as a corrupted one.
+        // Guarded by the checkout being unborn as well, so a genuinely damaged
+        // FETCH_HEAD in a checkout that does have commits is still an error.
+        Err(_) if head_commit(repository)?.is_none() => return Ok(0),
+        Err(error) => return Err(error.into()),
+    };
+
+    // Asked for a branch other than the one on disk: the settings changed
+    // under an existing checkout. This is not a fast-forward of anything —
+    // the branches may share no history at all — so the analysis below would
+    // call it a divergence and the local branch would not even exist to move.
+    if checked_out != branch {
+        ensure_clean(repository)?;
+        move_onto(repository, &branch, target.id())?;
+        return Ok(0);
+    }
+
     let (analysis, _) = repository.merge_analysis(&[&target])?;
 
     if analysis.is_up_to_date() {
         return Ok(0);
     }
 
-    if !analysis.is_fast_forward() {
+    // `is_unborn` is the branch this checkout is on having no commits yet —
+    // the state a clone of an empty remote starts in. There is nothing to
+    // fast-forward from, and the first commit that arrives simply becomes the
+    // branch.
+    if !analysis.is_fast_forward() && !analysis.is_unborn() {
         return Err(SyncError::Diverged {
             detail: format!(
                 "{branch} and origin/{branch} have both moved; the application \
@@ -336,27 +474,73 @@ fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, S
 
     // Checked before touching the tree rather than letting the checkout fail
     // half-way: a forced checkout would silently discard the changes.
+    ensure_clean(repository)?;
+
+    let before = head_commit(repository)?.map(|commit| commit.id());
+    move_onto(repository, &branch, target.id())?;
+
+    Ok(match before {
+        Some(before) => count_commits(repository, before, target.id())?,
+        None => 0,
+    })
+}
+
+/// Point `branch` at `target`, make HEAD follow it, and write the tree out.
+///
+/// Creates the branch when it is not there: the checkout may have been cloned
+/// on a different one, and a branch the settings name has to exist locally
+/// before HEAD can be moved onto it.
+fn move_onto(repository: &Repository, branch: &str, target: git2::Oid) -> Result<(), SyncError> {
+    let name = format!("refs/heads/{branch}");
+    match repository.find_reference(&name) {
+        Ok(mut reference) => {
+            reference.set_target(target, "fast-forward")?;
+        }
+        Err(error) if error.code() == ErrorCode::NotFound => {
+            repository.reference(&name, target, true, "track the branch from the settings")?;
+        }
+        Err(error) => return Err(error.into()),
+    }
+
+    repository.set_head(&name)?;
+    // force(): the tree is known clean, and the default checkout refuses to
+    // overwrite files that differ from the index.
+    repository.checkout_head(Some(CheckoutBuilder::default().force()))?;
+    Ok(())
+}
+
+/// Refuse to write over anything the user has not committed.
+///
+/// Untracked files count. The checkout below runs with `force()`, so an
+/// untracked file a new commit also carries would be replaced by it — a note
+/// captured on the device and not yet committed would be gone. The one
+/// exception is the temporary an interrupted write leaves beside a note:
+/// nothing else will ever clean it up, and treating it as work in progress
+/// would block every sync from then on.
+fn ensure_clean(repository: &Repository) -> Result<(), SyncError> {
     let mut options = StatusOptions::new();
-    options.include_untracked(false).include_ignored(false);
-    let changed = repository.statuses(Some(&mut options))?.len();
+    options.include_untracked(true).include_ignored(false);
+
+    let statuses = repository.statuses(Some(&mut options))?;
+    let changed = statuses
+        .iter()
+        .filter(|entry| {
+            !entry
+                .path()
+                .ok()
+                .and_then(|path| Path::new(path).file_name())
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(TEMPORARY_PREFIX))
+        })
+        .count();
+
     if changed > 0 {
         return Err(SyncError::Dirty {
             detail: format!("{changed} file(s) changed since the last commit"),
         });
     }
 
-    let before = repository.head()?.target();
-    let mut reference = repository.find_reference(&format!("refs/heads/{branch}"))?;
-    reference.set_target(target.id(), "fast-forward")?;
-    repository.set_head(&format!("refs/heads/{branch}"))?;
-    // force(): the tree is known clean, and the default checkout refuses to
-    // overwrite files that differ from the index.
-    repository.checkout_head(Some(CheckoutBuilder::default().force()))?;
-
-    Ok(match before {
-        Some(before) => count_commits(repository, before, target.id())?,
-        None => 0,
-    })
+    Ok(())
 }
 
 /// How many commits lie between `from` (exclusive) and `to`.
@@ -369,18 +553,6 @@ fn count_commits(
     walk.push(to)?;
     walk.hide(from)?;
     Ok(walk.count() as u32)
-}
-
-fn current_branch(repository: &Repository) -> Result<String, SyncError> {
-    let head = repository.head()?;
-    if !head.is_branch() {
-        return Err(SyncError::Repository {
-            detail: "HEAD does not point at a branch".to_string(),
-        });
-    }
-    // Result, not Option: git2 hands back an error for a name that is not
-    // UTF-8, which is a repository this application cannot work with anyway.
-    Ok(head.shorthand()?.to_string())
 }
 
 fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
@@ -409,8 +581,12 @@ fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
 }
 
 fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
-    let head = repository.head()?;
-    let commit = head.peel_to_commit()?;
+    // A checkout of a branch with no commits has a state worth reporting: the
+    // remote is configured, the branch is named, and the working copy may
+    // already hold a note. The commit fields stand empty rather than the whole
+    // read failing.
+    let commit = head_commit(repository)?;
+    let branch = head_branch(repository)?;
 
     let mut options = StatusOptions::new();
     options.include_untracked(true).include_ignored(false);
@@ -429,16 +605,20 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
             .unwrap_or_default(),
         // A detached HEAD has no shorthand worth showing, so the commit id
         // stands in for the branch name.
-        branch: head
-            .shorthand()
-            .map(str::to_string)
-            .unwrap_or_else(|_| commit.id().to_string()),
-        head_id: commit.id().to_string(),
+        branch,
+        head_id: commit
+            .as_ref()
+            .map(|commit| commit.id().to_string())
+            .unwrap_or_default(),
         head_summary: commit
-            .summary_bytes()
+            .as_ref()
+            .and_then(|commit| commit.summary_bytes())
             .map(|summary| String::from_utf8_lossy(summary).into_owned())
             .unwrap_or_default(),
-        head_time: commit.time().seconds(),
+        head_time: commit
+            .as_ref()
+            .map(|commit| commit.time().seconds())
+            .unwrap_or_default(),
         dirty: !repository.statuses(Some(&mut options))?.is_empty(),
     })
 }

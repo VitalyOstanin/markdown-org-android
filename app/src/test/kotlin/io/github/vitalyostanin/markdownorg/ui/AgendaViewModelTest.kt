@@ -200,6 +200,102 @@ class AgendaViewModelTest {
         assertEquals(MessageSource.EDIT, message?.source)
     }
 
+    @Test
+    fun aSuccessfulSyncShowsTheStateItAlreadyReturnedRatherThanReadingItAgain() =
+        runTest(dispatcher) {
+            // The sync answers with the state of the checkout it just wrote.
+            // Reading it again walks the whole working copy — every file, and
+            // the untracked ones on top — for an answer already in hand.
+            val head = FakeSyncer.status(REMOTE)
+            val syncer = FakeSyncer { Result.success(FakeSyncer.outcome(cloned = true)) }
+            settings.remoteUrl = REMOTE
+            val model = viewModel(syncer)
+            advanceUntilIdle()
+            val readsBefore = syncer.statusReads
+
+            model.syncNow()
+            advanceUntilIdle()
+
+            assertEquals(readsBefore, syncer.statusReads)
+            assertEquals(head, model.syncState.value.repository)
+        }
+
+    @Test
+    fun aFailedSyncStillReadsTheCheckoutBecauseItHasNoStateToReport() = runTest(dispatcher) {
+        val syncer = FakeSyncer { Result.failure(IllegalStateException("offline")) }
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        val readsBefore = syncer.statusReads
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        assertTrue(syncer.statusReads > readsBefore)
+    }
+
+    @Test
+    fun pointingTheApplicationAtAnotherRemoteDoesNotSendItTheOldToken() = runTest(dispatcher) {
+        // The saved token belongs to the host it was issued for. Leaving it in
+        // place sends it to whoever the new URL points at, and there is no way
+        // in the form to clear it: an empty field means "keep what is stored".
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.token = "the-old-token"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        advanceUntilIdle()
+
+        assertNull(settings.token)
+    }
+
+    @Test
+    fun theSavedTokenSurvivesASaveThatOnlyChangesTheBranch() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.token = "the-old-token"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "notes", token = "")
+        advanceUntilIdle()
+
+        assertEquals("the-old-token", settings.token)
+        assertEquals("notes", settings.branch)
+    }
+
+    @Test
+    fun theTokenCanBeDroppedWithoutChangingTheRemote() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.token = "the-old-token"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", dropToken = true)
+        advanceUntilIdle()
+
+        assertNull(settings.token)
+    }
+
+    @Test
+    fun changingOnlyTheBranchKeepsTheCheckoutForTheCoreToMoveOver() = runTest(dispatcher) {
+        // The core checks the branch out itself. Wiping the directory here
+        // would throw away commits made on the device that no remote has.
+        val syncer = FakeSyncer()
+        syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "notes", token = "")
+        advanceUntilIdle()
+
+        assertEquals(0, notes.wiped)
+    }
+
     private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
         notes = notes,
         agenda = loader,

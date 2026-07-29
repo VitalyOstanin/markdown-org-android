@@ -4,6 +4,7 @@ import android.content.Context
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.SyncRequest
+import uniffi.markdown_org_ffi.loadCaBundle
 import uniffi.markdown_org_ffi.repositoryStatus
 import uniffi.markdown_org_ffi.syncRepository
 
@@ -41,21 +42,28 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
     override suspend fun sync(settings: SyncPreferences): Result<SyncOutcome> {
         val url = settings.remoteUrl
             ?: return Result.failure(IllegalStateException("no remote configured"))
-        // Read before taking the lock: 180 kB off the assets is not work the
-        // rest of the application should be waiting behind.
-        val caBundle = caBundle()
+        // Handed over before the lock, and only until the core has it: 180 kB
+        // off the assets is not work the rest of the application should be
+        // waiting behind, and the certificate store lives as long as the
+        // process.
+        val certificates = runCatching { loadCertificates() }
+        certificates.exceptionOrNull()?.let { return Result.failure(it) }
 
         return notes.exclusive {
-            runCatching {
-                syncRepository(
-                    SyncRequest(
-                        dir = notes.root.absolutePath,
-                        url = url,
-                        token = settings.token,
-                        branch = settings.branch,
-                        caBundlePem = caBundle,
+            // A phone loses the network mid-request often enough that one
+            // attempt is not an answer. Only the transient failure is
+            // repeated — see `worthRetrying`.
+            retryingTransientFailures {
+                runCatching {
+                    syncRepository(
+                        SyncRequest(
+                            dir = notes.root.absolutePath,
+                            url = url,
+                            token = settings.token,
+                            branch = settings.branch,
+                        )
                     )
-                )
+                }
             }.onSuccess {
                 settings.lastSyncedAt = System.currentTimeMillis()
             }
@@ -67,23 +75,30 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
     }
 
     /**
-     * The certificate authorities, as the PEM text of the bundled asset.
+     * Give the core the certificate authorities, once per process.
      *
      * Android has no `/etc/ssl/certs`, which is where the TLS stack vendored
      * into the core looks by default. The contents go across rather than a
      * path because the core cannot open the file either: its OpenSSL is built
-     * without stdio. Around 180 kB, read once per process.
+     * without stdio. Around 180 kB, read off the assets and copied over the
+     * FFI boundary — which is why it happens once rather than on every sync.
+     *
+     * A failure is not remembered: the core does not keep a half-filled store
+     * either, so the next sync tries again rather than connecting without
+     * certificates.
      */
-    private fun caBundle(): String {
-        cached?.let { return it }
+    private fun loadCertificates() {
+        if (loaded) {
+            return
+        }
 
         val pem = context.assets.open(CA_BUNDLE).use { it.readBytes().decodeToString() }
-        cached = pem
-        return pem
+        loadCaBundle(pem)
+        loaded = true
     }
 
     @Volatile
-    private var cached: String? = null
+    private var loaded: Boolean = false
 
     private companion object {
         const val CA_BUNDLE = "cacert.pem"
