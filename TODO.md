@@ -4,10 +4,33 @@ Work that is understood but deliberately not done yet.
 
 ## Table of contents
 
+- [Several note repositories at once](#several-note-repositories-at-once)
 - [SSH remotes](#ssh-remotes)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
 - [Notes carrying a byte-order mark](#notes-carrying-a-byte-order-mark)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
+
+## Several note repositories at once
+
+The settings hold one remote, one branch and one token, and the working copy is
+a single directory. Notes are kept in more than one place — a repository on one
+git server and another on a different one, work and personal, a shared one and
+a private one — and the agenda should be the tasks of all of them together
+rather than of whichever one is configured at the moment.
+
+What it takes, in the order the parts depend on each other:
+
+| № | Part                    | What changes                                                                                                                               |
+|---|-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Settings                | A list of sources rather than one triple of URL, branch and token, each with a name; a migration from the single remote already stored.       |
+| 2 | Working copies          | One directory per source instead of the single one, and the mutual exclusion that guards the working copy taken per source rather than once. |
+| 3 | Scanning                | The agenda scans every source and merges the results, keeping which source a task came from so it can be shown and edited in the right one.  |
+| 4 | Synchronisation         | Sync becomes a run over the sources, with a per-source outcome: one failing remote must not hide that the others are up to date.             |
+| 5 | The screens             | The source shown beside a task, a filter by source, and settings that add and remove sources rather than editing the one.                    |
+
+Worth doing once the single-repository case is settled: every part above is
+work on top of code that is still moving, and the migration has to be written
+only once.
 
 ## SSH remotes
 
