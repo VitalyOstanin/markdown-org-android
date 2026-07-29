@@ -1,0 +1,148 @@
+package io.github.vitalyostanin.markdownorg.ui
+
+import io.github.vitalyostanin.markdownorg.core.AgendaLoader
+import io.github.vitalyostanin.markdownorg.core.NotesArea
+import io.github.vitalyostanin.markdownorg.core.NotesSyncer
+import io.github.vitalyostanin.markdownorg.core.NotesWriter
+import io.github.vitalyostanin.markdownorg.core.SyncPreferences
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import uniffi.markdown_org_ffi.AgendaResult
+import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.RepoStatus
+import uniffi.markdown_org_ffi.Scope
+import uniffi.markdown_org_ffi.SyncOutcome
+import uniffi.markdown_org_ffi.Task
+import uniffi.markdown_org_ffi.TaskType
+
+/**
+ * Stand-ins for the core, so what the view model does with concurrent
+ * requests can be pinned down on the JVM.
+ *
+ * The real implementations call the native library through UniFFI and touch a
+ * directory on the device; neither is available here, and neither is what
+ * these tests are about — the order in which the view model asks is.
+ */
+class FakeNotesArea : NotesArea {
+
+    override val root: File = File("/notes")
+
+    private val lock = Mutex()
+
+    /** What happened to the directory, in order, with markers for the overlaps. */
+    val trace = mutableListOf<String>()
+
+    var seeded: Int = 0
+        private set
+
+    var wiped: Int = 0
+        private set
+
+    /** Run at the moment of the wipe, so a test can see what else was going on. */
+    var onWipe: () -> Unit = {}
+
+    override suspend fun <T> exclusive(block: suspend () -> T): T = lock.withLock { block() }
+
+    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) = exclusive {
+        if (!synced()) {
+            seeded++
+            trace += "seed"
+        }
+    }
+
+    override suspend fun reset() = exclusive {
+        wiped++
+        trace += "wipe"
+        onWipe()
+    }
+}
+
+/** A syncer that reports what it was asked and can be held mid-flight. */
+class FakeSyncer(
+    private val onSync: suspend (String?) -> Result<SyncOutcome> = { Result.success(outcome()) },
+) : NotesSyncer {
+
+    val requested = mutableListOf<String?>()
+
+    /** Set to `false` to make the checkout unreadable rather than absent. */
+    var statusResult: Result<RepoStatus?> = Result.success(null)
+
+    /** Raised while a sync is in flight, so a test can assert on the overlap. */
+    var running: Boolean = false
+        private set
+
+    override suspend fun sync(settings: SyncPreferences): Result<SyncOutcome> {
+        requested += settings.remoteUrl
+        running = true
+        try {
+            return onSync(settings.remoteUrl)
+        } finally {
+            running = false
+        }
+    }
+
+    override suspend fun status(): Result<RepoStatus?> = statusResult
+
+    companion object {
+
+        fun outcome(cloned: Boolean = true, commits: UInt = 0u) = SyncOutcome(
+            cloned = cloned,
+            commitsApplied = commits,
+            head = status("https://example.test/notes.git"),
+        )
+
+        fun status(url: String) = RepoStatus(
+            url = url,
+            branch = "main",
+            headId = "0123456789abcdef0123456789abcdef01234567",
+            headSummary = "Initial commit",
+            headTime = 0,
+            dirty = false,
+        )
+    }
+}
+
+/** An agenda source whose answers a test decides on, one call at a time. */
+class FakeAgendaLoader : AgendaLoader {
+
+    /** Held open until the test releases them, in the order they were asked for. */
+    val pending = mutableListOf<CompletableDeferred<Result<AgendaResult>>>()
+
+    override suspend fun load(
+        scope: Scope,
+        today: LocalDate,
+        zone: ZoneId,
+        includeDone: Boolean,
+    ): Result<AgendaResult> {
+        val answer = CompletableDeferred<Result<AgendaResult>>()
+        pending += answer
+        return answer.await()
+    }
+}
+
+/** An editor whose outcome the test sets. */
+class FakeWriter(var outcome: Result<Unit> = Result.success(Unit)) : NotesWriter {
+
+    override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = outcome
+
+    override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = outcome
+
+    override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = outcome
+
+    override suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit> =
+        outcome
+}
+
+/** Settings in memory, with the same defaults the stored ones fall back to. */
+class FakePreferences(
+    override var remoteUrl: String? = null,
+    override var branch: String? = null,
+    override var token: String? = null,
+    override var authorName: String = "markdown-org",
+    override var authorEmail: String = "markdown-org@localhost",
+    override var lastSyncedAt: Long = 0,
+) : SyncPreferences

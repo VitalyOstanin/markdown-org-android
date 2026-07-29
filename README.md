@@ -276,6 +276,15 @@ the line under test: an edit that disturbs a neighbouring line is exactly the
 failure that turns a merge into a conflict, and an assertion scoped to one
 line would not see it.
 
+The application has two suites of its own. The JVM ones
+(`tools/gradle.sh testDebugUnitTest`) cover the projections onto the screen
+and the order the view model puts work in — the notes directory is a git
+working copy, so a scan, a clone, an edit and the wipe before a change of
+remote must not overlap, and stand-ins for the core make that assertable
+without a device. The instrumented ones
+(`tools/gradle.sh connectedDebugAndroidTest`) need an emulator and are the
+only ones that load the native library.
+
 Running the built library outside Android is not possible: it links against
 Android's C library, so `libdl.so` is missing on a desktop Linux host. The
 FFI path itself was exercised by generating Python bindings from a host

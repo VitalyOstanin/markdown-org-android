@@ -3,6 +3,10 @@ package io.github.vitalyostanin.markdownorg.core
 import android.content.Context
 import java.io.File
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Where the markdown lives on the device.
@@ -10,10 +14,19 @@ import java.time.LocalDate
  * A directory inside the application's own storage, which is also the git
  * working copy once a remote is configured. Until then it is seeded with a
  * sample, so a fresh install has something to show.
+ *
+ * This is also the single point where access to that directory is serialised
+ * — see [NotesArea.exclusive].
  */
-class NotesStore(context: Context) {
+class NotesStore(override val root: File) : NotesArea {
 
-    val root: File = File(context.filesDir, "notes")
+    /** Where it lives on a device: a directory of the application's own storage. */
+    constructor(context: Context) : this(File(context.filesDir, "notes"))
+
+    private val lock = Mutex()
+
+    override suspend fun <T> exclusive(block: suspend () -> T): T =
+        lock.withLock { withContext(Dispatchers.IO) { block() } }
 
     /**
      * Writes the sample unless the directory already holds notes.
@@ -22,17 +35,10 @@ class NotesStore(context: Context) {
      * and dropping an untracked file into it would show up as a dirty working
      * copy and block the next sync.
      */
-    fun ensureSeeded(today: LocalDate, synced: Boolean) {
-        if (synced) {
-            return
+    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) = exclusive {
+        if (!synced() && !hasNotes()) {
+            File(root, "sample.md").writeText(sampleNotes(today))
         }
-        if (!root.exists()) {
-            root.mkdirs()
-        }
-        if (root.listFiles { file -> file.extension == "md" }?.isNotEmpty() == true) {
-            return
-        }
-        File(root, "sample.md").writeText(sampleNotes(today))
     }
 
     /**
@@ -41,8 +47,16 @@ class NotesStore(context: Context) {
      * The core clones into an empty directory; pointing the application at
      * another repository has to start from one.
      */
-    fun reset() {
+    override suspend fun reset() = exclusive {
         root.deleteRecursively()
+        Unit
+    }
+
+    private fun hasNotes(): Boolean {
+        if (!root.exists()) {
+            root.mkdirs()
+        }
+        return root.listFiles { file -> file.extension == "md" }?.isNotEmpty() == true
     }
 
     /**

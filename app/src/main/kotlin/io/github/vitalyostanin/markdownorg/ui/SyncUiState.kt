@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import uniffi.markdown_org_ffi.EditException
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
@@ -29,7 +30,37 @@ data class SyncMessage(
     @param:StringRes val text: Int,
     val detail: String? = null,
     val failed: Boolean = false,
+    val source: MessageSource = MessageSource.SYNC,
 )
+
+/**
+ * What the message is about.
+ *
+ * Both kinds share one line of the interface, and they arrive from coroutines
+ * that run independently, so which one may replace which has to be a rule
+ * rather than whichever finished last — see [notDisplacedBy].
+ */
+enum class MessageSource { SYNC, EDIT }
+
+/**
+ * Keeps a failed edit on screen when the sync has nothing to say about it.
+ *
+ * A sync that went through does not answer "the task could not be changed",
+ * and overwriting the line would leave the user believing the edit landed. A
+ * failed sync does replace it: that one is about the same directory and is
+ * the more immediate problem.
+ */
+fun SyncMessage?.notDisplacedBy(next: SyncMessage?): SyncMessage? = when {
+    this != null && failed && source == MessageSource.EDIT && next?.failed != true -> this
+    else -> next
+}
+
+/** What to tell the user about an address that cannot be used. */
+fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
+    RemoteUrlProblem.EMPTY -> SyncMessage(R.string.settings_url_empty, failed = true)
+    RemoteUrlProblem.SCHEME -> SyncMessage(R.string.settings_url_scheme, failed = true)
+    RemoteUrlProblem.INCOMPLETE -> SyncMessage(R.string.settings_url_incomplete, failed = true)
+}
 
 /**
  * Maps a failure onto something worth reading.
@@ -70,4 +101,4 @@ fun Throwable.toEditMessage(): SyncMessage = when (this) {
     is EditException.InvalidDate -> SyncMessage(R.string.edit_failed, detail, failed = true)
     is EditException.Io -> SyncMessage(R.string.edit_failed, detail, failed = true)
     else -> SyncMessage(R.string.edit_failed, message, failed = true)
-}
+}.copy(source = MessageSource.EDIT)

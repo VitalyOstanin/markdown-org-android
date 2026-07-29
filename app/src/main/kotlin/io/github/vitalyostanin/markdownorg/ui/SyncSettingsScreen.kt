@@ -33,6 +33,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 
 /**
  * Where the notes are fetched from.
@@ -54,6 +56,13 @@ fun SyncSettingsScreen(
     var url by remember { mutableStateOf(initialUrl) }
     var branch by remember { mutableStateOf(initialBranch) }
     var token by remember { mutableStateOf("") }
+
+    // Saving empties the working copy, and edits made here are committed
+    // locally and never pushed — so an address that cannot work is caught in
+    // the field rather than after the clone has failed over an empty
+    // directory. An empty field is not an error yet, only a disabled button.
+    val problem = remember(url) { remoteUrlProblem(url) }
+    val malformed = problem != null && problem != RemoteUrlProblem.EMPTY
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -79,7 +88,11 @@ fun SyncSettingsScreen(
                 value = url,
                 onValueChange = { url = it },
                 label = { Text(stringResource(R.string.settings_url)) },
-                placeholder = { Text("https://github.com/user/notes.git") },
+                placeholder = { Text("https://gitlab.com/user/notes.git") },
+                isError = malformed,
+                supportingText = problem
+                    ?.takeIf { malformed }
+                    ?.let { { Text(stringResource(it.toMessage().text)) } },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -132,7 +145,7 @@ fun SyncSettingsScreen(
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = { onSave(url, branch, token) },
-                    enabled = url.isNotBlank(),
+                    enabled = problem == null,
                     modifier = Modifier.testTag("settings-save"),
                 ) {
                     Text(stringResource(R.string.settings_save))

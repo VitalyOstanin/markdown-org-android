@@ -23,6 +23,7 @@
     <string name="sync_failed_diverged">Локальные коммиты расходятся с удалёнными</string>
     <string name="sync_failed_dirty">Незафиксированные изменения были бы затёрты</string>
     <string name="sync_failed_repository">Синхронизация не удалась</string>
+    <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 
     <string name="settings_title">Репозиторий заметок</string>
     <string name="settings_hint">Репозиторий клонируется в собственное хранилище приложения. Выполняется только получение изменений: локальные правки пока не отправляются.</string>
@@ -32,6 +33,9 @@
     <string name="settings_token">Токен доступа</string>
     <string name="settings_token_kept">сохранён; оставьте пустым, чтобы не менять</string>
     <string name="settings_token_none">нужен для приватного репозитория</string>
+    <string name="settings_url_empty">Укажите адрес репозитория</string>
+    <string name="settings_url_scheme">Поддерживаются только https:// и локальный путь</string>
+    <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
 

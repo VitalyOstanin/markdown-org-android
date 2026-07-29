@@ -61,6 +61,20 @@ class SyncSettingsScreenTest {
     }
 
     @Test
+    fun anAddressTheCoreCannotFetchIsRefusedInTheField() {
+        showForm()
+
+        // Saving empties the working copy, and edits made on the device are
+        // committed locally and never pushed. An address that cannot work has
+        // to be stopped here, not after the clone failed over an empty
+        // directory.
+        compose.onNodeWithTag("settings-url").performTextInput("http://example.org/notes.git")
+
+        compose.onNodeWithText(string(R.string.settings_url_scheme)).assertIsDisplayed()
+        compose.onNodeWithTag("settings-save").assertIsNotEnabled()
+    }
+
+    @Test
     fun aBlankTokenKeepsWhateverIsStored() {
         showForm(url = "https://example.org/notes.git", hasToken = true)
 

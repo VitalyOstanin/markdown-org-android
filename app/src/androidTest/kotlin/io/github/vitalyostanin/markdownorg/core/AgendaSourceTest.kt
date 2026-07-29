@@ -41,7 +41,9 @@ class AgendaSourceTest {
             """,
         )
 
-        val result = AgendaSource(folder.root).load(Scope.DAY, today, zone).getOrThrow()
+        val result = AgendaSource(NotesStore(folder.root))
+            .load(Scope.DAY, today, zone)
+            .getOrThrow()
         val day = result.days.single()
 
         assertEquals("2026-07-28", day.date)
@@ -67,7 +69,9 @@ class AgendaSourceTest {
             """,
         )
 
-        val result = AgendaSource(folder.root).load(Scope.TASKS, today, zone).getOrThrow()
+        val result = AgendaSource(NotesStore(folder.root))
+            .load(Scope.TASKS, today, zone)
+            .getOrThrow()
         val task = result.tasks.single()
 
         assertEquals("Daily standup", task.heading)
@@ -79,7 +83,7 @@ class AgendaSourceTest {
     fun aMissingDirectoryFails() = runBlocking {
         val missing = File(folder.root, "nowhere")
 
-        val result = AgendaSource(missing).load(Scope.DAY, today, zone)
+        val result = AgendaSource(NotesStore(missing)).load(Scope.DAY, today, zone)
 
         assertTrue(result.isFailure)
     }

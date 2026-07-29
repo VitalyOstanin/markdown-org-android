@@ -90,6 +90,9 @@ dependencies {
     // The agenda projections are plain Kotlin over UniFFI records, which are
     // data classes — no native library is loaded, so they run on the JVM.
     testImplementation(libs.junit)
+    // The view model is exercised against stand-ins for the core, so what it
+    // does with concurrent requests can be pinned down without a device.
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)

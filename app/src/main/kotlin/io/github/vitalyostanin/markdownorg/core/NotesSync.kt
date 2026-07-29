@@ -1,14 +1,28 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.SyncRequest
 import uniffi.markdown_org_ffi.repositoryStatus
 import uniffi.markdown_org_ffi.syncRepository
+
+/** Keeps the working copy in step with a remote. */
+interface NotesSyncer {
+
+    suspend fun sync(settings: SyncPreferences): Result<SyncOutcome>
+
+    /**
+     * State of the checkout, without contacting the remote.
+     *
+     * Success with `null` means the directory holds no repository; a failure
+     * means the state could not be read. The two are kept apart because the
+     * caller acts on them differently: the first invites a clone, the second
+     * must not, since the wipe that precedes one would take the only copy of
+     * whatever is already committed there.
+     */
+    suspend fun status(): Result<RepoStatus?>
+}
 
 /**
  * The working copy of the notes, kept in step with a remote.
@@ -17,34 +31,39 @@ import uniffi.markdown_org_ffi.syncRepository
  * while the application only reads: a conflict has no resolution the user
  * could act on from here, so it is reported instead.
  */
-class NotesSync(private val context: Context, private val root: File) {
+class NotesSync(private val context: Context, private val notes: NotesArea) : NotesSyncer {
 
     /**
      * Clone on the first call, fast-forward afterwards. Runs off the main
-     * thread: this is network and filesystem work.
+     * thread and under the lock on the notes directory: this rewrites the
+     * working copy the agenda reads and an edit commits to.
      */
-    suspend fun sync(settings: SyncSettings): Result<SyncOutcome> = withContext(Dispatchers.IO) {
+    override suspend fun sync(settings: SyncPreferences): Result<SyncOutcome> {
         val url = settings.remoteUrl
-            ?: return@withContext Result.failure(IllegalStateException("no remote configured"))
+            ?: return Result.failure(IllegalStateException("no remote configured"))
+        // Read before taking the lock: 180 kB off the assets is not work the
+        // rest of the application should be waiting behind.
+        val caBundle = caBundle()
 
-        runCatching {
-            syncRepository(
-                SyncRequest(
-                    dir = root.absolutePath,
-                    url = url,
-                    token = settings.token,
-                    branch = settings.branch,
-                    caBundlePem = caBundle(),
+        return notes.exclusive {
+            runCatching {
+                syncRepository(
+                    SyncRequest(
+                        dir = notes.root.absolutePath,
+                        url = url,
+                        token = settings.token,
+                        branch = settings.branch,
+                        caBundlePem = caBundle,
+                    )
                 )
-            )
-        }.onSuccess {
-            settings.lastSyncedAt = System.currentTimeMillis()
+            }.onSuccess {
+                settings.lastSyncedAt = System.currentTimeMillis()
+            }
         }
     }
 
-    /** State of the checkout, without contacting the remote. */
-    suspend fun status(): RepoStatus? = withContext(Dispatchers.IO) {
-        runCatching { repositoryStatus(root.absolutePath) }.getOrNull()
+    override suspend fun status(): Result<RepoStatus?> = notes.exclusive {
+        runCatching { repositoryStatus(notes.root.absolutePath) }
     }
 
     /**

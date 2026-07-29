@@ -1,9 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
-import java.io.File
 import java.time.LocalDate
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -15,6 +12,18 @@ import uniffi.markdown_org_ffi.repositoryStatus
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
+
+/** Point edits to the notes. */
+interface NotesWriter {
+
+    suspend fun complete(task: Task, today: LocalDate): Result<Unit>
+
+    suspend fun setStatus(task: Task, status: TaskType?): Result<Unit>
+
+    suspend fun setPriority(task: Task, priority: String?): Result<Unit>
+
+    suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit>
+}
 
 /**
  * Point edits to the notes, each one committed as it is made.
@@ -28,10 +37,13 @@ import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
  * the remote is set up) is edited all the same; there is simply nothing to
  * commit.
  */
-class NotesEditor(private val root: File, private val settings: SyncSettings) {
+class NotesEditor(
+    private val notes: NotesArea,
+    private val settings: SyncPreferences,
+) : NotesWriter {
 
     /** Mark done, or move a repeating task to its next occurrence. */
-    suspend fun complete(task: Task, today: LocalDate): Result<Unit> = write(task) {
+    override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = write(task) {
         val outcome = coreComplete(task.target(), today.toString())
         if (outcome.repeated) {
             "Move \"${task.heading}\" to its next occurrence"
@@ -41,7 +53,7 @@ class NotesEditor(private val root: File, private val settings: SyncSettings) {
     }
 
     /** Set or clear the keyword outright, without the repeater semantics. */
-    suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = write(task) {
+    override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = write(task) {
         coreSetStatus(task.target(), status)
         when (status) {
             null -> "Clear the keyword on \"${task.heading}\""
@@ -50,7 +62,7 @@ class NotesEditor(private val root: File, private val settings: SyncSettings) {
     }
 
     /** Set or clear the priority cookie. */
-    suspend fun setPriority(task: Task, priority: String?): Result<Unit> = write(task) {
+    override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = write(task) {
         coreSetPriority(task.target(), priority)
         when (priority) {
             null -> "Drop the priority of \"${task.heading}\""
@@ -59,7 +71,11 @@ class NotesEditor(private val root: File, private val settings: SyncSettings) {
     }
 
     /** Move a planning date by whole days. */
-    suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit> = write(task) {
+    override suspend fun shift(
+        task: Task,
+        keyword: PlanningKeyword,
+        days: Int,
+    ): Result<Unit> = write(task) {
         coreShiftPlanning(task.target(), keyword, days)
         "Move \"${task.heading}\" by $days day(s)"
     }
@@ -67,25 +83,29 @@ class NotesEditor(private val root: File, private val settings: SyncSettings) {
     /**
      * Run [edit] off the main thread and commit what it changed.
      *
+     * Held under the lock on the notes directory for the whole of it: the
+     * write and the commit are one step, and a fast-forward landing between
+     * them would commit a tree nobody asked for.
+     *
      * [edit] returns the commit message, so the message describes what
      * actually happened — a completion that turned out to be a repeat says
      * so.
      */
     private suspend fun write(task: Task, edit: () -> String): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        notes.exclusive {
             runCatching {
                 val message = edit()
                 // No repository yet: the sample notes are edited too, they
                 // just have no history to write to.
-                if (repositoryStatus(root.absolutePath) != null) {
-                    commitChanges(root.absolutePath, message, author())
+                if (repositoryStatus(notes.root.absolutePath) != null) {
+                    commitChanges(notes.root.absolutePath, message, author())
                 }
                 Unit
             }
         }
 
     private fun Task.target() = EditTarget(
-        dir = root.absolutePath,
+        dir = notes.root.absolutePath,
         file = file,
         line = line,
         heading = heading,
