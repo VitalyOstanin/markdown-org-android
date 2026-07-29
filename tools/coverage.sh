@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Measures how much of the Kotlin sources the JVM tests reach, with Kover.
 #
-# Report: app/build/reports/kover/html/index.html
+# Report: app/build/reports/kover/htmlDebug/index.html
 #
 # No threshold is enforced: the number is here to be looked at, and the
 # instrumented tests — the ones that cover the screens and the calls into the

@@ -17,6 +17,7 @@ run. Nothing has been run on a physical device yet.
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
+- [The certificate bundle a sync trusts](#the-certificate-bundle-a-sync-trusts)
 - [Where the token may travel](#where-the-token-may-travel)
 - [Building the core](#building-the-core)
 - [Building the application](#building-the-application)
@@ -27,6 +28,7 @@ run. Nothing has been run on a physical device yet.
 - [Testing](#testing)
 - [Environment variables](#environment-variables)
 - [Why the toolchain lives in a container](#why-the-toolchain-lives-in-a-container)
+- [Licence](#licence)
 
 ## Requirements
 
@@ -51,13 +53,20 @@ Gradle build and by the CI workflow, so the three cannot drift apart.
 
 ```
 markdown-org-android/
+├── .github/workflows/        # build.yml — build, test, publish; audit.yml — advisories
 ├── app/                      # the Compose application
-│   └── src/main/kotlin/…/
-│       ├── core/             # the bridge to the Rust core, and where notes live
-│       └── ui/               # the agenda screen and the palette
+│   ├── src/main/kotlin/…/
+│   │   ├── core/             # the bridge to the Rust core, and where notes live
+│   │   └── ui/               # the agenda screen and the palette
+│   ├── src/main/assets/      # cacert.pem — the trust store a sync goes over
+│   └── src/sharedTest/       # task fixtures both test suites build on
 ├── rust/
 │   ├── markdown-org-ffi/     # UniFFI wrapper over markdown-org-extract
-│   │   ├── src/lib.rs        # the exported surface and its type projection
+│   │   ├── src/lib.rs        # scanning, the type projection, the shared error mapping
+│   │   ├── src/document.rs   # reading a note and writing one line back
+│   │   ├── src/edit.rs       # the status and the priority cookie
+│   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
+│   │   ├── src/sync.rs       # clone, fast-forward, commit, the state of the checkout
 │   │   └── tests/            # tests for the projection and error mapping
 │   └── uniffi-bindgen/       # binding generator entry point
 ├── tools/
@@ -125,6 +134,23 @@ reporting a conflict. `target` carries the file, the line and the heading the
 caller believes is there — a file that moved on since the agenda was built is
 refused rather than overwritten.
 
+Keeping them in step with a remote:
+
+- `syncRepository(request)` — clone into an empty directory, fast-forward
+  afterwards; it never merges and never pushes;
+- `repositoryStatus(dir)` — the remote, the branch, the head commit and
+  whether anything is uncommitted, read without touching the network;
+- `holdsRepository(dir)` — whether the directory is a checkout at all, which
+  is how "not set up yet" is told from "set up and behind";
+- `loadCaBundle(pem)` — hand the certificate authorities over, once per
+  process.
+
+What a sync refuses to do, and what it retries, is the section
+[below](#what-a-sync-does-with-the-checkout). On the Kotlin side
+`core/NotesSync.kt` calls these under the lock on the notes directory, and
+`core/SyncSettings.kt` holds the remote, the branch and the token the settings
+screen writes.
+
 The grammar itself stays in the extractor: it reports where each token of a
 heading or a timestamp sits (`parseHeadingLine`, `parseTimestampParts`), and
 this crate splices the replacement in. A second copy of those rules here
@@ -169,9 +195,31 @@ pushes. What it does in the situations that are not a plain fast-forward:
 | 7 | The connection hangs                               | Bounded: 15 s to connect, 60 s per request. Without them the wait is whatever the operating system decides. |
 | 8 | The remote URL changes                             | The directory is emptied and cloned again, and the stored token is dropped with it — it was issued by the host that is being left. |
 
-The certificate authorities are handed to the core once per process rather than
-with every sync: Android has no `/etc/ssl/certs`, the bundle is around 180 kB,
-and the store it goes into lives as long as the process.
+## The certificate bundle a sync trusts
+
+The TLS stack the core syncs over is vendored, and Android has no
+`/etc/ssl/certs` for it to read: nothing on the device tells it which
+authorities to trust. `app/src/main/assets/cacert.pem` is what does — Mozilla's
+root certificates as curl extracts them, around 180 kB, the snapshot of
+16 July 2026 that the header of the file names. It is handed to the core once
+per process rather than with every sync (`loadCaBundle`), because the store it
+goes into lives as long as the process.
+
+Refreshing it is replacing the file, from
+[curl.se/docs/caextract.html](https://curl.se/docs/caextract.html):
+
+```bash
+curl -o app/src/main/assets/cacert.pem https://curl.se/ca/cacert.pem
+curl -s https://curl.se/ca/cacert.pem.sha256 |
+  sed 's| cacert.pem| app/src/main/assets/cacert.pem|' | sha256sum -c
+```
+
+This copy is the trust store for git traffic, so a root Mozilla withdraws stays
+trusted here until the file is replaced and a new APK is released — nothing
+else on the device would notice. The `certificates` job of
+[`.github/workflows/audit.yml`](.github/workflows/audit.yml) fails once the
+file has gone 180 days without an update, which is the reminder to run the two
+commands above.
 
 ## Where the token may travel
 
@@ -307,8 +355,13 @@ What comes out depends on the trigger:
 |---|----------------------|---------|--------------------------------------------------|
 | 1 | push to `master`     | release | prerelease `v<version>.<run number>`             |
 | 2 | tag `v*`             | release | release under that tag                           |
-| 3 | `workflow_dispatch`  | release | prerelease, or the tag given as an input         |
+| 3 | `workflow_dispatch`  | release | prerelease, under the tag the `release_tag` input names or `v<version>.<run number>` |
 | 4 | pull request         | debug   | build artefact only                              |
+
+A tag is the only thing that makes a full release: the workflow reads the ref
+it was started on, so a run dispatched by hand publishes a prerelease however
+it is tagged. The `release_tag` input names that tag and nothing more, which is
+how a build gets a name of its own without being declared a release.
 
 A pull request builds the debug variant: it has no access to the signing key
 and does not need one. Everything else is signed with the release key, which
@@ -330,6 +383,14 @@ so nothing goes out over a failed run of the tests that load the core.
 Actions are pinned by commit SHA with the tag in a comment, and the runner is
 `ubuntu-24.04` rather than `ubuntu-latest`: an image that moves under an
 unchanged commit makes a build that passed once impossible to reproduce.
+
+A second workflow answers what a build cannot:
+[`.github/workflows/audit.yml`](.github/workflows/audit.yml) checks the Rust
+dependencies against the advisory database and the certificate bundle against
+its age, on a change, on a schedule and by hand. libgit2 and OpenSSL are
+compiled into the native library, so an advisory against either reaches a phone
+through a release of this project and through nothing else — and it is
+published when nobody is committing.
 
 ## The generated Kotlin surface
 
@@ -393,6 +454,15 @@ removes what the emulator needs:
 ```bash
 ABIS="arm64-v8a x86_64" tools/build-core.sh
 ```
+
+What a run leaves behind, for the failure the console line does not explain:
+
+| № | Script                  | Report                                                 |
+|---|-------------------------|--------------------------------------------------------|
+| 1 | `test.sh`               | `app/build/reports/tests/testDebugUnitTest/index.html`  |
+| 2 | `test-instrumented.sh`  | `app/build/reports/androidTests/connected/index.html`   |
+| 3 | `lint.sh`               | `app/build/reports/lint-results-debug.html`             |
+| 4 | `coverage.sh`           | `app/build/reports/kover/htmlDebug/index.html`          |
 
 `test-instrumented.sh` reads the device's ABI and refuses to run when the
 matching library is missing, rather than letting the tests that load the core
@@ -462,3 +532,13 @@ The NDK, the Rust Android targets and `cargo-ndk` add up to several hundred
 megabytes of build-only tooling. Keeping them in a container image means the
 host stays clean and the build is reproducible from `Containerfile.ndk`
 rather than from someone's shell history.
+
+## Licence
+
+This project is under the MIT licence — see [LICENSE](LICENSE).
+
+The published APK carries more than this repository: libgit2 and OpenSSL are
+compiled into the native library, `markdown-org-extract` and the UniFFI runtime
+come in as Rust dependencies, JNA loads the result, the Compose libraries draw
+it, and `cacert.pem` is Mozilla's root certificates as curl publishes them.
+Each is under its own terms.
