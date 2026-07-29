@@ -359,3 +359,112 @@ fn completing_a_task_with_a_malformed_today_is_refused() {
 
     assert!(matches!(error, EditError::InvalidDate { .. }), "{error:?}");
 }
+
+#[test]
+fn a_blank_line_between_the_heading_and_the_planning_line_does_not_hide_it() {
+    // Ordinary markdown spacing. The extractor reads the timestamp out of any
+    // paragraph in the section, so the agenda shows the date and the edit has
+    // to find the same line.
+    let vault = vault("# TODO Water the plants\n\n`SCHEDULED: <2026-07-01 Wed +1w>`\n");
+
+    let outcome = complete_task(
+        target(vault.path(), 1, "Water the plants"),
+        "2026-07-29".to_string(),
+    )
+    .expect("complete");
+
+    assert!(outcome.repeated, "{outcome:?}");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Water the plants\n\n`SCHEDULED: <2026-07-08 Wed +1w>`\n"
+    );
+}
+
+#[test]
+fn a_created_line_before_the_planning_line_does_not_hide_it() {
+    let vault = vault(
+        "# TODO Water the plants\n`CREATED: [2026-06-01 Mon]`\n`SCHEDULED: <2026-07-01 Wed +1w>`\n",
+    );
+
+    let outcome = complete_task(
+        target(vault.path(), 1, "Water the plants"),
+        "2026-07-29".to_string(),
+    )
+    .expect("complete");
+
+    assert!(outcome.repeated, "{outcome:?}");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Water the plants\n`CREATED: [2026-06-01 Mon]`\n`SCHEDULED: <2026-07-08 Wed +1w>`\n"
+    );
+}
+
+#[test]
+fn the_search_stops_at_the_next_heading_rather_than_reaching_its_planning_line() {
+    let vault = vault(
+        "# TODO Write the report\nNothing planned here.\n# TODO Water the plants\n`SCHEDULED: <2026-07-01 Wed>`\n",
+    );
+
+    let error = shift_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        1,
+    )
+    .expect_err("must refuse");
+
+    assert!(
+        matches!(error, EditError::NoPlanningLine { .. }),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_planning_line_is_classified_by_its_prefix_not_by_what_it_mentions() {
+    // The extractor anchors the keyword at the start of the line for this very
+    // reason; matching anywhere reads a DEADLINE line as a SCHEDULED one and
+    // moves the wrong date.
+    let vault = vault(
+        "# TODO Write the report\n`DEADLINE: <2026-07-30 Thu>` — agreed, see SCHEDULED: in the ticket\n",
+    );
+
+    let outcome = shift_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Deadline,
+        1,
+    )
+    .expect("shift");
+
+    assert_eq!(
+        outcome.line,
+        "`DEADLINE: <2026-07-31 Fri>` — agreed, see SCHEDULED: in the ticket"
+    );
+
+    let error = shift_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        1,
+    )
+    .expect_err("must refuse");
+
+    assert!(
+        matches!(error, EditError::NoPlanningLine { .. }),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn completing_a_repeating_task_without_a_keyword_does_not_add_one() {
+    let vault = vault("# Water the plants\n`SCHEDULED: <2026-07-01 Wed +1w>`\n");
+
+    let outcome = complete_task(
+        target(vault.path(), 1, "Water the plants"),
+        "2026-07-29".to_string(),
+    )
+    .expect("complete");
+
+    assert_eq!(outcome.heading, "# Water the plants");
+    assert_eq!(
+        body(vault.path()),
+        "# Water the plants\n`SCHEDULED: <2026-07-08 Wed +1w>`\n"
+    );
+}

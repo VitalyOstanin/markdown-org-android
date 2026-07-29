@@ -145,6 +145,20 @@ class TimelineTest {
     }
 
     @Test
+    fun `an hour outside a day falls back to the band rather than stretching the axis`() {
+        // The extractor's time pattern accepts up to 99:59, so a typo reaches
+        // the layout as an hour no clock has. Building an axis out of it draws
+        // labels for hours that do not exist.
+        val timeline = sections(
+            timed = listOf(task(heading = "Typo", time = "25:00")),
+            untimed = listOf(task(heading = "Someday")),
+        ).toTimeline(now = null)
+
+        assertEquals(listOf("Typo", "Someday"), timeline.allDay.map { it.task.heading })
+        assertTrue(timeline.axis.isEmpty())
+    }
+
+    @Test
     fun `overdue and untimed pass through untouched`() {
         val timeline = sections(
             overdue = listOf(task(heading = "Late", daysOffset = -2)),

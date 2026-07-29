@@ -41,7 +41,7 @@ foreign-types = "0.3"
 # Pinned to a commit rather than a crates.io release: the library API used
 # here landed after 0.11.1 and has not been published yet. Switch to a
 # version requirement once the release carrying src/lib.rs is out.
-markdown-org-extract = { git = "https://github.com/VitalyOstanin/markdown-org-extract", rev = "1a7b1e8c6e753129404077d4f2ddb4fa410c9e4f" }
+markdown-org-extract = { git = "https://github.com/VitalyOstanin/markdown-org-extract", rev = "86d395e17b697ddb82bd42e86ae39c0483873b9c" }
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. Same version the extractor resolves to.
 chrono = { version = "0.4", default-features = false, features = ["std"] }

@@ -313,3 +313,92 @@ fn a_multibyte_heading_is_edited_on_a_character_boundary() {
 
     assert_eq!(outcome.line, "# DONE [#A] Отчёт за неделю");
 }
+
+/// The heading an edit is aimed at, taken from a scan of the notes rather
+/// than from the file text — which is how the application builds it, and the
+/// only way inline markup in a heading is exercised at all.
+fn scanned_target(dir: &std::path::Path, title: &str) -> markdown_org_ffi::EditTarget {
+    let result = markdown_org_ffi::scan(
+        dir.display().to_string(),
+        markdown_org_ffi::Options {
+            glob: None,
+            locale: None,
+            max_tasks: None,
+        },
+    )
+    .expect("scan");
+
+    let task = result
+        .tasks
+        .iter()
+        .find(|task| task.heading.contains(title))
+        .unwrap_or_else(|| panic!("no task holding {title:?} in {:?}", result.tasks));
+
+    markdown_org_ffi::EditTarget {
+        dir: dir.display().to_string(),
+        file: task.file.clone(),
+        line: task.line,
+        heading: task.heading.clone(),
+    }
+}
+
+#[test]
+fn a_heading_carrying_bold_text_can_still_be_edited() {
+    // The scan hands back the heading with the markup taken off, so comparing
+    // it against the raw line would refuse every edit of a formatted heading
+    // as stale — while the file has not moved at all.
+    let vault = vault("# TODO **Отчёт** за июль\n");
+
+    let outcome = set_status(
+        scanned_target(vault.path(), "за июль"),
+        Some(TaskType::Done),
+    )
+    .expect("set status");
+
+    assert_eq!(outcome.line, "# DONE **Отчёт** за июль");
+    assert_eq!(body(vault.path()), "# DONE **Отчёт** за июль\n");
+}
+
+#[test]
+fn a_heading_carrying_inline_code_can_still_be_edited() {
+    let vault = vault("# TODO `build` is broken\n");
+
+    let outcome = set_status(
+        scanned_target(vault.path(), "is broken"),
+        Some(TaskType::Done),
+    )
+    .expect("set status");
+
+    assert_eq!(outcome.line, "# DONE `build` is broken");
+}
+
+#[test]
+fn a_heading_carrying_a_link_can_still_be_edited() {
+    let vault = vault("# TODO Read [the spec](https://example.invalid/spec)\n");
+
+    let outcome = set_status(
+        scanned_target(vault.path(), "the spec"),
+        Some(TaskType::Done),
+    )
+    .expect("set status");
+
+    assert_eq!(
+        outcome.line,
+        "# DONE Read [the spec](https://example.invalid/spec)"
+    );
+}
+
+#[test]
+fn a_heading_that_really_did_change_is_still_refused() {
+    // The comparison is loosened, not dropped: a line that now holds another
+    // task must not be written to.
+    let vault = vault("# TODO Water the plants\n");
+
+    let error = set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect_err("must refuse");
+
+    assert!(matches!(error, EditError::Stale { .. }), "{error:?}");
+}

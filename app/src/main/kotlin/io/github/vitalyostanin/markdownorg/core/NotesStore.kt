@@ -66,6 +66,12 @@ class NotesStore(override val root: File) : NotesArea {
      * The timestamp line is wrapped in backticks. That is the format the
      * extractor recognises and the extension writes: a markdown renderer
      * treats a bare `<2026-07-28>` as an HTML tag and swallows it.
+     *
+     * One form of brackets per keyword, as the extractor reads them: angle
+     * ones for `SCHEDULED:` and `DEADLINE:`, square ones for `CLOSED:` — a
+     * closing date is a record of what happened, not something the agenda
+     * schedules. The sample is the only example of the format the application
+     * shows, so a line written the other way teaches a form it cannot read.
      */
     private fun sampleNotes(today: LocalDate): String {
         fun day(offset: Long): String = today.plusDays(offset).toString()
@@ -89,7 +95,7 @@ class NotesStore(override val root: File) : NotesArea {
             `DEADLINE: <${day(5)}>`
 
             ## DONE Archive the old branch
-            `CLOSED: <${day(-1)}>`
+            `CLOSED: [${day(-1)}]`
 
             ## CANCELLED Migrate the staging host
             `SCHEDULED: <${day(2)}>`

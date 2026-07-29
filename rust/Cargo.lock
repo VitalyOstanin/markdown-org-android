@@ -842,7 +842,7 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 [[package]]
 name = "markdown-org-extract"
 version = "0.11.1"
-source = "git+https://github.com/VitalyOstanin/markdown-org-extract?rev=1a7b1e8c6e753129404077d4f2ddb4fa410c9e4f#1a7b1e8c6e753129404077d4f2ddb4fa410c9e4f"
+source = "git+https://github.com/VitalyOstanin/markdown-org-extract?rev=86d395e17b697ddb82bd42e86ae39c0483873b9c#86d395e17b697ddb82bd42e86ae39c0483873b9c"
 dependencies = [
  "aho-corasick",
  "chrono",

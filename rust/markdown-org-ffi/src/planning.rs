@@ -23,8 +23,8 @@
 use chrono::{Datelike, Duration, NaiveDate};
 use markdown_org_extract::locale::RU_WEEKDAY_MAPPINGS;
 use markdown_org_extract::{
-    add_months, parse_timestamp_parts, HolidayCalendar, Repeater, RepeaterType, RepeaterUnit,
-    TimestampParts,
+    add_months, parse_heading_line, parse_timestamp_parts, HolidayCalendar, Repeater, RepeaterType,
+    RepeaterUnit, TimestampParts,
 };
 
 use crate::document::Document;
@@ -147,8 +147,13 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
 
     // Upstream sets the keyword back to what it was before the task was
     // marked done; with the three keywords this application knows, that is
-    // TODO.
-    let reopened = with_status(&heading_line, &heading, Some(TaskType::Todo));
+    // TODO. A heading that carries no keyword keeps carrying none — upstream
+    // adds no keyword to such a line either, and the user asked for the date
+    // to move, not for the heading to become a task.
+    let reopened = match heading.status {
+        Some(_) => with_status(&heading_line, &heading, Some(TaskType::Todo)),
+        None => heading_line.clone(),
+    };
     document.set(index, reopened.clone());
     document.save()?;
 
@@ -159,11 +164,17 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
     })
 }
 
-/// The planning lines directly under the heading at `index`.
+/// The planning lines belonging to the heading at `index`.
 ///
-/// The block ends at the first line that is not one — a blank line, the body,
-/// the next heading. Both keywords may be present, in either order, and a
-/// file may hold more than one of a kind after a manual edit.
+/// The whole section is searched — up to the next heading, or to the end of
+/// the file — rather than only the lines immediately below. The extractor
+/// takes a timestamp from any paragraph of the section, so a blank line or a
+/// `CREATED:` line between the heading and the planning line leaves the date
+/// on screen; stopping at the first line that is not a planning line would
+/// leave the edit unable to find what the agenda is showing.
+///
+/// Both keywords may be present, in either order, and a file may hold more
+/// than one of a kind after a manual edit.
 fn planning_lines(
     document: &Document,
     index: usize,
@@ -172,21 +183,42 @@ fn planning_lines(
 
     for line_index in index + 1..document.len() {
         let line = document.line(line_index).unwrap_or_default();
-        let keyword = if line.contains(PlanningKeyword::Scheduled.token()) {
-            PlanningKeyword::Scheduled
-        } else if line.contains(PlanningKeyword::Deadline.token()) {
-            PlanningKeyword::Deadline
-        } else {
+        if parse_heading_line(line).is_some() {
             break;
-        };
+        }
 
-        match parse_timestamp_parts(line) {
-            Some(parts) => found.push((line_index, keyword, parts)),
-            None => break,
+        let Some(keyword) = planning_keyword(line) else {
+            continue;
+        };
+        if let Some(parts) = parse_timestamp_parts(line) {
+            found.push((line_index, keyword, parts));
         }
     }
 
     found
+}
+
+/// The planning keyword `line` begins with, if it is a planning line.
+///
+/// Anchored at the start of the line, as the extractor anchors it: a body
+/// that merely mentions the other keyword — `` `DEADLINE: <...>` — agreed,
+/// see SCHEDULED: in the ticket `` — would otherwise be read as a
+/// `SCHEDULED` line while its timestamp comes from the deadline, and the
+/// wrong date would move.
+///
+/// Leading backticks are skipped because that is how these lines are written
+/// in the notes: the extractor reads the timestamp out of an inline-code
+/// span, and it sees the literal without the framing this does.
+fn planning_keyword(line: &str) -> Option<PlanningKeyword> {
+    let start = line.trim_start().trim_start_matches('`').trim_start();
+
+    if start.starts_with(PlanningKeyword::Scheduled.token()) {
+        Some(PlanningKeyword::Scheduled)
+    } else if start.starts_with(PlanningKeyword::Deadline.token()) {
+        Some(PlanningKeyword::Deadline)
+    } else {
+        None
+    }
 }
 
 /// Put `date` into the timestamp `parts` describes, keeping the weekday token

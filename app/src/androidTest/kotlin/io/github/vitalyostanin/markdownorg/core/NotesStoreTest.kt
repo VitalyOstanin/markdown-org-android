@@ -55,6 +55,23 @@ class NotesStoreTest {
     }
 
     @Test
+    fun everyTimestampInTheSampleIsOneTheCoreReadsBack() = runBlocking {
+        // The sample is the only example of the format the application ever
+        // shows, so a line it cannot read back teaches the wrong form. `CLOSED:`
+        // takes the inactive brackets, the others the active ones.
+        store.ensureSeeded(today) { false }
+
+        val tasks = uniffi.markdown_org_ffi.scan(
+            store.root.absolutePath,
+            uniffi.markdown_org_ffi.Options(glob = null, locale = null, maxTasks = null),
+        ).tasks
+        val archived = tasks.single { it.heading == "Archive the old branch" }
+
+        assertEquals("CLOSED", archived.timestampType)
+        assertTrue(tasks.all { it.timestampDate != null })
+    }
+
+    @Test
     fun aConfiguredRemoteIsNeverSeeded() = runBlocking {
         store.ensureSeeded(today) { true }
 

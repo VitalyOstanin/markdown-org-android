@@ -16,7 +16,7 @@ use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Component, Path, PathBuf};
 
-use markdown_org_extract::{parse_heading_line, HeadingLine};
+use markdown_org_extract::{display_text, parse_heading_line, HeadingLine};
 
 use crate::edit::{EditError, EditTarget};
 
@@ -174,14 +174,17 @@ impl Document {
             detail: format!("{}:{} is not a heading", target.file, target.line),
         })?;
 
-        if line[heading.title_start..].trim() != target.heading.trim() {
+        // Compared after the inline markup is taken off, because that is what
+        // the caller was handed: `Task::heading` comes out of a scan with the
+        // asterisks, backticks and link syntax already gone. Comparing the
+        // raw slice would refuse every edit of a heading carrying **bold**, a
+        // link or `code` as stale, while the file has not moved at all.
+        let title = display_text(&line[heading.title_start..]);
+        if title != display_text(&target.heading) {
             return Err(EditError::Stale {
                 detail: format!(
                     "{}:{} holds {:?}, not {:?}",
-                    target.file,
-                    target.line,
-                    &line[heading.title_start..],
-                    target.heading
+                    target.file, target.line, title, target.heading
                 ),
             });
         }

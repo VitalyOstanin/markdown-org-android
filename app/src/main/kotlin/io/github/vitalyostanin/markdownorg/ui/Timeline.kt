@@ -122,6 +122,13 @@ private fun List<AxisEntry>.withNow(now: LocalTime?): List<AxisEntry> {
     return toMutableList().apply { add(if (index < 0) size else index, AxisEntry.Now) }
 }
 
-/** Hour of the row's timestamp, which the core writes as `HH:MM`. */
+/**
+ * Hour of the row's timestamp, which the core writes as `HH:MM`.
+ *
+ * Null for anything outside a day: the extractor's time pattern accepts up to
+ * `99:59`, and a typo such as `25:00` would otherwise stretch the axis past
+ * the hours a clock has. The row then joins the untimed band, the same place
+ * an unreadable time goes.
+ */
 private fun AgendaRow.startHour(): Int? =
-    task.timestampTime?.substringBefore(':')?.toIntOrNull()
+    task.timestampTime?.substringBefore(':')?.toIntOrNull()?.takeIf { it in 0..23 }
