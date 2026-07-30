@@ -4,7 +4,13 @@ members = ["markdown-org-ffi", "uniffi-bindgen"]
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.85"
+# The oldest toolchain that compiles the workspace with the locked
+# dependencies, and it is checked: the workflow reads this line and builds on
+# whatever it says. The bound comes from the dependencies rather than from the
+# sources here — cargo-platform 0.3.3 asks for 1.91, several others for 1.86
+# to 1.88 — so it moves when the lock file does, and the check is what makes
+# that visible. It said 1.85 until a run proved otherwise.
+rust-version = "1.91"
 authors = ["Vitaly Ostanin <vitaly.ostanin@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/VitalyOstanin/markdown-org-android"

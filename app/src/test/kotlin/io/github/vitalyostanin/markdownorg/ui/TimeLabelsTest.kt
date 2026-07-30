@@ -17,7 +17,7 @@ class TimeLabelsTest {
 
     @Test
     fun `an hour on a twelve hour clock carries its period`() {
-        assertEquals("1:00 PM", hourLabel(13, Locale.US, use24Hour = false))
+        assertEquals("1:00 PM", hourLabel(13, Locale.US, use24Hour = false).plainSpaces())
     }
 
     @Test
@@ -34,8 +34,8 @@ class TimeLabelsTest {
 
     @Test
     fun `midnight and noon keep their twelve on a twelve hour clock`() {
-        assertEquals("12:00 AM", hourLabel(0, Locale.US, use24Hour = false))
-        assertEquals("12:00 PM", hourLabel(12, Locale.US, use24Hour = false))
+        assertEquals("12:00 AM", hourLabel(0, Locale.US, use24Hour = false).plainSpaces())
+        assertEquals("12:00 PM", hourLabel(12, Locale.US, use24Hour = false).plainSpaces())
     }
 
     @Test
@@ -52,4 +52,15 @@ class TimeLabelsTest {
 
         assertEquals("no year in $label", false, label.contains("26"))
     }
+
+    /**
+     * Every kind of space written as a plain one.
+     *
+     * Which space stands before AM or PM is the formatter's business and not
+     * this test's: JDK 20 took CLDR 42, where it became a narrow no-break
+     * space, and a test spelling out one of them says nothing about the label
+     * and breaks on the next JDK. The device formats through Android's own
+     * ICU and may well write a third.
+     */
+    private fun String.plainSpaces(): String = replace(Regex("""\p{Zs}"""), " ")
 }

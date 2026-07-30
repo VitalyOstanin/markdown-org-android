@@ -48,3 +48,16 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 # An edit writes beside the note and renames over it, so an interrupted write
 # leaves the file alone; this is the temporary half of that.
 tempfile = "3"
+
+# Which OpenSSL the vendored build compiles. Nothing here calls into this
+# crate — `openssl-sys` builds the TLS stack with it, which is why the entry
+# stands among the build dependencies and not the ordinary ones. The
+# requirement `openssl-sys` states covers the whole 300.x range, and by now
+# that means the 3.6 line: no fixes after 2026-11-01, in a TLS stack that
+# ships inside the APK and reaches a phone only through a release of this
+# project. 3.5 is the long-term line and is supported until 2030-04-08.
+#
+# `~300.5`, not `300.5`: the caret requirement a bare version stands for
+# admits 300.6 as well, and would hold nothing.
+[build-dependencies]
+openssl-src = "~300.5"

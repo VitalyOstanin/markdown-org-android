@@ -76,6 +76,21 @@ jobs:
         # repository records.
         run: cargo test --locked
 
+      - name: Compile with the oldest Rust the manifest promises
+        working-directory: rust
+        # `rust-version` is a promise to whoever builds the core, and every
+        # other job here compiles with a toolchain years ahead of it — so
+        # nothing would notice the promise going stale. Read out of the
+        # manifest rather than written down again: two places would disagree.
+        #
+        # check, not build: this asks whether the sources and the locked
+        # dependencies still compile on that version, and linking the vendored
+        # OpenSSL a second time would cost more than the rest of the job.
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
+          rustup toolchain install "$msrv" --profile minimal
+          cargo +"$msrv" check --locked --all-targets
+
       - name: Read the pinned versions
         run: grep -E '^[A-Z][A-Z0-9_]*=' tools/versions.env >> "$GITHUB_ENV"
 

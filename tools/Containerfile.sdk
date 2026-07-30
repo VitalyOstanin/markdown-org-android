@@ -12,7 +12,7 @@
 # still an argument so that the tag and tools/versions.env cannot disagree
 # silently; the digest is what actually fixes the image.
 ARG JDK_VERSION
-FROM docker.io/library/eclipse-temurin:${JDK_VERSION}-jdk@sha256:068a8f9ae4b74d9a20de3ecca771ba1a6437f1d7a8a8ad6deaf9dbdd2274397a
+FROM docker.io/library/eclipse-temurin:${JDK_VERSION}-jdk@sha256:201fbb8886b2d273218aa3a192f0afbf7b5ff65ee8cc6ef47f5dce2171f013ea
 
 ARG ANDROID_PLATFORM
 ARG ANDROID_BUILD_TOOLS
