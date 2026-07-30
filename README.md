@@ -30,6 +30,7 @@ run. Nothing has been run on a physical device yet.
 - [Testing](#testing)
 - [Environment variables](#environment-variables)
 - [Why the toolchain lives in a container](#why-the-toolchain-lives-in-a-container)
+- [Decisions](#decisions)
 - [Licence](#licence)
 
 ## Requirements
@@ -580,6 +581,17 @@ The NDK, the Rust Android targets and `cargo-ndk` add up to several hundred
 megabytes of build-only tooling. Keeping them in a container image means the
 host stays clean and the build is reproducible from `Containerfile.ndk`
 rather than from someone's shell history.
+
+## Decisions
+
+The choices this README describes in passing — calling the extractor
+in-process, projecting its types at the boundary, the order the core is built
+in, vendored TLS, fast-forward-only syncing, where the token lives, the palette
+— are recorded as Architecture Decision Records in [`docs/adr/`](docs/adr/),
+each with the context that forced it and what it cost. The two sibling
+projects, [`markdown-org-extract`](https://github.com/VitalyOstanin/markdown-org-extract)
+and [`markdown-org-vscode`](https://github.com/VitalyOstanin/markdown-org-vscode),
+keep theirs in the same format.
 
 ## Licence
 

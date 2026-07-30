@@ -25,10 +25,14 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   committed straight away, so a working copy is never left half-changed.
 - Repeating tasks move to their next occurrence when they are marked done,
   following the repeater written in the timestamp rather than dropping it.
-- Synchronisation with a git remote over HTTPS: clone, pull, commit and push,
-  with the token kept in the Android keystore and never written to the notes.
-  The certificate bundle the sync trusts travels in the APK, because the
-  vendored OpenSSL is built without a filesystem to read one from.
+- Synchronisation with a git remote over HTTPS: clone on first use, then
+  fast-forward; an edit is committed locally straight away. Nothing is pushed
+  and nothing is merged — a checkout that has moved on both sides is reported
+  rather than resolved. The token lives in the application's private
+  preferences, which are not carried off the device by a backup, and is never
+  written into the notes. The certificate bundle the sync trusts travels in
+  the APK, because the vendored OpenSSL is built without a filesystem to read
+  one from.
 - English and Russian throughout, including the dates and the hours, which
   follow the locale of the device rather than the language of the build.
 - The notices of everything the APK carries, reachable from the settings
@@ -36,3 +40,5 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   every Gradle dependency, and of the vendored libgit2 and OpenSSL.
 - The version of the installed build is shown on the settings screen, together
   with the commit it was built from.
+- The decisions behind all of the above, as Architecture Decision Records in
+  `docs/adr/`, in the format the two sibling projects use.

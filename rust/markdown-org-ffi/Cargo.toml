@@ -43,8 +43,10 @@ foreign-types = "0.3"
 # version requirement once the release carrying src/lib.rs is out.
 markdown-org-extract = { git = "https://github.com/VitalyOstanin/markdown-org-extract", rev = "86d395e17b697ddb82bd42e86ae39c0483873b9c" }
 # Dates cross the boundary as strings, but the repeater maths the extractor
-# exposes speaks NaiveDate. Same version the extractor resolves to.
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+# exposes speaks NaiveDate. The same lower bound the extractor states, rather
+# than a bare "0.4": otherwise the floor here would be whatever the extractor
+# happens to pull in, and it would move without this manifest saying so.
+chrono = { version = "0.4.44", default-features = false, features = ["std"] }
 # An edit writes beside the note and renames over it, so an interrupted write
 # leaves the file alone; this is the temporary half of that.
 tempfile = "3"

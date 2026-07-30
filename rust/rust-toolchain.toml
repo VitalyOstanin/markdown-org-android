@@ -1,0 +1,15 @@
+# The toolchain the core is built with.
+#
+# An exact version rather than a channel, and the one the NDK image already
+# carries (`tools/Containerfile.ndk`: `FROM rust:1.97`). That image installs a
+# single toolchain under its version name; asked for a channel it does not
+# have, rustup goes to the network on every build and fails outright when
+# there is none. The two move together — bumping the image means bumping this
+# line.
+#
+# The MSRV job is unaffected: `cargo +<version>` names a toolchain explicitly
+# and overrides this file.
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-linux-android", "x86_64-linux-android"]
