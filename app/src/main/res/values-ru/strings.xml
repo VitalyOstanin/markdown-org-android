@@ -43,6 +43,8 @@
     <string name="settings_cancel">Отмена</string>
     <string name="settings_licences">Лицензии того, что внутри</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
+    <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
+    <string name="settings_crash_forget">Забыть</string>
 
     <string name="licences_title">Лицензии</string>
     <string name="licences_close">Назад</string>
@@ -65,6 +67,8 @@
     <string name="edit_failed_missing">Файла больше нет</string>
     <string name="edit_failed_encoding">Файл не в UTF-8: преобразуйте его и повторите</string>
     <string name="edit_failed_unnamed">Имя файла не в UTF-8, задачу изменить нельзя</string>
+    <string name="edit_not_committed">Сохранено, но не закоммичено; коммит выполнит следующая правка или синхронизация</string>
+    <string name="notes_reset_failed">Не удалось очистить каталог заметок</string>
 
     <string name="agenda_truncated">Достигнут предел числа задач, список неполон</string>
     <string name="agenda_failed_unknown">Причина записана в журнал</string>

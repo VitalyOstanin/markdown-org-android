@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.vitalyostanin.markdownorg.core.CrashLog
 import io.github.vitalyostanin.markdownorg.core.LicenceGroup
 import io.github.vitalyostanin.markdownorg.core.licenceCatalog
 import io.github.vitalyostanin.markdownorg.ui.AgendaScreen
@@ -74,6 +75,15 @@ class MainActivity : ComponentActivity() {
                     // shows what was stored.
                     val (url, branch, hasToken) = remember { model.currentSettings() }
 
+                    // What the run that crashed left behind, off the main
+                    // thread like the notices: a file read is a file read.
+                    val log = remember { CrashLog(applicationContext) }
+                    var forgotten by remember { mutableStateOf(false) }
+                    val kept by produceState<String?>(null, log) {
+                        value = withContext(Dispatchers.IO) { log.read() }
+                    }
+                    val crash = kept?.takeUnless { forgotten }
+
                     BackHandler { settingsOpen = false }
                     SyncSettingsScreen(
                         initialUrl = url,
@@ -86,6 +96,11 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { settingsOpen = false },
                         onOpenLicences = { licencesOpen = true },
                         modifier = insets,
+                        crash = crash,
+                        onForgetCrash = {
+                            forgotten = true
+                            log.clear()
+                        },
                     )
                 } else {
                     AgendaScreen(

@@ -36,9 +36,20 @@ interface NotesArea {
      * [synced] is read under the lock rather than passed as a value, so a
      * remote saved while this was queued still counts: seeding a directory
      * that is about to be cloned into would make the clone fail.
+     *
+     * Answers with a [Result] rather than throwing: this runs in the same
+     * coroutine as the scan that follows it, and an exception out of that
+     * coroutine takes the process down — over a directory that cannot be
+     * written to, which is something a screen can say.
      */
-    suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean)
+    suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean): Result<Unit>
 
-    /** Clears the checkout so a different remote can be cloned into it. */
-    suspend fun reset()
+    /**
+     * Clears the checkout so a different remote can be cloned into it.
+     *
+     * A wipe that only half happened is a failure of its own: the clone that
+     * follows refuses a directory that is not empty, and reports it as a
+     * repository failure that says nothing about the directory.
+     */
+    suspend fun reset(): Result<Unit>
 }

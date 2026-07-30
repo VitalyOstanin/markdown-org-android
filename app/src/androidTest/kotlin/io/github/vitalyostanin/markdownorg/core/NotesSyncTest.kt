@@ -35,8 +35,8 @@ class NotesSyncTest {
 
     @Before
     @After
-    fun clean() = runBlocking {
-        store.reset()
+    fun clean(): Unit = runBlocking {
+        store.reset().getOrThrow()
     }
 
     @Test

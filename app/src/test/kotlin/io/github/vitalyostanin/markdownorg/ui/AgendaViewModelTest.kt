@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.EditReport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -253,6 +254,78 @@ class AgendaViewModelTest {
 
         assertEquals(failure, model.editIssue.value)
         assertEquals(R.string.sync_cloned, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun anEditThatWasWrittenButNotCommittedSaysSoAndRebuildsTheAgenda() = runTest(dispatcher) {
+        // The file has already changed. Reporting this as a failed edit sends
+        // the user to tap again, and the second attempt comes back as "the
+        // file has changed" — two answers to one tap, neither of them true.
+        val syncer = FakeSyncer()
+        writer.outcome = Result.success(
+            EditReport(committed = false, commitFailure = IllegalStateException("index.lock")),
+        )
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        val scansBefore = loader.pending.size
+
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+
+        assertEquals(R.string.edit_not_committed, model.editIssue.value?.text)
+        assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
+    }
+
+    @Test
+    fun aSyncCommitsWhatAnEarlierEditCouldNot() = runTest(dispatcher) {
+        // An uncommitted edit leaves the checkout dirty, and the core refuses
+        // to fast-forward a dirty checkout — so the sync would fail over a
+        // commit that never happened until something else made it.
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        assertEquals(1, writer.pendingCommits)
+    }
+
+    @Test
+    fun aSeedThatCouldNotBeWrittenShowsAsAFailedAgendaRatherThanKillingTheProcess() =
+        runTest(dispatcher) {
+            // The seeding used to throw straight out of the coroutine, which
+            // took the process with it — over the same kind of failure the
+            // scan next to it puts on the screen.
+            val syncer = FakeSyncer()
+            notes.seedResult = Result.failure(IllegalStateException("read-only directory"))
+            val model = viewModel(syncer)
+            advanceUntilIdle()
+
+            assertTrue(model.state.value is AgendaUiState.Failed)
+            assertEquals(0, loader.pending.size)
+        }
+
+    @Test
+    fun aWipeThatOnlyHalfHappenedIsReportedInsteadOfBeingClonedInto() = runTest(dispatcher) {
+        // The clone that follows refuses a directory that is not empty and
+        // reports it as a repository failure, which says nothing about the
+        // directory it is actually about.
+        val syncer = FakeSyncer()
+        syncer.statusResult = Result.success(FakeSyncer.status(OTHER_REMOTE))
+        notes.resetResult = Result.failure(IllegalStateException("could not be emptied"))
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "")
+        advanceUntilIdle()
+
+        assertEquals(R.string.notes_reset_failed, model.syncState.value.message?.text)
+        assertTrue(
+            "a clone was started over a directory that is not empty",
+            syncer.requested.isEmpty(),
+        )
     }
 
     @Test

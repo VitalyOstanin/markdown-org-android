@@ -128,6 +128,41 @@ class SyncSettingsScreenTest {
     }
 
     @Test
+    fun theTraceOfTheRunThatCrashedIsOfferedAndCanBeForgotten() {
+        // The trace is the whole of what makes a report about a crash worth
+        // anything, and logcat is gone by the time anyone opens this.
+        var forgotten = false
+        compose.setContent {
+            MarkdownOrgTheme {
+                SyncSettingsScreen(
+                    initialUrl = "",
+                    initialBranch = "",
+                    hasToken = false,
+                    onSave = { _, _, _, _ -> },
+                    onDismiss = {},
+                    onOpenLicences = {},
+                    crash = "java.lang.IllegalStateException: the list was empty",
+                    onForgetCrash = { forgotten = true },
+                )
+            }
+        }
+
+        compose.onNodeWithTag("settings-crash").assertIsDisplayed()
+        compose.onNodeWithTag("settings-crash-trace")
+            .assertTextContains("the list was empty", substring = true)
+        compose.onNodeWithTag("settings-crash-forget").performClick()
+
+        assertTrue(forgotten)
+    }
+
+    @Test
+    fun aRunThatEndedWellSaysNothingAboutACrash() {
+        showForm()
+
+        compose.onNodeWithTag("settings-crash").assertDoesNotExist()
+    }
+
+    @Test
     fun cancellingChangesNothing() {
         showForm(url = "https://example.org/notes.git")
 

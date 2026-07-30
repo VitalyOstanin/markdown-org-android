@@ -135,10 +135,17 @@ class AgendaViewModel(
             }
 
             outcome.fold(
-                onSuccess = {
-                    // Clears whatever the previous attempt left unanswered:
-                    // this one went through.
-                    _editIssue.value = null
+                onSuccess = { report ->
+                    // The note has been written either way. A commit that did
+                    // not happen is said so in its own words — reported as a
+                    // failed edit, it would send the user to tap again over a
+                    // file that has already changed, and that second attempt
+                    // comes back as "the file has changed".
+                    report.commitFailure?.let { failure ->
+                        Log.w(TAG, "the edit was written but not committed", failure)
+                    }
+                    _editIssue.value = report.commitFailure
+                        ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
                     refresh()
                 },
                 onFailure = { error ->
@@ -172,28 +179,35 @@ class AgendaViewModel(
                 }
             }
             val today = LocalDate.now()
-            notes.ensureSeeded(today) { settings.isConfigured }
+            // Seeding is a write to the same directory the scan reads, and it
+            // fails the same ways: no space, a directory that cannot be
+            // written to. Its failure goes on the screen rather than out of
+            // the coroutine, which used to take the process with it.
+            val seeded = notes.ensureSeeded(today) { settings.isConfigured }
 
-            _state.value = agenda.load(scope, today).fold(
-                onSuccess = { result ->
-                    val sections = result.toSections()
-                    AgendaUiState.Ready(
-                        date = today,
-                        sections = sections,
-                        // The agenda is always for today so far; once a date
-                        // can be picked, another day passes null and loses
-                        // the marker line.
-                        timeline = sections.toTimeline(now = LocalTime.now()),
-                        notices = result.notices(),
-                    )
-                },
-                onFailure = { error ->
-                    // The class and the stack go to the log, where they are
-                    // of use; the screen gets wording it can translate.
-                    Log.w(TAG, "the agenda could not be built", error)
-                    AgendaUiState.Failed(error.toAgendaMessage())
-                },
-            )
+            _state.value = seeded
+                .mapCatching { agenda.load(scope, today).getOrThrow() }
+                .fold(
+                    onSuccess = { result ->
+                        val sections = result.toSections()
+                        AgendaUiState.Ready(
+                            date = today,
+                            sections = sections,
+                            // The agenda is always for today so far; once a
+                            // date can be picked, another day passes null and
+                            // loses the marker line.
+                            timeline = sections.toTimeline(now = LocalTime.now()),
+                            notices = result.notices(),
+                        )
+                    },
+                    onFailure = { error ->
+                        // The class and the stack go to the log, where they
+                        // are of use; the screen gets wording it can
+                        // translate.
+                        Log.w(TAG, "the agenda could not be built", error)
+                        AgendaUiState.Failed(error.toAgendaMessage())
+                    },
+                )
         }
     }
 
@@ -282,7 +296,21 @@ class AgendaViewModel(
             settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
 
             if (before != settings.remoteUrl) {
-                notes.reset()
+                val wiped = notes.reset()
+                if (wiped.isFailure) {
+                    // A directory emptied only in part cannot be cloned into,
+                    // and the clone would report it as a repository failure —
+                    // a sentence about git, not about the directory it is
+                    // actually about.
+                    Log.w(TAG, "the notes directory could not be emptied", wiped.exceptionOrNull())
+                    _syncState.update {
+                        it.copy(
+                            configured = settings.isConfigured,
+                            message = SyncMessage(R.string.notes_reset_failed, failed = true),
+                        )
+                    }
+                    return@launch
+                }
                 _syncState.update { it.copy(repository = null) }
             }
 
@@ -323,12 +351,23 @@ class AgendaViewModel(
         syncJob = viewModelScope.launch {
             _syncState.update { it.copy(running = true, message = null) }
 
+            // An edit whose commit did not happen leaves the checkout dirty,
+            // and the core refuses to fast-forward a dirty checkout. The
+            // core's commit is idempotent, so this costs nothing when there
+            // is nothing to commit.
+            editor.commitPending().onFailure { failure ->
+                Log.w(TAG, "the uncommitted edits could not be committed", failure)
+            }
+
             val outcome = sync.sync(settings)
             // A sync that went through hands back the state of the checkout it
             // wrote. Asking again walks every file in the working copy,
             // untracked ones included, for an answer already in hand; only a
             // failed sync has nothing to report and has to read.
-            val status = outcome.getOrNull()?.head ?: sync.status().getOrNull()
+            val status = outcome.getOrNull()?.head
+                ?: sync.status()
+                    .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
+                    .getOrNull()
             val message = outcome.fold(
                 onSuccess = { result ->
                     when {
@@ -358,7 +397,12 @@ class AgendaViewModel(
 
     private fun readCheckout() {
         viewModelScope.launch {
-            val status = sync.status().getOrNull()
+            // A checkout that cannot be read leaves the header saying nothing
+            // about it, which is all the screen can do here — but the reason
+            // has to end up somewhere, and this is the only place it exists.
+            val status = sync.status()
+                .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
+                .getOrNull()
             _syncState.update {
                 it.copy(
                     configured = settings.isConfigured,

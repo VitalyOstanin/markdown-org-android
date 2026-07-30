@@ -50,6 +50,8 @@
     <!-- Which build this is: the version, the number that orders the builds
          for Android, and the commit it was made from. -->
     <string name="settings_version">Version %1$s (%2$d), commit %3$s</string>
+    <string name="settings_crash">The previous run stopped unexpectedly</string>
+    <string name="settings_crash_forget">Forget it</string>
 
     <string name="licences_title">Licences</string>
     <string name="licences_close">Back</string>
@@ -76,6 +78,10 @@
     <string name="edit_failed_missing">The file is no longer there</string>
     <string name="edit_failed_encoding">The file is not UTF-8; convert it and try again</string>
     <string name="edit_failed_unnamed">The file name is not UTF-8, so the task cannot be changed</string>
+    <!-- The note was written; only the commit did not happen. Worded away
+         from a failure: repeating the tap would edit an already edited file. -->
+    <string name="edit_not_committed">Saved, but not committed; the next edit or sync will commit it</string>
+    <string name="notes_reset_failed">The notes directory could not be emptied</string>
 
     <string name="agenda_truncated">The task limit was reached; the list is incomplete</string>
     <!-- Shown when a failure carries nothing readable of its own. -->

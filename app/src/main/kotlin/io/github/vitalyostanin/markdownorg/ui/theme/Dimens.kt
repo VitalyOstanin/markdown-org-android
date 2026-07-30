@@ -77,4 +77,7 @@ object Sizes {
 
     /** Where the current-hour marker starts, just inside the hour label. */
     val markerInset = 36.dp
+
+    /** As much of a stack trace as is shown before it scrolls on its own. */
+    val traceHeight = 200.dp
 }

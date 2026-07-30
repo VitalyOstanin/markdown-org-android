@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
+import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
@@ -46,6 +47,12 @@ class FakeNotesArea : NotesArea {
     /** Run at the moment of the wipe, so a test can see what else was going on. */
     var onWipe: () -> Unit = {}
 
+    /** What seeding answers, so a directory that cannot be written to can be played. */
+    var seedResult: Result<Unit> = Result.success(Unit)
+
+    /** What the wipe answers: a directory emptied only in part fails here. */
+    var resetResult: Result<Unit> = Result.success(Unit)
+
     override suspend fun <T> exclusive(block: suspend () -> T): T = lock.withLock { block() }
 
     override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) = exclusive {
@@ -53,12 +60,14 @@ class FakeNotesArea : NotesArea {
             seeded++
             trace += "seed"
         }
+        seedResult
     }
 
     override suspend fun reset() = exclusive {
         wiped++
         trace += "wipe"
         onWipe()
+        resetResult
     }
 }
 
@@ -133,22 +142,35 @@ class FakeAgendaLoader : AgendaLoader {
 }
 
 /** An editor whose outcome the test sets. */
-class FakeWriter(var outcome: Result<Unit> = Result.success(Unit)) : NotesWriter {
+class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(committed = true))) :
+    NotesWriter {
 
     /** How many edits reached the writer, for asserting that one did not. */
     var calls = 0
         private set
 
-    override suspend fun complete(task: Task, today: LocalDate): Result<Unit> = record()
+    /** How many times the leftovers of an earlier edit were committed. */
+    var pendingCommits = 0
+        private set
 
-    override suspend fun setStatus(task: Task, status: TaskType?): Result<Unit> = record()
+    override suspend fun complete(task: Task, today: LocalDate): Result<EditReport> = record()
 
-    override suspend fun setPriority(task: Task, priority: String?): Result<Unit> = record()
+    override suspend fun setStatus(task: Task, status: TaskType?): Result<EditReport> = record()
 
-    override suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<Unit> =
-        record()
+    override suspend fun setPriority(task: Task, priority: String?): Result<EditReport> = record()
 
-    private fun record(): Result<Unit> {
+    override suspend fun shift(
+        task: Task,
+        keyword: PlanningKeyword,
+        days: Int,
+    ): Result<EditReport> = record()
+
+    override suspend fun commitPending(): Result<Boolean> {
+        pendingCommits += 1
+        return Result.success(false)
+    }
+
+    private fun record(): Result<EditReport> {
         calls += 1
         return outcome
     }

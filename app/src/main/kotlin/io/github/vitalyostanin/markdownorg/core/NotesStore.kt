@@ -35,11 +35,14 @@ class NotesStore(override val root: File) : NotesArea {
      * and dropping an untracked file into it would show up as a dirty working
      * copy and block the next sync.
      */
-    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) = exclusive {
-        if (!synced() && !hasNotes()) {
-            File(root, "sample.md").writeText(sampleNotes(today))
+    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean): Result<Unit> =
+        exclusive {
+            runCatching {
+                if (!synced() && !hasNotes()) {
+                    File(root, "sample.md").writeText(sampleNotes(today))
+                }
+            }
         }
-    }
 
     /**
      * Clears the checkout so a different remote can be cloned into it.
@@ -47,14 +50,26 @@ class NotesStore(override val root: File) : NotesArea {
      * The core clones into an empty directory; pointing the application at
      * another repository has to start from one.
      */
-    override suspend fun reset() = exclusive {
-        root.deleteRecursively()
-        Unit
+    override suspend fun reset(): Result<Unit> = exclusive {
+        runCatching {
+            // deleteRecursively answers false for a directory it emptied only
+            // in part, and the clone that follows would then fail over "the
+            // directory is not empty" — a sentence about git, not about this.
+            check(!root.exists() || root.deleteRecursively()) {
+                "the notes directory could not be emptied: $root"
+            }
+        }
     }
 
     private fun hasNotes(): Boolean {
-        if (!root.exists()) {
-            root.mkdirs()
+        // mkdirs answers false when it created nothing, which over a path
+        // that is a plain file, or one that cannot be written to, is the
+        // whole of the report: everything after it would fail with a message
+        // about sample.md rather than about the directory. Asked as
+        // isDirectory rather than exists, because a plain file of that name
+        // exists and is still not somewhere notes can be written.
+        check(root.isDirectory || root.mkdirs()) {
+            "the notes directory could not be created: $root"
         }
         return root.listFiles { file -> file.extension == "md" }?.isNotEmpty() == true
     }

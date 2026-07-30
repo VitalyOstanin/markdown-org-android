@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 
 /**
@@ -56,6 +58,8 @@ fun SyncSettingsScreen(
     onDismiss: () -> Unit,
     onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
+    crash: String? = null,
+    onForgetCrash: () -> Unit = {},
 ) {
     var url by remember { mutableStateOf(initialUrl) }
     var branch by remember { mutableStateOf(initialBranch) }
@@ -169,6 +173,37 @@ fun SyncSettingsScreen(
                 modifier = Modifier.testTag("settings-licences"),
             ) {
                 Text(stringResource(R.string.settings_licences))
+            }
+
+            // What is left of the run that ended in a crash. Here rather than
+            // on the agenda: it is read once, by whoever is about to report
+            // it, and the trace is the whole of what makes such a report
+            // worth anything.
+            crash?.let { trace ->
+                Text(
+                    text = stringResource(R.string.settings_crash),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("settings-crash"),
+                )
+                Text(
+                    text = trace,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = Sizes.traceHeight)
+                        .verticalScroll(rememberScrollState())
+                        .testTag("settings-crash-trace"),
+                )
+                TextButton(
+                    onClick = onForgetCrash,
+                    modifier = Modifier.testTag("settings-crash-forget"),
+                ) {
+                    Text(stringResource(R.string.settings_crash_forget))
+                }
             }
 
             // Which build is installed. Two APKs of the same version differ
