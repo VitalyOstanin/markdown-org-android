@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +61,11 @@ internal fun TimeLayout(
     scroll: LazyListState = rememberLazyListState(),
     onTaskClick: (Task) -> Unit = {},
 ) {
+    // Paired here rather than in the list body below. That body is a lambda
+    // the list runs again on every recomposition — on each frame of a scroll
+    // among others — and the pairing depends on nothing but the band itself.
+    val bands = remember(timeline.allDay) { timeline.allDay.chunked(2) }
+
     LazyColumn(
         modifier = modifier,
         state = scroll,
@@ -89,7 +95,7 @@ internal fun TimeLayout(
             }
             // Two to a row: a band has to fit a heading, and a single column
             // of them would push the axis off the screen.
-            items(timeline.allDay.chunked(2), key = { pair -> pair.first().key }) { pair ->
+            items(bands, key = { pair -> pair.first().key }) { pair ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

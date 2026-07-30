@@ -88,19 +88,42 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
      * certificates.
      */
     private fun loadCertificates() {
-        if (loaded) {
-            return
-        }
-
-        val pem = context.assets.open(CA_BUNDLE).use { it.readBytes().decodeToString() }
-        loadCaBundle(pem)
-        loaded = true
+        CertificateStore.fill(context)
     }
 
-    @Volatile
-    private var loaded: Boolean = false
+    /**
+     * Whether the core has been given the certificates, for the process.
+     *
+     * On the object rather than on an instance, because that is what the core
+     * side of it is: `load_ca_bundle` writes into a store the whole library
+     * shares. A flag per instance had the second [NotesSync] — the settings
+     * screen builds one of its own — read the assets and copy 180 kB across
+     * the boundary again for a store that was already filled.
+     */
+    private object CertificateStore {
 
-    private companion object {
-        const val CA_BUNDLE = "cacert.pem"
+        @Volatile
+        private var filled: Boolean = false
+
+        fun fill(context: Context) {
+            if (filled) {
+                return
+            }
+
+            // Locked so that two syncs starting together do the reading once.
+            // Checked again inside: the first of them may have finished
+            // between the read above and the lock.
+            synchronized(this) {
+                if (filled) {
+                    return
+                }
+
+                val pem = context.assets.open(CA_BUNDLE).use { it.readBytes().decodeToString() }
+                loadCaBundle(pem)
+                filled = true
+            }
+        }
+
+        private const val CA_BUNDLE = "cacert.pem"
     }
 }

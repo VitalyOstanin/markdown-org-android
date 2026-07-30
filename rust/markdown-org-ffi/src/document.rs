@@ -126,7 +126,15 @@ impl Document {
     /// changed". Writing over the file in place truncates it first, and the
     /// next successful edit would commit that truncation to git.
     pub(crate) fn save(&self) -> Result<(), EditError> {
-        let mut content = String::new();
+        // Sized before it is filled: the file is known in full here, and a
+        // string grown from nothing reallocates and copies its way up to the
+        // same length once per doubling.
+        let size = self
+            .lines
+            .iter()
+            .map(|(body, ending)| body.len() + ending.len())
+            .sum();
+        let mut content = String::with_capacity(size);
         for (body, ending) in &self.lines {
             content.push_str(body);
             content.push_str(ending);

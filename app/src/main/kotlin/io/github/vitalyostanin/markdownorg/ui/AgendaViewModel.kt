@@ -262,6 +262,12 @@ class AgendaViewModel(
         viewModelScope.launch {
             // A sync in flight owns the directory that is about to be emptied,
             // so it is stopped rather than raced with.
+            //
+            // Cancelling asks; it does not interrupt. The sync is inside a
+            // call into the core, and that call returns when it returns — a
+            // fetch on a stalled connection, at the outside, when the core's
+            // own network timeouts expire. This waits for that, and it is why
+            // the core has those timeouts rather than the operating system's.
             syncJob?.cancelAndJoin()
             _syncState.update { it.copy(running = false) }
 

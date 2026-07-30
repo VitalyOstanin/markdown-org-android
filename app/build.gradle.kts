@@ -127,6 +127,15 @@ android {
         }
 
         release {
+            // Off until there is something checking a shrunk build still
+            // works. The core is reached through JNA, which finds classes and
+            // fields by name, so neither it nor the generated
+            // `uniffi.markdown_org_ffi` layer is visible to R8's reachability
+            // analysis; keep rules for them would be written once and never
+            // verified, since the instrumented tests run against debug and
+            // running them against release needs a signing key. A mistake
+            // would surface on an installed release, at the first call into
+            // the core.
             isMinifyEnabled = false
             if (!keystore.isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("release")
