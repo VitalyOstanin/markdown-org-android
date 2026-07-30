@@ -86,6 +86,7 @@ markdown-org-android/
 │   ├── build-app.sh          # assemble the APK
 │   ├── test.sh               # the JVM tests of the application
 │   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
+│   ├── test-instrumented-full.sh  # the same from a cold start, unattended
 │   ├── coverage.sh           # what the JVM tests reach, as a Kover report
 │   ├── licenses.sh           # collects the notices; --check fails on a stale one
 │   ├── run-app.sh            # assemble, install and start in one command
@@ -492,8 +493,15 @@ tools/check-core.sh       # cargo fmt --check and clippy, what CI fails on
 tools/lint.sh             # ktlint and Android Lint; --format rewrites what it can
 tools/test.sh             # the JVM tests of the application
 tools/run-emulator.sh && tools/test-instrumented.sh   # the instrumented ones
+tools/test-instrumented-full.sh   # the same, from a cold start
 tools/coverage.sh         # what the JVM tests reach, as a Kover report
 ```
+
+`test-instrumented-full.sh` is the unattended form of the two commands above
+it: it builds the core for the emulator's ABI, boots the emulator, runs the
+tests and stops the emulator afterwards, whether they passed or not. The two
+separate commands stay the shorter way around an interactive session, where
+the emulator is already up and the core already built.
 
 The instrumented tests need the core built for the emulator's own ABI, which
 is `x86_64`, while `build-core.sh` builds `arm64-v8a` alone unless `ABIS` says
