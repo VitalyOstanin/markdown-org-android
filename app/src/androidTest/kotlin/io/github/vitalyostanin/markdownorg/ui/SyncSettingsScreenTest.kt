@@ -4,12 +4,14 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
@@ -112,6 +114,17 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git")
 
         compose.onNodeWithTag("settings-token-drop").assertDoesNotExist()
+    }
+
+    @Test
+    fun theFormNamesTheBuildItIsPartOf() {
+        // A report about an installed build is worth nothing without the
+        // version it was made from, and this is the only screen that says it.
+        showForm()
+
+        compose.onNodeWithTag("settings-version")
+            .assertIsDisplayed()
+            .assertTextContains(BuildConfig.VERSION_NAME, substring = true)
     }
 
     @Test

@@ -20,6 +20,11 @@ on:
         description: Tag to publish the APK under
         required: false
         type: string
+      prerelease:
+        description: Mark the release as a prerelease
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -236,7 +241,24 @@ jobs:
           APP_KEYSTORE_ALIAS: ${{ secrets.APP_KEYSTORE_ALIAS }}
           APP_KEY_PASSWORD: ${{ secrets.APP_KEY_PASSWORD }}
           TASK: ${{ steps.variant.outputs.task }}
-        run: ./gradlew "$TASK"
+          # The number of the run orders the builds for Android, which decides
+          # what may replace what by the version code alone. It grows with
+          # every run of this workflow, so a later build always outranks an
+          # earlier one; a tag build is no exception, since a release is cut
+          # from a commit that was built here before.
+          #
+          # The name is the tag when there is one, with the leading v taken
+          # off, and otherwise whatever gradle.properties is at.
+          VERSION_CODE: ${{ github.run_number }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          args=(-PappVersionCode="$VERSION_CODE" -PappCommit="${COMMIT:0:7}")
+          if [ "$REF_TYPE" = "tag" ]; then
+            args+=(-PappVersionName="${REF_NAME#v}")
+          fi
+          ./gradlew "$TASK" "${args[@]}"
 
       - name: Check the signature of the APK
         if: steps.variant.outputs.name == 'release'
@@ -358,8 +380,9 @@ jobs:
 
   # Publishing is a job of its own so that the token able to write to the
   # repository never sits in the job that compiles the sources under review.
-  # This one checks out the tree for the version string and downloads the APK
-  # the build produced; it runs nothing from the working copy.
+  # This one checks out the tree for the version, the changelog and the script
+  # that reads a section out of it, and downloads the APK the build produced;
+  # it compiles nothing.
   publish:
     # Both, so that nothing is published over a failed run of the tests that
     # exercise the native library.
@@ -381,11 +404,13 @@ jobs:
           name: apk-release
           path: apk
 
-      # A v-tag publishes under its own name as a release. Anything else is a
-      # prerelease tagged with the version being built plus the run number,
-      # which keeps the tags ordered and never collides with a rerun of an
-      # older commit. A rerun of the same run reuses the tag and replaces the
-      # asset rather than being refused.
+      # A v-tag publishes under its own name as a release, with the notes
+      # written for that version in CHANGELOG.md. Anything else is a
+      # prerelease of the version being worked towards, tagged
+      # v<version>-build.<run> — still a version by the rules of semver, still
+      # ordered below the release it leads to, and never colliding with a
+      # rerun of an older commit. A rerun of the same run reuses the tag and
+      # replaces the asset rather than being refused.
       - name: Publish the release
         # Every value arrives as a variable: a tag is text somebody chose, and
         # substituted into the script it would run as part of it.
@@ -394,30 +419,60 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
           RUN_NUMBER: ${{ github.run_number }}
           COMMIT: ${{ github.sha }}
         run: |
           apks=(apk/*.apk)
-          version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
+          version=$(sed -n 's/^appVersionName=\(.*\)$/\1/p' gradle.properties)
 
           if [ "$REF_TYPE" = "tag" ]; then
             tag="$REF_NAME"
             prerelease=()
+          elif [ -n "$RELEASE_TAG" ]; then
+            # A tag asked for by hand is a release unless the run says
+            # otherwise: the input exists to publish one.
+            tag="$RELEASE_TAG"
+            prerelease=()
+            if [ "$RELEASE_PRERELEASE" = "true" ]; then
+              prerelease=(--prerelease)
+            fi
           else
-            tag="${RELEASE_TAG:-v${version}.${RUN_NUMBER}}"
+            tag="v${version}-build.${RUN_NUMBER}"
             prerelease=(--prerelease)
           fi
 
-          notes=$(printf '%s\n' \
+          # The notes of a release are the lines somebody wrote about that
+          # version in CHANGELOG.md. A prerelease has no section of its own,
+          # so it gets the list of commits GitHub generates instead, with the
+          # same two lines of metadata in front of it — which is what
+          # --notes does when --generate-notes is given as well.
+          metadata=$(printf '%s\n' \
             "commit: ${COMMIT}" \
             "ABIs: arm64-v8a, x86_64")
+
+          if [ ${#prerelease[@]} -eq 0 ]; then
+            {
+              printf '%s\n\n' "$metadata"
+              tools/release-notes.sh "${tag#v}"
+            } > "$RUNNER_TEMP/notes.md"
+            notes=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            notes=(--notes "$metadata" --generate-notes)
+          fi
 
           if gh release view "$tag" > /dev/null 2>&1; then
             gh release upload "$tag" "${apks[@]}" --clobber
           else
+            if [ -z "$(git ls-remote origin "refs/tags/$tag")" ]; then
+              git -c user.name='github-actions[bot]' \
+                  -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                  tag -a "$tag" -m "$tag" "$COMMIT"
+              git push origin "refs/tags/$tag"
+            fi
             gh release create "$tag" \
               --title "$tag" \
-              --notes "$notes" \
+              "${notes[@]}" \
               "${prerelease[@]}" \
               "${apks[@]}"
           fi

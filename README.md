@@ -23,6 +23,8 @@ run. Nothing has been run on a physical device yet.
 - [Building the application](#building-the-application)
 - [Running it on an emulator](#running-it-on-an-emulator)
 - [Continuous integration](#continuous-integration)
+- [Versions and what changed](#versions-and-what-changed)
+  - [Rolling back a build](#rolling-back-a-build)
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
 - [Colour](#colour)
 - [Testing](#testing)
@@ -352,17 +354,58 @@ fails.
 
 What comes out depends on the trigger:
 
-| № | Trigger              | Variant | Published as                                     |
-|---|----------------------|---------|--------------------------------------------------|
-| 1 | push to `master`     | release | prerelease `v<version>.<run number>`             |
-| 2 | tag `v*`             | release | release under that tag                           |
-| 3 | `workflow_dispatch`  | release | prerelease, under the tag the `release_tag` input names or `v<version>.<run number>` |
-| 4 | pull request         | debug   | build artefact only                              |
+| № | Trigger              | Variant | Published as                                                          |
+|---|----------------------|---------|-----------------------------------------------------------------------|
+| 1 | push to `master`     | release | prerelease `v<version>-build.<run number>`                            |
+| 2 | tag `v*`             | release | release under that tag, with the notes CHANGELOG.md holds for it      |
+| 3 | `workflow_dispatch`  | release | under the tag the `release_tag` input names; a release unless `prerelease` is set |
+| 4 | pull request         | debug   | build artefact only                                                   |
 
-A tag is the only thing that makes a full release: the workflow reads the ref
-it was started on, so a run dispatched by hand publishes a prerelease however
-it is tagged. The `release_tag` input names that tag and nothing more, which is
-how a build gets a name of its own without being declared a release.
+A push publishes a prerelease of the version being worked towards, not a
+release of it: `v0.1.0-build.42` is a version by the rules of semver and sorts
+below `v0.1.0`, which is what a tool comparing the two has to conclude. A run
+dispatched by hand publishes whatever `release_tag` names, as a release unless
+the `prerelease` input says otherwise.
+
+Tags are annotated: the workflow creates the tag itself and pushes it before
+asking for the release, because `gh release create` on a tag that does not
+exist creates a lightweight one — a ref with no author, no date and no
+message. A release cut by hand is tagged the same way (`git tag -a v0.1.0 -m
+'...'`) and pushed; the workflow then publishes under it.
+
+## Versions and what changed
+
+| № | Where                             | What it says                                                     |
+|---|-----------------------------------|-------------------------------------------------------------------|
+| 1 | `appVersionName` in `gradle.properties` | the version being worked towards, raised by hand when one is cut |
+| 2 | `-PappVersionCode`, from the run number | what Android orders builds by; every published APK gets its own |
+| 3 | `-PappCommit`, the short sha      | which commit an installed build was made from                     |
+| 4 | [`CHANGELOG.md`](CHANGELOG.md)    | what changed, in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form |
+
+A build from a working copy keeps version code `1` and reports its commit as
+`working copy`; nothing but CI is meant to produce an APK for anyone else. All
+three are shown at the bottom of the settings screen, so a build can be named
+without reaching for `adb`.
+
+`tools/release-notes.sh` prints the section CHANGELOG.md holds for a version,
+which is what the notes of a release are made of. A prerelease has no section
+of its own and gets the list of commits GitHub generates instead.
+
+### Rolling back a build
+
+Every release keeps its APK, so the way back from a build that turned out to
+be broken is the previous one. The version code of an older build is lower
+than the installed one, and Android refuses that by default:
+
+```sh
+adb install -r -d path/to/older.apk    # -d allows the downgrade
+```
+
+The settings, the token and the working copy of the notes survive it. What
+does not survive is uninstalling: the token lives in the Android keystore and
+the notes are cloned again from the remote, so a reinstall asks for both. A
+sync that misbehaves is switched off in the settings — clearing the address
+stops it without touching anything already committed.
 
 A pull request builds the debug variant: it has no access to the signing key
 and does not need one. Everything else is signed with the release key, which

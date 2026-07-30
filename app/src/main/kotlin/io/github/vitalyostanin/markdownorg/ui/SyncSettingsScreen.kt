@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
@@ -169,6 +170,22 @@ fun SyncSettingsScreen(
             ) {
                 Text(stringResource(R.string.settings_licences))
             }
+
+            // Which build is installed. Two APKs of the same version differ
+            // only by the run that produced them, so the code and the commit
+            // are here as well: a report about a build nobody can identify
+            // cannot be acted on.
+            Text(
+                text = stringResource(
+                    R.string.settings_version,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                    BuildConfig.COMMIT,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("settings-version"),
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

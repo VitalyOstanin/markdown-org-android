@@ -17,6 +17,17 @@ val toolVersions: Map<String, String> = rootProject.file("tools/versions.env")
     .filter { it.isNotBlank() && !it.startsWith("#") }
     .associate { line -> line.substringBefore('=').trim() to line.substringAfter('=').trim() }
 
+// What the APK says it is. The name comes from gradle.properties, which is
+// what CHANGELOG.md is written against; the code and the commit come from
+// whoever ran the build. Android orders packages by the code alone — a
+// constant one makes every build look like a reinstall of the same one, and
+// every store refuses the second upload — so CI passes the number of the run
+// that produced the APK. A build from a working copy keeps the 1 below and is
+// not meant to be distributed.
+val appVersionName: String = providers.gradleProperty("appVersionName").get()
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").map(String::toInt).getOrElse(1)
+val appCommit: String = providers.gradleProperty("appCommit").getOrElse("working copy")
+
 android {
     namespace = "io.github.vitalyostanin.markdownorg"
     compileSdk = toolVersions.getValue("ANDROID_COMPILE_SDK").toInt()
@@ -28,8 +39,12 @@ android {
         // agenda is date arithmetic from end to end.
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+        // Which commit an installed build came from. The version name alone
+        // does not say: every prerelease between two versions carries the
+        // same one.
+        buildConfigField("String", "COMMIT", "\"$appCommit\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The instrumented half of the same bound the unit tests get below.
@@ -55,6 +70,9 @@ android {
     buildFeatures {
         // Off by default since AGP 9; the application is Compose-only.
         compose = true
+        // The version the settings screen reads back to whoever is looking at
+        // an installed build.
+        buildConfig = true
     }
 
     sourceSets {
