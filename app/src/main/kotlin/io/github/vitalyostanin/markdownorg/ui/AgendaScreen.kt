@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -231,8 +232,8 @@ private fun HeaderAction(
     @DrawableRes icon: Int,
     label: String,
     tag: String,
-    onClick: () -> Unit,
     enabled: Boolean = true,
+    onClick: () -> Unit,
 ) {
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
         Icon(
@@ -289,7 +290,31 @@ private fun SyncBanner(sync: SyncUiState) {
                 maxLines = 2,
             )
         }
+        LastSynced(sync)
     }
+}
+
+/**
+ * When the notes on screen last matched the server.
+ *
+ * A line of its own under whatever the banner says, and it outlives that: the
+ * message above is about the attempt just made, while this answers how old
+ * the notes are — which is exactly the question a failed attempt raises.
+ * Hidden while a sync runs, where it would state a time about to be replaced.
+ */
+@Composable
+private fun LastSynced(sync: SyncUiState) {
+    if (sync.running) {
+        return
+    }
+    val moment = syncedAtLabel(sync.lastSyncedAt) ?: return
+
+    Text(
+        text = stringResource(R.string.sync_last_synced, moment),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.testTag("sync-last-synced"),
+    )
 }
 
 /**
@@ -364,6 +389,7 @@ private val AgendaLayout.iconRes: Int
         AgendaLayout.LIST -> R.drawable.ic_layout_list
     }
 
+@get:StringRes
 private val AgendaLayout.labelRes: Int
     get() = when (this) {
         AgendaLayout.TIME -> R.string.agenda_layout_time
@@ -372,69 +398,6 @@ private val AgendaLayout.labelRes: Int
 
 /** Handle for the instrumented tests; see [LayoutSwitch]. */
 internal val AgendaLayout.testTag: String get() = "layout-$name"
-
-/**
- * Heading over a group of entries, with how many are in it. The overdue group
- * is the one that gets the tone: the rest are neutral.
- */
-@Composable
-internal fun SectionLabel(text: String, count: Int, warn: Boolean = false) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text.uppercase(LocalLocale.current.platformLocale),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
-            color = if (warn) {
-                LocalAgendaColors.current.deadline.tone
-            } else {
-                MaterialTheme.colorScheme.outline
-            },
-        )
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.outline,
-        )
-    }
-}
-
-/**
- * The small label at the end of a row — a time, a duration, how many days off
- * the date is.
- *
- * On a dense fill it inverts rather than sitting on a translucent veil: a
- * white veil over a dense tone lands around 2.6 against white text, well
- * under the 4.5 the rest of the palette clears.
- */
-@Composable
-internal fun TrailingTag(
-    text: String,
-    background: Color,
-    foreground: Color,
-    modifier: Modifier = Modifier,
-    bold: Boolean = false,
-) {
-    Box(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(background)
-            .padding(horizontal = Spacing.sm),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            color = foreground,
-        )
-    }
-}
 
 @Composable
 private fun FailureMessage(state: AgendaUiState.Failed) {
@@ -476,38 +439,4 @@ private fun detailText(detail: Detail): String = when (detail) {
     }
 
     is Detail.Counted -> pluralStringResource(detail.text, detail.count, detail.count)
-}
-
-/** Placeholder for a column that has nothing to show on this row. */
-internal const val EMPTY_CELL = "—"
-
-@Composable
-internal fun EmptyAgenda() {
-    Text(
-        text = stringResource(R.string.agenda_empty),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = Spacing.md),
-    )
-}
-
-/**
- * Width the time column starts at, so headings line up down the list.
- *
- * A minimum rather than a fixed size: `09:30` fits in it and `9:30 AM` does
- * not, and a locale that writes the second one would have its times cut off
- * mid-label.
- */
-internal val TimeColumnWidth = Sizes.timeColumn
-
-@Composable
-internal fun TimeCell(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text.ifEmpty { EMPTY_CELL },
-        style = MaterialTheme.typography.labelMedium,
-        fontFamily = FontFamily.Monospace,
-        color = MaterialTheme.colorScheme.outline,
-        maxLines = 1,
-        modifier = modifier.widthIn(min = TimeColumnWidth),
-    )
 }

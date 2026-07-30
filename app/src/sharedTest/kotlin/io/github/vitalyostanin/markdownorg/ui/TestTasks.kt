@@ -5,6 +5,7 @@ import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.ScanStats
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
 
 /**
  * A task with everything defaulted, so a test names only the field it is
@@ -17,7 +18,7 @@ internal fun task(
     file: String = "notes.md",
     taskType: TaskType? = TaskType.TODO,
     priority: String? = null,
-    timestampType: String? = "SCHEDULED",
+    timestampType: TimestampType? = TimestampType.SCHEDULED,
     date: String? = "2026-07-28",
     time: String? = null,
     repeater: String? = null,

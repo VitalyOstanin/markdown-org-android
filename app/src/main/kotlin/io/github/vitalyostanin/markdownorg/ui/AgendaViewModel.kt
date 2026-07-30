@@ -166,7 +166,7 @@ class AgendaViewModel(
      * a slow scan started before an edit could land on top of the fast one
      * started after it, and put the pre-edit agenda back on screen.
      */
-    fun refresh(scope: Scope = Scope.DAY) {
+    fun refresh() {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             // An agenda already on screen stays on screen: the scan that
@@ -186,7 +186,11 @@ class AgendaViewModel(
             val seeded = notes.ensureSeeded(today) { settings.isConfigured }
 
             _state.value = seeded
-                .mapCatching { agenda.load(scope, today).getOrThrow() }
+                // One day, and nothing else asks for another: the wider scopes
+                // want a header per day before their entries can be told
+                // apart, and a parameter nobody passes would say the screen
+                // can already show them.
+                .mapCatching { agenda.load(Scope.DAY, today).getOrThrow() }
                 .fold(
                     onSuccess = { result ->
                         val sections = result.toSections()
@@ -337,10 +341,10 @@ class AgendaViewModel(
     }
 
     /** Current settings, for filling the form. */
-    fun currentSettings(): Triple<String, String, Boolean> = Triple(
-        settings.remoteUrl.orEmpty(),
-        settings.branch.orEmpty(),
-        !settings.token.isNullOrBlank(),
+    fun currentSettings(): SyncForm = SyncForm(
+        url = settings.remoteUrl.orEmpty(),
+        branch = settings.branch.orEmpty(),
+        hasToken = !settings.token.isNullOrBlank(),
     )
 
     private fun startSync() {

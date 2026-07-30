@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,10 +62,17 @@ fun SyncSettingsScreen(
     crash: String? = null,
     onForgetCrash: () -> Unit = {},
 ) {
-    var url by remember { mutableStateOf(initialUrl) }
-    var branch by remember { mutableStateOf(initialBranch) }
-    var token by remember { mutableStateOf("") }
-    var dropToken by remember { mutableStateOf(false) }
+    // Saved rather than merely remembered: the activity declares no
+    // configChanges, so a turn of the phone rebuilds it, and a URL typed by
+    // hand or a token pasted from a browser would be gone.
+    var url by rememberSaveable { mutableStateOf(initialUrl) }
+    var branch by rememberSaveable { mutableStateOf(initialBranch) }
+    // The token included. It goes into the saved state of the activity, which
+    // lives in the process and in the private storage the process is killed
+    // to — the same storage the token is already stored in, and only a
+    // rotation away from being typed again by hand.
+    var token by rememberSaveable { mutableStateOf("") }
+    var dropToken by rememberSaveable { mutableStateOf(false) }
 
     // Saving empties the working copy, and edits made here are committed
     // locally and never pushed — so an address that cannot work is caught in

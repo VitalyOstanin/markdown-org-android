@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,7 +64,7 @@ internal fun ListLayout(
 }
 
 private fun LazyListScope.section(
-    labelRes: Int,
+    @StringRes labelRes: Int,
     rows: List<AgendaRow>,
     onTaskClick: (Task) -> Unit,
     warn: Boolean = false,
@@ -71,12 +72,9 @@ private fun LazyListScope.section(
     if (rows.isEmpty()) {
         return
     }
-    item { SectionLabel(stringResource(labelRes), rows.size, warn) }
+    item { SectionLabel(stringResource(labelRes), rows.size, warn = warn) }
     items(rows, key = AgendaRow::key) { row -> TaskRow(row, onTaskClick) }
 }
-
-/** Where the task is, which is what makes a row unique across a rebuild. */
-internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
 
 @Composable
 private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {

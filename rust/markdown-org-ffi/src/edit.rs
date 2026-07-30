@@ -202,7 +202,7 @@ fn edit_heading(
 ) -> Result<EditOutcome, EditError> {
     let mut document = Document::open(&target)?;
     let (index, heading) = document.heading(&target)?;
-    let line = document.line(index).unwrap_or_default().to_string();
+    let line = document.at(index).to_string();
 
     let rewritten = rewrite(&line, &heading);
     write_line(&mut document, index, rewritten)
@@ -218,7 +218,7 @@ pub(crate) fn write_line(
     index: usize,
     rewritten: String,
 ) -> Result<EditOutcome, EditError> {
-    if document.line(index) == Some(rewritten.as_str()) {
+    if document.at(index) == rewritten {
         return Ok(EditOutcome {
             line: rewritten,
             changed: false,
@@ -236,10 +236,8 @@ pub(crate) fn write_line(
 
 /// Replace the bytes of `range` in `line` with `with`.
 pub(crate) fn splice(line: &str, range: std::ops::Range<usize>, with: &str) -> String {
-    let mut result = String::with_capacity(line.len() + with.len());
-    result.push_str(&line[..range.start]);
-    result.push_str(with);
-    result.push_str(&line[range.end..]);
+    let mut result = line.to_string();
+    result.replace_range(range, with);
     result
 }
 

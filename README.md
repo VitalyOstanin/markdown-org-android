@@ -114,6 +114,10 @@ follow. Reading the notes:
   walk it and return the agenda for a day, week, month, or the flat task
   list.
 
+The application only ever calls the second one. The first is exported all the
+same: the two prepare the walk through the same code, and a scan reachable
+only from the tests would drift away from the agenda beside it.
+
 `currentDate` is what the agenda treats as today. The caller passes it
 rather than letting the library read the clock, so the same files render the
 same agenda whenever they are asked for — the contract the CLI follows
@@ -449,7 +453,7 @@ val agenda = try {
         currentDate = "2026-03-02",
         timezone = "Europe/Moscow",
         includeDone = false,
-        options = Options(glob = null, locale = null, maxTasks = null),
+        options = Options(),
     )
 } catch (e: ExtractException.InvalidDirectory) {
     …

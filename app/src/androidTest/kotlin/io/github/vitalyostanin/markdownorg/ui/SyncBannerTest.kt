@@ -109,6 +109,48 @@ class SyncBannerTest {
     }
 
     @Test
+    fun whenTheNotesLastMatchedTheServerIsOnScreen() {
+        // The moment was recorded and stored across restarts, and no part of
+        // the interface said it: an agenda from three days ago looked exactly
+        // like one fetched a minute ago.
+        showAgenda(
+            SyncUiState(configured = true, repository = status(), lastSyncedAt = SYNCED_AT),
+        )
+
+        compose.onNodeWithTag("sync-last-synced").assertIsDisplayed()
+    }
+
+    @Test
+    fun nothingIsSaidAboutASyncThatHasNeverHappened() {
+        showAgenda(SyncUiState(configured = true, repository = status()))
+
+        compose.onNodeWithTag("sync-last-synced").assertDoesNotExist()
+    }
+
+    @Test
+    fun theMomentSurvivesTheFailureOfTheNextAttempt() {
+        // This is where it matters most: the attempt failed, and the question
+        // it raises is how old what is on screen now is.
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                lastSyncedAt = SYNCED_AT,
+                message = SyncException.Network("no route to host").toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_failed_network)).assertIsDisplayed()
+        compose.onNodeWithTag("sync-last-synced").assertIsDisplayed()
+    }
+
+    @Test
+    fun aRunningSyncDoesNotStateAMomentItIsAboutToReplace() {
+        showAgenda(SyncUiState(configured = true, running = true, lastSyncedAt = SYNCED_AT))
+
+        compose.onNodeWithTag("sync-last-synced").assertDoesNotExist()
+    }
+
+    @Test
     fun syncingIsOfferedOnlyOnceARemoteIsKnown() {
         val state = mutableStateOf(SyncUiState())
         showAgenda(state)
@@ -222,5 +264,12 @@ class SyncBannerTest {
     private companion object {
         /** Long enough for a short snackbar to come and go on the emulator. */
         const val SNACKBAR_LIFETIME = 10_000L
+
+        /**
+         * Some moment in the past, as milliseconds. How it is written is the
+         * business of the locale and of the clock the device is set to — see
+         * TimeLabelsTest — so these check that the line is there at all.
+         */
+        const val SYNCED_AT = 1_753_700_000_000L
     }
 }

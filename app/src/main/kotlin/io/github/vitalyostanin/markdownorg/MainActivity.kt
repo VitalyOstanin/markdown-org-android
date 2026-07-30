@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
                 } else if (settingsOpen) {
                     // Read once per opening, so a save followed by a reopen
                     // shows what was stored.
-                    val (url, branch, hasToken) = remember { model.currentSettings() }
+                    val form = remember { model.currentSettings() }
 
                     // What the run that crashed left behind, off the main
                     // thread like the notices: a file read is a file read.
@@ -86,9 +86,9 @@ class MainActivity : ComponentActivity() {
 
                     BackHandler { settingsOpen = false }
                     SyncSettingsScreen(
-                        initialUrl = url,
-                        initialBranch = branch,
-                        hasToken = hasToken,
+                        initialUrl = form.url,
+                        initialBranch = form.branch,
+                        hasToken = form.hasToken,
                         onSave = { newUrl, newBranch, token, dropToken ->
                             model.saveSettings(newUrl, newBranch, token, dropToken)
                             settingsOpen = false

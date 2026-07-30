@@ -7,7 +7,7 @@
 
 use std::fs;
 
-use markdown_org_ffi::{scan, scan_agenda, ExtractError, Options, Scope, TaskType};
+use markdown_org_ffi::{scan, scan_agenda, ExtractError, Options, Scope, TaskType, TimestampType};
 
 fn options() -> Options {
     Options {
@@ -32,6 +32,9 @@ fn write_vault(files: &[(&str, &str)]) -> tempfile::TempDir {
 const TIMED: &str = "# TODO Write the report\n`SCHEDULED: <2026-03-02 Mon 10:00>`\n";
 const REPEATING: &str = "# TODO Weekly review\n`SCHEDULED: <2026-03-02 Mon ++7d>`\n";
 const CANCELLED: &str = "# CANCELED Old plan\n`SCHEDULED: <2026-03-02 Mon>`\n";
+const DUE: &str = "# TODO File the return\n`DEADLINE: <2026-03-02 Mon>`\n";
+const BARE: &str = "# TODO Ring the dentist\n`<2026-03-02 Mon>`\n";
+const UNDATED: &str = "# TODO Think about it\n";
 
 #[test]
 fn scan_projects_a_task_onto_the_ffi_record() {
@@ -43,7 +46,7 @@ fn scan_projects_a_task_onto_the_ffi_record() {
     let task = &result.tasks[0];
     assert_eq!(task.heading, "Write the report");
     assert_eq!(task.task_type, Some(TaskType::Todo));
-    assert_eq!(task.timestamp_type.as_deref(), Some("SCHEDULED"));
+    assert_eq!(task.timestamp_type, Some(TimestampType::Scheduled));
     assert_eq!(task.timestamp_date.as_deref(), Some("2026-03-02"));
     assert_eq!(task.timestamp_time.as_deref(), Some("10:00"));
     assert_eq!(result.stats.files_processed, 1);
@@ -62,6 +65,83 @@ fn both_cancelled_spellings_collapse_into_one_variant() {
     let result = scan(vault.path().display().to_string(), options()).expect("scan");
 
     assert_eq!(result.tasks[0].task_type, Some(TaskType::Cancelled));
+}
+
+#[test]
+fn every_planning_keyword_arrives_as_a_variant_of_its_own() {
+    // The keyword decides what a row looks like and which shift buttons it
+    // offers. As a string it was compared against literals spelled out in two
+    // Kotlin files, where a change of spelling here would have gone unnoticed
+    // by the compiler and shown up as a task that stopped being a deadline.
+    let vault = write_vault(&[("due.md", DUE), ("timed.md", TIMED)]);
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+
+    let kinds: Vec<_> = result
+        .tasks
+        .iter()
+        .map(|task| task.timestamp_type)
+        .collect();
+    assert!(
+        kinds.contains(&Some(TimestampType::Deadline)),
+        "got {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&Some(TimestampType::Scheduled)),
+        "got {kinds:?}"
+    );
+}
+
+#[test]
+fn a_timestamp_with_no_keyword_is_told_apart_from_no_timestamp_at_all() {
+    // Two different things the record used to blur: the extractor calls a
+    // bare timestamp `PLAIN`, and only a task carrying no timestamp leaves
+    // the field empty.
+    let vault = write_vault(&[("bare.md", BARE), ("undated.md", UNDATED)]);
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+
+    let bare = task_named(&result.tasks, "Ring the dentist");
+    let undated = task_named(&result.tasks, "Think about it");
+    assert_eq!(bare.timestamp_type, Some(TimestampType::Plain));
+    assert_eq!(undated.timestamp_type, None);
+}
+
+fn task_named<'a>(
+    tasks: &'a [markdown_org_ffi::Task],
+    heading: &str,
+) -> &'a markdown_org_ffi::Task {
+    tasks
+        .iter()
+        .find(|task| task.heading == heading)
+        .unwrap_or_else(|| panic!("no task named {heading} among {tasks:?}"))
+}
+
+#[test]
+fn both_walks_read_the_same_defaults() {
+    // The two entry points prepare the walk the same way, and the defaults
+    // they fill in are stated once. Written down twice they drifted: a note
+    // that one walk could see and the other could not is the shape that
+    // failure takes.
+    let vault = write_vault(&[("notes.md", TIMED), ("notes.txt", REPEATING)]);
+
+    let scanned = scan(vault.path().display().to_string(), options()).expect("scan");
+    let agenda = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::Tasks,
+        "2026-03-02".to_string(),
+        "Europe/Moscow".to_string(),
+        false,
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(scanned.stats.files_processed, 1, "the default glob is *.md");
+    assert_eq!(
+        scanned.stats.files_processed, agenda.stats.files_processed,
+        "one walk saw a different set of files than the other"
+    );
+    assert_eq!(scanned.tasks.len(), agenda.tasks.len());
 }
 
 #[test]

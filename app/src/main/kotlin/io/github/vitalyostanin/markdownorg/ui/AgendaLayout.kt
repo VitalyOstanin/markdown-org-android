@@ -13,7 +13,4 @@ enum class AgendaLayout {
 
     /** One line per task. Denser, but says nothing about free time. */
     LIST,
-    ;
-
-    fun toggled(): AgendaLayout = if (this == TIME) LIST else TIME
 }

@@ -82,7 +82,7 @@ pub fn shift_planning(
         detail: format!("{} has no {}", target.heading, keyword.token()),
     })?;
 
-    let line = document.line(line_index).unwrap_or_default().to_string();
+    let line = document.at(line_index).to_string();
     let moved = parts
         .value
         .checked_add_signed(Duration::days(days as i64))
@@ -115,7 +115,7 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
 
     let mut document = Document::open(&target)?;
     let (index, heading) = document.heading(&target)?;
-    let heading_line = document.line(index).unwrap_or_default().to_string();
+    let heading_line = document.at(index).to_string();
 
     let repeating: Vec<_> = planning_lines(&document, index)
         .into_iter()
@@ -140,17 +140,17 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
     for (line_index, _, parts) in &repeating {
         let repeater = parts.repeater.as_ref().expect("filtered on Some");
         let next = next_occurrence(parts.value, today, repeater)?;
-        let line = document.line(*line_index).unwrap_or_default();
+        let line = document.at(*line_index);
         moved.push((*line_index, rewrite_date(line, parts, next)?));
     }
 
-    let planning = moved
-        .into_iter()
-        .map(|(line_index, line)| {
-            document.set(line_index, line.clone());
-            line
-        })
-        .collect();
+    // A loop rather than a `map` that writes as it goes: the write is the
+    // point, and a lazy adapter leaves it to whoever consumes the chain.
+    let mut planning = Vec::with_capacity(moved.len());
+    for (line_index, line) in moved {
+        document.set(line_index, line.clone());
+        planning.push(line);
+    }
 
     // Upstream sets the keyword back to what it was before the task was
     // marked done; with the three keywords this application knows, that is
@@ -189,7 +189,7 @@ fn planning_lines(
     let mut found = Vec::new();
 
     for line_index in index + 1..document.len() {
-        let line = document.line(line_index).unwrap_or_default();
+        let line = document.at(line_index);
         if parse_heading_line(line).is_some() {
             break;
         }

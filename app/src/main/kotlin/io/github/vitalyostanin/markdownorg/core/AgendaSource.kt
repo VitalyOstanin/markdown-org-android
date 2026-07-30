@@ -48,7 +48,11 @@ class AgendaSource(private val notes: NotesArea) : AgendaLoader {
                 currentDate = today.toString(),
                 timezone = zone.id,
                 includeDone = includeDone,
-                options = Options(glob = null, locale = null, maxTasks = null),
+                // Left at what the core fills in: the file glob, the locales
+                // for weekday names and the task cap are stated there, and
+                // repeating them here as three nulls would only be a second
+                // place to keep them.
+                options = Options(),
             )
         }
     }

@@ -92,14 +92,25 @@ impl Document {
         Ok(Self { path, lines })
     }
 
-    pub(crate) fn line(&self, index: usize) -> Option<&str> {
-        self.lines.get(index).map(|(body, _)| body.as_str())
+    /// The line at `index`, which the caller has already established is there.
+    ///
+    /// Indexed rather than handed back as an `Option`. Every caller arrives
+    /// with a bound of its own — [`Document::heading`] for the heading of a
+    /// task, a range over [`Document::len`] for the lines under it — so a miss
+    /// is an indexing mistake in this crate. Substituting an empty line for
+    /// one, as this used to, turned that mistake into an edit that wrote
+    /// nothing and reported success.
+    pub(crate) fn at(&self, index: usize) -> &str {
+        &self.lines[index].0
     }
 
+    /// Put `content` on line `index`, which must be a line of this document.
+    ///
+    /// Out of range panics for the same reason [`Document::at`] does: an edit
+    /// aimed past the end of the file used to do nothing at all, while
+    /// `edit_heading` went on to report `changed: true` and save the file.
     pub(crate) fn set(&mut self, index: usize, content: String) {
-        if let Some(line) = self.lines.get_mut(index) {
-            line.0 = content;
-        }
+        self.lines[index].0 = content;
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -176,7 +187,7 @@ impl Document {
                 detail: format!("line {} is past the end of {}", target.line, target.file),
             })?;
 
-        let line = self.line(index).unwrap_or_default();
+        let line = self.at(index);
         let heading = parse_heading_line(line).ok_or_else(|| EditError::Stale {
             detail: format!("{}:{} is not a heading", target.file, target.line),
         })?;

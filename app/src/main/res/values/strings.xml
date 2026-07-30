@@ -22,6 +22,8 @@
     <string name="sync_already_current">Already up to date</string>
     <!-- Branch, then the summary of the commit at its tip. -->
     <string name="sync_checkout">%1$s · %2$s</string>
+    <!-- Date and time of the last successful sync, written by the locale. -->
+    <string name="sync_last_synced">synced %1$s</string>
     <string name="sync_failed_auth">The server rejected the token</string>
     <string name="sync_failed_network">The server could not be reached</string>
     <string name="sync_failed_diverged">Local commits differ from the remote</string>

@@ -18,6 +18,7 @@
     <string name="sync_updated">Заметки обновлены</string>
     <string name="sync_already_current">Уже актуально</string>
     <string name="sync_checkout">%1$s · %2$s</string>
+    <string name="sync_last_synced">синхронизировано %1$s</string>
     <string name="sync_failed_auth">Сервер отклонил токен</string>
     <string name="sync_failed_network">Сервер недоступен</string>
     <string name="sync_failed_diverged">Локальные коммиты расходятся с удалёнными</string>

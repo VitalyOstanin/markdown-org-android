@@ -75,8 +75,12 @@ object Sizes {
     /** Width of the `09:00` label on the axis; the tiles start after it. */
     val hourLabel = 40.dp
 
-    /** Where the current-hour marker starts, just inside the hour label. */
-    val markerInset = 36.dp
+    /**
+     * Where the current-hour marker starts: half its dot short of the tiles,
+     * so the dot is centred on the edge of the hour label rather than pushed
+     * off it. Written as the arithmetic so a wider label carries it along.
+     */
+    val markerInset = hourLabel - markerDot / 2
 
     /** As much of a stack trace as is shown before it scrolls on its own. */
     val traceHeight = 200.dp

@@ -11,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -63,11 +64,11 @@ class NotesStoreTest {
 
         val tasks = uniffi.markdown_org_ffi.scan(
             store.root.absolutePath,
-            uniffi.markdown_org_ffi.Options(glob = null, locale = null, maxTasks = null),
+            uniffi.markdown_org_ffi.Options(),
         ).tasks
         val archived = tasks.single { it.heading == "Archive the old branch" }
 
-        assertEquals("CLOSED", archived.timestampType)
+        assertEquals(TimestampType.CLOSED, archived.timestampType)
         assertTrue(tasks.all { it.timestampDate != null })
     }
 

@@ -174,17 +174,22 @@ fun AgendaResult.toSections(): AgendaSections = AgendaSections(
 internal fun Task.toAgendaRow(): AgendaRow =
     AgendaRow(task = this, time = rowTime(), daysOffset = daysOffset ?: 0)
 
-private fun Task.rowTime(): RowTime = when {
-    timestampTime != null -> timestampTime!!.let { stated ->
-        runCatching { LocalTime.parse(stated) }
+private fun Task.rowTime(): RowTime {
+    // Held in a local rather than read twice through `!!`: the generated
+    // record declares its fields as `var`, so a smart cast is not available
+    // and the check alone does not narrow the type.
+    val stated = timestampTime
+
+    return when {
+        stated != null -> runCatching { LocalTime.parse(stated) }
             .fold({ RowTime.Clock(it) }, { RowTime.Verbatim(stated) })
+
+        // A date that has passed replaces the empty time column: without it an
+        // overdue row would say how many days late it is but not since when.
+        (daysOffset ?: 0) < 0 -> slippedFrom() ?: RowTime.None
+
+        else -> RowTime.None
     }
-
-    // A date that has passed replaces the empty time column: without it an
-    // overdue row would say how many days late it is but not since when.
-    (daysOffset ?: 0) < 0 -> slippedFrom() ?: RowTime.None
-
-    else -> RowTime.None
 }
 
 /** The date of the task, when it states one that reads as a date. */

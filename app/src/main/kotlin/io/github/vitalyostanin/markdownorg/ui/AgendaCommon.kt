@@ -1,11 +1,16 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -28,6 +35,12 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
+
+// Everything both layouts draw with, and nothing either of them draws alone.
+// The two of them promise to differ in visual language rather than in how much
+// they show, and that promise is only as good as the number of places a row is
+// described in: what lives here is described once.
 
 /**
  * What an entry is, as far as the agenda is concerned.
@@ -53,7 +66,7 @@ fun Task.kind(): AgendaKind = when {
     taskType == TaskType.CANCELLED -> AgendaKind.CANCELLED
     taskType == TaskType.DONE -> AgendaKind.DONE
     timestampRepeater != null -> AgendaKind.REPEAT
-    timestampType == "DEADLINE" -> AgendaKind.DEADLINE
+    timestampType == TimestampType.DEADLINE -> AgendaKind.DEADLINE
     else -> AgendaKind.SCHEDULED
 }
 
@@ -171,4 +184,109 @@ fun PriorityBadge(priority: String, modifier: Modifier = Modifier, onDenseFill: 
             color = if (onDenseFill) tone else colors.onSolid,
         )
     }
+}
+
+/** Where the task is, which is what makes a row unique across a rebuild. */
+internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
+
+/**
+ * Heading over a group of entries, with how many are in it. The overdue group
+ * is the one that gets the tone: the rest are neutral.
+ */
+@Composable
+internal fun SectionLabel(
+    text: String,
+    count: Int,
+    modifier: Modifier = Modifier,
+    warn: Boolean = false,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = Spacing.sm),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text.uppercase(LocalLocale.current.platformLocale),
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
+            color = if (warn) {
+                LocalAgendaColors.current.deadline.tone
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+        )
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
+}
+
+/**
+ * The small label at the end of a row — a time, a duration, how many days off
+ * the date is.
+ *
+ * On a dense fill it inverts rather than sitting on a translucent veil: a
+ * white veil over a dense tone lands around 2.6 against white text, well
+ * under the 4.5 the rest of the palette clears.
+ */
+@Composable
+internal fun TrailingTag(
+    text: String,
+    background: Color,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+    bold: Boolean = false,
+) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .background(background)
+            .padding(horizontal = Spacing.sm),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            color = foreground,
+        )
+    }
+}
+
+/** Placeholder for a column that has nothing to show on this row. */
+internal const val EMPTY_CELL = "—"
+
+@Composable
+internal fun EmptyAgenda(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.agenda_empty),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(vertical = Spacing.md),
+    )
+}
+
+/**
+ * Width the time column starts at, so headings line up down the list.
+ *
+ * A minimum rather than a fixed size: `09:30` fits in it and `9:30 AM` does
+ * not, and a locale that writes the second one would have its times cut off
+ * mid-label.
+ */
+internal val TimeColumnWidth = Sizes.timeColumn
+
+@Composable
+internal fun TimeCell(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text.ifEmpty { EMPTY_CELL },
+        style = MaterialTheme.typography.labelMedium,
+        fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.outline,
+        maxLines = 1,
+        modifier = modifier.widthIn(min = TimeColumnWidth),
+    )
 }

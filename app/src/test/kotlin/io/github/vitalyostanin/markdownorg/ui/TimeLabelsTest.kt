@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.Locale
 
 /**
@@ -53,6 +54,31 @@ class TimeLabelsTest {
         assertEquals("no year in $label", false, label.contains("26"))
     }
 
+    @Test
+    fun `the moment of the last sync carries its date as well as its time`() {
+        // A date and not only a clock: the app is left open across a night,
+        // and "14:05" alone would be read as this afternoon.
+        val moment = LocalDateTime.of(2026, 7, 30, 14, 5)
+
+        assertEquals("30.07.2026, 14:05", momentLabel(moment, RU, use24Hour = true))
+    }
+
+    @Test
+    fun `the moment of the last sync follows the locale order and the clock`() {
+        val moment = LocalDateTime.of(2026, 7, 30, 14, 5)
+
+        assertEquals("7/30/26, 2:05 PM", momentLabel(moment, Locale.US, false).plainSpaces())
+    }
+
+    @Test
+    fun `the twenty four hour setting overrides what the locale would write`() {
+        // The setting stands apart from the language: a reader on en-US can
+        // turn it on, and then every time on screen follows, this one too.
+        val moment = LocalDateTime.of(2026, 7, 30, 14, 5)
+
+        assertEquals("7/30/26, 14:05", momentLabel(moment, Locale.US, use24Hour = true))
+    }
+
     /**
      * Every kind of space written as a plain one.
      *
@@ -63,4 +89,8 @@ class TimeLabelsTest {
      * ICU and may well write a third.
      */
     private fun String.plainSpaces(): String = replace(Regex("""\p{Zs}"""), " ")
+
+    private companion object {
+        val RU: Locale = Locale.forLanguageTag("ru")
+    }
 }

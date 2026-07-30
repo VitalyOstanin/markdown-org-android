@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType.DEADLINE
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -105,14 +106,14 @@ class AgendaSectionsTest {
     @Test
     fun `the keyword outranks the timestamp when picking a kind`() {
         val cancelled =
-            task(taskType = TaskType.CANCELLED, timestampType = "DEADLINE", repeater = "++7d")
+            task(taskType = TaskType.CANCELLED, timestampType = DEADLINE, repeater = "++7d")
         val done = task(taskType = TaskType.DONE, repeater = "++7d")
-        val repeating = task(timestampType = "DEADLINE", repeater = "++7d")
+        val repeating = task(timestampType = DEADLINE, repeater = "++7d")
 
         assertEquals(AgendaKind.CANCELLED, cancelled.kind())
         assertEquals(AgendaKind.DONE, done.kind())
         assertEquals(AgendaKind.REPEAT, repeating.kind())
-        assertEquals(AgendaKind.DEADLINE, task(timestampType = "DEADLINE").kind())
+        assertEquals(AgendaKind.DEADLINE, task(timestampType = DEADLINE).kind())
         assertEquals(AgendaKind.SCHEDULED, task().kind())
         // A heading with no keyword is still an entry, and it reads as
         // scheduled rather than as nothing.

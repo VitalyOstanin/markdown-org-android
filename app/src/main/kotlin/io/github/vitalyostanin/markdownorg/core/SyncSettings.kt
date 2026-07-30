@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 
 /**
  * Where the notes come from, as everything above the storage sees it.
@@ -62,7 +63,8 @@ class SyncSettings(context: Context) : SyncPreferences {
      * A device carries no git configuration to read, and the defaults name
      * the application rather than guessing at the person holding the phone:
      * a wrong name in the history of someone's notes is worse than an
-     * obviously generic one. Both are overridable from the settings screen.
+     * obviously generic one. Neither is editable from the settings screen
+     * yet — the setters are here for the screen that will offer them.
      */
     override var authorName: String
         get() = preferences.getString(KEY_AUTHOR_NAME, null) ?: DEFAULT_AUTHOR_NAME
@@ -80,6 +82,15 @@ class SyncSettings(context: Context) : SyncPreferences {
         get() = preferences.getLong(KEY_LAST_SYNCED, 0)
         set(value) = preferences.edit().putLong(KEY_LAST_SYNCED, value).apply()
 
+    /**
+     * Forget every stored setting, the token included.
+     *
+     * Nothing in the application calls this: a change of remote drops the
+     * token that belonged to the old one, and that is the whole of what the
+     * interface offers. It exists so a test can start from an empty store on
+     * a device whose preferences outlive the process.
+     */
+    @VisibleForTesting
     fun clear() {
         preferences.edit().clear().apply()
     }

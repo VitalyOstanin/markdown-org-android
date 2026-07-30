@@ -101,6 +101,43 @@ pub enum TaskType {
     Cancelled,
 }
 
+/// What the timestamp on a task is for.
+///
+/// A variant rather than the extractor's string: the interface asks whether a
+/// task is a deadline in two places, and against a string the compiler had
+/// nothing to check — a change of spelling on either side would have shown up
+/// as a task that quietly stopped being one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum TimestampType {
+    /// `SCHEDULED:` — when work on it is meant to start.
+    Scheduled,
+    /// `DEADLINE:` — when it is due.
+    Deadline,
+    /// `CLOSED:` — when it was finished.
+    Closed,
+    /// A timestamp written on its own, with no keyword in front of it.
+    Plain,
+}
+
+impl TimestampType {
+    /// Reads the extractor's spelling.
+    ///
+    /// Anything unrecognised reads as no timestamp kind at all. The extractor
+    /// writes one of the four and nothing else, so this is a fallback for a
+    /// version that grows a fifth: an unknown keyword then behaves the way a
+    /// bare heading does — no shift buttons, drawn as scheduled — which is
+    /// what the string comparison it replaced already did.
+    fn parse(stated: &str) -> Option<Self> {
+        match stated {
+            "SCHEDULED" => Some(Self::Scheduled),
+            "DEADLINE" => Some(Self::Deadline),
+            "CLOSED" => Some(Self::Closed),
+            "PLAIN" => Some(Self::Plain),
+            _ => None,
+        }
+    }
+}
+
 /// How wide an agenda window to build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Scope {
@@ -138,8 +175,8 @@ pub struct Task {
     pub task_type: Option<TaskType>,
     /// Priority cookie as written (`A`, `B`, `12`).
     pub priority: Option<String>,
-    /// `SCHEDULED`, `DEADLINE`, `CLOSED`, or absent for a bare timestamp.
-    pub timestamp_type: Option<String>,
+    /// What the timestamp is for, absent when the task carries none at all.
+    pub timestamp_type: Option<TimestampType>,
     /// Date as `YYYY-MM-DD`.
     pub timestamp_date: Option<String>,
     /// Start time as `HH:MM`; absent for an all-day task.
@@ -149,7 +186,7 @@ pub struct Task {
     /// Next occurrence of a repeating task as `YYYY-MM-DD`.
     pub timestamp_next: Option<String>,
     /// Days from the agenda date: negative is overdue. Only set on tasks
-    /// returned by [`agenda`], never by [`scan`].
+    /// returned by [`scan_agenda`], never by [`scan`].
     pub days_offset: Option<i64>,
 }
 
@@ -167,7 +204,10 @@ impl From<markdown_org_extract::Task> for Task {
                 SourceType::Cancelled(_) => TaskType::Cancelled,
             }),
             priority: task.priority.map(|priority| priority.to_string()),
-            timestamp_type: task.timestamp_type,
+            timestamp_type: task
+                .timestamp_type
+                .as_deref()
+                .and_then(TimestampType::parse),
             timestamp_date: task.timestamp_date,
             timestamp_time: task.timestamp_time,
             timestamp_repeater: task.timestamp_repeater,
@@ -264,14 +304,21 @@ pub struct AgendaResult {
     pub stats: ScanStats,
 }
 
+/// File glob applied when [`Options::glob`] is unset.
+const DEFAULT_GLOB: &str = "*.md";
+
+/// Locales for weekday names applied when [`Options::locale`] is unset.
+const DEFAULT_LOCALE: &str = "ru,en";
+
 /// How to walk the directory. Every field has a working default, so a caller
 /// that does not care can leave them unset.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Options {
-    /// File glob, `*.md` when unset.
+    /// File glob, [`DEFAULT_GLOB`] when unset.
     #[uniffi(default = None)]
     pub glob: Option<String>,
-    /// Comma-separated locales for weekday names, `ru,en` when unset.
+    /// Comma-separated locales for weekday names, [`DEFAULT_LOCALE`] when
+    /// unset.
     #[uniffi(default = None)]
     pub locale: Option<String>,
     /// Cap on the number of tasks; the extractor's default when unset.
@@ -279,14 +326,14 @@ pub struct Options {
     pub max_tasks: Option<u32>,
 }
 
-/// Walk `dir` and return every task found.
+/// Walks `dir`, filling in whatever the caller left unset.
 ///
-/// `dir` is an absolute path inside the application's own storage. This does
-/// not spawn a process and does not touch the network.
-#[uniffi::export]
-pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
-    let glob = options.glob.unwrap_or_else(|| "*.md".to_string());
-    let locale = options.locale.unwrap_or_else(|| "ru,en".to_string());
+/// Both entry points come through here. The walk runs inside rather than the
+/// options being handed back: [`ScanOptions`] borrows the glob and the locale,
+/// and owned strings built in a function that returns would not outlive it.
+fn walk(dir: &str, options: Options) -> Result<markdown_org_extract::ScanOutcome, ExtractError> {
+    let glob = options.glob.unwrap_or_else(|| DEFAULT_GLOB.to_string());
+    let locale = options.locale.unwrap_or_else(|| DEFAULT_LOCALE.to_string());
     let defaults = ScanOptions::default();
     let scan_options = ScanOptions {
         glob: &glob,
@@ -297,7 +344,20 @@ pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
         absolute_paths: false,
     };
 
-    let outcome = scan_directory(Path::new(&dir), &scan_options, None)?;
+    Ok(scan_directory(Path::new(dir), &scan_options, None)?)
+}
+
+/// Walk `dir` and return every task found.
+///
+/// `dir` is an absolute path inside the application's own storage. This does
+/// not spawn a process and does not touch the network.
+///
+/// Exported without a caller in the application, which builds agendas and
+/// never asks for a flat list: the two walks are one surface, and a scan that
+/// only the tests can reach would drift away from the agenda beside it.
+#[uniffi::export]
+pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
+    let outcome = walk(&dir, options)?;
 
     Ok(ScanResult {
         tasks: outcome.tasks.into_iter().map(Task::from).collect(),
@@ -324,19 +384,7 @@ pub fn scan_agenda(
     include_done: bool,
     options: Options,
 ) -> Result<AgendaResult, ExtractError> {
-    let glob = options.glob.unwrap_or_else(|| "*.md".to_string());
-    let locale = options.locale.unwrap_or_else(|| "ru,en".to_string());
-    let defaults = ScanOptions::default();
-    let scan_options = ScanOptions {
-        glob: &glob,
-        locale: &locale,
-        max_tasks: options
-            .max_tasks
-            .map_or(defaults.max_tasks, |max| max as usize),
-        absolute_paths: false,
-    };
-
-    let outcome = scan_directory(Path::new(&dir), &scan_options, None)?;
+    let outcome = walk(&dir, options)?;
     let stats = ScanStats::from(outcome.stats);
     // `Tasks` is the date-less scope, and the extractor rejects any date
     // argument under it rather than quietly ignoring one. `current_date` is

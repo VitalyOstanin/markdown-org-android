@@ -23,6 +23,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
 
 /** What the user asked to do with a task. */
 sealed interface TaskAction {
@@ -114,9 +115,15 @@ fun TaskActionsSheet(
             // Which planning line the task carries decides which one can move;
             // the extractor reports the kind it found.
             val keyword = when (task.timestampType) {
-                "DEADLINE" -> PlanningKeyword.DEADLINE
-                "SCHEDULED" -> PlanningKeyword.SCHEDULED
-                else -> null
+                TimestampType.DEADLINE -> PlanningKeyword.DEADLINE
+
+                TimestampType.SCHEDULED -> PlanningKeyword.SCHEDULED
+
+                // Neither is a planning line: a closing date records when the
+                // task was finished, and a bare timestamp carries no keyword
+                // to move. Spelled out rather than left to `else`, so a kind
+                // added to the core has to be answered for here.
+                TimestampType.CLOSED, TimestampType.PLAIN, null -> null
             }
             if (keyword != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {

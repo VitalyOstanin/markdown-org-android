@@ -15,6 +15,7 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
 
 /**
  * The sheet only offers what the task can actually do: an action that fails
@@ -144,7 +145,7 @@ class TaskActionsSheetTest {
 
     @Test
     fun aDeadlineMovesItsOwnPlanningLine() {
-        show(task(timestampType = "DEADLINE"))
+        show(task(timestampType = TimestampType.DEADLINE))
 
         compose.onNodeWithTag("action-shift-forward").performClick()
 
@@ -156,7 +157,7 @@ class TaskActionsSheetTest {
 
     @Test
     fun movingBackwardsIsOfferedToo() {
-        show(task(timestampType = "SCHEDULED"))
+        show(task(timestampType = TimestampType.SCHEDULED))
 
         compose.onNodeWithTag("action-shift-back").performClick()
 

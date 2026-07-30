@@ -23,6 +23,16 @@ data class SyncUiState(
 )
 
 /**
+ * What the settings form opens with.
+ *
+ * Named fields rather than a `Triple`: the caller destructures it positionally,
+ * and two of the three are strings — swapping the address with the branch
+ * would compile and show the wrong thing in both fields. The token itself
+ * never travels, only whether one is stored: the form does not show it.
+ */
+data class SyncForm(val url: String, val branch: String, val hasToken: Boolean)
+
+/**
  * What to tell the user about the last attempt.
  *
  * A resource id and an optional detail rather than a finished string: the

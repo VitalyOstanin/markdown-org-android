@@ -27,6 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -62,7 +63,7 @@ class AgendaScreenTest {
                 task(
                     heading = "Quarterly report",
                     line = 5u,
-                    timestampType = "DEADLINE",
+                    timestampType = TimestampType.DEADLINE,
                     daysOffset = 5,
                 ),
             ),
