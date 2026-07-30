@@ -14,12 +14,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # on every attached device, and a phone plugged into USB for something else
 # would get the test APK too.
 if [[ -z "${ANDROID_SERIAL:-}" ]]; then
-    ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+\tdevice$/ { print $1; exit }')"
+    ANDROID_SERIAL="$(adb_cmd devices | awk '/^emulator-[0-9]+\tdevice$/ { print $1; exit }')"
 fi
 
 if [[ -z "${ANDROID_SERIAL}" ]]; then
     echo "error: no booted emulator — run tools/run-emulator.sh first" >&2
-    adb devices >&2
+    adb_cmd devices >&2
     exit 1
 fi
 
@@ -34,7 +34,7 @@ export ANDROID_SERIAL
 # unless told otherwise. Without the emulator's own ABI the tests that load
 # the library fail as NoClassDefFoundError on UniffiLib, which says nothing
 # about what is missing.
-abi="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
+abi="$(adb_cmd shell getprop ro.product.cpu.abi | tr -d '\r')"
 if [[ ! -f "${REPO_ROOT}/rust/jniLibs/${abi}/libmarkdown_org_ffi.so" ]]; then
     echo "error: the core is not built for ${abi}, which is what ${ANDROID_SERIAL} runs" >&2
     echo "       ABIS=\"arm64-v8a ${abi}\" tools/build-core.sh" >&2

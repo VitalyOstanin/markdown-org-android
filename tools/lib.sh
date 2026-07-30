@@ -71,6 +71,26 @@ ensure_sdk_image() {
         --build-arg "GRADLE_SHA256=${GRADLE_SHA256}"
 }
 
+# The name the emulator container runs under, shared by the script that
+# starts it and by adb_cmd below.
+readonly EMULATOR_NAME="${EMULATOR_NAME:-markdown-org-emulator}"
+
+# adb against the emulator, without requiring platform-tools on the machine
+# running these scripts.
+#
+# The host's adb is preferred when it exists: an interactive session already
+# talks to it, and its server owns port 5037. Where it is missing, the call
+# goes into the emulator container, which carries platform-tools of its own —
+# without this, every check around the emulator silently produced no output
+# and the wait for boot ran into its timeout while the emulator was up.
+adb_cmd() {
+    if command -v adb > /dev/null 2>&1; then
+        adb "$@"
+    else
+        podman exec "${EMULATOR_NAME}" adb "$@"
+    fi
+}
+
 # The emulator image is the SDK one plus a system image, so the base has to
 # exist before it can be built.
 ensure_emulator_image() {

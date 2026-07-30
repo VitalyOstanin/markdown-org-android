@@ -11,7 +11,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-readonly NAME="${NAME:-markdown-org-emulator}"
+readonly NAME="${NAME:-${EMULATOR_NAME}}"
 readonly BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"
 
 if [[ "${1:-}" == "--stop" ]]; then
@@ -30,20 +30,28 @@ fi
 ensure_emulator_image
 
 echo "==> starting ${NAME}"
-# /dev/kvm is what makes this usable: without it qemu falls back to software
-# emulation and the boot takes tens of minutes.
-podman run -d --rm --name "${NAME}" --network host --device /dev/kvm "${EMULATOR_IMAGE}" > /dev/null
+# /dev/kvm is what makes this usable: without it qemu refuses to emulate
+# x86_64 at all ("requires hardware acceleration") and the container exits.
+#
+# keep-groups matters where /dev/kvm is reachable through membership in the
+# kvm group rather than through an ACL on the current session: rootless
+# podman builds the user namespace without the host's supplementary groups,
+# so the device stays out of reach inside the container. Only crun implements
+# the option; runc accepts and ignores it, which is why it is passed
+# unconditionally.
+podman run -d --rm --name "${NAME}" --network host \
+    --group-add keep-groups --device /dev/kvm "${EMULATOR_IMAGE}" > /dev/null
 
 echo "==> waiting for boot (up to ${BOOT_TIMEOUT}s)"
 deadline=$((SECONDS + BOOT_TIMEOUT))
-adb start-server > /dev/null 2>&1 || true
+adb_cmd start-server > /dev/null 2>&1 || true
 # -e addresses the emulator explicitly. Plain `adb shell` picks whatever is
 # ready, and while the emulator is still offline that is a phone plugged into
 # USB — which then answers sys.boot_completed=1 a second after start.
 while (( SECONDS < deadline )); do
-    if [[ "$(adb -e shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+    if [[ "$(adb_cmd -e shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
         echo "==> booted after $((SECONDS))s"
-        adb devices
+        adb_cmd devices
         exit 0
     fi
     sleep 5
