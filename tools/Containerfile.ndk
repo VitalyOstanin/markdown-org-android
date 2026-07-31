@@ -16,6 +16,8 @@ ARG NDK_RELEASE
 ARG NDK_SHA256
 ARG CARGO_ABOUT_VERSION
 ARG CARGO_ABOUT_SHA256
+ARG CARGO_LLVM_COV_VERSION
+ARG CARGO_LLVM_COV_SHA256
 
 # cmake, make and perl are what the vendored builds need: libgit2 is built
 # with cmake, OpenSSL configures itself with perl. They are build-only, which
@@ -43,8 +45,11 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux
 RUN cargo install cargo-ndk --locked
 
 # The base image ships the minimal profile, so the two components CI fails on
-# are missing — tools/check-core.sh runs them here.
-RUN rustup component add rustfmt clippy
+# are missing — tools/check-core.sh runs them here. llvm-tools carries the
+# profile reader coverage is computed with, and it has to be the one built
+# alongside this compiler: a reader from another release does not understand
+# the profiles this one writes.
+RUN rustup component add rustfmt clippy llvm-tools-preview
 
 # The licence collector, as the published binary rather than as a build from
 # source: it pulls in a few hundred crates of its own and the image is already
@@ -58,5 +63,14 @@ RUN curl -fsSL -o /tmp/about.tar.gz \
         "/tmp/cargo-about-${CARGO_ABOUT_VERSION}-x86_64-unknown-linux-musl/cargo-about" \
         /usr/local/bin/cargo-about \
     && rm -rf /tmp/about.tar.gz "/tmp/cargo-about-${CARGO_ABOUT_VERSION}-x86_64-unknown-linux-musl"
+
+# The coverage runner, as a binary for the same reason. The archive holds the
+# executable and nothing else, so it is unpacked straight into the path.
+RUN curl -fsSL -o /tmp/llvm-cov.tar.gz \
+        "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v${CARGO_LLVM_COV_VERSION}/cargo-llvm-cov-x86_64-unknown-linux-musl.tar.gz" \
+    && echo "${CARGO_LLVM_COV_SHA256}  /tmp/llvm-cov.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/llvm-cov.tar.gz -C /usr/local/bin cargo-llvm-cov \
+    && chmod 0755 /usr/local/bin/cargo-llvm-cov \
+    && rm /tmp/llvm-cov.tar.gz
 
 WORKDIR /src

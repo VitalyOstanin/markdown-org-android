@@ -1,6 +1,8 @@
 /rust/target/
 /rust/jniLibs/
 /generated/
+# Coverage of the core, written where the run was started from.
+/rust/lcov.info
 
 # Android / Gradle
 /app/build/

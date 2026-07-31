@@ -88,6 +88,7 @@ markdown-org-android/
 │   ├── test-instrumented.sh  # the instrumented tests, on a booted emulator
 │   ├── test-instrumented-full.sh  # the same from a cold start, unattended
 │   ├── coverage.sh           # what the JVM tests reach, as a Kover report
+│   ├── coverage-core.sh      # what the Rust tests reach, as an llvm-cov report
 │   ├── licenses.sh           # collects the notices; --check fails on a stale one
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
@@ -495,6 +496,7 @@ tools/test.sh             # the JVM tests of the application
 tools/run-emulator.sh && tools/test-instrumented.sh   # the instrumented ones
 tools/test-instrumented-full.sh   # the same, from a cold start
 tools/coverage.sh         # what the JVM tests reach, as a Kover report
+tools/coverage-core.sh    # what the Rust tests reach, as an llvm-cov report
 ```
 
 `test-instrumented-full.sh` is the unattended form of the two commands above
@@ -520,6 +522,7 @@ What a run leaves behind, for the failure the console line does not explain:
 | 2 | `test-instrumented.sh`  | `app/build/reports/androidTests/connected/index.html`   |
 | 3 | `lint.sh`               | `app/build/reports/lint-results-debug.html`             |
 | 4 | `coverage.sh`           | `app/build/reports/kover/htmlDebug/index.html`          |
+| 5 | `coverage-core.sh`      | `rust/target/llvm-cov/html/index.html`                  |
 
 `test-instrumented.sh` reads the device's ABI and refuses to run when the
 matching library is missing, rather than letting the tests that load the core

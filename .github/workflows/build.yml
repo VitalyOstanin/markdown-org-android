@@ -43,17 +43,30 @@ jobs:
   # toolchain has been installed.
   check:
     runs-on: ubuntu-24.04
-    # Runs in about a minute. The default is six hours, which is what a
-    # hung test would hold the runner for — libtest has no per-test timeout
-    # of its own.
-    timeout-minutes: 20
+    # A few minutes, most of it the coverage run: it builds the workspace a
+    # second time, instrumented, on top of the vendored libgit2 and OpenSSL.
+    # The default is six hours, which is what a hung test would hold the
+    # runner for — libtest has no per-test timeout of its own.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install the toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+        # The version rust/rust-toolchain.toml names, rather than stable:
+        # rustup obeys that file for every cargo command below, so asking for
+        # stable installs one toolchain and then uses another the moment they
+        # differ. Read out of the file for the same reason the MSRV step
+        # reads the manifest — two places would disagree.
+        #
+        # llvm-tools carries the reader coverage is computed with, and it has
+        # to come from the same release as the compiler that writes the
+        # profiles.
+        run: |
+          version=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust/rust-toolchain.toml)
+          rustup toolchain install "$version" --profile minimal \
+            --component clippy,rustfmt,llvm-tools-preview
 
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -113,6 +126,40 @@ jobs:
         # failure this catches.
         run: NATIVE=1 tools/licenses.sh --check
 
+      - name: Install the coverage runner
+        # The published binary, checked against the digest in versions.env —
+        # the same one the build image installs, so a report from CI and a
+        # report from a laptop are produced by one tool. The archive holds
+        # the executable alone.
+        run: |
+          url="https://github.com/taiki-e/cargo-llvm-cov/releases/download"
+          archive="cargo-llvm-cov-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL -o /tmp/llvm-cov.tar.gz "${url}/v${CARGO_LLVM_COV_VERSION}/${archive}"
+          echo "${CARGO_LLVM_COV_SHA256}  /tmp/llvm-cov.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/llvm-cov.tar.gz -C "$HOME/.cargo/bin" cargo-llvm-cov
+
+      - name: Measure what the tests reach
+        working-directory: rust
+        # Nothing fails on the number yet: this records where the core stands
+        # so that a fall becomes visible, which is what the report asked for
+        # before a threshold is set. The summary goes to the run's page; the
+        # lcov file is what a reader loads into an editor.
+        run: |
+          cargo llvm-cov --locked --lcov --output-path lcov.info
+          {
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-core
+          path: rust/lcov.info
+          if-no-files-found: ignore
+
   build:
     runs-on: ubuntu-24.04
     # Around four minutes warm, more on a cold cache: the vendored libgit2
@@ -155,9 +202,15 @@ jobs:
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
       - name: Install the Rust Android targets
+        # Against the toolchain rust/rust-toolchain.toml names, and named
+        # explicitly in the second command: `rustup target add` run from the
+        # root of the checkout, where that file does not apply, would add the
+        # targets to whatever is default and leave the toolchain that
+        # actually compiles the core without them.
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup target add aarch64-linux-android x86_64-linux-android
+          version=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust/rust-toolchain.toml)
+          rustup toolchain install "$version" --profile minimal
+          rustup target add --toolchain "$version" aarch64-linux-android x86_64-linux-android
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
