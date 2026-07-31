@@ -241,6 +241,13 @@ Changing the directory moves nothing and deletes nothing: the previous one may
 be a checkout holding commits that exist nowhere else, and the application
 simply stops looking at it.
 
+A checkout on the shared storage is cloned into, fast-forwarded and committed
+to like any other. That takes the core turning off the check libgit2 makes on
+who owns a repository's directory: the shared storage reports an owner of its
+own for every file in it, so the check refuses those directories wholesale.
+What it defends against and why none of it applies here is
+[ADR-0017](docs/adr/0017-open-a-repository-the-platform-owns.md).
+
 ## What a sync does with the checkout
 
 A sync clones once and fast-forwards afterwards; it never merges, and it never

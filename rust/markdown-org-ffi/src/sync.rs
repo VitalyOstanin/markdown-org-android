@@ -147,7 +147,7 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
     use_timeouts();
 
     let path = Path::new(&request.dir);
-    match Repository::open(path) {
+    match open(path) {
         Ok(repository) => {
             let applied = fast_forward(&repository, &request)?;
             Ok(SyncOutcome {
@@ -231,7 +231,7 @@ pub fn commit_changes(
     message: String,
     author: CommitAuthor,
 ) -> Result<Option<String>, SyncError> {
-    let repository = Repository::open(Path::new(&dir))?;
+    let repository = open(Path::new(&dir))?;
 
     let mut index = repository.index()?;
     // A file an interrupted write left beside a note is not part of the
@@ -333,7 +333,7 @@ fn head_branch(repository: &Repository) -> Result<String, SyncError> {
 /// work to establish that there is a `.git` here.
 #[uniffi::export]
 pub fn holds_repository(dir: String) -> bool {
-    Repository::open(Path::new(&dir)).is_ok()
+    open(Path::new(&dir)).is_ok()
 }
 
 /// Read the checkout's state without contacting the remote.
@@ -342,7 +342,7 @@ pub fn holds_repository(dir: String) -> bool {
 /// interface tells "not set up yet" from "set up and behind".
 #[uniffi::export]
 pub fn repository_status(dir: String) -> Result<Option<RepoStatus>, SyncError> {
-    match Repository::open(Path::new(&dir)) {
+    match open(Path::new(&dir)) {
         Ok(repository) => read_status(&repository).map(Some),
         Err(error) if error.code() == ErrorCode::NotFound => Ok(None),
         Err(error) => Err(error.into()),
@@ -465,7 +465,77 @@ fn use_ca_bundle(pem: &str) -> Result<(), SyncError> {
     Ok(())
 }
 
+/// Open the checkout at `path`, whoever the platform says owns the directory.
+///
+/// Every entry point that touches a repository comes through here, so that the
+/// setting below is in place before libgit2 has a chance to refuse.
+fn open(path: &Path) -> Result<Repository, git2::Error> {
+    open_directories_owned_by_the_platform();
+    Repository::open(path)
+}
+
+/// Stop libgit2 from refusing a checkout because the directory is owned by
+/// somebody else.
+///
+/// libgit2 compares the owner of the working directory and of `.git` against
+/// the current user, and reports `repository path '…' is not owned by current
+/// user` when they differ. On the shared storage of Android — anything under
+/// `/storage/emulated/0`, which is where a directory chosen in the settings
+/// lives (ADR-0013) — they always differ: those files are handed out through a
+/// layer that reports an owner of its own rather than the uid of the
+/// application reading them. The check therefore refuses every directory
+/// outside the application's own storage, whoever put it there, and clone,
+/// fast-forward and commit go with it. The notes are still read and written;
+/// it is the repository around them that cannot be opened.
+///
+/// What the check defends against is a repository left by another user of a
+/// shared machine, whose `.git/config` git would read and run a command out of
+/// — `core.pager`, `core.sshCommand`. Neither half of that holds here. libgit2
+/// runs nothing from a configuration file: it creates `hooks/` but never
+/// executes anything in it, has no external clean/smudge filters, and the one
+/// place in the library that starts a process is the ssh transport, which this
+/// build does not compile in (`git2` is taken with `https` alone). And an
+/// Android application has the device to itself as far as uids go: it reaches
+/// the shared storage only through a permission granted by hand, and the
+/// directory is the one the user pointed at.
+///
+/// What is left is a `.git` somebody else put in the notes directory, naming
+/// an `origin` of their own. Nothing of the user's leaves for it — the token is
+/// only ever offered to the address in the settings, see [`credentials_for`] —
+/// and writing into that directory at all takes the same all-files access that
+/// would let the notes themselves be rewritten.
+///
+/// Applied once per process, under a lock, for the reason [`use_timeouts`]
+/// states: the setting is a global libgit2 documents as unsynchronized. It
+/// stays off for the rest of the process, the directory inside the
+/// application's own storage included — where the owner has always matched
+/// anyway, and where nothing else in the process uses libgit2.
+fn open_directories_owned_by_the_platform() {
+    static APPLIED: Mutex<bool> = Mutex::new(false);
+
+    let mut applied = APPLIED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if *applied {
+        return;
+    }
+
+    // Safe: serialised by the lock above, and the call only writes a global
+    // libgit2 reads when it opens a repository.
+    unsafe {
+        // The signature returns a Result the implementation never fills in
+        // with an error, the same as the timeouts above.
+        let _ = git2::opts::set_verify_owner_validation(false);
+    }
+
+    *applied = true;
+}
+
 fn clone(request: &SyncRequest) -> Result<Repository, SyncError> {
+    // Cloning ends in an open repository too, and the directory it lands in is
+    // the one the check would refuse.
+    open_directories_owned_by_the_platform();
+
     let mut builder = RepoBuilder::new();
     builder.fetch_options(fetch_options(request));
     if let Some(branch) = request.branch.as_deref() {

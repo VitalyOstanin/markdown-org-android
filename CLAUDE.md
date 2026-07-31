@@ -63,6 +63,11 @@ reasoning.
   `tools/check-apk.sh` reads back out of the built APK. The instrumented tests
   cannot cover this — see
   [ADR-0016](docs/adr/0016-shrink-the-release-and-read-the-apk-back.md).
+- The core opens a repository whoever owns its directory: libgit2's owner check
+  refuses the whole of the shared storage, where a chosen notes directory
+  lives. The setting is applied once per process in `sync.rs`, and every entry
+  point that opens a repository goes through `open`. See
+  [ADR-0017](docs/adr/0017-open-a-repository-the-platform-owns.md).
 
 ## Working on the core
 

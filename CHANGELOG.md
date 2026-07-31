@@ -40,5 +40,9 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   every Gradle dependency, and of the vendored libgit2 and OpenSSL.
 - The version of the installed build is shown on the settings screen, together
   with the commit it was built from.
+- The notes directory is a setting: notes already on the device can be read
+  where they lie, including on the shared storage, and a checkout there is
+  cloned, fast-forwarded and committed to like one in the application's own
+  storage.
 - The decisions behind all of the above, as Architecture Decision Records in
   `docs/adr/`, in the format the two sibling projects use.
