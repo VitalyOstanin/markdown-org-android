@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,28 +39,52 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import java.io.File
 
 /**
- * Where the notes are fetched from.
+ * Where the notes are fetched from, and where they are kept.
  *
- * Three fields and nothing else: the repository, the branch, and a token. The
- * device-flow sign-in will fill the last one in without typing, but a token
- * pasted by hand is the only path that works for a server other than GitHub,
- * so the field stays either way.
+ * Four fields: the repository, the branch, a token, and the directory the
+ * notes live in. The device-flow sign-in will fill the token in without
+ * typing, but a token pasted by hand is the only path that works for a server
+ * other than GitHub, so the field stays either way.
+ *
+ * What the directory field holds is a path, and it stays a path even when the
+ * system's picker filled it in: the core opens the directory with libgit2 and
+ * walks it with `std::fs`, and neither can do anything with the URI a picker
+ * hands back. That is also why a directory outside the application's own
+ * storage needs access to all files, which is granted in a screen of the
+ * platform — hence the button rather than a dialog.
  */
 @Composable
 fun SyncSettingsScreen(
     initialUrl: String,
     initialBranch: String,
     hasToken: Boolean,
-    onSave: (url: String, branch: String, token: String, dropToken: Boolean) -> Unit,
+    onSave: (
+        url: String,
+        branch: String,
+        token: String,
+        dropToken: Boolean,
+        notesPath: String,
+    ) -> Unit,
     onDismiss: () -> Unit,
     onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
+    initialNotesPath: String = "",
+    ownNotesPath: String = "",
+    storageGranted: Boolean = false,
+    onRequestStorage: () -> Unit = {},
+    /** A directory chosen in the system's picker, until it has been taken in. */
+    pickedNotesPath: String? = null,
+    onPickNotesDirectory: () -> Unit = {},
+    onPickedNotesTaken: () -> Unit = {},
     crash: String? = null,
     onForgetCrash: () -> Unit = {},
 ) {
@@ -73,6 +99,7 @@ fun SyncSettingsScreen(
     // rotation away from being typed again by hand.
     var token by rememberSaveable { mutableStateOf("") }
     var dropToken by rememberSaveable { mutableStateOf(false) }
+    var notesPath by rememberSaveable { mutableStateOf(initialNotesPath) }
 
     // Saving empties the working copy, and edits made here are committed
     // locally and never pushed — so an address that cannot work is caught in
@@ -80,6 +107,25 @@ fun SyncSettingsScreen(
     // directory. An empty field is not an error yet, only a disabled button.
     val problem = remember(url) { remoteUrlProblem(url) }
     val malformed = problem != null && problem != RemoteUrlProblem.EMPTY
+
+    // The picker runs in another application, and its answer arrives after
+    // this composition was rebuilt — so it lands in the field here rather than
+    // being passed as an initial value, which is read once.
+    LaunchedEffect(pickedNotesPath) {
+        pickedNotesPath?.let {
+            notesPath = it
+            onPickedNotesTaken()
+        }
+    }
+
+    val own = remember(ownNotesPath) { File(ownNotesPath) }
+    // Keyed on the permission as well as on the path: the grant happens in
+    // another application, and coming back has to clear the complaint about
+    // it without the path being touched.
+    val pathProblem = remember(notesPath, storageGranted, own) {
+        notesPathProblem(notesPath, own, storageGranted)
+    }
+    val pathRefused = pathProblem != null && pathProblem != NotesPathProblem.EMPTY
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -171,6 +217,51 @@ fun SyncSettingsScreen(
                 }
             }
 
+            OutlinedTextField(
+                value = notesPath,
+                onValueChange = { notesPath = it },
+                label = { Text(stringResource(R.string.settings_notes)) },
+                placeholder = { Text("/storage/emulated/0/Documents/notes") },
+                isError = pathRefused,
+                // What is wrong with the path, or — while the field is empty —
+                // where the notes go instead. A filled field that is fine says
+                // nothing: the path is the answer, and a line under it
+                // repeating the default would contradict what is above it.
+                supportingText = notesSupport(pathProblem, notesPath)?.let {
+                    { Text(stringResource(it)) }
+                },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+                modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // A phone keyboard is a poor way to enter a path — it
+                // capitalises, autocorrects and turns `/sdcard` into
+                // `/SD card`. The picker only fills the field in; the notes
+                // are read by path all the same.
+                TextButton(
+                    onClick = onPickNotesDirectory,
+                    modifier = Modifier.testTag("settings-notes-pick"),
+                ) {
+                    Text(stringResource(R.string.settings_notes_pick))
+                }
+
+                // Only while it is the missing permission that stands in the
+                // way: a button offering what has already been granted, or
+                // what would not help, is a button that answers nothing.
+                if (pathProblem == NotesPathProblem.NEEDS_PERMISSION) {
+                    TextButton(
+                        onClick = onRequestStorage,
+                        modifier = Modifier.testTag("settings-notes-grant"),
+                    ) {
+                        Text(stringResource(R.string.settings_notes_grant))
+                    }
+                }
+            }
+
             Spacer(Modifier.height(Spacing.xs))
 
             // The way to the notices of everything the APK carries. Here
@@ -240,8 +331,11 @@ fun SyncSettingsScreen(
                 }
                 Spacer(Modifier.width(Spacing.sm))
                 Button(
-                    onClick = { onSave(url, branch, token, dropToken) },
-                    enabled = problem == null,
+                    onClick = { onSave(url, branch, token, dropToken, notesPath) },
+                    // An empty address is not an obstacle any more: the form
+                    // also carries where the notes are kept, and notes already
+                    // on the device need no remote at all.
+                    enabled = !malformed && !pathRefused,
                     modifier = Modifier.testTag("settings-save"),
                 ) {
                     Text(stringResource(R.string.settings_save))
@@ -249,4 +343,18 @@ fun SyncSettingsScreen(
             }
         }
     }
+}
+
+/**
+ * What stands under the directory field: the problem with what is in it, the
+ * default while it is empty, or nothing.
+ *
+ * Outside the composable because it is the whole of the rule and reads as one
+ * sentence here; inside, it was three branches in the middle of a form.
+ */
+@StringRes
+private fun notesSupport(problem: NotesPathProblem?, path: String): Int? = when {
+    problem != null && problem != NotesPathProblem.EMPTY -> problem.toMessage()?.text
+    path.isBlank() -> R.string.settings_notes_default
+    else -> null
 }

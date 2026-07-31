@@ -29,7 +29,7 @@
     <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 
     <string name="settings_title">Репозиторий заметок</string>
-    <string name="settings_hint">Репозиторий клонируется в собственное хранилище приложения. Выполняется только получение изменений: локальные правки пока не отправляются.</string>
+    <string name="settings_hint">Репозиторий клонируется в указанный ниже каталог заметок. Выполняется только получение изменений: локальные правки пока не отправляются.</string>
     <string name="settings_url">Адрес репозитория</string>
     <string name="settings_branch">Ветка</string>
     <string name="settings_branch_default">по умолчанию — ветка удалённого репозитория</string>
@@ -37,12 +37,20 @@
     <string name="settings_token_kept">сохранён; оставьте пустым, чтобы не менять</string>
     <string name="settings_token_none">нужен для приватного репозитория</string>
     <string name="settings_token_drop">Забыть сохранённый токен</string>
+    <string name="settings_notes">Каталог заметок</string>
+    <string name="settings_notes_default">пусто — собственное хранилище приложения</string>
+    <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
+    <string name="settings_notes_not_dir">По этому пути файл, а не каталог</string>
+    <string name="settings_notes_denied">Для каталога вне хранилища приложения нужен доступ ко всем файлам</string>
+    <string name="settings_notes_grant">Разрешить доступ ко всем файлам</string>
+    <string name="settings_notes_pick">Выбрать каталог</string>
+    <string name="settings_notes_failed">Не удалось использовать каталог заметок; оставлен прежний</string>
     <string name="settings_url_empty">Укажите адрес репозитория</string>
     <string name="settings_url_scheme">Поддерживаются только https:// и локальный путь</string>
     <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
-    <string name="settings_licences">Лицензии того, что внутри</string>
+    <string name="settings_licences">Лицензии</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
     <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
     <string name="settings_crash_forget">Забыть</string>

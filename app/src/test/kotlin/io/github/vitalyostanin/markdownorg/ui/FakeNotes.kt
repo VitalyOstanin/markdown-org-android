@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.NotesArea
+import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
@@ -31,9 +32,18 @@ import java.time.ZoneId
  */
 class FakeNotesArea : NotesArea {
 
-    override val root: File = File("/notes")
+    override var root: File = File("/notes")
+        private set
+
+    /** What pointing the working copy elsewhere answers, so a refusal can be played. */
+    var moveResult: Result<Unit> = Result.success(Unit)
 
     private val lock = Mutex()
+
+    override suspend fun useDirectory(directory: File): Result<Unit> = exclusive {
+        trace += "move"
+        moveResult.onSuccess { root = directory }
+    }
 
     /** What happened to the directory, in order, with markers for the overlaps. */
     val trace = mutableListOf<String>()
@@ -197,6 +207,9 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
 
 /** What the user chose about the interface, in memory. */
 class FakeUiPreferences(override var layout: AgendaLayout = AgendaLayout.TIME) : UiPreferences
+
+/** Where the notes are kept, in memory. */
+class FakeNotesLocation(override var path: String? = null) : NotesLocationPreferences
 
 /** Settings in memory, with the same defaults the stored ones fall back to. */
 class FakePreferences(

@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.maskCredentials
 import uniffi.markdown_org_ffi.EditException
@@ -30,7 +31,13 @@ data class SyncUiState(
  * would compile and show the wrong thing in both fields. The token itself
  * never travels, only whether one is stored: the form does not show it.
  */
-data class SyncForm(val url: String, val branch: String, val hasToken: Boolean)
+data class SyncForm(
+    val url: String,
+    val branch: String,
+    val hasToken: Boolean,
+    /** The chosen notes directory, empty for the application's own storage. */
+    val notesPath: String,
+)
 
 /**
  * What to tell the user about the last attempt.
@@ -62,6 +69,20 @@ sealed interface Detail {
 
     /** Worded here around a number, which picks the plural form. */
     data class Counted(@param:PluralsRes val text: Int, val count: Int) : Detail
+}
+
+/**
+ * What to tell the user about a directory that cannot hold the notes.
+ *
+ * [NotesPathProblem.EMPTY] is not among them: an empty field means the
+ * directory inside the application's own storage, which is where the notes
+ * live until another one is chosen.
+ */
+fun NotesPathProblem.toMessage(): SyncMessage? = when (this) {
+    NotesPathProblem.EMPTY -> null
+    NotesPathProblem.RELATIVE -> SyncMessage(R.string.settings_notes_relative, failed = true)
+    NotesPathProblem.NOT_A_DIRECTORY -> SyncMessage(R.string.settings_notes_not_dir, failed = true)
+    NotesPathProblem.NEEDS_PERMISSION -> SyncMessage(R.string.settings_notes_denied, failed = true)
 }
 
 /** What to tell the user about an address that cannot be used. */

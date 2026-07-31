@@ -11,22 +11,57 @@ import java.time.LocalDate
 /**
  * Where the markdown lives on the device.
  *
- * A directory inside the application's own storage, which is also the git
- * working copy once a remote is configured. Until then it is seeded with a
- * sample, so a fresh install has something to show.
+ * A directory inside the application's own storage unless another one was
+ * chosen, and the git working copy once a remote is configured. Until then it
+ * is seeded with a sample, so a fresh install has something to show.
  *
  * This is also the single point where access to that directory is serialised
  * — see [NotesArea.exclusive].
  */
-class NotesStore(override val root: File) : NotesArea {
+class NotesStore(root: File) : NotesArea {
 
-    /** Where it lives on a device: a directory of the application's own storage. */
-    constructor(context: Context) : this(File(context.filesDir, "notes"))
+    /** Where it lives on a device: the chosen directory, or the default one. */
+    constructor(context: Context) : this(notesRoot(context, NotesLocation(context)))
+
+    /**
+     * Read without the lock by every operation, written only under it.
+     *
+     * Volatile because those reads happen on the IO pool while the write
+     * comes from whichever thread called [useDirectory]: without it a scan
+     * could keep reading the previous directory out of a cached field long
+     * after the move.
+     */
+    @Volatile
+    private var current: File = root
+
+    override val root: File get() = current
 
     private val lock = Mutex()
 
     override suspend fun <T> exclusive(block: suspend () -> T): T =
         lock.withLock { withContext(Dispatchers.IO) { block() } }
+
+    /**
+     * Creating it here rather than leaving it to the first scan: a directory
+     * that cannot be made is the answer to "can the notes live here", and the
+     * screen that asked has somewhere to put that answer. Later it would
+     * surface as a failed agenda, which says nothing about the choice that
+     * caused it.
+     */
+    override suspend fun useDirectory(directory: File): Result<Unit> = exclusive {
+        runCatching {
+            check(directory.isDirectory || directory.mkdirs()) {
+                "the notes directory could not be created: $directory"
+            }
+            // Both, because the notes are not only read: seeding writes the
+            // sample, an edit rewrites a file, and a clone fills the whole of
+            // it. A directory that only reads would fail at the first of those.
+            check(directory.canRead() && directory.canWrite()) {
+                "the notes directory cannot be read and written: $directory"
+            }
+            current = directory
+        }
+    }
 
     /**
      * Writes the sample unless the directory already holds notes.
@@ -71,7 +106,15 @@ class NotesStore(override val root: File) : NotesArea {
         check(root.isDirectory || root.mkdirs()) {
             "the notes directory could not be created: $root"
         }
-        return root.listFiles { file -> file.extension == "md" }?.isNotEmpty() == true
+        // The whole tree, not the top of it: notes are kept in folders, and a
+        // directory whose markdown all sits one level down was read as empty —
+        // which put a sample of ours among someone's own notes, and into their
+        // next commit. Stopped at the first hit, so the cost is the first few
+        // entries rather than a walk of the collection.
+        return root.walkTopDown().any { it.isFile && it.extension == "md" } ||
+            // A checkout with no markdown in it yet is still not a directory
+            // to seed: the clone that filled it is the one thing that says so.
+            File(root, ".git").exists()
     }
 
     /**

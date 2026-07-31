@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import uniffi.markdown_org_ffi.SyncOutcome
+import java.io.File
 
 /**
  * How the view model orders work that lands on the same directory.
@@ -37,6 +38,13 @@ class AgendaViewModelTest {
     private val settings = FakePreferences()
     private val ui = FakeUiPreferences()
     private val writer = FakeWriter()
+    private val location = FakeNotesLocation()
+
+    /** What an empty choice of directory falls back to, as on a device. */
+    private val own = File("/data/data/markdown-org/files/notes")
+
+    /** Whether the platform lets a directory outside [own] be read. */
+    private var granted = true
 
     @Before
     fun setUp() {
@@ -523,6 +531,145 @@ class AgendaViewModelTest {
         assertEquals(0, notes.wiped)
     }
 
+    @Test
+    fun theChosenDirectoryBecomesTheWorkingCopy() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertEquals(File(SHARED), notes.root)
+        assertEquals(SHARED, location.path)
+    }
+
+    @Test
+    fun aChangeOfDirectoryDropsTheNotesHeldFromTheOldOne() = runTest(dispatcher) {
+        // They describe files the new directory does not have, and an agenda
+        // built over them would be someone else's.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertEquals(1, loader.invalidations)
+    }
+
+    @Test
+    fun anEmptyDirectoryFieldPutsTheNotesBackInTheOwnStorage() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        location.path = SHARED
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = "")
+        advanceUntilIdle()
+
+        assertEquals(own, notes.root)
+        assertNull(location.path)
+    }
+
+    @Test
+    fun aDirectoryThatCannotBeUsedIsNeitherStoredNorMovedInto() = runTest(dispatcher) {
+        // The move is what says whether the directory can hold the notes:
+        // storing the choice regardless would have the application open on a
+        // directory it cannot read, with no way back but the same form.
+        val syncer = FakeSyncer()
+        notes.moveResult = Result.failure(IllegalStateException("read-only"))
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertNull(location.path)
+        assertEquals(R.string.settings_notes_failed, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun aFailedMoveLeavesTheRemoteAlone() = runTest(dispatcher) {
+        // Everything after the move is about the directory the notes are in.
+        // Storing a remote against a directory that was refused would clone
+        // into the previous one on the next sync.
+        val syncer = FakeSyncer()
+        notes.moveResult = Result.failure(IllegalStateException("read-only"))
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertNull(settings.remoteUrl)
+        assertTrue(syncer.requested.isEmpty())
+    }
+
+    @Test
+    fun aDirectoryOutsideTheOwnStorageIsRefusedUntilTheAccessIsGranted() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        granted = false
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertNull(location.path)
+        assertFalse("the directory was moved into anyway", notes.trace.contains("move"))
+        assertEquals(R.string.settings_notes_denied, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun theDirectoryCanBeSavedWithoutARemoteAtAll() = runTest(dispatcher) {
+        // Notes already on the device need no repository. The form used to
+        // refuse an empty address outright, which left no way to point the
+        // application at them.
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertEquals(SHARED, location.path)
+        assertNull(settings.remoteUrl)
+        assertTrue("a sync was attempted without a remote", syncer.requested.isEmpty())
+    }
+
+    @Test
+    fun anEmptyAddressLeavesTheRemoteThatWasConfiguredBefore() = runTest(dispatcher) {
+        // Saving a directory is not a way to forget a repository: the address
+        // field is empty on a form that was opened for something else.
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.token = "the-old-token"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertEquals(REMOTE, settings.remoteUrl)
+        assertEquals("the-old-token", settings.token)
+    }
+
+    @Test
+    fun aSaveThatLeavesTheDirectoryAloneDoesNotTouchTheWorkingCopy() = runTest(dispatcher) {
+        // A move under a directory that did not change is still a move: it
+        // takes the lock the sync is waiting for and rebuilds the agenda for
+        // nothing.
+        val syncer = FakeSyncer()
+        location.path = SHARED
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        advanceUntilIdle()
+
+        assertFalse("the directory was moved into for nothing", notes.trace.contains("move"))
+    }
+
     private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
         notes = notes,
         agenda = loader,
@@ -530,10 +677,16 @@ class AgendaViewModelTest {
         settings = settings,
         ui = ui,
         editor = writer,
+        location = location,
+        ownNotes = own,
+        storageGranted = { granted },
     )
 
     private companion object {
         const val REMOTE = "https://example.test/notes.git"
         const val OTHER_REMOTE = "https://example.test/other.git"
+
+        /** A directory on the shared storage, which is what needs the access. */
+        const val SHARED = "/storage/emulated/0/Documents/notes"
     }
 }

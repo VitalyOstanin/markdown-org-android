@@ -90,6 +90,9 @@ class NotesEditorTest {
             Result.success(Unit)
 
         override suspend fun reset() = Result.success(Unit)
+
+        /** Nothing here moves the notes; the editor never asks for it. */
+        override suspend fun useDirectory(directory: File) = Result.success(Unit)
     }
 
     private class FakeSettings(

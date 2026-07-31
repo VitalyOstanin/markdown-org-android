@@ -35,7 +35,7 @@
     <string name="sync_status_unreadable">The checkout could not be read; it was left as it is</string>
 
     <string name="settings_title">Notes repository</string>
-    <string name="settings_hint">The repository is cloned into the application\'s own storage. Only fetching happens: local changes are never pushed yet.</string>
+    <string name="settings_hint">The repository is cloned into the notes directory below. Only fetching happens: local changes are never pushed yet.</string>
     <string name="settings_url">Repository URL</string>
     <string name="settings_branch">Branch</string>
     <string name="settings_branch_default">the remote default</string>
@@ -43,12 +43,20 @@
     <string name="settings_token_kept">saved; leave blank to keep it</string>
     <string name="settings_token_none">needed for a private repository</string>
     <string name="settings_token_drop">Forget the saved token</string>
+    <string name="settings_notes">Notes directory</string>
+    <string name="settings_notes_default">empty: the application\'s own storage</string>
+    <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
+    <string name="settings_notes_not_dir">That path is a file, not a directory</string>
+    <string name="settings_notes_denied">A directory outside the application\'s storage needs access to all files</string>
+    <string name="settings_notes_grant">Grant access to all files</string>
+    <string name="settings_notes_pick">Choose a directory</string>
+    <string name="settings_notes_failed">The notes directory could not be used; the previous one was kept</string>
     <string name="settings_url_empty">Enter the address of the repository</string>
     <string name="settings_url_scheme">Only https:// and a local path are supported</string>
     <string name="settings_url_incomplete">The address names no repository</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
-    <string name="settings_licences">Licences of what is inside</string>
+    <string name="settings_licences">Licences</string>
     <!-- Which build this is: the version, the number that orders the builds
          for Android, and the commit it was made from. -->
     <string name="settings_version">Version %1$s (%2$d), commit %3$s</string>

@@ -23,6 +23,22 @@ interface NotesArea {
     val root: File
 
     /**
+     * Points the working copy at [directory], leaving both directories as
+     * they are.
+     *
+     * Under the same lock as everything else, so a scan or a sync that is
+     * already running finishes against the directory it started on rather
+     * than against half of each. What was in the old directory is not moved
+     * and not deleted: it may be a checkout with commits that exist nowhere
+     * else, and pointing somewhere else is not a reason to lose them.
+     *
+     * Fails when the directory cannot be created or cannot be written to —
+     * which, outside the application's own storage, is also what a missing
+     * permission looks like from here.
+     */
+    suspend fun useDirectory(directory: File): Result<Unit>
+
+    /**
      * Runs [block] with sole access to [root], off the main thread.
      *
      * Not reentrant: a block must not call another operation that takes the

@@ -56,6 +56,31 @@ class NotesStoreTest {
     }
 
     @Test
+    fun notesOneFolderDownAreStillNotes() = runBlocking {
+        // How a collection someone keeps actually looks: markdown in folders,
+        // nothing at the top. Read as an empty directory, it got a sample of
+        // ours written into it — among their notes, and into their next commit.
+        val folder = store.root.resolve("projects").apply { mkdirs() }
+        folder.resolve("plan.md").writeText("# Plan\n")
+
+        store.ensureSeeded(today) { false }
+
+        assertFalse(store.root.resolve("sample.md").exists())
+    }
+
+    @Test
+    fun aCheckoutWithoutMarkdownYetIsNotSeededEither() = runBlocking {
+        // A clone that brought no markdown is still someone's checkout: the
+        // sample would be an untracked file in it, and the next sync refuses a
+        // dirty working copy.
+        store.root.resolve(".git").mkdirs()
+
+        store.ensureSeeded(today) { false }
+
+        assertFalse(store.root.resolve("sample.md").exists())
+    }
+
+    @Test
     fun everyTimestampInTheSampleIsOneTheCoreReadsBack() = runBlocking {
         // The sample is the only example of the format the application ever
         // shows, so a line it cannot read back teaches the wrong form. `CLOSED:`
@@ -102,6 +127,37 @@ class NotesStoreTest {
         // The core clones into an empty directory, and the very first setup
         // has the sample sitting in the way.
         assertFalse(store.root.exists())
+    }
+
+    @Test
+    fun theNotesCanBeMovedToAnotherDirectory() = runBlocking {
+        store.ensureSeeded(today) { false }
+        val before = store.root
+        val elsewhere = context.filesDir.resolve("notes-elsewhere")
+
+        store.useDirectory(elsewhere).getOrThrow()
+
+        assertEquals(elsewhere, store.root)
+        assertTrue("the directory was not created", elsewhere.isDirectory)
+        // What was in the previous one may be a checkout with commits that
+        // exist nowhere else; pointing elsewhere is not a reason to lose it.
+        assertTrue("the previous directory was emptied", before.resolve("sample.md").exists())
+
+        store.useDirectory(before).getOrThrow()
+        assertTrue(elsewhere.deleteRecursively())
+    }
+
+    @Test
+    fun aDirectoryThatCannotHoldTheNotesIsRefusedAndChangesNothing() = runBlocking {
+        val inTheWay = context.filesDir.resolve("not-a-directory")
+        inTheWay.writeText("occupied\n")
+        val before = store.root
+
+        val outcome = store.useDirectory(inTheWay)
+
+        assertTrue("a plain file was accepted as the notes directory", outcome.isFailure)
+        assertEquals(before, store.root)
+        assertTrue(inTheWay.delete())
     }
 
     @Test

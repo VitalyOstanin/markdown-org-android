@@ -12,14 +12,20 @@ import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.AgendaSource
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesEditor
+import io.github.vitalyostanin.markdownorg.core.NotesLocation
+import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesStore
 import io.github.vitalyostanin.markdownorg.core.NotesSync
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
+import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.StorageAccess
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UiSettings
+import io.github.vitalyostanin.markdownorg.core.notesPathProblem
+import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import kotlinx.coroutines.Job
@@ -31,6 +37,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.Task
+import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -41,6 +48,11 @@ class AgendaViewModel(
     private val settings: SyncPreferences,
     private val ui: UiPreferences,
     private val editor: NotesWriter,
+    private val location: NotesLocationPreferences,
+    /** The directory an empty choice falls back to. */
+    private val ownNotes: File,
+    /** Whether a directory outside that one may be read, asked of the platform. */
+    private val storageGranted: () -> Boolean,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AgendaUiState>(AgendaUiState.Loading)
@@ -269,16 +281,35 @@ class AgendaViewModel(
      * else: the secret belongs in the token, not in the field the screen shows
      * in the clear.
      */
-    fun saveSettings(url: String, branch: String, token: String, dropToken: Boolean = false) {
+    fun saveSettings(
+        url: String,
+        branch: String,
+        token: String,
+        dropToken: Boolean = false,
+        notesPath: String = location.path.orEmpty(),
+    ) {
         val split = splitCredentials(url)
         val address = split.url
         val secret = token.ifBlank { split.token.orEmpty() }
 
-        val problem = remoteUrlProblem(address)
+        // An empty address is not a failure but a form that is only about the
+        // directory: notes already on the device need no remote, and the one
+        // configured earlier — if any — is left exactly as it was.
+        val problem = remoteUrlProblem(address).takeUnless { it == RemoteUrlProblem.EMPTY }
         if (problem != null) {
             // Nothing is stored and nothing is deleted: the address is checked
             // before the destructive part, not after the clone fails.
             _syncState.update { it.copy(message = problem.toMessage()) }
+            return
+        }
+
+        // Checked here as well as on the form, and before anything is stored:
+        // the form is one caller, and a directory that cannot hold the notes
+        // must not become the one the next scan walks.
+        val directoryProblem = notesPathProblem(notesPath, ownNotes, storageGranted())
+            ?.toMessage()
+        if (directoryProblem != null) {
+            _syncState.update { it.copy(message = directoryProblem) }
             return
         }
 
@@ -293,6 +324,23 @@ class AgendaViewModel(
             // the core has those timeouts rather than the operating system's.
             syncJob?.cancelAndJoin()
             _syncState.update { it.copy(running = false) }
+
+            // Before the remote is looked at: everything below reads the
+            // checkout, and after a move that has to be the checkout in the
+            // new directory. A move that fails leaves the rest untouched —
+            // storing a remote against a directory the notes are not in would
+            // clone into the old one.
+            val moved = moveNotes(notesPath)
+            if (moved.isFailure) {
+                return@launch
+            }
+
+            // The rest is about a remote, and there is none in the form. What
+            // was stored before stays: clearing it here would be a way to lose
+            // a repository by saving a directory.
+            if (address.isEmpty()) {
+                return@launch
+            }
 
             // Which host the stored token was issued for: the settings, not
             // the checkout. A directory holding no repository yet says nothing
@@ -372,11 +420,57 @@ class AgendaViewModel(
         else -> settings.token
     }
 
+    /**
+     * Points the working copy at the chosen directory, when the choice changed.
+     *
+     * Answers with a failure the caller stops on, having already put the
+     * reason on screen: the whole of what saving does afterwards is about a
+     * directory the notes are in, and there is nothing sensible to do with a
+     * remote when the move did not happen.
+     *
+     * The directory is stored only after the move went through, so a path
+     * that cannot be used is not what the application opens on next time.
+     */
+    private suspend fun moveNotes(path: String): Result<Unit> {
+        val chosen = path.trim().ifEmpty { null }
+        if (chosen == location.path) {
+            return Result.success(Unit)
+        }
+
+        val used = notes.useDirectory(chosen?.let(::File) ?: ownNotes)
+        if (used.isFailure) {
+            // The sentence is about a directory on this device, and the
+            // wording is in the resources; what the filesystem said about it
+            // goes to the log.
+            Log.w(TAG, "the notes directory could not be used", used.exceptionOrNull())
+            _syncState.update {
+                it.copy(message = SyncMessage(R.string.settings_notes_failed, failed = true))
+            }
+            return used
+        }
+
+        location.path = chosen
+        // The notes held from the previous directory describe files this one
+        // does not have. Dropped before anything reads them, for the same
+        // reason the header below is cleared.
+        agenda.invalidate()
+        // What the header showed belongs to the directory that was left
+        // behind; nothing is known about a checkout in the new one yet.
+        _syncState.update { it.copy(repository = null) }
+        // Ahead of the sync rather than after it: the agenda of what is
+        // already in the new directory is on screen while the fetch runs, and
+        // when no remote is configured it is all there is going to be.
+        refresh()
+
+        return used
+    }
+
     /** Current settings, for filling the form. */
     fun currentSettings(): SyncForm = SyncForm(
         url = settings.remoteUrl.orEmpty(),
         branch = settings.branch.orEmpty(),
         hasToken = !settings.token.isNullOrBlank(),
+        notesPath = location.path.orEmpty(),
     )
 
     private fun startSync() {
@@ -474,6 +568,13 @@ class AgendaViewModel(
                     settings = settings,
                     ui = UiSettings(application),
                     editor = NotesEditor(notes, settings),
+                    location = NotesLocation(application),
+                    ownNotes = ownNotesRoot(application),
+                    // Asked at every check rather than read once: it is
+                    // granted in a settings screen of the platform, and the
+                    // application is still running when the user comes back
+                    // from it.
+                    storageGranted = { StorageAccess.granted(application) },
                 )
             }
         }

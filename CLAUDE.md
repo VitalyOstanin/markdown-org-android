@@ -45,6 +45,10 @@ reasoning.
   [ADR-0011](docs/adr/0011-today-comes-from-the-caller.md).
 - Rust edition and the SDK levels are as they are on purpose; read
   [ADR-0012](docs/adr/0012-edition-and-sdk-levels.md) before raising either.
+- The notes directory is a path, and a chosen one may sit outside the
+  application's storage — which is what all files access is declared for. The
+  system document picker is not an alternative: the core opens the directory
+  by path. See [ADR-0013](docs/adr/0013-notes-directory-by-path.md).
 - The tasks of the directory in use are held between calls, and the index
   notices no change it was not told about: an edit names the file it wrote, and
   a sync or a change of directory drops everything. Anything else that writes

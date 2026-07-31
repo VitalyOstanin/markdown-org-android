@@ -122,6 +122,24 @@ class AgendaSourceTest {
     }
 
     @Test
+    fun theNotesOfTheDirectoryInUseAreTheOnesRead() = runBlocking {
+        // The directory changes under a running application, and the notes held
+        // from the previous one describe files this one does not have.
+        write(SCHEDULED_TODAY)
+        val store = NotesStore(folder.root)
+        val source = AgendaSource(store)
+        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+
+        val other = folder.newFolder("elsewhere")
+        File(other, "other.md")
+            .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
+        store.useDirectory(other).getOrThrow()
+
+        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+        assertEquals(listOf("Daily review"), day.scheduledTimed.map { it.heading })
+    }
+
+    @Test
     fun aMissingDirectoryFails() = runBlocking {
         val missing = File(folder.root, "nowhere")
 

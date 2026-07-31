@@ -6,9 +6,11 @@ extension reads, kept in sync over git.
 
 **Status: early.** The Rust core, its Kotlin bindings and a Compose
 application that renders the agenda all build. The agenda syncs over git and
-takes point edits — status, priority, a planning date, completion. Until a
-remote is configured the notes are a sample the application writes on first
-run. Nothing has been run on a physical device yet.
+takes point edits — status, priority, a planning date, completion. The notes
+directory can be one on the device rather than the one the application keeps
+to itself. Until a remote is configured the notes are a sample the application
+writes on first run. It runs on a physical `arm64-v8a` device as well as on
+the emulator.
 
 ## Table of contents
 
@@ -16,6 +18,7 @@ run. Nothing has been run on a physical device yet.
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
+- [Where the notes live](#where-the-notes-live)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
 - [The certificate bundle a sync trusts](#the-certificate-bundle-a-sync-trusts)
 - [Where the token may travel](#where-the-token-may-travel)
@@ -209,6 +212,34 @@ The walk behind an agenda reports what it skipped — files not in UTF-8, files
 it could not read, files past the size cap, paths that are not UTF-8, and a
 truncated list — and the agenda shows that above the entries. Without it a
 note in CP1251 simply disappears: no tasks, no reason, no sign.
+
+## Where the notes live
+
+By default in a directory of the application's own storage, which is also the
+git working copy once a remote is configured. The settings form takes another
+directory as a path, and that is where every scan, edit and clone happens from
+then on.
+
+| № | Choice                                          | What it needs                                                                  |
+|---|-------------------------------------------------|--------------------------------------------------------------------------------|
+| 1 | The field left empty                            | Nothing. The notes stay in the application's own storage, where no permission applies. |
+| 2 | A directory on the shared storage               | All files access, granted in a screen of the platform the form offers a button to; before Android 11, the storage permission in a dialog. The path itself can be typed or picked. |
+| 3 | A path that is a plain file, or a relative one  | Refused in the field, before anything is stored. No permission changes either.  |
+
+The field takes a path. It can be filled in from the system's picker — a phone
+keyboard turns `/sdcard/…` into `/SD card/…` — but what is stored and read is
+the path: the core opens the directory with libgit2 and walks it with
+`std::fs`, and neither can do anything with the URI a picker hands back. That
+is also the whole of why the APK asks for all files access; the reasoning and
+what it costs are in [ADR-0013](docs/adr/0013-notes-directory-by-path.md).
+
+Saving needs no repository address: a form that only sets the directory is
+what notes already on the device need, and a remote configured earlier is left
+as it was.
+
+Changing the directory moves nothing and deletes nothing: the previous one may
+be a checkout holding commits that exist nowhere else, and the application
+simply stops looking at it.
 
 ## What a sync does with the checkout
 
