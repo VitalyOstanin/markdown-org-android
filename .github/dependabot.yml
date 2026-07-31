@@ -9,6 +9,14 @@ updates:
     directory: "/rust"
     schedule:
       interval: "weekly"
+    ignore:
+      # The trait this crate hands out has to be the one openssl implements
+      # for X509, and openssl 0.10 is still on 0.3. Ahead of it, the core
+      # takes ForeignType from one version while the certificate implements
+      # the other, as_ptr is no longer found on it, and nothing compiles.
+      # This moves when openssl moves; the 0.3 patches still come through.
+      - dependency-name: "foreign-types"
+        versions: [">= 0.4"]
     groups:
       # One pull request for the patch bumps, which are the bulk of them; a
       # major version is worth its own review.
