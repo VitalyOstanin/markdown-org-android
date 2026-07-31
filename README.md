@@ -66,6 +66,7 @@ markdown-org-android/
 ├── rust/
 │   ├── markdown-org-ffi/     # UniFFI wrapper over markdown-org-extract
 │   │   ├── src/lib.rs        # scanning, the type projection, the shared error mapping
+│   │   ├── src/index.rs      # the notes held between calls, and re-reading one
 │   │   ├── src/document.rs   # reading a note and writing one line back
 │   │   ├── src/edit.rs       # the status and the priority cookie
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
@@ -117,9 +118,28 @@ follow. Reading the notes:
   walk it and return the agenda for a day, week, month, or the flat task
   list.
 
-The application only ever calls the second one. The first is exported all the
-same: the two prepare the walk through the same code, and a scan reachable
-only from the tests would drift away from the agenda beside it.
+Both walk the directory on every call, which is the right shape for the first
+agenda and the wrong one for the agendas after an edit. For those there is
+`NotesIndex`, which holds the tasks of one directory between calls:
+
+- `NotesIndex.open(dir, options)` — walk the directory and hold what is there;
+- `refreshFile(file)` — re-read one note, replacing the tasks that came from
+  it;
+- `rescan()` — walk the directory again, replacing everything held;
+- `agenda(scope, currentDate, timezone, includeDone)` — build an agenda from
+  what is held, walking nothing.
+
+The index notices no change it was not told about. An edit names the file it
+wrote; a sync and a change of directory drop everything, because a
+fast-forward rewrites files without naming them. Agendas are built by one
+function whether the tasks came from a walk or from the index, so the two
+cannot answer differently — see
+[ADR-0014](docs/adr/0014-the-notes-are-held-between-calls.md).
+
+The application builds its agendas through the index and never calls `scan`.
+That one is exported all the same: it prepares the walk through the same code,
+and a scan reachable only from the tests would drift away from the agenda
+beside it.
 
 `currentDate` is what the agenda treats as today. The caller passes it
 rather than letting the library read the clock, so the same files render the

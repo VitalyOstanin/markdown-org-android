@@ -1,0 +1,13 @@
+# Generation settings for the Kotlin bindings.
+#
+# android = true makes the generator emit the Android flavour of the object
+# cleaner: a branch on Build.VERSION.SDK_INT with @RequiresApi, rather than the
+# JVM one that calls java.lang.ref.Cleaner outright. The JVM flavour compiles
+# and would work on a modern device, but Cleaner arrived in API 33 and this
+# application supports 26 — Android Lint fails the build over it, and rightly:
+# on an older device the class is not there.
+#
+# It only matters since the crate gained an object (NotesIndex); a surface of
+# plain functions and records has nothing to clean up.
+[bindings.kotlin]
+android = true

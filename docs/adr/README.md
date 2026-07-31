@@ -48,6 +48,7 @@ so a decision can be followed across the three repositories.
 | 0010 | [One operation at a time on the notes](0010-one-writer-for-the-working-copy.md)               | Accepted |
 | 0011 | [The core is told what "today" is](0011-today-comes-from-the-caller.md)                       | Accepted |
 | 0012 | [Rust edition 2021, and targetSdk one below compileSdk](0012-edition-and-sdk-levels.md)       | Accepted |
+| 0014 | [The notes are held between calls, and an edit names the file it changed](0014-the-notes-are-held-between-calls.md) | Accepted |
 
 ## Adding a new ADR
 

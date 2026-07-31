@@ -127,12 +127,17 @@ class AgendaViewModel(
         }
 
         viewModelScope.launch {
+            // The other half of what a tap costs, alongside the scan timed in
+            // refresh(): the write is one file, but the commit that follows it
+            // reads the whole working copy, so this grows with the notes too.
+            val started = System.nanoTime()
             val outcome = when (action) {
                 TaskAction.Complete -> editor.complete(task, LocalDate.now())
                 is TaskAction.Status -> editor.setStatus(task, action.status)
                 is TaskAction.Priority -> editor.setPriority(task, action.value)
                 is TaskAction.Shift -> editor.shift(task, action.keyword, action.days)
             }
+            Log.i(TAG, "the edit took ${millisSince(started)} ms")
 
             outcome.fold(
                 onSuccess = { report ->
@@ -146,6 +151,13 @@ class AgendaViewModel(
                     }
                     _editIssue.value = report.commitFailure
                         ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
+                    // One file changed and it is known which. Saying so is what
+                    // keeps the agenda that follows from re-reading every note
+                    // in the collection; a failure to re-read is not worth a
+                    // sentence on screen, because the next full scan fixes it.
+                    agenda.reread(task.file).onFailure { failure ->
+                        Log.w(TAG, "the edited note could not be re-read", failure)
+                    }
                     refresh()
                 },
                 onFailure = { error ->
@@ -179,6 +191,11 @@ class AgendaViewModel(
                 }
             }
             val today = LocalDate.now()
+            // What the walk cost, for the one question the screen cannot
+            // answer: whether a directory of this size is still usable. The
+            // scan is the only part of a refresh that grows with the notes,
+            // and there is no console on a phone to time it from.
+            val started = System.nanoTime()
             // Seeding is a write to the same directory the scan reads, and it
             // fails the same ways: no space, a directory that cannot be
             // written to. Its failure goes on the screen rather than out of
@@ -194,6 +211,12 @@ class AgendaViewModel(
                 .fold(
                     onSuccess = { result ->
                         val sections = result.toSections()
+                        val rows = sections.overdue.size + sections.timed.size +
+                            sections.untimed.size
+                        Log.i(
+                            TAG,
+                            "the agenda was built in ${millisSince(started)} ms, $rows rows",
+                        )
                         AgendaUiState.Ready(
                             date = today,
                             sections = sections,
@@ -321,6 +344,9 @@ class AgendaViewModel(
                     }
                     return@launch
                 }
+                // The directory has just been emptied, so what is held about it
+                // describes files that no longer exist.
+                agenda.invalidate()
                 _syncState.update { it.copy(repository = null) }
             }
 
@@ -400,6 +426,11 @@ class AgendaViewModel(
             }
 
             if (outcome.isSuccess) {
+                // A fetch rewrites whatever it fast-forwarded over, and which
+                // files those were is not something this side is told. The held
+                // notes are stale as a whole, so the agenda that follows walks
+                // the directory again.
+                agenda.invalidate()
                 refresh()
             }
         }
@@ -422,6 +453,9 @@ class AgendaViewModel(
             }
         }
     }
+
+    /** How long ago [started] was, in whole milliseconds. */
+    private fun millisSince(started: Long): Long = (System.nanoTime() - started) / 1_000_000
 
     companion object {
         /** Where the failures the screen does not spell out are written. */

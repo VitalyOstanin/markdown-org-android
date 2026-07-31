@@ -277,6 +277,52 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun anEditNamesTheNoteItChangedSoTheAgendaCostsThatNote() = runTest(dispatcher) {
+        // Without this the agenda after every tap re-read the whole
+        // collection: on a device with a thousand notes, seconds of it for a
+        // change to one line.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.apply(task(file = "projects/plan.md"), TaskAction.Complete)
+        advanceUntilIdle()
+
+        assertEquals(listOf("projects/plan.md"), loader.reread)
+        assertEquals(0, loader.invalidations)
+    }
+
+    @Test
+    fun aNoteThatCouldNotBeReReadStillRebuildsTheAgenda() = runTest(dispatcher) {
+        // The re-read is an optimisation, and a failed one is not the user's
+        // business: the scan that follows reads the file along with the rest.
+        loader.rereadResult = Result.failure(IllegalStateException("gone"))
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val scansBefore = loader.pending.size
+
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+
+        assertNull(model.editIssue.value)
+        assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
+    }
+
+    @Test
+    fun aSyncDropsWhatWasHeldBecauseTheFetchRewroteItUnseen() = runTest(dispatcher) {
+        // A fast-forward changes files without naming them, so nothing held
+        // about the directory can be trusted afterwards.
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        assertEquals(1, loader.invalidations)
+    }
+
+    @Test
     fun aSyncCommitsWhatAnEarlierEditCouldNot() = runTest(dispatcher) {
         // An uncommitted edit leaves the checkout dirty, and the core refuses
         // to fast-forward a dirty checkout — so the sync would fail over a

@@ -19,10 +19,12 @@ use markdown_org_extract::{
 
 mod document;
 mod edit;
+mod index;
 mod planning;
 mod sync;
 
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
+pub use index::NotesIndex;
 pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};
 pub use sync::{
     commit_changes, holds_repository, load_ca_bundle, repository_status, sync_repository,
@@ -305,10 +307,10 @@ pub struct AgendaResult {
 }
 
 /// File glob applied when [`Options::glob`] is unset.
-const DEFAULT_GLOB: &str = "*.md";
+pub(crate) const DEFAULT_GLOB: &str = "*.md";
 
 /// Locales for weekday names applied when [`Options::locale`] is unset.
-const DEFAULT_LOCALE: &str = "ru,en";
+pub(crate) const DEFAULT_LOCALE: &str = "ru,en";
 
 /// How to walk the directory. Every field has a working default, so a caller
 /// that does not care can leave them unset.
@@ -386,6 +388,31 @@ pub fn scan_agenda(
 ) -> Result<AgendaResult, ExtractError> {
     let outcome = walk(&dir, options)?;
     let stats = ScanStats::from(outcome.stats);
+
+    build_agenda(
+        outcome.tasks,
+        stats,
+        scope,
+        &current_date,
+        &timezone,
+        include_done,
+    )
+}
+
+/// Put tasks through the agenda filter and shape the answer for the boundary.
+///
+/// Shared by the one-shot [`scan_agenda`] and by [`NotesIndex::agenda`], which
+/// differ only in where the tasks came from. Keeping it in one place is what
+/// makes an agenda built from the index the same agenda as one built from a
+/// fresh walk — the property the index has to hold to be worth having.
+pub(crate) fn build_agenda(
+    tasks: Vec<markdown_org_extract::Task>,
+    stats: ScanStats,
+    scope: Scope,
+    current_date: &str,
+    timezone: &str,
+    include_done: bool,
+) -> Result<AgendaResult, ExtractError> {
     // `Tasks` is the date-less scope, and the extractor rejects any date
     // argument under it rather than quietly ignoring one. `current_date` is
     // therefore dropped here instead of being forwarded — the caller passes
@@ -394,16 +421,16 @@ pub fn scan_agenda(
     let dates = match scope {
         Scope::Tasks => AgendaDates::default(),
         _ => AgendaDates {
-            current_date: Some(&current_date),
+            current_date: Some(current_date),
             ..AgendaDates::default()
         },
     };
 
     let output = filter_agenda(
-        outcome.tasks,
+        tasks,
         scope.into(),
         dates,
-        &timezone,
+        timezone,
         include_done,
         false,
         true,

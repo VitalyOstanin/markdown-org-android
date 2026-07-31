@@ -129,6 +129,16 @@ class FakeAgendaLoader : AgendaLoader {
     /** Held open until the test releases them, in the order they were asked for. */
     val pending = mutableListOf<CompletableDeferred<Result<AgendaResult>>>()
 
+    /** Files re-read, in order — one per edit that named the note it changed. */
+    val reread = mutableListOf<String>()
+
+    /** How many times everything held was dropped. */
+    var invalidations = 0
+        private set
+
+    /** What a re-read answers, for the test that makes one fail. */
+    var rereadResult: Result<Unit> = Result.success(Unit)
+
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
@@ -138,6 +148,15 @@ class FakeAgendaLoader : AgendaLoader {
         val answer = CompletableDeferred<Result<AgendaResult>>()
         pending += answer
         return answer.await()
+    }
+
+    override suspend fun reread(file: String): Result<Unit> {
+        reread += file
+        return rereadResult
+    }
+
+    override suspend fun invalidate() {
+        invalidations++
     }
 }
 

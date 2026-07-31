@@ -80,6 +80,48 @@ class AgendaSourceTest {
     }
 
     @Test
+    fun anEditedNoteIsPickedUpWhenItIsNamed() = runBlocking {
+        // What an edit does: one file rewritten, and the source told which.
+        // This is the whole point of holding the notes — the agenda that
+        // follows costs that file rather than the collection.
+        write(SCHEDULED_TODAY)
+        val source = AgendaSource(NotesStore(folder.root))
+        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+
+        write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
+        source.reread("notes.md").getOrThrow()
+
+        assertEquals(0, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+    }
+
+    @Test
+    fun anEditNobodyNamedIsNotNoticed() = runBlocking {
+        // The contract of what is held, stated as a test: this is a cache with
+        // an explicit invalidation, not a watcher. A caller reading it as one
+        // would be surprised by a stale agenda later, in a case harder to see.
+        write(SCHEDULED_TODAY)
+        val source = AgendaSource(NotesStore(folder.root))
+        source.load(Scope.DAY, today, zone).getOrThrow()
+
+        write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
+
+        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+    }
+
+    @Test
+    fun invalidatingSendsTheNextAgendaBackToTheDirectory() = runBlocking {
+        // What follows a fetch: files changed, and which ones is not known.
+        write(SCHEDULED_TODAY)
+        val source = AgendaSource(NotesStore(folder.root))
+        source.load(Scope.DAY, today, zone).getOrThrow()
+
+        write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
+        source.invalidate()
+
+        assertEquals(0, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+    }
+
+    @Test
     fun aMissingDirectoryFails() = runBlocking {
         val missing = File(folder.root, "nowhere")
 
@@ -90,5 +132,19 @@ class AgendaSourceTest {
 
     private fun write(markdown: String) {
         File(folder.root, "notes.md").writeText(markdown.trimIndent() + "\n")
+    }
+
+    /** Everything a day agenda puts on screen, however it is bucketed. */
+    private fun uniffi.markdown_org_ffi.Day.count(): Int =
+        overdue.size + scheduledTimed.size + scheduledNoTime.size + upcoming.size
+
+    private companion object {
+        /** One task, on the day these tests call today. */
+        const val SCHEDULED_TODAY = """
+            # Notes
+
+            ## TODO Daily standup
+            `SCHEDULED: <2026-07-28 09:30>`
+        """
     }
 }

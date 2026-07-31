@@ -45,6 +45,11 @@ reasoning.
   [ADR-0011](docs/adr/0011-today-comes-from-the-caller.md).
 - Rust edition and the SDK levels are as they are on purpose; read
   [ADR-0012](docs/adr/0012-edition-and-sdk-levels.md) before raising either.
+- The tasks of the directory in use are held between calls, and the index
+  notices no change it was not told about: an edit names the file it wrote, and
+  a sync or a change of directory drops everything. Anything else that writes
+  to the notes has to say which of the two it is. See
+  [ADR-0014](docs/adr/0014-the-notes-are-held-between-calls.md).
 
 ## Working on the core
 
