@@ -38,10 +38,11 @@ openssl = "0.10"
 # The trait that hands out the raw X509 pointer libgit2 wants; openssl builds
 # its types on it and does not re-export it.
 foreign-types = "0.3"
-# Pinned to a commit rather than a crates.io release: the library API used
-# here landed after 0.11.1 and has not been published yet. Switch to a
-# version requirement once the release carrying src/lib.rs is out.
-markdown-org-extract = { git = "https://github.com/VitalyOstanin/markdown-org-extract", rev = "86d395e17b697ddb82bd42e86ae39c0483873b9c" }
+# The library API used here (scan_directory, filter_agenda, parse_heading_line)
+# was published in 0.12.0, so the dependency is a released version rather than
+# a git revision: advisories are checked against it, and the VS Code extension
+# pins the same number.
+markdown-org-extract = "0.12"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor
