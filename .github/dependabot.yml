@@ -17,6 +17,14 @@ updates:
       # This moves when openssl moves; the 0.3 patches still come through.
       - dependency-name: "foreign-types"
         versions: [">= 0.4"]
+      # Which OpenSSL the vendored build compiles, and the choice is the
+      # release line rather than the newest one: 3.5 is long-term and is
+      # supported until 2030-04-08, while 4.0 runs out on 2027-05-14. A stack
+      # that reaches a phone only through a release of this project should sit
+      # on the line that keeps receiving fixes the longest. The 300.x patches
+      # still come through.
+      - dependency-name: "openssl-src"
+        versions: [">= 400"]
     groups:
       # One pull request for the patch bumps, which are the bulk of them; a
       # major version is worth its own review.
