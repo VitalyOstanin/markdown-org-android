@@ -17,6 +17,34 @@ val toolVersions: Map<String, String> = rootProject.file("tools/versions.env")
     .filter { it.isNotBlank() && !it.startsWith("#") }
     .associate { line -> line.substringBefore('=').trim() to line.substringAfter('=').trim() }
 
+// What the tests under src/test/kotlin/.../build read from the tree while they
+// run. Written out rather than discovered: adding a guard means naming what it
+// guards, and a name that no longer exists fails the build instead of quietly
+// guarding nothing.
+val guardedFiles: List<String> = listOf(
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE",
+    ".gitignore",
+    "gradle.properties",
+    "build.gradle.kts",
+    "app/build.gradle.kts",
+    "gradle/wrapper/gradle-wrapper.properties",
+    ".github/dependabot.yml",
+    "rust/Cargo.toml",
+    "rust/Cargo.lock",
+    "rust/rust-toolchain.toml",
+    "rust/markdown-org-ffi/Cargo.toml",
+)
+
+val guardedTrees: List<String> = listOf(
+    "docs/adr",
+    "tools",
+    ".github/workflows",
+    "rust/markdown-org-ffi/src",
+)
+
 // What the APK says it is. The name comes from gradle.properties, which is
 // what CHANGELOG.md is written against; the code and the commit come from
 // whoever ran the build. Android orders packages by the code alone — a
@@ -160,6 +188,21 @@ android {
             // images need to find them; a JVM test otherwise knows nothing
             // about where it is being run from.
             it.systemProperty("repo.root", rootDir.absolutePath)
+
+            // Reading those files during the run is invisible to Gradle: the
+            // task only knows the sources and the classpath it was told about,
+            // so an edit to the README leaves it up to date and the test that
+            // guards the README never runs again. Declaring them as inputs is
+            // what makes an edit to any of them re-run the suite. Without this
+            // the mismatch surfaces on CI, where there is no cache to hit.
+            it.inputs.files(guardedFiles.map(rootProject::file))
+                .withPropertyName("guardedFiles")
+                .withPathSensitivity(PathSensitivity.RELATIVE)
+            guardedTrees.forEach { path ->
+                it.inputs.dir(rootProject.file(path))
+                    .withPropertyName("guardedTree-${path.replace('/', '-')}")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            }
         }
     }
 }
