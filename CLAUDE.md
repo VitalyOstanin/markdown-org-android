@@ -50,6 +50,9 @@ reasoning.
   a sync or a change of directory drops everything. Anything else that writes
   to the notes has to say which of the two it is. See
   [ADR-0014](docs/adr/0014-the-notes-are-held-between-calls.md).
+- What the APK carries is published as the two licence lists it already holds,
+  and no SBOM is generated. Reach for one when somebody is there to read it —
+  see [ADR-0015](docs/adr/0015-licence-lists-instead-of-an-sbom.md).
 
 ## Working on the core
 
