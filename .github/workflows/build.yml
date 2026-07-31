@@ -342,6 +342,15 @@ jobs:
             "$apksigner" verify --print-certs "$apk"
           done
 
+      - name: Check what the shrinking left
+        if: steps.variant.outputs.name == 'release'
+        # R8 sees none of the path into the core — JNA binds it by name — so
+        # what holds it is app/proguard-rules.pro, and this reads the built APK
+        # back to check the rules still cover it. The instrumented tests cannot
+        # do it: they run against debug, and AGP has no supported way to run
+        # them against a shrunk application.
+        run: tools/check-apk.sh "app/build/outputs/apk/release/app-release.apk"
+
       - name: Report what was built
         env:
           VARIANT: ${{ steps.variant.outputs.name }}

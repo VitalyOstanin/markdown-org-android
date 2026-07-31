@@ -155,16 +155,20 @@ android {
         }
 
         release {
-            // Off until there is something checking a shrunk build still
-            // works. The core is reached through JNA, which finds classes and
-            // fields by name, so neither it nor the generated
-            // `uniffi.markdown_org_ffi` layer is visible to R8's reachability
-            // analysis; keep rules for them would be written once and never
-            // verified, since the instrumented tests run against debug and
-            // running them against release needs a signing key. A mistake
-            // would surface on an installed release, at the first call into
-            // the core.
-            isMinifyEnabled = false
+            // The dex is 7.65 MB of the 30.9 the published APK weighs, and
+            // most of it is Compose and AndroidX that this application calls a
+            // corner of; shrinking takes it to 1.20 MB and the resources from
+            // 0.49 to 0.17 MB. What the shrinking cannot see is the path into
+            // the core, which JNA binds by name — proguard-rules.pro says so,
+            // and tools/check-apk.sh reads the built APK back to check that
+            // what those rules name is still in it.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+
             if (!keystore.isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("release")
             }

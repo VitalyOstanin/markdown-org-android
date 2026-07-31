@@ -53,6 +53,12 @@ reasoning.
 - What the APK carries is published as the two licence lists it already holds,
   and no SBOM is generated. Reach for one when somebody is there to read it —
   see [ADR-0015](docs/adr/0015-licence-lists-instead-of-an-sbom.md).
+- The release variant is shrunk by R8. What the shrinking cannot see is the
+  path into the core, which JNA binds by name: anything new on that boundary
+  belongs in `app/proguard-rules.pro`, and its name belongs in the list
+  `tools/check-apk.sh` reads back out of the built APK. The instrumented tests
+  cannot cover this — see
+  [ADR-0016](docs/adr/0016-shrink-the-release-and-read-the-apk-back.md).
 
 ## Working on the core
 

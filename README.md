@@ -91,6 +91,7 @@ markdown-org-android/
 │   ├── coverage.sh           # what the JVM tests reach, as a Kover report
 │   ├── coverage-core.sh      # what the Rust tests reach, as an llvm-cov report
 │   ├── licenses.sh           # collects the notices; --check fails on a stale one
+│   ├── check-apk.sh          # reads a built APK back: did shrinking keep the core reachable
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── rust/jniLibs/<abi>/       # build output, not committed
@@ -445,6 +446,9 @@ Four repository secrets carry it: `APP_KEYSTORE_BASE64`,
 decoded into `RUNNER_TEMP`, outside the workspace, so that no later step can
 pick it up as a build input.
 
+The release APK is also read back before it is published: `tools/check-apk.sh`
+fails when the shrinking has taken away a name the path into the core needs.
+
 The instrumented job takes the libraries and the generated Kotlin as an
 artefact from `build` rather than building them again, so it needs neither
 the NDK nor a Rust toolchain: an emulator boot is what it costs, and that is
@@ -572,6 +576,13 @@ remote must not overlap, and stand-ins for the core make that assertable
 without a device. The instrumented ones
 (`tools/gradle.sh connectedDebugAndroidTest`) need an emulator and are the
 only ones that load the native library.
+
+The published variant is shrunk by R8, and what shrinking cannot see is that
+same path into the core: JNA binds it by name. `app/proguard-rules.pro` keeps
+it and `tools/check-apk.sh` reads the built APK back to check that the rules
+still cover it — see
+[ADR-0016](docs/adr/0016-shrink-the-release-and-read-the-apk-back.md) for why
+the check reads an APK rather than running the tests against it.
 
 Running the built library outside Android is not possible: it links against
 Android's C library, so `libdl.so` is missing on a desktop Linux host. The
