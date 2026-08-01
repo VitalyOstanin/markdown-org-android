@@ -134,6 +134,33 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun theMarkerMovesWithTheClockRatherThanWithARebuild() {
+        // Between the two suites this was the gap: the view model has a test
+        // that its clock ticks, and the screen has one that a marker is drawn,
+        // and nothing said the axis is laid out again when the time changes.
+        // It is testable here at all because the screen takes `now` as a
+        // parameter rather than reading the clock itself.
+        var now by mutableStateOf(MID_MORNING)
+        compose.setContent {
+            MarkdownOrgTheme {
+                AgendaScreen(
+                    state = readyState(sample),
+                    layout = AgendaLayout.TIME,
+                    onLayoutChange = {},
+                    now = now,
+                )
+            }
+        }
+
+        assertTrue("the marker starts below the 13:00 entry", markerY() < entryY())
+
+        now = SHOWN_DAY.atTime(14, 0)
+        compose.waitForIdle()
+
+        assertTrue("the marker stayed above the 13:00 entry", markerY() > entryY())
+    }
+
+    @Test
     fun anotherDayHasNoCurrentMomentMarker() {
         showAgenda(AgendaLayout.TIME, now = MID_MORNING.plusDays(1))
 
@@ -522,6 +549,19 @@ class AgendaScreenTest {
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
         return laid.first().layoutInput.style.textDecoration
     }
+
+    // Where the marker line sits down the axis, and where the 13:00 entry does.
+    private fun markerY(): Float = compose
+        .onNodeWithContentDescription(string(R.string.agenda_now))
+        .fetchSemanticsNode()
+        .positionInRoot
+        .y
+
+    private fun entryY(): Float = compose
+        .onNodeWithText("Review pull requests")
+        .fetchSemanticsNode()
+        .positionInRoot
+        .y
 
     private companion object {
         /** The day every state here is for. */
