@@ -102,9 +102,55 @@ class SyncBannerTest {
         showAgenda(SyncUiState(configured = true, message = SyncMessage(R.string.sync_updated)))
 
         compose.onNodeWithText(string(R.string.sync_updated)).assertIsDisplayed()
-        // Only failures carry the core's own words; a success has nothing to
-        // add to "Notes updated".
+        // A run that only fetched has nothing to add to "Notes updated": the
+        // second line appears when there is one, and this message carries none.
         compose.onNodeWithText("401 Unauthorized").assertDoesNotExist()
+    }
+
+    @Test
+    fun whatWentBackToTheServerIsCountedInTheLanguageOfTheInterface() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                repository = status(),
+                message = SyncMessage(
+                    R.string.sync_pushed,
+                    Detail.Counted(R.plurals.sync_pushed_detail, 2),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_pushed)).assertIsDisplayed()
+        compose.onNodeWithText(plural(R.plurals.sync_pushed_detail, 2)).assertIsDisplayed()
+    }
+
+    /**
+     * A commit made with no network stays on the device until a sync gets
+     * through, and nothing on screen used to say so: the banner described the
+     * checkout as though it matched the server.
+     */
+    @Test
+    fun editsThatHaveNotReachedTheServerAreCountedOnScreen() {
+        showAgenda(SyncUiState(configured = true, repository = status(unpushed = 2u)))
+
+        compose.onNodeWithTag("sync-unpushed").assertIsDisplayed()
+        compose.onNodeWithText(plural(R.plurals.sync_unpushed, 2)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aCheckoutTheServerHasSeenSaysNothingAboutSendingAnything() {
+        showAgenda(SyncUiState(configured = true, repository = status()))
+
+        compose.onNodeWithTag("sync-unpushed").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRunningSyncDoesNotStateACountItIsAboutToChange() {
+        showAgenda(
+            SyncUiState(configured = true, running = true, repository = status(unpushed = 1u)),
+        )
+
+        compose.onNodeWithTag("sync-unpushed").assertDoesNotExist()
     }
 
     @Test
@@ -209,13 +255,14 @@ class SyncBannerTest {
         compose.onNodeWithTag("scan-notices").assertDoesNotExist()
     }
 
-    private fun status() = RepoStatus(
+    private fun status(unpushed: UInt = 0u) = RepoStatus(
         url = "https://example.org/notes.git",
         branch = "main",
         headId = "0123456789abcdef",
         headSummary = "Add the quarterly report",
         headTime = 1_753_700_000,
         dirty = false,
+        unpushed = unpushed,
     )
 
     private fun showAgenda(

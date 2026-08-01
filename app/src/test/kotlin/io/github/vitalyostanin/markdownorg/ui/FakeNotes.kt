@@ -7,6 +7,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
+import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
@@ -83,7 +84,7 @@ class FakeNotesArea : NotesArea {
 
 /** A syncer that reports what it was asked and can be held mid-flight. */
 class FakeSyncer(
-    private val onSync: suspend (String?) -> Result<SyncOutcome> = { Result.success(outcome()) },
+    private val onSync: suspend (String?) -> Result<SyncRun> = { Result.success(run()) },
 ) : NotesSyncer {
 
     val requested = mutableListOf<String?>()
@@ -99,7 +100,7 @@ class FakeSyncer(
     var running: Boolean = false
         private set
 
-    override suspend fun sync(settings: SyncPreferences): Result<SyncOutcome> {
+    override suspend fun sync(settings: SyncPreferences): Result<SyncRun> {
         requested += settings.remoteUrl
         running = true
         try {
@@ -122,13 +123,26 @@ class FakeSyncer(
             head = status("https://example.test/notes.git"),
         )
 
-        fun status(url: String) = RepoStatus(
+        /** A whole sync: what the fetch did, and what went back afterwards. */
+        fun run(
+            cloned: Boolean = true,
+            commits: UInt = 0u,
+            pushed: UInt = 0u,
+            pushFailure: Throwable? = null,
+        ) = SyncRun(
+            fetched = outcome(cloned, commits),
+            pushed = pushed,
+            pushFailure = pushFailure,
+        )
+
+        fun status(url: String, unpushed: UInt = 0u) = RepoStatus(
             url = url,
             branch = "main",
             headId = "0123456789abcdef0123456789abcdef01234567",
             headSummary = "Initial commit",
             headTime = 0,
             dirty = false,
+            unpushed = unpushed,
         )
     }
 }

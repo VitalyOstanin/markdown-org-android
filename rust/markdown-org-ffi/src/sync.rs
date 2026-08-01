@@ -4,7 +4,12 @@
 //! forward; it never merges. Anything the remote cannot be fast-forwarded
 //! onto is reported rather than resolved — merging belongs with the editing
 //! that does not exist yet.
+//!
+//! Edits made on the device go the other way, and the same rule holds there:
+//! a push the remote refuses is reported rather than forced. Nothing here
+//! rewrites history on either side.
 
+use std::cell::RefCell;
 use std::os::raw::c_int;
 use std::path::Path;
 use std::sync::Mutex;
@@ -12,8 +17,8 @@ use std::sync::Mutex;
 use foreign_types::ForeignType;
 use git2::build::{CheckoutBuilder, RepoBuilder};
 use git2::{
-    Cred, ErrorClass, ErrorCode, FetchOptions, IndexAddOption, RemoteCallbacks, Repository,
-    Signature, StatusOptions,
+    Cred, ErrorClass, ErrorCode, FetchOptions, IndexAddOption, PushOptions, RemoteCallbacks,
+    Repository, Signature, StatusOptions,
 };
 use libgit2_sys as raw;
 use openssl::x509::X509;
@@ -48,6 +53,15 @@ pub struct SyncOutcome {
     pub head: RepoStatus,
 }
 
+/// Result of a push.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PushOutcome {
+    /// Commits handed to the remote; zero when it already had them all.
+    pub commits_pushed: u32,
+    /// State after the push.
+    pub head: RepoStatus,
+}
+
 /// Where the checkout stands, readable without touching the network.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct RepoStatus {
@@ -63,6 +77,12 @@ pub struct RepoStatus {
     pub head_time: i64,
     /// The working copy has changes that are not committed.
     pub dirty: bool,
+    /// Commits on the checked-out branch the remote has not been given.
+    ///
+    /// Counted against `origin/<branch>` as the last fetch left it, so it is
+    /// as fresh as the checkout's knowledge of the remote and no fresher. A
+    /// branch the remote does not have at all counts as wholly unpushed.
+    pub unpushed: u32,
 }
 
 /// Why a sync did not happen.
@@ -102,6 +122,23 @@ pub enum SyncError {
     Dirty {
         /// How many files stand in the way.
         changed: u32,
+    },
+    /// The remote refused the branch this checkout tried to hand it.
+    ///
+    /// Apart from [`SyncError::Diverged`], which is this checkout declining to
+    /// merge what it fetched: here the connection was made, the credentials
+    /// were accepted, and the server itself said no — most often because it
+    /// has commits this checkout has not fetched. The commits are still here
+    /// and nothing was lost; what is needed is a fetch and another attempt.
+    ///
+    /// `branch` is a field for the reason it is one on `Diverged`: the caller
+    /// puts the name into a sentence of its own language.
+    #[error("{branch} was refused by the remote: {detail}")]
+    Rejected {
+        /// The branch the remote refused.
+        branch: String,
+        /// What the remote said, as it said it.
+        detail: String,
     },
     /// The remote address is one this application will not talk to.
     ///
@@ -164,6 +201,112 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
                 head: read_status(&repository)?,
             })
         }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Hand the branch's local commits to the remote.
+///
+/// Safe to call whenever: a checkout the remote is level with pushes nothing
+/// and costs a comparison of two references, so the caller does not have to
+/// know whether an edit happened.
+///
+/// What it will not do is force the remote to take them. A push the server
+/// refuses comes back as [`SyncError::Rejected`] with the commits still here;
+/// the answer to it is a fetch, and after that a fast-forward this application
+/// can already do. Rewriting either history is not among the things it offers.
+#[uniffi::export]
+pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
+    ensure_supported(&request.url)?;
+    use_timeouts();
+
+    let repository = open(Path::new(&request.dir))?;
+    let branch = match request.branch.as_deref() {
+        Some(branch) => branch.to_string(),
+        None => head_branch(&repository)?,
+    };
+
+    let unpushed = unpushed_on(&repository, &branch)?;
+    if unpushed == 0 {
+        return Ok(PushOutcome {
+            commits_pushed: 0,
+            head: read_status(&repository)?,
+        });
+    }
+
+    // Collected rather than raised from inside the callback: a server that
+    // takes the connection and then declines the branch — a hook, a protected
+    // branch — reports through this callback while `push` still returns
+    // success, so a push that changed nothing on the remote would otherwise
+    // read as one that worked.
+    let refused: RefCell<Option<String>> = RefCell::new(None);
+    let attempt = {
+        let mut remote = repository.find_remote("origin")?;
+        let mut options = push_options(&request, &refused);
+        // Written out on both sides, and no leading `+`: the local branch is
+        // offered to the branch of the same name, and only as a fast-forward
+        // of it.
+        let refspec = format!("refs/heads/{branch}:refs/heads/{branch}");
+        remote.push(&[&refspec], Some(&mut options))
+    };
+
+    // The other half of the same refusal, and the one that happens against a
+    // remote that has moved on: libgit2 compares what the server advertises
+    // against what is here and stops before sending anything, which arrives as
+    // an error rather than through the callback above.
+    if let Err(error) = attempt {
+        return Err(match error.code() {
+            ErrorCode::NotFastForward => SyncError::Rejected {
+                branch,
+                detail: error.message().to_string(),
+            },
+            _ => error.into(),
+        });
+    }
+
+    if let Some(detail) = refused.into_inner() {
+        return Err(SyncError::Rejected { branch, detail });
+    }
+
+    Ok(PushOutcome {
+        commits_pushed: unpushed,
+        head: read_status(&repository)?,
+    })
+}
+
+/// Commits on `branch` that `origin/<branch>` does not hold.
+///
+/// The remote-tracking reference is the last fetch's answer, not the server's
+/// current one. That is the right basis anyway: it is what a push would be a
+/// fast-forward of, and asking the server would mean a network round trip
+/// before every screen that shows the count.
+fn unpushed_on(repository: &Repository, branch: &str) -> Result<u32, SyncError> {
+    let Some(local) = reference_target(repository, &format!("refs/heads/{branch}"))? else {
+        return Ok(0);
+    };
+
+    match reference_target(repository, &format!("refs/remotes/origin/{branch}"))? {
+        Some(upstream) => {
+            let (ahead, _behind) = repository.graph_ahead_behind(local, upstream)?;
+            Ok(u32::try_from(ahead).unwrap_or(u32::MAX))
+        }
+        // The remote has no such branch: everything on this one is news to it.
+        None => {
+            let mut walk = repository.revwalk()?;
+            walk.push(local)?;
+            Ok(u32::try_from(walk.count()).unwrap_or(u32::MAX))
+        }
+    }
+}
+
+/// What `name` points at, or `None` when there is no such reference.
+///
+/// A symbolic reference resolving to nothing answers `None` as well: there is
+/// no commit to count from either way.
+fn reference_target(repository: &Repository, name: &str) -> Result<Option<git2::Oid>, SyncError> {
+    match repository.find_reference(name) {
+        Ok(reference) => Ok(reference.target()),
+        Err(error) if error.code() == ErrorCode::NotFound => Ok(None),
         Err(error) => Err(error.into()),
     }
 }
@@ -674,15 +817,8 @@ fn count_commits(
 }
 
 fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
-    let mut callbacks = RemoteCallbacks::new();
-    let token = request.token.clone();
-    let configured = request.url.clone();
-    callbacks.credentials(move |asked, username, allowed| {
-        credentials_for(&configured, asked, token.as_deref(), username, allowed)
-    });
-
     let mut options = FetchOptions::new();
-    options.remote_callbacks(callbacks);
+    options.remote_callbacks(remote_callbacks(request));
     // Redirects to another host are refused outright rather than left to the
     // credential callback to notice: `Initial` still allows the redirect from
     // `/repo` to `/repo.git` that servers use, which is the only one a notes
@@ -691,6 +827,49 @@ fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
     // Tags come with releases and are of no use to a notes checkout.
     options.download_tags(git2::AutotagOption::None);
     options
+}
+
+/// The options a push runs with, reporting into `refused` what the remote
+/// declined.
+///
+/// The redirect rule is the fetch's, and for a stronger reason: a push offers
+/// the token and the commits to whoever answers.
+fn push_options<'a>(
+    request: &SyncRequest,
+    refused: &'a RefCell<Option<String>>,
+) -> PushOptions<'a> {
+    let mut callbacks = remote_callbacks(request);
+    callbacks.push_update_reference(|_reference, status| {
+        if let Some(message) = status {
+            // First one wins: one refspec goes up per push, and a second
+            // message would be about the same refusal.
+            refused
+                .borrow_mut()
+                .get_or_insert_with(|| message.to_string());
+        }
+        Ok(())
+    });
+
+    let mut options = PushOptions::new();
+    options.remote_callbacks(callbacks);
+    options.follow_redirects(git2::RemoteRedirect::Initial);
+    options
+}
+
+/// The callbacks every request to the remote runs with: the credentials, and
+/// nothing else.
+///
+/// The closure owns its copy of the token and the address, so the callbacks
+/// outlive the request and fit whatever lifetime the caller's options need.
+fn remote_callbacks<'a>(request: &SyncRequest) -> RemoteCallbacks<'a> {
+    let mut callbacks = RemoteCallbacks::new();
+    let token = request.token.clone();
+    let configured = request.url.clone();
+    callbacks.credentials(move |asked, username, allowed| {
+        credentials_for(&configured, asked, token.as_deref(), username, allowed)
+    });
+
+    callbacks
 }
 
 /// What to answer libgit2 when it asks for credentials for `asked`.
@@ -760,6 +939,7 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
     // read failing.
     let commit = head_commit(repository)?;
     let branch = head_branch(repository)?;
+    let unpushed = unpushed_on(repository, &branch)?;
 
     let mut options = StatusOptions::new();
     options.include_untracked(true).include_ignored(false);
@@ -793,6 +973,7 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
             .map(|commit| commit.time().seconds())
             .unwrap_or_default(),
         dirty: !repository.statuses(Some(&mut options))?.is_empty(),
+        unpushed,
     })
 }
 

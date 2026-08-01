@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
+import io.github.vitalyostanin.markdownorg.core.SyncRun
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +22,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import uniffi.markdown_org_ffi.SyncOutcome
+import uniffi.markdown_org_ffi.SyncException
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -70,7 +71,7 @@ class AgendaViewModelTest {
         // The guard used to be a flag read before `launch` and written inside
         // it: on a dispatcher that does not run the body eagerly, both calls
         // pass the check and two clones run over one repository.
-        val held = CompletableDeferred<Result<SyncOutcome>>()
+        val held = CompletableDeferred<Result<SyncRun>>()
         val syncer = FakeSyncer { held.await() }
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
@@ -80,13 +81,13 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, syncer.requested.size)
-        held.complete(Result.success(FakeSyncer.outcome()))
+        held.complete(Result.success(FakeSyncer.run()))
         advanceUntilIdle()
     }
 
     @Test
     fun changingTheRemoteWaitsForTheSyncInFlightBeforeWipingTheDirectory() = runTest(dispatcher) {
-        val held = CompletableDeferred<Result<SyncOutcome>>()
+        val held = CompletableDeferred<Result<SyncRun>>()
         val syncer = FakeSyncer { held.await() }
         var syncingWhenWiped: Boolean? = null
         notes.onWipe = { syncingWhenWiped = syncer.running }
@@ -111,9 +112,9 @@ class AgendaViewModelTest {
         // The old code ended `saveSettings` with the same `syncNow()` that
         // skips when a sync is running, so the directory was emptied and
         // nothing was ever fetched into it.
-        val held = CompletableDeferred<Result<SyncOutcome>>()
+        val held = CompletableDeferred<Result<SyncRun>>()
         val syncer = FakeSyncer { url ->
-            if (url == REMOTE) held.await() else Result.success(FakeSyncer.outcome())
+            if (url == REMOTE) held.await() else Result.success(FakeSyncer.run())
         }
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
@@ -130,8 +131,9 @@ class AgendaViewModelTest {
     @Test
     fun anUnreadableCheckoutIsNotWiped() = runTest(dispatcher) {
         // `status()` failing means the directory holds a repository that could
-        // not be read — not that there is none. Edits are committed locally
-        // and never pushed, so wiping here destroys the only copy of them.
+        // not be read — not that there is none. An edit made offline is
+        // committed here and nowhere else until a sync gets through, so wiping
+        // on an unreadable checkout destroys the only copy of it.
         val syncer = FakeSyncer()
         syncer.statusResult = Result.failure(IllegalStateException("broken .git/config"))
         settings.remoteUrl = REMOTE
@@ -429,7 +431,7 @@ class AgendaViewModelTest {
             // Reading it again walks the whole working copy — every file, and
             // the untracked ones on top — for an answer already in hand.
             val head = FakeSyncer.status(REMOTE)
-            val syncer = FakeSyncer { Result.success(FakeSyncer.outcome(cloned = true)) }
+            val syncer = FakeSyncer { Result.success(FakeSyncer.run(cloned = true)) }
             settings.remoteUrl = REMOTE
             val model = viewModel(syncer)
             advanceUntilIdle()
@@ -441,6 +443,37 @@ class AgendaViewModelTest {
             assertEquals(readsBefore, syncer.statusReads)
             assertEquals(head, model.syncState.value.repository)
         }
+
+    /**
+     * The fetch went through and the push after it was refused. What came down
+     * is on disk and belongs on screen; the refusal belongs in the banner. An
+     * earlier shape of this reported the whole run as a failure, which left the
+     * agenda showing notes the application had already replaced.
+     */
+    @Test
+    fun aRefusedPushIsSaidWithoutHoldingBackWhatTheFetchBrought() = runTest(dispatcher) {
+        val syncer = FakeSyncer {
+            Result.success(
+                FakeSyncer.run(
+                    cloned = false,
+                    commits = 1u,
+                    pushFailure = SyncException.Rejected("main", "fetch first"),
+                ),
+            )
+        }
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        assertEquals(R.string.sync_failed_rejected, model.syncState.value.message?.text)
+        assertTrue(model.syncState.value.message?.failed == true)
+        // The fetch rewrote files nobody named, so what is held for them is
+        // stale and the agenda is built again from disk.
+        assertEquals(1, loader.invalidations)
+    }
 
     @Test
     fun aFailedSyncStillReadsTheCheckoutBecauseItHasNoStateToReport() = runTest(dispatcher) {

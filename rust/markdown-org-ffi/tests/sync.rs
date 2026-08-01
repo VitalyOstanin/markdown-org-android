@@ -10,8 +10,8 @@ use std::path::Path;
 
 use git2::{Repository, Signature};
 use markdown_org_ffi::{
-    commit_changes, holds_repository, load_ca_bundle, repository_status, sync_repository,
-    CommitAuthor, SyncError, SyncRequest,
+    commit_changes, holds_repository, load_ca_bundle, push_changes, repository_status,
+    sync_repository, CommitAuthor, SyncError, SyncRequest,
 };
 
 /// A repository with one commit in it, standing in for the remote.
@@ -827,4 +827,200 @@ fn a_local_path_and_a_file_url_stay_usable() {
         branch: None,
     })
     .expect("file url");
+}
+
+/// The remote as a server holds it: bare, so that pushing to the branch it has
+/// checked out is not a case that can arise here and hide one that can.
+fn bare_origin(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let seed = origin(files);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.bare(true);
+    builder
+        .clone(&seed.path().display().to_string(), dir.path())
+        .expect("clone bare");
+    dir
+}
+
+/// Somebody else committing to the same remote, through a checkout of their
+/// own — which is the only way to put a commit into a bare repository.
+fn another_device_commits(remote: &Path, files: &[(&str, &str)], message: &str) {
+    let elsewhere = tempfile::tempdir().expect("tempdir");
+    let theirs = Repository::clone(&remote.display().to_string(), elsewhere.path()).expect("clone");
+    commit(&theirs, files, message);
+
+    let branch = branch_of(&theirs);
+    theirs
+        .find_remote("origin")
+        .expect("origin")
+        .push(&[format!("refs/heads/{branch}:refs/heads/{branch}")], None)
+        .expect("push");
+}
+
+/// What the remote has on `branch`, as a commit summary.
+fn summary_at(remote: &Path, branch: &str) -> String {
+    let repository = Repository::open(remote).expect("open");
+    let reference = repository
+        .find_reference(&format!("refs/heads/{branch}"))
+        .expect("branch");
+
+    let summary = reference
+        .peel_to_commit()
+        .expect("commit")
+        .summary()
+        .expect("read the summary")
+        .expect("a message")
+        .to_string();
+
+    summary
+}
+
+#[test]
+fn an_edit_committed_here_reaches_the_remote() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    fs::write(checkout.join("notes.md"), "# DONE Write the report\n").expect("write");
+    commit_changes(
+        checkout.display().to_string(),
+        "mark it done".to_string(),
+        author(),
+    )
+    .expect("commit")
+    .expect("a commit was made");
+
+    let outcome = push_changes(request(&checkout, remote.path())).expect("push");
+
+    assert_eq!(outcome.commits_pushed, 1);
+    assert_eq!(outcome.head.unpushed, 0, "nothing may be left behind");
+    assert_eq!(
+        summary_at(remote.path(), &outcome.head.branch),
+        "mark it done",
+    );
+}
+
+#[test]
+fn pushing_a_checkout_the_remote_is_level_with_hands_over_nothing() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let outcome = push_changes(request(&checkout, remote.path())).expect("push");
+
+    assert_eq!(outcome.commits_pushed, 0);
+}
+
+#[test]
+fn a_remote_that_moved_on_refuses_the_push_and_keeps_the_commits_here() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    // Both sides move, and neither knows about the other: the same situation
+    // `Diverged` describes, met from the other end.
+    another_device_commits(remote.path(), &[("theirs.md", NOTES)], "theirs");
+    let mine = Repository::open(&checkout).expect("open");
+    commit(&mine, &[("mine.md", NOTES)], "mine");
+
+    let error = push_changes(request(&checkout, remote.path())).expect_err("must fail");
+
+    match &error {
+        SyncError::Rejected { branch, .. } => assert_eq!("master", branch),
+        other => panic!("got {other:?}"),
+    }
+    // A refused push is not a lost commit: it is still here, and still
+    // counted as owed to the remote.
+    let status = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(status.unpushed, 1);
+    assert_eq!(summary_at(remote.path(), &status.branch), "theirs");
+}
+
+#[test]
+fn the_status_counts_the_commits_the_remote_has_not_been_given() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let fresh = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(fresh.unpushed, 0);
+
+    let mine = Repository::open(&checkout).expect("open");
+    commit(&mine, &[("mine.md", NOTES)], "mine");
+    commit(&mine, &[("mine-too.md", NOTES)], "mine too");
+
+    let owed = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(owed.unpushed, 2);
+
+    push_changes(request(&checkout, remote.path())).expect("push");
+
+    let settled = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(settled.unpushed, 0);
+}
+
+/// A branch the remote does not have is wholly unpushed rather than level:
+/// there is nothing to compare against, and calling that "up to date" would
+/// leave the first push of a new branch undone.
+#[test]
+fn a_branch_the_remote_does_not_have_counts_as_wholly_unpushed() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let mine = Repository::open(&checkout).expect("open");
+    let head = mine.head().expect("head").peel_to_commit().expect("commit");
+    mine.branch("phone", &head, false).expect("branch");
+    mine.set_head("refs/heads/phone").expect("set head");
+
+    let owed = repository_status(checkout.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(owed.unpushed, 1, "the one commit the branch holds");
+
+    let outcome = push_changes(request_on(&checkout, remote.path(), "phone")).expect("push");
+
+    assert_eq!(outcome.commits_pushed, 1);
+    assert_eq!(summary_at(remote.path(), "phone"), "initial");
+}
+
+/// The guard on the address covers a push as well as a fetch: a push offers
+/// both the token and the notes to whoever answers.
+#[test]
+fn a_refused_address_stops_a_push() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let error = push_changes(SyncRequest {
+        dir: checkout.display().to_string(),
+        url: "http://127.0.0.1:1/notes.git".to_string(),
+        token: Some("secret".to_string()),
+        branch: None,
+    })
+    .expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Address { .. }), "{error:?}");
+}
+
+#[test]
+fn pushing_from_a_directory_that_holds_no_repository_is_an_error() {
+    let local = tempfile::tempdir().expect("tempdir");
+
+    let error = push_changes(request(local.path(), local.path())).expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
 }

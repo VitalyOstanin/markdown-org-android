@@ -53,6 +53,7 @@ so a decision can be followed across the three repositories.
 | 0015 | [What the APK carries is published as licence lists, not as an SBOM](0015-licence-lists-instead-of-an-sbom.md) | Accepted |
 | 0016 | [The release is shrunk, and the APK is read back to check it](0016-shrink-the-release-and-read-the-apk-back.md) | Accepted |
 | 0017 | [A repository is opened whoever the platform says owns its directory](0017-open-a-repository-the-platform-owns.md) | Accepted |
+| 0018 | [Edits go back to the remote as a fast-forward push, or not at all](0018-edits-go-back-as-a-fast-forward-push.md) | Accepted |
 
 ## Adding a new ADR
 

@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.SyncException
@@ -23,6 +24,7 @@ class SyncMessageTest {
             SyncException.Dirty(1u) to R.string.sync_failed_dirty,
             SyncException.Repository("not a repository") to R.string.sync_failed_repository,
             SyncException.Address("http:// is not encrypted") to R.string.sync_failed_address,
+            SyncException.Rejected("master", "fetch first") to R.string.sync_failed_rejected,
         )
 
         for ((error, expected) in wordings) {
@@ -108,5 +110,52 @@ class SyncMessageTest {
         val message = IOException().toAgendaMessage()
 
         assertEquals(Detail.Worded(R.string.agenda_failed_unknown), message.detail)
+    }
+
+    @Test
+    fun theBranchTheServerRefusedIsWordedByTheApplication() {
+        assertEquals(
+            Detail.Worded(R.string.sync_rejected_detail, "master"),
+            SyncException.Rejected("master", "fetch first").toSyncMessage().detail,
+        )
+    }
+
+    @Test
+    fun aRunThatSentSomethingSaysSoOverWhatItFetched() {
+        val message = FakeSyncer.run(cloned = false, commits = 2u, pushed = 3u).toMessage()
+
+        assertEquals(R.string.sync_pushed, message.text)
+        assertEquals(Detail.Counted(R.plurals.sync_pushed_detail, 3), message.detail)
+        assertFalse(message.failed)
+    }
+
+    /**
+     * The fetch went through and the push did not. What the user needs to know
+     * is the half that still needs them — the notes are already up to date, and
+     * saying "notes updated" would bury the refusal.
+     */
+    @Test
+    fun aRefusedPushIsReportedOverASuccessfulFetch() {
+        val message = FakeSyncer.run(
+            cloned = false,
+            commits = 1u,
+            pushFailure = SyncException.Rejected("master", "fetch first"),
+        ).toMessage()
+
+        assertEquals(R.string.sync_failed_rejected, message.text)
+        assertTrue(message.failed)
+    }
+
+    @Test
+    fun aRunWithNothingToSendReadsAsItAlwaysDid() {
+        assertEquals(R.string.sync_cloned, FakeSyncer.run(cloned = true).toMessage().text)
+        assertEquals(
+            R.string.sync_updated,
+            FakeSyncer.run(cloned = false, commits = 1u).toMessage().text,
+        )
+        assertEquals(
+            R.string.sync_already_current,
+            FakeSyncer.run(cloned = false).toMessage().text,
+        )
     }
 }

@@ -307,17 +307,44 @@ private fun SyncBanner(sync: SyncUiState) {
             },
             modifier = Modifier.testTag("sync-banner"),
         )
-        sync.message?.detail?.takeIf { sync.message.failed }?.let { detail ->
+        sync.message?.detail?.let { detail ->
             Text(
                 text = detailText(detail),
                 style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
+                // Monospace for what a library wrote — a path, an id, a line
+                // of diagnostics reads better in it. What is worded here is
+                // prose and is set as prose.
+                fontFamily = (detail as? Detail.Verbatim)?.let { FontFamily.Monospace },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
             )
         }
+        Unpushed(sync)
         LastSynced(sync)
     }
+}
+
+/**
+ * Edits that are still only on this device.
+ *
+ * Its own line rather than part of the message above: the message is about the
+ * attempt just made, and this outlives it — a commit made offline stays unsent
+ * across every launch until a sync gets through. Left out while a sync runs,
+ * where it would state a count about to change.
+ */
+@Composable
+private fun Unpushed(sync: SyncUiState) {
+    val owed = sync.repository?.unpushed?.toInt()?.takeIf { it > 0 } ?: return
+    if (sync.running) {
+        return
+    }
+
+    Text(
+        text = pluralStringResource(R.plurals.sync_unpushed, owed, owed),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.testTag("sync-unpushed"),
+    )
 }
 
 /**

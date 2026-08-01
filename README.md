@@ -171,9 +171,13 @@ refused rather than overwritten.
 Keeping them in step with a remote:
 
 - `syncRepository(request)` — clone into an empty directory, fast-forward
-  afterwards; it never merges and never pushes;
-- `repositoryStatus(dir)` — the remote, the branch, the head commit and
-  whether anything is uncommitted, read without touching the network;
+  afterwards; it never merges;
+- `pushChanges(request)` — hand the remote the commits made here, as a
+  fast-forward of its branch and nothing else; a push the server refuses comes
+  back as a refusal with the commits still on the device;
+- `repositoryStatus(dir)` — the remote, the branch, the head commit, whether
+  anything is uncommitted and how much has not been pushed, read without
+  touching the network;
 - `holdsRepository(dir)` — whether the directory is a checkout at all, which
   is how "not set up yet" is told from "set up and behind";
 - `loadCaBundle(pem)` — hand the certificate authorities over, once per
@@ -250,8 +254,10 @@ What it defends against and why none of it applies here is
 
 ## What a sync does with the checkout
 
-A sync clones once and fast-forwards afterwards; it never merges, and it never
-pushes. What it does in the situations that are not a plain fast-forward:
+A sync clones once, fast-forwards afterwards, and then hands the remote
+whatever was committed here. Neither half ever merges or rewrites history: a
+fetch that is not a fast-forward is refused, and so is a push. What it does in
+the situations that are not a plain fast-forward:
 
 | № | Situation                                          | What happens                                                                                  |
 |---|----------------------------------------------------|-----------------------------------------------------------------------------------------------|
@@ -263,6 +269,7 @@ pushes. What it does in the situations that are not a plain fast-forward:
 | 6 | The network fails                                  | Retried up to three times, waiting 0.5 s then 1 s. Rejected credentials, a divergence and a dirty checkout are not retried — they need someone to act first. |
 | 7 | The connection hangs                               | Bounded: 15 s to connect, 60 s per request. Without them the wait is whatever the operating system decides. |
 | 8 | The remote URL changes                             | The directory is emptied and cloned again, and the stored token is dropped with it — it was issued by the host that is being left. |
+| 9 | The server refuses the push                        | `Rejected`, after the fetch has already gone through. The commits stay on the device and are counted in the header until a later sync gets them across; the fetch itself is not reported as failed. |
 
 ## The certificate bundle a sync trusts
 

@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.maskCredentials
 import uniffi.markdown_org_ffi.EditException
 import uniffi.markdown_org_ffi.RepoStatus
@@ -93,6 +94,29 @@ fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
 }
 
 /**
+ * What one sync amounted to, both halves of it.
+ *
+ * A refused push is reported over everything else the run did: what came down
+ * from the server is already on screen, and what did not go up is the part
+ * that still needs someone. Below that, the push is mentioned only when there
+ * was one — a run that fetched and had nothing to send reads as it always did.
+ */
+fun SyncRun.toMessage(): SyncMessage = when {
+    pushFailure != null -> pushFailure.toSyncMessage()
+
+    pushed > 0u -> SyncMessage(
+        R.string.sync_pushed,
+        Detail.Counted(R.plurals.sync_pushed_detail, pushed.toInt()),
+    )
+
+    fetched.cloned -> SyncMessage(R.string.sync_cloned)
+
+    fetched.commitsApplied > 0u -> SyncMessage(R.string.sync_updated)
+
+    else -> SyncMessage(R.string.sync_already_current)
+}
+
+/**
  * Maps a failure onto something worth reading.
  *
  * The variants are kept apart because the answer differs: a rejected token
@@ -123,6 +147,16 @@ fun Throwable.toSyncMessage(): SyncMessage = when (this) {
     is SyncException.Dirty -> SyncMessage(
         R.string.sync_failed_dirty,
         Detail.Counted(R.plurals.sync_dirty_detail, changed.toInt()),
+        failed = true,
+    )
+
+    // The server's own refusal, as opposed to `Diverged` above, which is this
+    // application declining to merge what it fetched. The edits are still on
+    // the device; what is needed is another sync, which takes the remote's
+    // commits first and can then hand over these.
+    is SyncException.Rejected -> SyncMessage(
+        R.string.sync_failed_rejected,
+        Detail.Worded(R.string.sync_rejected_detail, branch),
         failed = true,
     )
 

@@ -21,6 +21,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
+import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UiSettings
@@ -535,13 +536,7 @@ class AgendaViewModel(
                     .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
                     .getOrNull()
             val message = outcome.fold(
-                onSuccess = { result ->
-                    when {
-                        result.cloned -> SyncMessage(R.string.sync_cloned)
-                        result.commitsApplied > 0u -> SyncMessage(R.string.sync_updated)
-                        else -> SyncMessage(R.string.sync_already_current)
-                    }
-                },
+                onSuccess = SyncRun::toMessage,
                 onFailure = Throwable::toSyncMessage,
             )
 

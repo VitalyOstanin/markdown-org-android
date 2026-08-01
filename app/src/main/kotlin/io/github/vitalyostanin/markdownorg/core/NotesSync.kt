@@ -5,13 +5,32 @@ import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.SyncRequest
 import uniffi.markdown_org_ffi.loadCaBundle
+import uniffi.markdown_org_ffi.pushChanges
 import uniffi.markdown_org_ffi.repositoryStatus
 import uniffi.markdown_org_ffi.syncRepository
+
+/**
+ * What one press of the sync button did, both ways.
+ *
+ * The push is reported beside the fetch rather than in place of it: the two
+ * halves fail independently, and a fetch that brought the notes forward stays
+ * worth saying so even when the push after it was refused.
+ */
+data class SyncRun(
+    /** What the fetch did, and the checkout as it left it. */
+    val fetched: SyncOutcome,
+    /** Commits handed to the remote afterwards. */
+    val pushed: UInt = 0u,
+    /** The checkout after both halves. */
+    val head: RepoStatus = fetched.head,
+    /** Why the push did not happen, when the fetch itself went through. */
+    val pushFailure: Throwable? = null,
+)
 
 /** Keeps the working copy in step with a remote. */
 interface NotesSyncer {
 
-    suspend fun sync(settings: SyncPreferences): Result<SyncOutcome>
+    suspend fun sync(settings: SyncPreferences): Result<SyncRun>
 
     /**
      * State of the checkout, without contacting the remote.
@@ -35,11 +54,19 @@ interface NotesSyncer {
 class NotesSync(private val context: Context, private val notes: NotesArea) : NotesSyncer {
 
     /**
-     * Clone on the first call, fast-forward afterwards. Runs off the main
-     * thread and under the lock on the notes directory: this rewrites the
-     * working copy the agenda reads and an edit commits to.
+     * Clone on the first call, fast-forward afterwards, then hand the remote
+     * whatever was committed here. Runs off the main thread and under the lock
+     * on the notes directory: this rewrites the working copy the agenda reads
+     * and an edit commits to.
+     *
+     * In that order because it is the order that works: a push is only ever a
+     * fast-forward of the remote branch, so anything the remote gained in the
+     * meantime has to be here first. A push refused after a successful fetch
+     * is reported through [SyncRun.pushFailure] rather than as a failed sync —
+     * the notes did come forward, and saying otherwise would send the user
+     * looking for a fetch that did not fail.
      */
-    override suspend fun sync(settings: SyncPreferences): Result<SyncOutcome> {
+    override suspend fun sync(settings: SyncPreferences): Result<SyncRun> {
         val url = settings.remoteUrl
             ?: return Result.failure(IllegalStateException("no remote configured"))
         // Handed over before the lock, and only until the core has it: 180 kB
@@ -49,25 +76,50 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         val certificates = runCatching { loadCertificates() }
         certificates.exceptionOrNull()?.let { return Result.failure(it) }
 
+        val request = SyncRequest(
+            dir = notes.root.absolutePath,
+            url = url,
+            token = settings.token,
+            branch = settings.branch,
+        )
+
         return notes.exclusive {
             // A phone loses the network mid-request often enough that one
             // attempt is not an answer. Only the transient failure is
             // repeated — see `worthRetrying`.
             retryingTransientFailures {
-                runCatching {
-                    syncRepository(
-                        SyncRequest(
-                            dir = notes.root.absolutePath,
-                            url = url,
-                            token = settings.token,
-                            branch = settings.branch,
-                        ),
-                    )
-                }
+                runCatching { syncRepository(request) }
+            }.map { fetched ->
+                handOver(request, fetched)
             }.onSuccess {
                 settings.lastSyncedAt = System.currentTimeMillis()
             }
         }
+    }
+
+    /**
+     * Give the remote what was committed here, if anything was.
+     *
+     * The count comes from the checkout the fetch just left, so a remote that
+     * is level with this one costs nothing beyond the comparison the fetch
+     * already made. The retry is the fetch's: a push over a connection that
+     * dropped is the one failure another attempt can fix, and a refusal is not.
+     */
+    private suspend fun handOver(request: SyncRequest, fetched: SyncOutcome): SyncRun {
+        if (fetched.head.unpushed == 0u) {
+            return SyncRun(fetched)
+        }
+
+        return retryingTransientFailures {
+            runCatching { pushChanges(request) }
+        }.fold(
+            onSuccess = { pushed ->
+                SyncRun(fetched, pushed = pushed.commitsPushed, head = pushed.head)
+            },
+            // The fetch stands: the notes came forward, and only the way back
+            // was closed. Reported, not thrown, so the caller can say both.
+            onFailure = { failure -> SyncRun(fetched, pushFailure = failure) },
+        )
     }
 
     override suspend fun status(): Result<RepoStatus?> = notes.exclusive {

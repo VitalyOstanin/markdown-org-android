@@ -22,6 +22,7 @@
     <string name="sync_cloned">Заметки склонированы</string>
     <string name="sync_updated">Заметки обновлены</string>
     <string name="sync_already_current">Уже актуально</string>
+    <string name="sync_pushed">Правки отправлены на сервер</string>
     <string name="sync_checkout">%1$s · %2$s</string>
     <string name="sync_last_synced">синхронизировано %1$s</string>
     <string name="sync_failed_auth">Сервер отклонил токен</string>
@@ -29,12 +30,14 @@
     <string name="sync_failed_diverged">Локальные коммиты расходятся с удалёнными</string>
     <string name="sync_failed_dirty">Незафиксированные изменения были бы затёрты</string>
     <string name="sync_failed_address">Адрес использовать нельзя; ничего не отправлено</string>
+    <string name="sync_failed_rejected">Сервер не принял правки</string>
     <string name="sync_failed_repository">Синхронизация не удалась</string>
     <string name="sync_diverged_detail">%1$s и origin/%1$s разошлись; приложение не выполняет слияние</string>
+    <string name="sync_rejected_detail">в origin/%1$s есть коммиты, которых нет на устройстве; синхронизируйте ещё раз, чтобы сначала получить их</string>
     <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 
     <string name="settings_title">Репозиторий заметок</string>
-    <string name="settings_hint">Репозиторий клонируется в указанный ниже каталог заметок. Выполняется только получение изменений: локальные правки пока не отправляются.</string>
+    <string name="settings_hint">Репозиторий клонируется в указанный ниже каталог заметок. Синхронизация забирает изменения с сервера и отдаёт ему то, что изменено здесь; слияние и перезапись истории не выполняются ни с одной стороны.</string>
     <string name="settings_url">Адрес репозитория</string>
     <string name="settings_branch">Ветка</string>
     <string name="settings_branch_default">по умолчанию — ветка удалённого репозитория</string>
@@ -104,6 +107,20 @@
         <item quantity="few">с последнего коммита изменено %d файла</item>
         <item quantity="many">с последнего коммита изменено %d файлов</item>
         <item quantity="other">с последнего коммита изменено %d файла</item>
+    </plurals>
+
+    <plurals name="sync_pushed_detail">
+        <item quantity="one">передан %d коммит</item>
+        <item quantity="few">передано %d коммита</item>
+        <item quantity="many">передано %d коммитов</item>
+        <item quantity="other">передано %d коммита</item>
+    </plurals>
+
+    <plurals name="sync_unpushed">
+        <item quantity="one">%d коммит не отправлен</item>
+        <item quantity="few">%d коммита не отправлено</item>
+        <item quantity="many">%d коммитов не отправлено</item>
+        <item quantity="other">%d коммита не отправлено</item>
     </plurals>
 
     <plurals name="agenda_days_overdue">
