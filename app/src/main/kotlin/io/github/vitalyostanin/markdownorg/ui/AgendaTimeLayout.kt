@@ -165,29 +165,31 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val role = LocalAgendaColors.current.role(row.task.kind())
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(TileHeight)
-            .clip(MaterialTheme.shapes.medium)
-            .background(role.container)
-            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val time = rowTimeLabel(row)
+    TaskTooltip(row.task) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TileHeight)
+                .clip(MaterialTheme.shapes.medium)
+                .background(role.container)
+                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
+                .padding(horizontal = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val time = rowTimeLabel(row)
 
-        TaskRowHead(row.task, glyph = role.onContainer)
-        if (time.isNotEmpty()) {
-            Spacer(Modifier.width(Spacing.sm))
-            TrailingTag(
-                text = time,
-                // A veil of the text colour rather than of white: it has to
-                // darken the tile in the light theme and lighten it in the
-                // dark one, which one fixed colour cannot do.
-                background = role.onContainer.copy(alpha = 0.09f),
-                foreground = role.onContainer,
-            )
+            TaskRowHead(row.task, glyph = role.onContainer)
+            if (time.isNotEmpty()) {
+                Spacer(Modifier.width(Spacing.sm))
+                TrailingTag(
+                    text = time,
+                    // A veil of the text colour rather than of white: it has to
+                    // darken the tile in the light theme and lighten it in the
+                    // dark one, which one fixed colour cannot do.
+                    background = role.onContainer.copy(alpha = 0.09f),
+                    foreground = role.onContainer,
+                )
+            }
         }
     }
 }
@@ -207,39 +209,41 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val trailing = if (row.statesAge()) daysLabel(row.daysOffset) else ""
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = Spacing.sm)
-            .clip(MaterialTheme.shapes.medium)
-            .background(colors.deadline.tone)
-            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val time = rowTimeLabel(row)
+    TaskTooltip(row.task) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.sm)
+                .clip(MaterialTheme.shapes.medium)
+                .background(colors.deadline.tone)
+                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val time = rowTimeLabel(row)
 
-        TaskRowHead(row.task, glyph = colors.onSolid, bold = true, onDenseFill = true)
-        if (time.isNotEmpty()) {
-            Spacer(Modifier.width(Spacing.sm))
-            Text(
-                text = time,
-                style = MaterialTheme.typography.labelMedium,
-                fontFamily = FontFamily.Monospace,
-                color = colors.onSolid,
-            )
-        }
-        if (trailing.isNotEmpty()) {
-            Spacer(Modifier.width(Spacing.sm))
-            // Inverted rather than veiled: white on a veil over a dense tone
-            // lands around 2.6, and the label has to stay readable.
-            TrailingTag(
-                text = trailing,
-                background = colors.onSolid,
-                foreground = colors.deadline.tone,
-                bold = true,
-                spoken = daysSpoken(row.daysOffset),
-            )
+            TaskRowHead(row.task, glyph = colors.onSolid, bold = true, onDenseFill = true)
+            if (time.isNotEmpty()) {
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    text = time,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = FontFamily.Monospace,
+                    color = colors.onSolid,
+                )
+            }
+            if (trailing.isNotEmpty()) {
+                Spacer(Modifier.width(Spacing.sm))
+                // Inverted rather than veiled: white on a veil over a dense
+                // tone lands around 2.6, and the label has to stay readable.
+                TrailingTag(
+                    text = trailing,
+                    background = colors.onSolid,
+                    foreground = colors.deadline.tone,
+                    bold = true,
+                    spoken = daysSpoken(row.daysOffset),
+                )
+            }
         }
     }
 }
@@ -252,23 +256,25 @@ private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier
     val date = row.task.timestampDate.orEmpty()
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    Column(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.medium)
-            .background(role.container)
-            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TaskRowHead(row.task, glyph = role.onContainer, bold = true)
+    TaskTooltip(row.task) {
+        Column(
+            modifier = modifier
+                .clip(MaterialTheme.shapes.medium)
+                .background(role.container)
+                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TaskRowHead(row.task, glyph = role.onContainer, bold = true)
+            }
+            Text(
+                text = listOf(date, trailing).filter(String::isNotEmpty).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = role.onContainer,
+            )
         }
-        Text(
-            text = listOf(date, trailing).filter(String::isNotEmpty).joinToString(" · "),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            color = role.onContainer,
-        )
     }
 }
 

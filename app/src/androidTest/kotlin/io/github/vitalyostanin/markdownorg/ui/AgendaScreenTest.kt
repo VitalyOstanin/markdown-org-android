@@ -11,11 +11,13 @@ import androidx.compose.ui.platform.LocalProvidableLocaleList
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.intl.LocaleList
@@ -26,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
@@ -404,6 +407,38 @@ class AgendaScreenTest {
         assertTrue(sections.timed.single().task.kind() == AgendaKind.CANCELLED)
     }
 
+    @Test
+    fun aLongPressSpellsOutWhatTheRowCutOff() {
+        showAgenda(AgendaLayout.LIST)
+
+        compose.onNodeWithText("Renew the certificate").performTouchInput { longClick() }
+
+        // The heading in full, and under it the legend for what the row draws
+        // as a glyph and a badge.
+        compose.onNodeWithText(string(R.string.tooltip_priority_highest, "A"), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun aTileAnswersTheSamePressAsAListRow() {
+        showAgenda(AgendaLayout.TIME)
+
+        compose.onNodeWithText("Daily standup").performTouchInput { longClick() }
+
+        // A repeating task names its repeater rather than a plain date.
+        compose.onNodeWithText("++7d", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun theTapThatOpensTheActionsStillGetsThrough() {
+        val tapped = mutableListOf<String>()
+        showAgenda(AgendaLayout.LIST, onTaskClick = { tapped += it.heading })
+
+        compose.onNodeWithText("Renew the certificate").performClick()
+
+        assertEquals(listOf("Renew the certificate"), tapped)
+    }
+
     private val controls = listOf(
         R.string.sync_now,
         R.string.settings_title,
@@ -424,6 +459,7 @@ class AgendaScreenTest {
         sections: AgendaSections = sample,
         now: LocalDateTime = MID_MORNING,
         locale: Locale? = null,
+        onTaskClick: (Task) -> Unit = {},
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -433,6 +469,7 @@ class AgendaScreenTest {
                         layout = layout,
                         onLayoutChange = {},
                         now = now,
+                        onTaskClick = onTaskClick,
                     )
                 }
 

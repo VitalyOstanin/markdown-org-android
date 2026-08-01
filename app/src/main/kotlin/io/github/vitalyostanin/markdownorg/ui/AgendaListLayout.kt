@@ -93,64 +93,67 @@ private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
 
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) },
-    ) {
-        Row(
-            modifier = Modifier.padding(end = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
+    TaskTooltip(row.task) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) },
         ) {
-            // The rail carries the kind of entry without spending width on a
-            // label; it clears the 3.0 contrast a non-text carrier needs.
-            Box(
-                Modifier
-                    .width(Sizes.rail)
-                    .height(Sizes.railHeight)
-                    .clip(
-                        MaterialTheme.shapes.medium.copy(
-                            topEnd = ZeroCornerSize,
-                            bottomEnd = ZeroCornerSize,
-                        ),
+            Row(
+                modifier = Modifier.padding(end = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The rail carries the kind of entry without spending width on
+                // a label; it clears the 3.0 contrast a non-text carrier needs.
+                Box(
+                    Modifier
+                        .width(Sizes.rail)
+                        .height(Sizes.railHeight)
+                        .clip(
+                            MaterialTheme.shapes.medium.copy(
+                                topEnd = ZeroCornerSize,
+                                bottomEnd = ZeroCornerSize,
+                            ),
+                        )
+                        .background(role.tone),
+                )
+                Spacer(Modifier.width(Spacing.md))
+                TimeCell(rowTimeLabel(row))
+                // The glyph repeats what the rail says in a form that survives
+                // without colour, which is what WCAG 1.4.1 asks for. The
+                // priority badge leads the line after it: the eye reads left to
+                // right, and a column of badges is what a scrolled list is
+                // scanned by.
+                TaskRowHead(
+                    row.task,
+                    glyph = role.tone,
+                    heading = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                if (trailing.isEmpty()) {
+                    Text(
+                        text = EMPTY_CELL,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.outline,
                     )
-                    .background(role.tone),
-            )
-            Spacer(Modifier.width(Spacing.md))
-            TimeCell(rowTimeLabel(row))
-            // The glyph repeats what the rail says in a form that survives
-            // without colour, which is what WCAG 1.4.1 asks for. The priority
-            // badge leads the line after it: the eye reads left to right, and
-            // a column of badges is what a scrolled list is scanned by.
-            TaskRowHead(
-                row.task,
-                glyph = role.tone,
-                heading = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.width(Spacing.sm))
-            if (trailing.isEmpty()) {
-                Text(
-                    text = EMPTY_CELL,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            } else {
-                // Overdue is the same red at full strength: the date has
-                // passed, while a deadline still ahead stays plain text.
-                TrailingTag(
-                    text = trailing,
-                    background = if (overdue) role.tone else Color.Transparent,
-                    foreground = if (overdue) {
-                        LocalAgendaColors.current.onSolid
-                    } else {
-                        MaterialTheme.colorScheme.outline
-                    },
-                    bold = overdue,
-                    spoken = daysSpoken(row.daysOffset),
-                )
+                } else {
+                    // Overdue is the same red at full strength: the date has
+                    // passed, while a deadline still ahead stays plain text.
+                    TrailingTag(
+                        text = trailing,
+                        background = if (overdue) role.tone else Color.Transparent,
+                        foreground = if (overdue) {
+                            LocalAgendaColors.current.onSolid
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                        bold = overdue,
+                        spoken = daysSpoken(row.daysOffset),
+                    )
+                }
             }
         }
     }

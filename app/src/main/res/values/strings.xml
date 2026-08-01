@@ -78,6 +78,28 @@
     <string name="licences_unavailable">This build carries no licence list. It is written by tools/licenses.sh and by the build itself; a build that skipped both has nothing to show here.</string>
 
     <string name="agenda_task_actions">Task actions</string>
+    <!--
+      What a long press on a row says. The heading comes first, in full, since
+      the row itself shows only as much of it as fits; the lines below are the
+      legend for the glyph and the priority badge, worded as the VS Code
+      extension words them so the two clients read alike.
+    -->
+    <string name="tooltip_cancelled">Cancelled</string>
+    <string name="tooltip_done">Done</string>
+    <string name="tooltip_deadline">Has a deadline</string>
+    <!-- %1$s is the date, with the time of day when the task states one. -->
+    <string name="tooltip_deadline_at">Deadline: %1$s</string>
+    <string name="tooltip_scheduled">Scheduled at a set time</string>
+    <string name="tooltip_scheduled_at">Scheduled: %1$s</string>
+    <!-- %1$s is the repeater in brackets, or nothing when it is not stated. -->
+    <string name="tooltip_repeating">Repeating%1$s</string>
+    <!-- %2$s is the next occurrence the core resolved… -->
+    <string name="tooltip_repeating_next">Repeating%1$s — next %2$s</string>
+    <!-- …and here the date the task itself carries, which may be in the past. -->
+    <string name="tooltip_repeating_on">Repeating%1$s — dated %2$s</string>
+    <string name="tooltip_priority">Priority %1$s</string>
+    <string name="tooltip_priority_highest">Priority %1$s (highest)</string>
+    <string name="tooltip_priority_lowest">Priority %1$s (lowest)</string>
     <string name="action_complete">Done</string>
     <string name="action_complete_repeating">Done, move to next occurrence</string>
     <!-- Worded away from "cancel": in the sheet it writes CANCELLED into the

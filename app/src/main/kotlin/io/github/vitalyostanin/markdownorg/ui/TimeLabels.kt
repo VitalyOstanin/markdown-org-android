@@ -99,6 +99,25 @@ internal fun syncedAtLabel(at: Long): String? {
 }
 
 /**
+ * A date the note states, written the way the locale writes a numeric one.
+ *
+ * Passed through as written when it is not a date. The extractor keeps
+ * whatever the file says, and a made-up date would hide the fact that the note
+ * has something else in that place.
+ */
+internal fun statedDateLabel(stated: String, locale: Locale): String =
+    runCatching { LocalDate.parse(stated) }
+        .fold({ dateFormatter(locale).format(it) }, { stated })
+
+private fun dateFormatter(locale: Locale): DateTimeFormatter =
+    DateTimeFormatter.ofPattern(localizedPattern(FormatStyle.SHORT, null, locale), locale)
+
+/** A time the note states, on the clock of the reader; as written when it is not one. */
+internal fun statedTimeLabel(stated: String, locale: Locale, use24Hour: Boolean): String =
+    runCatching { LocalTime.parse(stated) }
+        .fold({ timeLabel(it, locale, use24Hour) }, { stated })
+
+/**
  * A day and a month, in the order and with the separator of the locale.
  *
  * The year is dropped rather than never asked for: no locale states a pattern

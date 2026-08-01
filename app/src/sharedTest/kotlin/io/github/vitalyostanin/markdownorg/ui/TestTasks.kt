@@ -22,6 +22,7 @@ internal fun task(
     date: String? = "2026-07-28",
     time: String? = null,
     repeater: String? = null,
+    next: String? = null,
     daysOffset: Long? = 0,
 ): Task = Task(
     file = file,
@@ -33,7 +34,7 @@ internal fun task(
     timestampDate = date,
     timestampTime = time,
     timestampRepeater = repeater,
-    timestampNext = null,
+    timestampNext = next,
     daysOffset = daysOffset,
 )
 

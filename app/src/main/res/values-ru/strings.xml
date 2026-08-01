@@ -65,6 +65,18 @@
     <string name="licences_unavailable">В этой сборке нет списка лицензий. Он создаётся скриптом tools/licenses.sh и самой сборкой; если ни то, ни другое не выполнялось, показывать нечего.</string>
 
     <string name="agenda_task_actions">Действия с задачей</string>
+    <string name="tooltip_cancelled">Отменено</string>
+    <string name="tooltip_done">Выполнено</string>
+    <string name="tooltip_deadline">Есть крайний срок</string>
+    <string name="tooltip_deadline_at">Крайний срок: %1$s</string>
+    <string name="tooltip_scheduled">Запланировано на определённое время</string>
+    <string name="tooltip_scheduled_at">Запланировано: %1$s</string>
+    <string name="tooltip_repeating">Повторяется%1$s</string>
+    <string name="tooltip_repeating_next">Повторяется%1$s — следующее %2$s</string>
+    <string name="tooltip_repeating_on">Повторяется%1$s — дата %2$s</string>
+    <string name="tooltip_priority">Приоритет %1$s</string>
+    <string name="tooltip_priority_highest">Приоритет %1$s (высший)</string>
+    <string name="tooltip_priority_lowest">Приоритет %1$s (низший)</string>
     <string name="action_complete">Готово</string>
     <string name="action_complete_repeating">Готово, перенести на следующий раз</string>
     <string name="action_cancel_task">Снять задачу</string>

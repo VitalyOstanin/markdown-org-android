@@ -1,0 +1,165 @@
+package io.github.vitalyostanin.markdownorg.ui
+
+import androidx.annotation.StringRes
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.stringResource
+import io.github.vitalyostanin.markdownorg.R
+import uniffi.markdown_org_ffi.Task
+
+// What a long press on a row says. The row itself shows one line and cuts the
+// heading where it runs out of width, which on the real notes leaves half of a
+// name; the press is where the rest of it is, together with the legend for the
+// glyph and the priority badge beside it. The wording follows the VS Code
+// extension (`src/utils/agendaTooltips.ts`), so a task reads the same in both
+// clients.
+
+/**
+ * One line of the tooltip, as a resource and its arguments rather than as
+ * finished text.
+ *
+ * The same split as [SyncMessage] and [ScanNotice] use: what a task is gets
+ * decided where the task is, and the wording stays in the resources, which is
+ * also what lets the decision be tested on the JVM.
+ */
+internal data class TooltipLine(
+    @param:StringRes val text: Int,
+    val args: List<String> = emptyList(),
+)
+
+/**
+ * What the entry is, spelled out with the date it carries.
+ *
+ * [date] and [time] arrive as arguments for the reason the same helpers in the
+ * extension take them: the reader's locale and clock live in the composition,
+ * and this decision is made outside it. `null` where there is nothing to say —
+ * a task with no timestamp at all states nothing beyond its heading.
+ */
+internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String): TooltipLine? {
+    val repeater = timestampRepeater
+    // The time of day stays the same across occurrences, so it is read once.
+    val at = timestampTime?.let(time).orEmpty()
+    val moment = { iso: String, withTime: Boolean ->
+        val day = date(iso)
+        if (withTime && at.isNotEmpty()) "$day $at" else day
+    }
+    val stated = timestampDate?.let { moment(it, true) }.orEmpty()
+
+    return when (kind()) {
+        AgendaKind.CANCELLED -> TooltipLine(R.string.tooltip_cancelled)
+
+        AgendaKind.DONE -> TooltipLine(R.string.tooltip_done)
+
+        AgendaKind.REPEAT -> repeatLine(repeater.orEmpty(), timestampNext, stated, moment)
+
+        AgendaKind.DEADLINE -> if (stated.isEmpty()) {
+            TooltipLine(R.string.tooltip_deadline)
+        } else {
+            TooltipLine(R.string.tooltip_deadline_at, listOf(stated))
+        }
+
+        // Anything the note dates without saying what for, and anything it
+        // dates not at all: a heading with no timestamp lands here too, and
+        // calling it scheduled would be inventing a plan it does not state.
+        AgendaKind.SCHEDULED -> when {
+            stated.isNotEmpty() -> TooltipLine(R.string.tooltip_scheduled_at, listOf(stated))
+            timestampType != null -> TooltipLine(R.string.tooltip_scheduled)
+            else -> null
+        }
+    }
+}
+
+/**
+ * The repeating line, which names the next occurrence when the core resolved
+ * one and the task's own date when it did not.
+ *
+ * An hour repeater is projected onto a whole-day grid with its interval
+ * ignored (extract ADR-0023), so the stated clock time is not the time of that
+ * occurrence and is left out of it; every other unit keeps the time of day.
+ */
+private fun repeatLine(
+    repeater: String,
+    next: String?,
+    stated: String,
+    moment: (String, Boolean) -> String,
+): TooltipLine {
+    val brackets = if (repeater.isEmpty()) "" else " ($repeater)"
+
+    return when {
+        next != null -> TooltipLine(
+            R.string.tooltip_repeating_next,
+            listOf(brackets, moment(next, !repeater.trim().endsWith(HOUR_UNIT))),
+        )
+
+        stated.isNotEmpty() -> TooltipLine(
+            R.string.tooltip_repeating_on,
+            listOf(brackets, stated),
+        )
+
+        else -> TooltipLine(R.string.tooltip_repeating, listOf(brackets))
+    }
+}
+
+/** The letter, with the ends of the A–C scale named; `null` for no cookie. */
+internal fun Task.tooltipPriority(): TooltipLine? {
+    val letter = priority?.uppercase()?.takeIf(String::isNotEmpty) ?: return null
+
+    return when (letter) {
+        "A" -> TooltipLine(R.string.tooltip_priority_highest, listOf(letter))
+        "C" -> TooltipLine(R.string.tooltip_priority_lowest, listOf(letter))
+        else -> TooltipLine(R.string.tooltip_priority, listOf(letter))
+    }
+}
+
+/** The unit whose next occurrence carries no time of day. */
+private const val HOUR_UNIT = "h"
+
+/** The whole tooltip: the heading in full, then what the row could not say. */
+@Composable
+internal fun taskTooltipText(task: Task): String {
+    val locale = LocalLocale.current.platformLocale
+    val use24Hour = use24Hour()
+    val lines = listOfNotNull(
+        task.tooltipKind(
+            date = { statedDateLabel(it, locale) },
+            time = { statedTimeLabel(it, locale, use24Hour) },
+        ),
+        task.tooltipPriority(),
+    )
+
+    return (listOf(task.heading) + lines.map { stringResource(it.text, *it.args.toTypedArray()) })
+        .joinToString("\n")
+}
+
+/**
+ * The row, with its tooltip behind a long press.
+ *
+ * The gesture was free: nothing in the agenda handles a long press, and a tap
+ * still opens the sheet of actions. Wrapped around the row rather than around
+ * the heading alone so the press lands anywhere on it — the heading is what is
+ * cut off, and aiming at it is exactly what a reader cannot do when it is.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TaskTooltip(task: Task, content: @Composable () -> Unit) {
+    val text = taskTooltipText(task)
+
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+            TooltipAnchorPosition.Above,
+        ),
+        tooltip = {
+            PlainTooltip { Text(text, style = MaterialTheme.typography.bodySmall) }
+        },
+        state = rememberTooltipState(isPersistent = true),
+        content = content,
+    )
+}
