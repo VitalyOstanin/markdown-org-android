@@ -29,7 +29,7 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
-import java.time.LocalTime
+import java.time.LocalDateTime
 
 /**
  * The screen over a state built by hand.
@@ -125,14 +125,14 @@ class AgendaScreenTest {
 
     @Test
     fun timeLayoutMarksTheCurrentMoment() {
-        showAgenda(AgendaLayout.TIME, now = LocalTime.of(10, 0))
+        showAgenda(AgendaLayout.TIME, now = MID_MORNING)
 
         compose.onNodeWithContentDescription(string(R.string.agenda_now)).assertExists()
     }
 
     @Test
     fun anotherDayHasNoCurrentMomentMarker() {
-        showAgenda(AgendaLayout.TIME, now = null)
+        showAgenda(AgendaLayout.TIME, now = MID_MORNING.plusDays(1))
 
         compose.onNodeWithContentDescription(string(R.string.agenda_now)).assertDoesNotExist()
     }
@@ -172,9 +172,10 @@ class AgendaScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 AgendaScreen(
-                    state = readyState(aged, now = LocalTime.of(10, 0)),
+                    state = readyState(aged),
                     layout = layout,
                     onLayoutChange = { layout = it },
+                    now = MID_MORNING,
                 )
             }
         }
@@ -210,9 +211,10 @@ class AgendaScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 AgendaScreen(
-                    state = readyState(sample, now = LocalTime.of(10, 0)),
+                    state = readyState(sample),
                     layout = layout,
                     onLayoutChange = { layout = it },
+                    now = MID_MORNING,
                 )
             }
         }
@@ -236,9 +238,10 @@ class AgendaScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 AgendaScreen(
-                    state = readyState(sample, now = LocalTime.of(10, 0)).copy(refreshing = true),
+                    state = readyState(sample).copy(refreshing = true),
                     layout = AgendaLayout.TIME,
                     onLayoutChange = {},
+                    now = MID_MORNING,
                 )
             }
         }
@@ -278,9 +281,10 @@ class AgendaScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 AgendaScreen(
-                    state = readyState(sections, now = LocalTime.of(10, 0)),
+                    state = readyState(sections),
                     layout = layout,
                     onLayoutChange = { layout = it },
+                    now = MID_MORNING,
                 )
             }
         }
@@ -418,16 +422,17 @@ class AgendaScreenTest {
     private fun showAgenda(
         layout: AgendaLayout,
         sections: AgendaSections = sample,
-        now: LocalTime? = LocalTime.of(10, 0),
+        now: LocalDateTime = MID_MORNING,
         locale: Locale? = null,
     ) {
         compose.setContent {
             MarkdownOrgTheme {
                 val screen = @Composable {
                     AgendaScreen(
-                        state = readyState(sections, now),
+                        state = readyState(sections),
                         layout = layout,
                         onLayoutChange = {},
+                        now = now,
                     )
                 }
 
@@ -447,10 +452,9 @@ class AgendaScreenTest {
         }
     }
 
-    private fun readyState(sections: AgendaSections, now: LocalTime?) = AgendaUiState.Ready(
-        date = LocalDate.of(2026, 7, 28),
+    private fun readyState(sections: AgendaSections) = AgendaUiState.Ready(
+        date = SHOWN_DAY,
         sections = sections,
-        timeline = sections.toTimeline(now),
     )
 
     private fun string(id: Int, vararg formatArgs: Any): String =
@@ -480,5 +484,17 @@ class AgendaScreenTest {
         compose.onNodeWithText(text, useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
         return laid.first().layoutInput.style.textDecoration
+    }
+
+    private companion object {
+        /** The day every state here is for. */
+        val SHOWN_DAY: LocalDate = LocalDate.of(2026, 7, 28)
+
+        /**
+         * The moment the screen is shown at, on that day. Fixed rather than
+         * read from the clock: the marker line is drawn only while the two
+         * agree, and a test that took the real time would move with it.
+         */
+        val MID_MORNING: LocalDateTime = SHOWN_DAY.atTime(10, 0)
     }
 }

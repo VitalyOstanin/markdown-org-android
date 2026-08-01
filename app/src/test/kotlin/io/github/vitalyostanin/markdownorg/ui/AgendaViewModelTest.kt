@@ -5,9 +5,13 @@ import io.github.vitalyostanin.markdownorg.core.EditReport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -19,6 +23,8 @@ import org.junit.Before
 import org.junit.Test
 import uniffi.markdown_org_ffi.SyncOutcome
 import java.io.File
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * How the view model orders work that lands on the same directory.
@@ -45,6 +51,9 @@ class AgendaViewModelTest {
 
     /** Whether the platform lets a directory outside [own] be read. */
     private var granted = true
+
+    /** The wall clock the model reads, moved by hand where a test needs it to. */
+    private var moment = NOON
 
     @Before
     fun setUp() {
@@ -670,6 +679,73 @@ class AgendaViewModelTest {
         assertFalse("the directory was moved into for nothing", notes.trace.contains("move"))
     }
 
+    @Test
+    fun theClockOnScreenFollowsTheOneOnTheWall() = runTest(dispatcher) {
+        // It used to be read once, when the agenda was built, so the marker
+        // line stood where the last scan had left it — an hour behind the
+        // phone after an hour in the background.
+        val model = viewModel(FakeSyncer())
+        val seen = mutableListOf<LocalDateTime>()
+        // In the background scope, which is what a collector with no end of
+        // its own belongs in: `runTest` cancels it rather than waiting on it.
+        // Time is stepped by hand from here on for the same reason the scope
+        // differs — a ticker never runs out of work, so waiting for idle over
+        // one would never return.
+        backgroundScope.launch { model.now.toList(seen) }
+        runCurrent()
+
+        moment = moment.plusMinutes(1)
+        advanceTimeBy(MINUTE_MS)
+        runCurrent()
+
+        assertEquals(listOf(NOON, NOON.plusMinutes(1)), seen)
+    }
+
+    @Test
+    fun aDayTurningOverRebuildsTheAgenda() = runTest(dispatcher) {
+        // What was due today is overdue tomorrow, and the sections were built
+        // against the old date: nothing short of another scan fixes that.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+        backgroundScope.launch { model.now.collect { } }
+        runCurrent()
+        val scansBefore = loader.pending.size
+
+        moment = NOON.plusDays(1)
+        advanceTimeBy(MINUTE_MS)
+        runCurrent()
+
+        assertTrue("the new day was not scanned for", loader.pending.size > scansBefore)
+        loader.pending.last().complete(Result.success(agenda(day())))
+        runCurrent()
+        assertEquals(
+            NOON.toLocalDate().plusDays(1),
+            (model.state.value as AgendaUiState.Ready).date,
+        )
+    }
+
+    @Test
+    fun aMinutePassingLeavesTheNotesAlone() = runTest(dispatcher) {
+        // The ticker sits beside the agenda rather than inside it precisely so
+        // that a minute does not cost a walk of the notes directory.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+        backgroundScope.launch { model.now.collect { } }
+        runCurrent()
+        val scansBefore = loader.pending.size
+
+        moment = moment.plusMinutes(2)
+        advanceTimeBy(2 * MINUTE_MS)
+        runCurrent()
+
+        assertEquals("the notes were walked for a passing minute", scansBefore, loader.pending.size)
+        assertEquals(NOON.plusMinutes(2), model.now.value)
+    }
+
     private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
         notes = notes,
         agenda = loader,
@@ -680,6 +756,7 @@ class AgendaViewModelTest {
         location = location,
         ownNotes = own,
         storageGranted = { granted },
+        clock = { moment },
     )
 
     private companion object {
@@ -688,5 +765,10 @@ class AgendaViewModelTest {
 
         /** A directory on the shared storage, which is what needs the access. */
         const val SHARED = "/storage/emulated/0/Documents/notes"
+
+        /** Where the hand-held clock starts, on a whole minute. */
+        val NOON: LocalDateTime = LocalDate.of(2026, 7, 28).atTime(12, 0)
+
+        const val MINUTE_MS = 60_000L
     }
 }

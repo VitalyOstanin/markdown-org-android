@@ -204,14 +204,15 @@ sealed interface AgendaUiState {
     data object Loading : AgendaUiState
 
     /**
-     * Both projections are built up front rather than on the layout switch:
-     * they come from the same scan, and rebuilding one of them on a toggle
-     * would put a directory walk behind a button press.
+     * The sections come from the scan; the hour axis is projected from them
+     * where it is drawn. It has to be, because it carries the marker line for
+     * the current moment, and the moment moves while this state stands still.
+     * The projection is cheap next to the walk that produced the sections, and
+     * the layout memoises it.
      */
     data class Ready(
         val date: LocalDate,
         val sections: AgendaSections,
-        val timeline: Timeline,
         /** What the walk behind this agenda skipped, if anything. */
         val notices: List<ScanNotice> = emptyList(),
         /**

@@ -48,6 +48,9 @@ class MainActivity : ComponentActivity() {
                 val sync by model.syncState.collectAsStateWithLifecycle()
                 val selected by model.selected.collectAsStateWithLifecycle()
                 val editIssue by model.editIssue.collectAsStateWithLifecycle()
+                // With the lifecycle, so the ticker behind it stops with the
+                // screen and reads the clock again when the screen comes back.
+                val now by model.now.collectAsStateWithLifecycle()
 
                 // Three screens and no navigation library: the agenda, the
                 // settings it opens, and the notices behind those. Each comes
@@ -167,6 +170,7 @@ class MainActivity : ComponentActivity() {
                         layout = layout,
                         onLayoutChange = model::setLayout,
                         modifier = insets,
+                        now = now,
                         sync = sync,
                         editIssue = editIssue,
                         onEditIssueShown = model::editIssueShown,

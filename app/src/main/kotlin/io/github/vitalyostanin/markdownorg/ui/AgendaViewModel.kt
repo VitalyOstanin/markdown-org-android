@@ -30,16 +30,23 @@ import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.Task
 import java.io.File
+import java.time.Duration
 import java.time.LocalDate
-import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 class AgendaViewModel(
     private val notes: NotesArea,
@@ -53,6 +60,8 @@ class AgendaViewModel(
     private val ownNotes: File,
     /** Whether a directory outside that one may be read, asked of the platform. */
     private val storageGranted: () -> Boolean,
+    /** The wall clock, taken as a parameter so a test can move it by hand. */
+    private val clock: () -> LocalDateTime = LocalDateTime::now,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AgendaUiState>(AgendaUiState.Loading)
@@ -101,6 +110,37 @@ class AgendaViewModel(
     private var refreshJob: Job? = null
     private var syncJob: Job? = null
 
+    /**
+     * The wall clock, ticked once a minute while the screen is watching.
+     *
+     * The agenda used to take the time once, when it was built, and keep it:
+     * the marker line then stood where the last scan had left it, which after
+     * an hour in the background was an hour behind the phone's own clock. The
+     * ticker is not part of [state] because it must not put a directory walk
+     * behind the passing of a minute — the axis is projected from sections
+     * already in hand.
+     *
+     * It runs only while collected, so a screen in the background costs
+     * nothing; coming back to it resubscribes and reads the clock at once,
+     * which is what makes a return from the background correct without a
+     * lifecycle callback of its own. The delay is measured to the top of the
+     * next minute rather than a flat 60 seconds, so the line turns over with
+     * the clock instead of drifting away from it.
+     */
+    val now: StateFlow<LocalDateTime> = flow {
+        while (true) {
+            val moment = clock()
+            emit(moment)
+            delay(millisUntilNextMinute(moment))
+        }
+    }
+        // A day that turns over needs the whole agenda again: what was due
+        // today is overdue now, and the sections were grouped against the old
+        // date. Checked here rather than by a broadcast receiver: this flow is
+        // already awake for the minute in which it happens.
+        .onEach(::refreshOnNewDay)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(TICKER_LINGER_MS), clock())
+
     init {
         refresh()
         readCheckout()
@@ -144,7 +184,7 @@ class AgendaViewModel(
             // reads the whole working copy, so this grows with the notes too.
             val started = System.nanoTime()
             val outcome = when (action) {
-                TaskAction.Complete -> editor.complete(task, LocalDate.now())
+                TaskAction.Complete -> editor.complete(task, clock().toLocalDate())
                 is TaskAction.Status -> editor.setStatus(task, action.status)
                 is TaskAction.Priority -> editor.setPriority(task, action.value)
                 is TaskAction.Shift -> editor.shift(task, action.keyword, action.days)
@@ -202,7 +242,7 @@ class AgendaViewModel(
                     else -> AgendaUiState.Loading
                 }
             }
-            val today = LocalDate.now()
+            val today = clock().toLocalDate()
             // What the walk cost, for the one question the screen cannot
             // answer: whether a directory of this size is still usable. The
             // scan is the only part of a refresh that grows with the notes,
@@ -232,10 +272,6 @@ class AgendaViewModel(
                         AgendaUiState.Ready(
                             date = today,
                             sections = sections,
-                            // The agenda is always for today so far; once a
-                            // date can be picked, another day passes null and
-                            // loses the marker line.
-                            timeline = sections.toTimeline(now = LocalTime.now()),
                             notices = result.notices(),
                         )
                     },
@@ -551,9 +587,39 @@ class AgendaViewModel(
     /** How long ago [started] was, in whole milliseconds. */
     private fun millisSince(started: Long): Long = (System.nanoTime() - started) / 1_000_000
 
+    /**
+     * Rebuilds the agenda when [moment] has crossed into a day the one on
+     * screen does not cover. Does nothing while the date still matches, which
+     * is every minute but one.
+     */
+    private fun refreshOnNewDay(moment: LocalDateTime) {
+        val shown = (_state.value as? AgendaUiState.Ready)?.date ?: return
+        if (shown != moment.toLocalDate()) {
+            // The notes themselves have not changed, so what is held for them
+            // stands; it is the date they were grouped against that has moved,
+            // and a scan against the new one is the whole of the fix.
+            refresh()
+        }
+    }
+
     companion object {
         /** Where the failures the screen does not spell out are written. */
         private const val TAG = "Agenda"
+
+        /**
+         * How long the ticker keeps running after the screen stops watching.
+         *
+         * Long enough to carry a rotation, which tears the collector down and
+         * puts it back; short enough that a screen left in the background does
+         * not wake the process once a minute.
+         */
+        private const val TICKER_LINGER_MS = 5_000L
+
+        /** Time from [moment] to the top of the next minute, in milliseconds. */
+        private fun millisUntilNextMinute(moment: LocalDateTime): Long = Duration.between(
+            moment,
+            moment.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1),
+        ).toMillis()
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

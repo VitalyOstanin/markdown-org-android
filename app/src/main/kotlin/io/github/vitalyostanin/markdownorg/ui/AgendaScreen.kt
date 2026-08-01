@@ -50,6 +50,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -59,6 +60,8 @@ fun AgendaScreen(
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
     modifier: Modifier = Modifier,
+    /** The wall clock the marker line follows; see [AgendaViewModel.now]. */
+    now: LocalDateTime = LocalDateTime.now(),
     sync: SyncUiState = SyncUiState(),
     editIssue: SyncMessage? = null,
     onEditIssueShown: () -> Unit = {},
@@ -80,7 +83,16 @@ fun AgendaScreen(
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
-            AgendaBody(state, layout, onLayoutChange, sync, onSync, onOpenSettings, onTaskClick)
+            AgendaBody(
+                state,
+                layout,
+                onLayoutChange,
+                now,
+                sync,
+                onSync,
+                onOpenSettings,
+                onTaskClick,
+            )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
     }
@@ -91,6 +103,7 @@ private fun AgendaBody(
     state: AgendaUiState,
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
+    now: LocalDateTime,
     sync: SyncUiState,
     onSync: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -112,6 +125,9 @@ private fun AgendaBody(
         is AgendaUiState.Failed -> FailureMessage(state)
 
         is AgendaUiState.Ready -> Column(Modifier.fillMaxSize()) {
+            // The marker line belongs to today; on an agenda for another day
+            // there is no current moment to draw, and `null` leaves it out.
+            val marker = now.toLocalTime().takeIf { state.date == now.toLocalDate() }
             // Outside the scrolling area: the switch is how the user gets
             // back to the other layout, and it must not scroll away.
             AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
@@ -120,7 +136,12 @@ private fun AgendaBody(
             ScanNotices(state.notices)
             when (layout) {
                 AgendaLayout.TIME -> TimeLayout(
-                    state.timeline,
+                    // Rebuilt when the hour turns over, not every minute: the
+                    // marker sits on an hour boundary, so that is how often
+                    // the axis it belongs to can differ.
+                    remember(state.sections, state.date, marker?.hour) {
+                        state.sections.toTimeline(marker)
+                    },
                     scroll = timeScroll,
                     collapse = collapse,
                     onTaskClick = onTaskClick,

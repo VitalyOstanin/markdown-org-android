@@ -19,7 +19,6 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
 import java.time.LocalDate
-import java.time.LocalTime
 
 /** What the agenda says about the checkout and the last sync attempt. */
 class SyncBannerTest {
@@ -240,11 +239,11 @@ class SyncBannerTest {
                     state = AgendaUiState.Ready(
                         date = LocalDate.of(2026, 7, 28),
                         sections = sections,
-                        timeline = sections.toTimeline(LocalTime.of(10, 0)),
                         notices = notices,
                     ),
                     layout = AgendaLayout.TIME,
                     onLayoutChange = {},
+                    now = LocalDate.of(2026, 7, 28).atTime(10, 0),
                     sync = sync.value,
                     editIssue = editIssue,
                     onEditIssueShown = { issuesShown++ },
