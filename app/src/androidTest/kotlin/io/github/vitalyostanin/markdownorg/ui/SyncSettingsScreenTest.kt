@@ -255,8 +255,46 @@ class SyncSettingsScreenTest {
         compose.onNodeWithTag("settings-save").assertIsEnabled()
     }
 
+    /**
+     * A first launch used to offer nothing but an address, and the notes are
+     * not always meant to leave the device. Saying so is a press here, and
+     * what it changes is that the screen stops asking.
+     */
+    @Test
+    fun keepingTheNotesOnTheDeviceIsOfferedWhileNoAddressIsGiven() {
+        showForm()
+
+        compose.onNodeWithText(string(R.string.settings_hint)).assertIsDisplayed()
+        compose.onNodeWithTag("settings-keep-local").performClick()
+
+        assertTrue(keptLocal)
+    }
+
+    @Test
+    fun aFormWithAnAddressDoesNotOfferToKeepTheNotesHere() {
+        showForm(url = "https://example.org/notes.git")
+
+        compose.onNodeWithTag("settings-keep-local").assertDoesNotExist()
+    }
+
+    /**
+     * The choice is not a dead end: the form still takes an address, and what
+     * changes is the sentence over it — nothing is said about a repository
+     * being cloned into a directory that already holds the notes.
+     */
+    @Test
+    fun onceTheNotesStayHereTheFormSaysSoInsteadOfAskingAgain() {
+        showForm(storesLocally = true)
+
+        compose.onNodeWithText(string(R.string.settings_local_hint)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.settings_hint)).assertDoesNotExist()
+        compose.onNodeWithTag("settings-keep-local").assertDoesNotExist()
+        compose.onNodeWithTag("settings-save").assertIsEnabled()
+    }
+
     private var savedNotesPath: String? = null
     private var accessRequested = false
+    private var keptLocal = false
 
     /**
      * What the picker answered, as state: the form takes it in on the
@@ -272,6 +310,7 @@ class SyncSettingsScreenTest {
         hasToken: Boolean = false,
         notesPath: String = "",
         granted: Boolean = true,
+        storesLocally: Boolean = false,
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -293,6 +332,8 @@ class SyncSettingsScreenTest {
                     pickedNotesPath = picked,
                     onPickNotesDirectory = { pickerOpened = true },
                     onPickedNotesTaken = { picked = null },
+                    storesLocally = storesLocally,
+                    onKeepLocal = { keptLocal = true },
                 )
             }
         }

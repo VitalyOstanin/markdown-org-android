@@ -1,13 +1,17 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import uniffi.markdown_org_ffi.Adoption
+import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.SyncRequest
+import uniffi.markdown_org_ffi.adoptDirectory
 import uniffi.markdown_org_ffi.loadCaBundle
 import uniffi.markdown_org_ffi.pushChanges
 import uniffi.markdown_org_ffi.repositoryStatus
 import uniffi.markdown_org_ffi.syncRepository
+import uniffi.markdown_org_ffi.takeRemoteNotes
 
 /**
  * What one press of the sync button did, both ways.
@@ -31,6 +35,28 @@ data class SyncRun(
 interface NotesSyncer {
 
     suspend fun sync(settings: SyncPreferences): Result<SyncRun>
+
+    /**
+     * Start tracking the notes already in the directory, in the remote named
+     * by [settings].
+     *
+     * For the directory that has been holding notes with no git at all. What
+     * is in it becomes the first commit and stays on disk; nothing is emptied.
+     * The answer says what happened to it — see [Adoption].
+     */
+    suspend fun adopt(settings: SyncPreferences): Result<Adoption>
+
+    /**
+     * Take the remote's notes over a directory whose own were adopted and turn
+     * out to share no history with them.
+     *
+     * Only after the user has been asked: this replaces what is on disk. The
+     * notes that were there stay in the repository, on a branch of their own.
+     */
+    suspend fun takeRemote(settings: SyncPreferences): Result<SyncOutcome>
+
+    /** Whether the notes directory is a git checkout at all. */
+    suspend fun holdsRepository(): Boolean
 
     /**
      * State of the checkout, without contacting the remote.
@@ -76,12 +102,7 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         val certificates = runCatching { loadCertificates() }
         certificates.exceptionOrNull()?.let { return Result.failure(it) }
 
-        val request = SyncRequest(
-            dir = notes.root.absolutePath,
-            url = url,
-            token = settings.token,
-            branch = settings.branch,
-        )
+        val request = request(url, settings)
 
         return notes.exclusive {
             // A phone loses the network mid-request often enough that one
@@ -122,9 +143,53 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         )
     }
 
+    override suspend fun adopt(settings: SyncPreferences): Result<Adoption> {
+        val url = settings.remoteUrl
+            ?: return Result.failure(IllegalStateException("no remote configured"))
+        val certificates = runCatching { loadCertificates() }
+        certificates.exceptionOrNull()?.let { return Result.failure(it) }
+
+        return notes.exclusive {
+            retryingTransientFailures {
+                runCatching {
+                    adoptDirectory(
+                        request = request(url, settings),
+                        author = CommitAuthor(settings.authorName, settings.authorEmail),
+                    )
+                }
+            }.onSuccess {
+                settings.lastSyncedAt = System.currentTimeMillis()
+            }
+        }
+    }
+
+    override suspend fun takeRemote(settings: SyncPreferences): Result<SyncOutcome> {
+        val url = settings.remoteUrl
+            ?: return Result.failure(IllegalStateException("no remote configured"))
+
+        return notes.exclusive {
+            // No retry and no certificates: this touches no network at all —
+            // what it writes out came down with the fetch that preceded it.
+            runCatching { takeRemoteNotes(request(url, settings)) }
+        }
+    }
+
+    // Qualified rather than imported: the member below it has the same name,
+    // and reading which of the two is called should not depend on arity.
+    override suspend fun holdsRepository(): Boolean = notes.exclusive {
+        uniffi.markdown_org_ffi.holdsRepository(notes.root.absolutePath)
+    }
+
     override suspend fun status(): Result<RepoStatus?> = notes.exclusive {
         runCatching { repositoryStatus(notes.root.absolutePath) }
     }
+
+    private fun request(url: String, settings: SyncPreferences) = SyncRequest(
+        dir = notes.root.absolutePath,
+        url = url,
+        token = settings.token,
+        branch = settings.branch,
+    )
 
     /**
      * Give the core the certificate authorities, once per process.

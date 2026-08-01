@@ -25,7 +25,23 @@ interface SyncPreferences {
     /** When the last successful sync finished, or `0` if there was none. */
     var lastSyncedAt: Long
 
+    /**
+     * The notes live on this device and nowhere else, said outright.
+     *
+     * Kept apart from an empty [remoteUrl], which is the same state left
+     * unstated: a fresh install has no remote because nothing has been set up
+     * yet, and this is the answer "there is nothing to set up". What depends
+     * on the difference is what the screens do — a store the user chose asks
+     * for no address and runs no retry timer, while one nobody has configured
+     * still invites them to.
+     */
+    var storesLocally: Boolean
+
+    /** A remote to sync with. */
     val isConfigured: Boolean get() = !remoteUrl.isNullOrBlank()
+
+    /** Set up at all: either a remote, or the local store chosen on purpose. */
+    val isSettled: Boolean get() = isConfigured || storesLocally
 }
 
 /**
@@ -82,6 +98,10 @@ class SyncSettings(context: Context) : SyncPreferences {
         get() = preferences.getLong(KEY_LAST_SYNCED, 0)
         set(value) = preferences.edit().putLong(KEY_LAST_SYNCED, value).apply()
 
+    override var storesLocally: Boolean
+        get() = preferences.getBoolean(KEY_LOCAL_STORE, false)
+        set(value) = preferences.edit().putBoolean(KEY_LOCAL_STORE, value).apply()
+
     /**
      * Forget every stored setting, the token included.
      *
@@ -103,6 +123,7 @@ class SyncSettings(context: Context) : SyncPreferences {
         const val KEY_AUTHOR_NAME = "author_name"
         const val KEY_AUTHOR_EMAIL = "author_email"
         const val KEY_LAST_SYNCED = "last_synced_at"
+        const val KEY_LOCAL_STORE = "stores_locally"
         const val DEFAULT_AUTHOR_NAME = "markdown-org"
         const val DEFAULT_AUTHOR_EMAIL = "markdown-org@localhost"
     }

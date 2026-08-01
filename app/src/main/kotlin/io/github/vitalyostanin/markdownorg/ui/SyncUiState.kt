@@ -7,6 +7,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.maskCredentials
+import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.EditException
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
@@ -22,6 +23,22 @@ data class SyncUiState(
     val lastSyncedAt: Long = 0,
     /** Outcome of the most recent attempt, cleared when a new one starts. */
     val message: SyncMessage? = null,
+    /**
+     * The notes are kept on this device on purpose.
+     *
+     * Distinct from `!configured`, which is the same directory with nobody
+     * having said anything about it: this one asks for no remote and shows no
+     * invitation to set one up.
+     */
+    val local: Boolean = false,
+    /**
+     * The branch on which the device's notes and the remote's turn out to
+     * share no history, when that is what adopting the directory found.
+     *
+     * Present until the question is answered: the screen has to offer the
+     * answer, and nothing else about the checkout says one is owed.
+     */
+    val unrelated: String? = null,
 )
 
 /**
@@ -114,6 +131,27 @@ fun SyncRun.toMessage(): SyncMessage = when {
     fetched.commitsApplied > 0u -> SyncMessage(R.string.sync_updated)
 
     else -> SyncMessage(R.string.sync_already_current)
+}
+
+/**
+ * What taking a directory into git amounted to.
+ *
+ * The unrelated case is not a failure and is not worded as one: nothing was
+ * lost, nothing was sent, and what it needs is an answer. The screen offers
+ * that answer beside this message.
+ */
+fun Adoption.toMessage(): SyncMessage = when (this) {
+    is Adoption.Published -> SyncMessage(
+        R.string.sync_published,
+        Detail.Counted(R.plurals.sync_pushed_detail, commitsPushed.toInt()),
+    )
+
+    is Adoption.Took -> SyncMessage(R.string.sync_took_remote)
+
+    is Adoption.Unrelated -> SyncMessage(
+        R.string.sync_unrelated,
+        Detail.Worded(R.string.sync_unrelated_detail, branch),
+    )
 }
 
 /**

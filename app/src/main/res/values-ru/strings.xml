@@ -23,6 +23,11 @@
     <string name="sync_updated">Заметки обновлены</string>
     <string name="sync_already_current">Уже актуально</string>
     <string name="sync_pushed">Правки отправлены на сервер</string>
+    <string name="sync_published">Заметки с устройства теперь на сервере</string>
+    <string name="sync_took_remote">Заметки с сервера теперь на устройстве</string>
+    <string name="sync_unrelated">Заметки есть и на устройстве, и на сервере</string>
+    <string name="sync_unrelated_detail">У них нет общей истории, объединить их здесь нельзя. Если взять серверные, заметки устройства останутся в ветке %1$s.</string>
+    <string name="sync_take_remote">Взять заметки с сервера</string>
     <string name="sync_checkout">%1$s · %2$s</string>
     <string name="sync_last_synced">синхронизировано %1$s</string>
     <string name="sync_failed_auth">Сервер отклонил токен</string>
@@ -50,6 +55,11 @@
     <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
     <string name="settings_notes_not_dir">По этому пути файл, а не каталог</string>
     <string name="settings_notes_denied">Для каталога вне хранилища приложения нужен доступ ко всем файлам</string>
+    <string name="settings_other_checkout">В каталоге рабочая копия другого репозитория. Замените его содержимое или укажите приложению другой каталог.</string>
+    <string name="settings_replace_notes">Заменить заметки в каталоге</string>
+    <string name="settings_keep_local">Хранить заметки только на устройстве</string>
+    <string name="settings_local_chosen">Заметки остаются на устройстве</string>
+    <string name="settings_local_hint">Сервер не используется. Репозиторий можно добавить позже, заметки при этом никуда не денутся.</string>
     <string name="settings_notes_grant">Разрешить доступ ко всем файлам</string>
     <string name="settings_notes_pick">Выбрать каталог</string>
     <string name="settings_notes_failed">Не удалось использовать каталог заметок; оставлен прежний</string>

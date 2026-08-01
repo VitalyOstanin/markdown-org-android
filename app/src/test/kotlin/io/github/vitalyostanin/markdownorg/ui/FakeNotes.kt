@@ -12,6 +12,7 @@ import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RepoStatus
@@ -114,6 +115,31 @@ class FakeSyncer(
         statusReads += 1
         return statusResult
     }
+
+    /** What taking the directory into git answers with, for the test that asks. */
+    var adoptResult: Result<Adoption> = Result.success(Adoption.Took)
+
+    /** Remotes the directory was asked to start tracking, in order. */
+    val adopted = mutableListOf<String?>()
+
+    /** How many times the remote's notes were taken over the local ones. */
+    var remotesTaken = 0
+        private set
+
+    /** Whether the notes directory answers as a checkout. */
+    var checkout: Boolean = false
+
+    override suspend fun adopt(settings: SyncPreferences): Result<Adoption> {
+        adopted += settings.remoteUrl
+        return adoptResult
+    }
+
+    override suspend fun takeRemote(settings: SyncPreferences): Result<SyncOutcome> {
+        remotesTaken += 1
+        return Result.success(outcome(cloned = false))
+    }
+
+    override suspend fun holdsRepository(): Boolean = checkout
 
     companion object {
 
@@ -233,4 +259,5 @@ class FakePreferences(
     override var authorName: String = "markdown-org",
     override var authorEmail: String = "markdown-org@localhost",
     override var lastSyncedAt: Long = 0,
+    override var storesLocally: Boolean = false,
 ) : SyncPreferences

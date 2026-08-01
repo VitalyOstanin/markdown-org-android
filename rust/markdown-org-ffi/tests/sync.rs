@@ -10,8 +10,9 @@ use std::path::Path;
 
 use git2::{Repository, Signature};
 use markdown_org_ffi::{
-    commit_changes, holds_repository, load_ca_bundle, push_changes, repository_status,
-    sync_repository, CommitAuthor, SyncError, SyncRequest,
+    adopt_directory, commit_changes, holds_repository, load_ca_bundle, push_changes,
+    repository_status, sync_repository, take_remote_notes, Adoption, CommitAuthor, SyncError,
+    SyncRequest,
 };
 
 /// A repository with one commit in it, standing in for the remote.
@@ -1023,4 +1024,137 @@ fn pushing_from_a_directory_that_holds_no_repository_is_an_error() {
     let error = push_changes(request(local.path(), local.path())).expect_err("must fail");
 
     assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
+}
+
+/// The way in for notes kept on the device before any remote was named: the
+/// files stay where they are and become the first commit.
+#[test]
+fn a_directory_of_notes_becomes_a_checkout_without_losing_them() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let notes = local.path().join("notes");
+    fs::create_dir_all(&notes).expect("create");
+    fs::write(notes.join("mine.md"), NOTES).expect("write");
+
+    let outcome = adopt_directory(request(&notes, remote.path()), author()).expect("adopt");
+
+    // The remote already holds notes of its own, and these share no history
+    // with them: nothing is sent and nothing is overwritten.
+    match &outcome {
+        Adoption::Unrelated { branch } => assert_eq!("master", branch),
+        other => panic!("got {other:?}"),
+    }
+    assert!(
+        notes.join("mine.md").exists(),
+        "the notes must still be there"
+    );
+    assert!(holds_repository(notes.display().to_string()));
+
+    let status = repository_status(notes.display().to_string())
+        .expect("status")
+        .expect("a repository");
+    assert_eq!(status.head_summary, "Notes already in this directory");
+    assert_eq!(status.unpushed, 1);
+}
+
+#[test]
+fn a_directory_of_notes_is_published_when_the_remote_has_none() {
+    // A remote with no commits at all: the ordinary way to start from a
+    // repository created and left alone.
+    let remote = tempfile::tempdir().expect("tempdir");
+    Repository::init_bare(remote.path()).expect("init bare");
+    let local = tempfile::tempdir().expect("tempdir");
+    let notes = local.path().join("notes");
+    fs::create_dir_all(&notes).expect("create");
+    fs::write(notes.join("mine.md"), NOTES).expect("write");
+
+    let outcome =
+        adopt_directory(request_on(&notes, remote.path(), "main"), author()).expect("adopt");
+
+    match &outcome {
+        Adoption::Published { commits_pushed } => assert_eq!(1, *commits_pushed),
+        other => panic!("got {other:?}"),
+    }
+    assert_eq!(
+        summary_at(remote.path(), "main"),
+        "Notes already in this directory"
+    );
+}
+
+#[test]
+fn an_empty_directory_takes_what_the_remote_holds() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let notes = local.path().join("notes");
+    fs::create_dir_all(&notes).expect("create");
+
+    let outcome = adopt_directory(request(&notes, remote.path()), author()).expect("adopt");
+
+    assert!(matches!(outcome, Adoption::Took), "{outcome:?}");
+    assert!(
+        notes.join("notes.md").exists(),
+        "the remote's notes have to land"
+    );
+}
+
+#[test]
+fn taking_the_remote_keeps_what_was_in_the_directory_on_a_branch_of_its_own() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let notes = local.path().join("notes");
+    fs::create_dir_all(&notes).expect("create");
+    fs::write(notes.join("mine.md"), NOTES).expect("write");
+    adopt_directory(request(&notes, remote.path()), author()).expect("adopt");
+
+    take_remote_notes(request(&notes, remote.path())).expect("take");
+
+    // What the remote holds is on disk, and what was here is not deleted:
+    // it is a commit on a branch, readable by any git client.
+    assert!(notes.join("notes.md").exists());
+    assert!(!notes.join("mine.md").exists());
+    let repository = Repository::open(&notes).expect("open");
+    let kept = repository
+        .find_branch(markdown_org_ffi::KEPT_BRANCH, git2::BranchType::Local)
+        .expect("the kept branch");
+    let summary = kept
+        .get()
+        .peel_to_commit()
+        .expect("commit")
+        .summary()
+        .expect("read the summary")
+        .expect("a message")
+        .to_string();
+    assert_eq!(summary, "Notes already in this directory");
+}
+
+#[test]
+fn a_directory_that_is_already_a_checkout_is_refused_rather_than_given_a_second_origin() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+    sync_repository(request(&checkout, remote.path())).expect("clone");
+
+    let error =
+        adopt_directory(request(&checkout, remote.path()), author()).expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
+}
+
+#[test]
+fn taking_a_remote_branch_that_was_never_fetched_is_an_error_rather_than_a_wipe() {
+    let remote = bare_origin(&[("notes.md", NOTES)]);
+    let local = tempfile::tempdir().expect("tempdir");
+    let notes = local.path().join("notes");
+    fs::create_dir_all(&notes).expect("create");
+    fs::write(notes.join("mine.md"), NOTES).expect("write");
+    adopt_directory(request(&notes, remote.path()), author()).expect("adopt");
+
+    let error = take_remote_notes(request_on(&notes, remote.path(), "never-fetched"))
+        .expect_err("must fail");
+
+    assert!(matches!(error, SyncError::Repository { .. }), "{error:?}");
+    assert!(
+        notes.join("mine.md").exists(),
+        "nothing may be written over"
+    );
 }

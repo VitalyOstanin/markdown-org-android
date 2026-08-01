@@ -31,6 +31,7 @@ class NotesSyncTest {
         override var authorName: String = "markdown-org",
         override var authorEmail: String = "markdown-org@localhost",
         override var lastSyncedAt: Long = 0,
+        override var storesLocally: Boolean = false,
     ) : SyncPreferences
 
     @Before

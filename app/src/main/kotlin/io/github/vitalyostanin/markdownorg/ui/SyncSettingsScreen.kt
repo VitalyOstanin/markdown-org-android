@@ -87,6 +87,9 @@ fun SyncSettingsScreen(
     onPickedNotesTaken: () -> Unit = {},
     crash: String? = null,
     onForgetCrash: () -> Unit = {},
+    /** The notes are kept on this device on purpose, and no remote is wanted. */
+    storesLocally: Boolean = false,
+    onKeepLocal: () -> Unit = {},
 ) {
     // Saved rather than merely remembered: the activity declares no
     // configChanges, so a turn of the phone rebuilds it, and a URL typed by
@@ -101,10 +104,10 @@ fun SyncSettingsScreen(
     var dropToken by rememberSaveable { mutableStateOf(false) }
     var notesPath by rememberSaveable { mutableStateOf(initialNotesPath) }
 
-    // Saving empties the working copy, and edits made here are committed
-    // locally and never pushed — so an address that cannot work is caught in
-    // the field rather than after the clone has failed over an empty
-    // directory. An empty field is not an error yet, only a disabled button.
+    // Caught in the field rather than after a clone failed over it: an address
+    // that cannot work says so where it was typed. An empty field is not an
+    // error at all — it is the store on this device, and saving it is how a
+    // directory of notes is taken in.
     val problem = remember(url) { remoteUrlProblem(url) }
     val malformed = problem != null && problem != RemoteUrlProblem.EMPTY
 
@@ -142,10 +145,24 @@ fun SyncSettingsScreen(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = stringResource(R.string.settings_hint),
+                text = stringResource(
+                    if (storesLocally) R.string.settings_local_hint else R.string.settings_hint,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Offered while there is no remote and none has been declined:
+            // the answer to a first launch that would otherwise keep asking
+            // for an address the user has no intention of giving.
+            if (!storesLocally && url.isBlank()) {
+                TextButton(
+                    onClick = onKeepLocal,
+                    modifier = Modifier.testTag("settings-keep-local"),
+                ) {
+                    Text(stringResource(R.string.settings_keep_local))
+                }
+            }
 
             OutlinedTextField(
                 value = url,

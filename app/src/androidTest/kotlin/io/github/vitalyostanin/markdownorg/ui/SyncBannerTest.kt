@@ -16,6 +16,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
 import java.time.LocalDate
@@ -29,6 +30,8 @@ class SyncBannerTest {
     private var synced = 0
     private var settingsOpened = false
     private var issuesShown = 0
+    private var remotesTaken = 0
+    private var notesReplaced = 0
 
     @Test
     fun beforeARemoteIsConfiguredNothingIsSaid() {
@@ -151,6 +154,64 @@ class SyncBannerTest {
         )
 
         compose.onNodeWithTag("sync-unpushed").assertDoesNotExist()
+    }
+
+    /**
+     * Notes kept on the device and notes on the server can share no history at
+     * all, and neither side is wrong: the answer is which of the two the
+     * directory is to hold. Nothing else on this screen asks for one, so the
+     * question is put where it is raised.
+     */
+    @Test
+    fun historiesThatShareNothingAreAQuestionWithItsAnswerBesideIt() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                unrelated = "main",
+                message = Adoption.Unrelated("main").toMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_unrelated)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.sync_unrelated_detail, "main")).assertIsDisplayed()
+        compose.onNodeWithTag("sync-take-remote").performClick()
+
+        assertEquals(1, remotesTaken)
+    }
+
+    /**
+     * Saving an address over a directory that is a checkout of somewhere else
+     * used to empty it. Emptying it is now a press of its own, and this is
+     * where that press lives.
+     */
+    @Test
+    fun aDirectoryHoldingAnotherCheckoutIsReplacedOnlyWhenAskedTo() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncMessage(R.string.settings_other_checkout, failed = true),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.settings_other_checkout)).assertIsDisplayed()
+        compose.onNodeWithTag("sync-replace-notes").performClick()
+
+        assertEquals(1, notesReplaced)
+    }
+
+    @Test
+    fun aCheckoutWithNothingToDecideIsShownWithoutAButton() {
+        showAgenda(SyncUiState(configured = true, repository = status()))
+
+        compose.onNodeWithTag("sync-take-remote").assertDoesNotExist()
+        compose.onNodeWithTag("sync-replace-notes").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRunningSyncDoesNotOfferAnAnswerToAQuestionItMaySettle() {
+        showAgenda(SyncUiState(configured = true, running = true, unrelated = "main"))
+
+        compose.onNodeWithTag("sync-take-remote").assertDoesNotExist()
     }
 
     @Test
@@ -296,6 +357,8 @@ class SyncBannerTest {
                     onEditIssueShown = { issuesShown++ },
                     onSync = { synced++ },
                     onOpenSettings = { settingsOpened = true },
+                    onTakeRemote = { remotesTaken++ },
+                    onReplaceNotes = { notesReplaced++ },
                 )
             }
         }

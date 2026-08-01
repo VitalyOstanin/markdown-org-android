@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.Task
 import java.io.File
@@ -296,15 +297,18 @@ class AgendaViewModel(
     }
 
     /**
-     * Stores the remote and empties the directory when the clone cannot land
-     * in what is already there.
+     * Stores the remote and gets the directory into a state it can be synced
+     * from.
      *
-     * The core clones into an empty directory, so both cases have to start
-     * from one: the first setup, where the directory holds the sample notes,
-     * and a change of remote, where it holds someone else's checkout. Only an
-     * existing checkout of the same URL is kept — that one is fetched into,
-     * including when the branch changed: the core moves the checkout onto the
-     * new branch, and wiping would take commits made here with it.
+     * Nothing here empties anything. A directory that already holds notes and
+     * no git is taken in as it stands — `adopt` makes what is in it the first
+     * commit and only then adds the remote — and a directory holding neither
+     * is cloned into. Replacing what is on disk is a separate, stated action
+     * ([replaceNotes]) rather than a side effect of saving a form.
+     *
+     * A checkout of another remote is the one case saving cannot resolve: it
+     * says so and leaves both alone, because the commits in it may exist
+     * nowhere else.
      *
      * [token] empty means "leave the stored one alone", since the form never
      * shows it. That cannot hold across a change of host, though — a token is
@@ -406,40 +410,166 @@ class AgendaViewModel(
 
             // Compared without the credentials the checkout's own `origin` may
             // carry: a clone made before those were split off names the same
-            // repository, and treating it as another one would empty the
-            // directory and take local commits with it.
+            // repository, and treating it as another one would send the user
+            // to a decision there is nothing to decide.
             val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
+            val checkout = previous.getOrNull() != null
             settings.remoteUrl = address
             settings.branch = branch
             settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
+            // An address was named, so this is no longer the store the user
+            // said was local — whatever happens to the directory below.
+            settings.storesLocally = false
+            _syncState.update { it.copy(configured = settings.isConfigured) }
 
-            if (before != settings.remoteUrl) {
-                val wiped = notes.reset()
-                if (wiped.isFailure) {
-                    // A directory emptied only in part cannot be cloned into,
-                    // and the clone would report it as a repository failure —
-                    // a sentence about git, not about the directory it is
-                    // actually about.
-                    Log.w(TAG, "the notes directory could not be emptied", wiped.exceptionOrNull())
-                    _syncState.update {
-                        it.copy(
-                            configured = settings.isConfigured,
-                            message = SyncMessage(R.string.notes_reset_failed, failed = true),
-                        )
-                    }
-                    return@launch
+            when {
+                // Somebody else's checkout, or this one pointed elsewhere.
+                // Emptying it here is what used to happen, and it took every
+                // commit that had not been pushed with it.
+                checkout && before != settings.remoteUrl -> _syncState.update {
+                    it.copy(
+                        message = SyncMessage(R.string.settings_other_checkout, failed = true),
+                    )
                 }
-                // The directory has just been emptied, so what is held about it
-                // describes files that no longer exist.
-                agenda.invalidate()
-                _syncState.update { it.copy(repository = null) }
+
+                // Already a checkout of this remote: fetch into it, branch
+                // change included — the core moves the checkout onto the new
+                // branch without touching what is committed here.
+                checkout -> startSync()
+
+                // A directory with notes and no git: taken in as it stands.
+                else -> startAdoption()
+            }
+        }
+    }
+
+    /**
+     * Empty the notes directory and clone the configured remote into it.
+     *
+     * The one thing that deletes notes, and it exists so that saving a form
+     * never does: the user asks for it, having been told the directory holds a
+     * checkout of somewhere else.
+     */
+    fun replaceNotes() {
+        if (!settings.isConfigured) {
+            return
+        }
+
+        val running = syncJob
+        syncJob = viewModelScope.launch {
+            // A sync in flight owns the directory that is about to be emptied,
+            // so it is stopped rather than raced with — the same wait, and for
+            // the same reason, as a change of settings makes.
+            running?.cancelAndJoin()
+            _syncState.update { it.copy(running = false) }
+
+            val wiped = notes.reset()
+            if (wiped.isFailure) {
+                // A directory emptied only in part cannot be cloned into, and
+                // the clone would report it as a repository failure — a
+                // sentence about git, not about the directory it is about.
+                Log.w(TAG, "the notes directory could not be emptied", wiped.exceptionOrNull())
+                _syncState.update {
+                    it.copy(message = SyncMessage(R.string.notes_reset_failed, failed = true))
+                }
+                return@launch
             }
 
-            _syncState.update { it.copy(configured = settings.isConfigured) }
-            // Unconditionally, not through syncNow(): the sync this replaced
-            // has just been cancelled, and skipping the new one would leave an
-            // emptied directory and a remote nobody fetched from.
+            // The directory has just been emptied, so what is held about it
+            // describes files that no longer exist.
+            agenda.invalidate()
+            _syncState.update { it.copy(repository = null) }
             startSync()
+        }
+    }
+
+    /**
+     * Keep the notes on this device and stop asking for a remote.
+     *
+     * The state was reachable by accident before — a directory with no address
+     * is a plain directory — and read as "not set up yet" on every launch.
+     * Said outright it is a way to use the application: no banner, no retry,
+     * and a remote can still be added later without the notes going anywhere.
+     */
+    fun keepNotesLocal() {
+        settings.storesLocally = true
+        _syncState.update {
+            it.copy(local = true, message = SyncMessage(R.string.settings_local_chosen))
+        }
+    }
+
+    /**
+     * Take the notes already in the directory into git and point them at the
+     * configured remote.
+     *
+     * Runs in place of the clone when the directory holds notes: the files
+     * stay where they are, and what happens next depends on what the remote
+     * turns out to hold — see [Adoption].
+     */
+    private fun startAdoption() {
+        syncJob = viewModelScope.launch {
+            _syncState.update { it.copy(running = true, message = null) }
+
+            val adopted = sync.adopt(settings)
+            val status = sync.status()
+                .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
+                .getOrNull()
+
+            _syncState.update { current ->
+                current.copy(
+                    configured = settings.isConfigured,
+                    running = false,
+                    repository = status,
+                    lastSyncedAt = settings.lastSyncedAt,
+                    message = adopted.fold(
+                        onSuccess = Adoption::toMessage,
+                        onFailure = Throwable::toSyncMessage,
+                    ),
+                    // The one outcome that needs an answer rather than a
+                    // reading: both sides hold notes, and joining them is not
+                    // something this application does by itself.
+                    unrelated = (adopted.getOrNull() as? Adoption.Unrelated)?.branch,
+                )
+            }
+
+            if (adopted.isSuccess) {
+                agenda.invalidate()
+                refresh()
+            }
+        }
+    }
+
+    /**
+     * Answer the unrelated-histories question with "take what the server has".
+     *
+     * What was in the directory is not deleted: the core leaves it as a commit
+     * on a branch of its own, readable by any git client.
+     */
+    fun takeRemoteNotes() {
+        if (syncJob?.isActive == true) {
+            return
+        }
+
+        syncJob = viewModelScope.launch {
+            _syncState.update { it.copy(running = true, message = null) }
+
+            val taken = sync.takeRemote(settings)
+            _syncState.update { current ->
+                current.copy(
+                    running = false,
+                    repository = taken.getOrNull()?.head ?: current.repository,
+                    unrelated = if (taken.isSuccess) null else current.unrelated,
+                    message = taken.fold(
+                        onSuccess = { SyncMessage(R.string.sync_took_remote) },
+                        onFailure = Throwable::toSyncMessage,
+                    ),
+                )
+            }
+
+            if (taken.isSuccess) {
+                agenda.invalidate()
+                refresh()
+            }
         }
     }
 
@@ -572,6 +702,7 @@ class AgendaViewModel(
             _syncState.update {
                 it.copy(
                     configured = settings.isConfigured,
+                    local = settings.storesLocally,
                     repository = status,
                     lastSyncedAt = settings.lastSyncedAt,
                 )

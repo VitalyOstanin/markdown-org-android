@@ -163,6 +163,11 @@ class MainActivity : ComponentActivity() {
                             forgotten = true
                             log.clear()
                         },
+                        storesLocally = sync.local,
+                        onKeepLocal = {
+                            model.keepNotesLocal()
+                            settingsOpen = false
+                        },
                     )
                 } else {
                     AgendaScreen(
@@ -177,6 +182,8 @@ class MainActivity : ComponentActivity() {
                         onSync = model::syncNow,
                         onOpenSettings = { settingsOpen = true },
                         onTaskClick = model::select,
+                        onTakeRemote = model::takeRemoteNotes,
+                        onReplaceNotes = model::replaceNotes,
                     )
 
                     // Over the agenda rather than instead of it: the list is

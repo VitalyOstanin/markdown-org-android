@@ -175,6 +175,12 @@ Keeping them in step with a remote:
 - `pushChanges(request)` — hand the remote the commits made here, as a
   fast-forward of its branch and nothing else; a push the server refuses comes
   back as a refusal with the commits still on the device;
+- `adoptDirectory(request, author)` — turn a directory that already holds
+  notes into a checkout of the remote: the files stay where they are and
+  become the first commit, and nothing is emptied. What the remote turns out
+  to hold decides the rest — see the table below;
+- `takeRemoteNotes(request)` — the answer to two sides that share no history:
+  write the remote's notes out, keeping the device's as a branch of their own;
 - `repositoryStatus(dir)` — the remote, the branch, the head commit, whether
   anything is uncommitted and how much has not been pushed, read without
   touching the network;
@@ -270,6 +276,8 @@ the situations that are not a plain fast-forward:
 | 7 | The connection hangs                               | Bounded: 15 s to connect, 60 s per request. Without them the wait is whatever the operating system decides. |
 | 8 | The remote URL changes                             | The directory is emptied and cloned again, and the stored token is dropped with it — it was issued by the host that is being left. |
 | 9 | The server refuses the push                        | `Rejected`, after the fetch has already gone through. The commits stay on the device and are counted in the header until a later sync gets them across; the fetch itself is not reported as failed. |
+| 10 | The directory holds notes and no git, and a remote is named | Adopted: the notes become the first commit and the remote is added around them. A remote with nothing on the branch is then given them; a remote that holds notes of its own leaves both sides untouched and the user is asked. |
+| 11 | The directory holds a checkout of another remote    | Saving says so and changes nothing. Emptying it is a separate press — commits made on the device may exist nowhere else. |
 
 ## The certificate bundle a sync trusts
 

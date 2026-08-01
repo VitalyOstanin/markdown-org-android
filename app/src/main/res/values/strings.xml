@@ -31,6 +31,13 @@
     <string name="sync_updated">Notes updated</string>
     <string name="sync_already_current">Already up to date</string>
     <string name="sync_pushed">Edits sent to the server</string>
+    <!-- The directory held notes and the remote held none: they became it. -->
+    <string name="sync_published">The notes on this device are now on the server</string>
+    <string name="sync_took_remote">The notes from the server are on this device</string>
+    <!-- Both sides hold notes with no common history. Nothing was lost. -->
+    <string name="sync_unrelated">Both this device and the server hold notes</string>
+    <string name="sync_unrelated_detail">They share no history, so they cannot be joined here. Taking the server\'s keeps this device\'s on the branch %1$s.</string>
+    <string name="sync_take_remote">Use the server\'s notes</string>
     <!-- Branch, then the summary of the commit at its tip. -->
     <string name="sync_checkout">%1$s · %2$s</string>
     <!-- Date and time of the last successful sync, written by the locale. -->
@@ -63,6 +70,13 @@
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
     <string name="settings_notes_not_dir">That path is a file, not a directory</string>
     <string name="settings_notes_denied">A directory outside the application\'s storage needs access to all files</string>
+    <!-- The directory holds a checkout of somewhere else. Saving does not
+         empty it: the commits in it may exist nowhere but here. -->
+    <string name="settings_other_checkout">The directory is a checkout of another repository. Replace its contents, or point the application at a different directory.</string>
+    <string name="settings_replace_notes">Replace the notes in the directory</string>
+    <string name="settings_keep_local">Keep the notes on this device only</string>
+    <string name="settings_local_chosen">The notes stay on this device</string>
+    <string name="settings_local_hint">No server is involved. A repository can be added later without the notes going anywhere.</string>
     <string name="settings_notes_grant">Grant access to all files</string>
     <string name="settings_notes_pick">Choose a directory</string>
     <string name="settings_notes_failed">The notes directory could not be used; the previous one was kept</string>

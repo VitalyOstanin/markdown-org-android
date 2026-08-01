@@ -22,6 +22,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.SyncException
 import java.io.File
 import java.time.LocalDate
@@ -85,8 +86,28 @@ class AgendaViewModelTest {
         advanceUntilIdle()
     }
 
+    /**
+     * Saving a form used to empty the notes directory whenever the address
+     * changed, and a commit that had not been pushed went with it. Now the
+     * directory is left alone and the user is told what stands in the way.
+     */
     @Test
-    fun changingTheRemoteWaitsForTheSyncInFlightBeforeWipingTheDirectory() = runTest(dispatcher) {
+    fun changingTheRemoteOverSomebodyElsesCheckoutEmptiesNothing() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(OTHER_REMOTE, branch = "", token = "")
+        advanceUntilIdle()
+
+        assertEquals(0, notes.wiped)
+        assertEquals(R.string.settings_other_checkout, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun replacingTheNotesWaitsForTheSyncInFlight() = runTest(dispatcher) {
         val held = CompletableDeferred<Result<SyncRun>>()
         val syncer = FakeSyncer { held.await() }
         var syncingWhenWiped: Boolean? = null
@@ -98,7 +119,7 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         assertTrue(syncer.running)
 
-        model.saveSettings(OTHER_REMOTE, branch = "", token = "")
+        model.replaceNotes()
         advanceUntilIdle()
 
         // The wipe is `deleteRecursively` over the directory a clone is
@@ -108,14 +129,15 @@ class AgendaViewModelTest {
     }
 
     @Test
-    fun changingTheRemoteMidSyncStillSyncsTheNewOne() = runTest(dispatcher) {
-        // The old code ended `saveSettings` with the same `syncNow()` that
-        // skips when a sync is running, so the directory was emptied and
-        // nothing was ever fetched into it.
+    fun replacingTheNotesMidSyncStillClonesTheNewRemote() = runTest(dispatcher) {
+        // The old code ended the wipe with the same `syncNow()` that skips
+        // when a sync is running, so the directory was emptied and nothing
+        // was ever fetched into it.
         val held = CompletableDeferred<Result<SyncRun>>()
         val syncer = FakeSyncer { url ->
             if (url == REMOTE) held.await() else Result.success(FakeSyncer.run())
         }
+        syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
 
@@ -123,9 +145,104 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         model.saveSettings(OTHER_REMOTE, branch = "", token = "")
         advanceUntilIdle()
+        model.replaceNotes()
+        advanceUntilIdle()
 
         assertEquals(listOf(REMOTE, OTHER_REMOTE), syncer.requested)
+        assertEquals(1, notes.wiped)
         assertFalse(model.syncState.value.running)
+    }
+
+    /**
+     * The directory has been holding notes with no git at all — the state a
+     * fresh install starts in and one a user can stay in for good. Naming a
+     * remote takes those notes into git; it does not throw them away and
+     * clone over the top, which is what saving used to do.
+     */
+    @Test
+    fun namingARemoteOverADirectoryOfNotesAdoptsIt() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(REMOTE, branch = "", token = "")
+        advanceUntilIdle()
+
+        assertEquals(listOf(REMOTE), syncer.adopted)
+        assertEquals(0, notes.wiped)
+        assertTrue(syncer.requested.isEmpty())
+    }
+
+    @Test
+    fun bothSidesHoldingNotesIsAQuestionRatherThanAFailure() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.adoptResult = Result.success(Adoption.Unrelated("main"))
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(REMOTE, branch = "", token = "")
+        advanceUntilIdle()
+
+        val state = model.syncState.value
+        assertEquals("main", state.unrelated)
+        assertEquals(R.string.sync_unrelated, state.message?.text)
+        // Not a failure: nothing was lost, nothing was sent, and the screen
+        // shows an answer to press rather than a red line to read.
+        assertFalse(state.message?.failed == true)
+    }
+
+    @Test
+    fun takingTheRemotesNotesAnswersTheQuestionAndRebuildsTheAgenda() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.adoptResult = Result.success(Adoption.Unrelated("main"))
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        model.saveSettings(REMOTE, branch = "", token = "")
+        advanceUntilIdle()
+        val invalidationsBefore = loader.invalidations
+
+        model.takeRemoteNotes()
+        advanceUntilIdle()
+
+        assertEquals(1, syncer.remotesTaken)
+        assertNull(model.syncState.value.unrelated)
+        assertEquals(R.string.sync_took_remote, model.syncState.value.message?.text)
+        assertTrue(loader.invalidations > invalidationsBefore)
+    }
+
+    /**
+     * The state was reachable by accident — a directory with no address is a
+     * plain directory — and read as "not set up yet" on every launch. Said
+     * outright it is a way to use the application.
+     */
+    @Test
+    fun keepingTheNotesOnTheDeviceIsAConfiguredStateOfItsOwn() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.keepNotesLocal()
+        advanceUntilIdle()
+
+        assertTrue(settings.storesLocally)
+        assertTrue(model.syncState.value.local)
+        assertTrue(settings.isSettled)
+        assertFalse(settings.isConfigured)
+    }
+
+    @Test
+    fun namingARemoteAfterwardsLeavesTheLocalStoreBehind() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        model.keepNotesLocal()
+
+        model.saveSettings(REMOTE, branch = "", token = "")
+        advanceUntilIdle()
+
+        assertFalse(settings.storesLocally)
+        assertEquals(listOf(REMOTE), syncer.adopted)
+        assertEquals(0, notes.wiped)
     }
 
     @Test
@@ -384,6 +501,8 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         model.saveSettings(url = REMOTE, branch = "main", token = "")
+        advanceUntilIdle()
+        model.replaceNotes()
         advanceUntilIdle()
 
         assertEquals(R.string.notes_reset_failed, model.syncState.value.message?.text)

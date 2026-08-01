@@ -274,6 +274,174 @@ pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
     })
 }
 
+/// What became of a directory that was asked to start tracking a remote.
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum Adoption {
+    /// The remote had nothing on this branch, so what was here became it.
+    Published {
+        /// Commits handed over, which is the whole of the local history.
+        commits_pushed: u32,
+    },
+    /// The remote already holds notes, and the directory held none of its
+    /// own — so this is a clone by another name, and the remote was taken.
+    Took,
+    /// Both sides hold notes that share no history.
+    ///
+    /// Nothing was sent and nothing was overwritten: the directory is now a
+    /// repository whose branch holds what was in it, and the remote's notes
+    /// sit beside it in `origin/<branch>`. Joining them is a decision this
+    /// application cannot make — see [`take_remote_notes`].
+    Unrelated {
+        /// The branch both sides have moved on, for the caller to word.
+        branch: String,
+    },
+}
+
+/// Turn a directory that already holds notes into a checkout of `url`.
+///
+/// The way in for notes kept on the device before any remote was named. The
+/// directory keeps its files: they become the first commit, and only then is
+/// a remote added and fetched from. Nothing here empties anything — that is
+/// the whole difference from pointing [`sync_repository`] at a directory,
+/// which clones into an empty one.
+///
+/// Refuses a directory that is already a checkout: adding a second `origin`
+/// over somebody's repository is not what this is for, and the caller can
+/// tell the two apart with [`holds_repository`] beforehand.
+#[uniffi::export]
+pub fn adopt_directory(request: SyncRequest, author: CommitAuthor) -> Result<Adoption, SyncError> {
+    ensure_supported(&request.url)?;
+    use_timeouts();
+
+    let path = Path::new(&request.dir);
+    if open(path).is_ok() {
+        return Err(SyncError::Repository {
+            detail: format!("{} already holds a repository", request.dir),
+        });
+    }
+
+    // The same reason `clone` calls it: what is initialised here is opened
+    // immediately afterwards, and on the shared storage that check refuses it.
+    open_directories_owned_by_the_platform();
+    let repository = Repository::init(path)?;
+    repository.remote("origin", &request.url)?;
+
+    let held = commit_everything(&repository, ADOPTED_MESSAGE, &author)?.is_some();
+    // The branch the settings name, not the one `init` happened to pick: on a
+    // repository with no commits HEAD is symbolic and moving it costs nothing,
+    // and after the commit the branch has to be renamed instead.
+    let branch = match request.branch.as_deref() {
+        Some(wanted) => {
+            use_branch(&repository, wanted, held)?;
+            wanted.to_string()
+        }
+        None => head_branch(&repository)?,
+    };
+
+    // Every branch the remote has, rather than the one named: a remote that
+    // does not have it yet would make a named fetch fail, and "the branch is
+    // not there" is an answer rather than a failure here.
+    let mut remote = repository.find_remote("origin")?;
+    remote.fetch::<&str>(&[], Some(&mut fetch_options(&request)), None)?;
+    drop(remote);
+
+    let theirs = reference_target(&repository, &format!("refs/remotes/origin/{branch}"))?;
+
+    match (theirs, held) {
+        // Nothing of theirs: what is here becomes the branch.
+        (None, _) => {
+            let pushed = push_changes(request)?;
+            Ok(Adoption::Published {
+                commits_pushed: pushed.commits_pushed,
+            })
+        }
+        // Nothing of ours: this is a clone that started from an empty
+        // directory, and the remote is taken without anything being lost.
+        (Some(target), false) => {
+            move_onto(&repository, &branch, target)?;
+            Ok(Adoption::Took)
+        }
+        (Some(_), true) => Ok(Adoption::Unrelated { branch }),
+    }
+}
+
+/// Take the remote's notes over a directory whose own are already committed.
+///
+/// The answer to [`Adoption::Unrelated`], and only after the user has been
+/// asked. What was in the directory is not deleted: it stays a commit of its
+/// own, on a branch named [`KEPT_BRANCH`], and the working copy is written out
+/// from the remote's branch instead.
+#[uniffi::export]
+pub fn take_remote_notes(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
+    ensure_supported(&request.url)?;
+
+    let repository = open(Path::new(&request.dir))?;
+    let branch = match request.branch.as_deref() {
+        Some(branch) => branch.to_string(),
+        None => head_branch(&repository)?,
+    };
+
+    let Some(theirs) = reference_target(&repository, &format!("refs/remotes/origin/{branch}"))?
+    else {
+        return Err(SyncError::Repository {
+            detail: format!("origin/{branch} is not there; fetch before taking it"),
+        });
+    };
+
+    // Kept before the branch moves, so the commit holding what was in the
+    // directory stays reachable — a commit only HEAD pointed at is a commit
+    // the next garbage collection takes.
+    if let Some(ours) = reference_target(&repository, &format!("refs/heads/{branch}"))? {
+        repository.reference(
+            &format!("refs/heads/{KEPT_BRANCH}"),
+            ours,
+            true,
+            "keep what was in the directory",
+        )?;
+    }
+
+    move_onto(&repository, &branch, theirs)?;
+
+    Ok(SyncOutcome {
+        cloned: false,
+        commits_applied: 0,
+        head: read_status(&repository)?,
+    })
+}
+
+/// Message of the commit that takes in a directory's existing notes.
+const ADOPTED_MESSAGE: &str = "Notes already in this directory";
+
+/// Where the notes of the device are kept when the remote's are taken instead.
+///
+/// A branch rather than a copy on disk: it costs nothing, it is what git is
+/// for, and whoever wants those notes back has them in a form every other git
+/// client understands.
+pub const KEPT_BRANCH: &str = "notes-kept-on-this-device";
+
+/// Put HEAD on `wanted`, renaming the branch `init` created when it has to.
+fn use_branch(repository: &Repository, wanted: &str, held: bool) -> Result<(), SyncError> {
+    let name = format!("refs/heads/{wanted}");
+    if !held {
+        // No commits yet, so there is no branch to rename: HEAD is symbolic
+        // and pointing it elsewhere is the whole of the change.
+        repository.set_head(&name)?;
+        return Ok(());
+    }
+
+    let current = head_branch(repository)?;
+    if current == wanted {
+        return Ok(());
+    }
+
+    repository
+        .find_branch(&current, git2::BranchType::Local)?
+        .rename(wanted, false)?;
+    repository.set_head(&name)?;
+
+    Ok(())
+}
+
 /// Commits on `branch` that `origin/<branch>` does not hold.
 ///
 /// The remote-tracking reference is the last fetch's answer, not the server's
@@ -376,6 +544,19 @@ pub fn commit_changes(
 ) -> Result<Option<String>, SyncError> {
     let repository = open(Path::new(&dir))?;
 
+    commit_everything(&repository, &message, &author)
+}
+
+/// The commit itself, over a repository the caller has already opened.
+///
+/// Shared with [`adopt_directory`], which makes the first commit of a
+/// directory that was not a checkout a moment earlier and must not open it a
+/// second time to do so.
+fn commit_everything(
+    repository: &Repository,
+    message: &str,
+    author: &CommitAuthor,
+) -> Result<Option<String>, SyncError> {
     let mut index = repository.index()?;
     // A file an interrupted write left beside a note is not part of the
     // notes: committing it would push half a file to the remote under a name
@@ -405,8 +586,9 @@ pub fn commit_changes(
     index.update_all(["*"].iter(), None)?;
     index.write()?;
 
+    let empty = index.is_empty();
     let tree_id = index.write_tree()?;
-    let parent = head_commit(&repository)?;
+    let parent = head_commit(repository)?;
 
     if parent
         .as_ref()
@@ -415,10 +597,18 @@ pub fn commit_changes(
         return Ok(None);
     }
 
+    // A branch with no commits over a directory with no files: there is
+    // nothing to record. Committing anyway would put an empty root commit in
+    // front of everything — and, for `adopt_directory`, would make an empty
+    // directory look like one holding notes of its own.
+    if parent.is_none() && empty {
+        return Ok(None);
+    }
+
     let tree = repository.find_tree(tree_id)?;
     let who = Signature::now(&author.name, &author.email)?;
     let parents: Vec<&git2::Commit> = parent.iter().collect();
-    let id = repository.commit(Some("HEAD"), &who, &who, &message, &tree, &parents)?;
+    let id = repository.commit(Some("HEAD"), &who, &who, message, &tree, &parents)?;
 
     Ok(Some(id.to_string()))
 }

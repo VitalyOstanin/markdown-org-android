@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -68,6 +69,10 @@ fun AgendaScreen(
     onSync: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onTaskClick: (Task) -> Unit = {},
+    /** Answer to unrelated histories: take what the server holds. */
+    onTakeRemote: () -> Unit = {},
+    /** Answer to a directory holding somebody else's checkout: empty it. */
+    onReplaceNotes: () -> Unit = {},
 ) {
     // What an edit answered with, if it could not be made. A snackbar rather
     // than the banner: it is about the tap that was just made, it goes away on
@@ -92,6 +97,8 @@ fun AgendaScreen(
                 onSync,
                 onOpenSettings,
                 onTaskClick,
+                onTakeRemote,
+                onReplaceNotes,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
@@ -108,6 +115,8 @@ private fun AgendaBody(
     onSync: () -> Unit,
     onOpenSettings: () -> Unit,
     onTaskClick: (Task) -> Unit,
+    onTakeRemote: () -> Unit,
+    onReplaceNotes: () -> Unit,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -132,7 +141,7 @@ private fun AgendaBody(
             // back to the other layout, and it must not scroll away.
             AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
             RefreshingLine(state.refreshing)
-            SyncBanner(sync)
+            SyncBanner(sync, onTakeRemote, onReplaceNotes)
             ScanNotices(state.notices)
             when (layout) {
                 AgendaLayout.TIME -> TimeLayout(
@@ -280,7 +289,7 @@ private fun HeaderAction(
  * "not configured" on every launch would be noise.
  */
 @Composable
-private fun SyncBanner(sync: SyncUiState) {
+private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNotes: () -> Unit) {
     val colors = LocalAgendaColors.current
     val text = when {
         sync.running -> stringResource(R.string.sync_running)
@@ -319,8 +328,42 @@ private fun SyncBanner(sync: SyncUiState) {
                 maxLines = 2,
             )
         }
+        Answer(sync, onTakeRemote, onReplaceNotes)
         Unpushed(sync)
         LastSynced(sync)
+    }
+}
+
+/**
+ * The button for a state that is waiting on the user rather than on a server.
+ *
+ * Two of those exist, and neither can be resolved by trying again: the notes
+ * of the device and of the remote share no history, or the directory holds a
+ * checkout of somewhere else. Both replace what is on disk, so both are a
+ * press rather than something saving a form does.
+ */
+@Composable
+private fun Answer(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNotes: () -> Unit) {
+    val (label, act, tag) = when {
+        sync.running -> return
+
+        sync.unrelated != null -> Triple(
+            R.string.sync_take_remote,
+            onTakeRemote,
+            "sync-take-remote",
+        )
+
+        sync.message?.text == R.string.settings_other_checkout -> Triple(
+            R.string.settings_replace_notes,
+            onReplaceNotes,
+            "sync-replace-notes",
+        )
+
+        else -> return
+    }
+
+    TextButton(onClick = act, modifier = Modifier.testTag(tag)) {
+        Text(stringResource(label), style = MaterialTheme.typography.labelMedium)
     }
 }
 
