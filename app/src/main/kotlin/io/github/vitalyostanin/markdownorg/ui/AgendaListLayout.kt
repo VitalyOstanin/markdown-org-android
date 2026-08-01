@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,8 +47,14 @@ internal fun ListLayout(
     sections: AgendaSections,
     modifier: Modifier = Modifier,
     scroll: LazyListState = rememberLazyListState(),
+    collapse: OverdueCollapse = rememberOverdueCollapse(),
     onTaskClick: (Task) -> Unit = {},
 ) {
+    // Built once per set of rows rather than on every recomposition: the body
+    // of a lazy list runs again on each frame of a scroll, and the split walks
+    // every overdue row.
+    val bands = remember(sections.overdue) { sections.overdue.intoBands() }
+
     LazyColumn(
         modifier = modifier,
         state = scroll,
@@ -57,7 +64,7 @@ internal fun ListLayout(
         if (sections.isEmpty) {
             item { EmptyAgenda() }
         }
-        section(R.string.agenda_section_overdue, sections.overdue, onTaskClick, warn = true)
+        overdueBands(bands, collapse) { row -> TaskRow(row, onTaskClick) }
         section(R.string.agenda_section_timed, sections.timed, onTaskClick)
         section(R.string.agenda_section_untimed, sections.untimed, onTaskClick)
     }
@@ -80,7 +87,9 @@ private fun LazyListScope.section(
 private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val role = LocalAgendaColors.current.role(row.task.kind())
     val overdue = row.daysOffset < 0
-    val trailing = daysLabel(row.daysOffset)
+    // Past the recent band the age is not spelled out: see `statesAge`. The
+    // date stays in the time column, and the band heading says the rest.
+    val trailing = if (row.statesAge()) daysLabel(row.daysOffset) else ""
 
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
@@ -140,6 +149,7 @@ private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
                         MaterialTheme.colorScheme.outline
                     },
                     bold = overdue,
+                    spoken = daysSpoken(row.daysOffset),
                 )
             }
         }

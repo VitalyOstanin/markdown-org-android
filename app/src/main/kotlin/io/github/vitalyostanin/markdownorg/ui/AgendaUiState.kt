@@ -67,7 +67,86 @@ data class AgendaSections(
     val untimed: List<AgendaRow>,
 ) {
     val isEmpty: Boolean get() = overdue.isEmpty() && timed.isEmpty() && untimed.isEmpty()
+
+    /** [overdue] split by what each row asks of the reader — see [OverdueBand]. */
+    val overdueBands: List<OverdueGroup> get() = overdue.intoBands()
 }
+
+/**
+ * What a row that has slipped asks of whoever reads it.
+ *
+ * A single "overdue" group answers the question "what is late" and no other.
+ * On a file kept for years the answers differ: a repeat missed on Tuesday is
+ * today's work, a date from May wants a new one, and a date from 2021 wants to
+ * be closed or dropped. They are shown apart because they are acted on apart —
+ * the same reason org-super-agenda splits `:scheduled past` from
+ * `:deadline past`.
+ */
+enum class OverdueBand {
+    /**
+     * An occurrence of a repeating task that was not done on the day it came
+     * round. Not a debt: the next occurrence is what there is to do, and the
+     * dates behind it are gone whatever happens.
+     */
+    MISSED_REPEAT,
+
+    /** Slipped within the last week — still the current plan, a day or two out. */
+    RECENT,
+
+    /** Slipped this year. A plan that no longer holds and wants a new date. */
+    EARLIER,
+
+    /** Older than a year. Kept, but not planning any more. */
+    LONG_AGO,
+}
+
+/** One band of the overdue group, with the rows that fell into it. */
+data class OverdueGroup(val band: OverdueBand, val rows: List<AgendaRow>)
+
+/** Slipped by no more than this, and it is still the current plan. */
+private const val RECENT_DAYS = 7L
+
+/** Beyond this the date says less than the fact that it is long gone. */
+internal const val LONG_AGO_DAYS = 365L
+
+/**
+ * Which band a row falls into.
+ *
+ * A repeater wins over the age on purpose: whether its missed occurrence was
+ * yesterday or last spring, what to do with it is the same.
+ */
+internal fun AgendaRow.overdueBand(): OverdueBand = when {
+    task.kind() == AgendaKind.REPEAT -> OverdueBand.MISSED_REPEAT
+    daysOffset >= -RECENT_DAYS -> OverdueBand.RECENT
+    daysOffset >= -LONG_AGO_DAYS -> OverdueBand.EARLIER
+    else -> OverdueBand.LONG_AGO
+}
+
+/**
+ * Splits the overdue rows into bands, keeping the order within each and
+ * dropping the bands nothing fell into.
+ *
+ * The order of the bands is the order they are worth reading in — what is
+ * actionable today first, the archive last — rather than the order of the
+ * dates, which is what buries a missed repeat under entries from 2021.
+ */
+internal fun List<AgendaRow>.intoBands(): List<OverdueGroup> {
+    val byBand = groupBy(AgendaRow::overdueBand)
+
+    return OverdueBand.entries.mapNotNull { band ->
+        byBand[band]?.takeIf(List<AgendaRow>::isNotEmpty)?.let { OverdueGroup(band, it) }
+    }
+}
+
+/**
+ * Whether the row states its age as a label of its own.
+ *
+ * "Overdue by 1947 days" is a sentence about the calendar, not about the task,
+ * and it takes the width the heading needs — on the real notes it left three
+ * characters of a heading and the whole of the number. Past the recent band
+ * the date the row already carries says it, and the band says the rest.
+ */
+internal fun AgendaRow.statesAge(): Boolean = daysOffset >= -RECENT_DAYS
 
 /**
  * One thing the walk behind the agenda ran into.

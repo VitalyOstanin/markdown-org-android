@@ -5,6 +5,7 @@ Work that is understood but deliberately not done yet.
 ## Table of contents
 
 - [A local directory as the store, with git added later](#a-local-directory-as-the-store-with-git-added-later)
+- [Acting on a whole overdue group at once](#acting-on-a-whole-overdue-group-at-once)
 - [Several note repositories at once](#several-note-repositories-at-once)
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
 - [SSH remotes](#ssh-remotes)
@@ -37,6 +38,27 @@ who kept notes locally and then entered an address would lose them.
 Worth doing before the several-repositories work above: it changes what a
 "source" is, and the migration that turns one stored triple into a list should
 already know about the local case.
+
+## Acting on a whole overdue group at once
+
+The overdue entries are grouped by how long ago they slipped, and each group is
+still worked through one task at a time. A group of ten dates from three years
+ago is not read task by task — it is answered in one move, and today every one
+of those moves is a sheet, a date and a scroll back to where the list was.
+
+Todoist names the pattern: a "Reschedule" beside the overdue section that moves
+everything to today, or offers a date per task, and that is what stops the
+backlog from being postponed one day at a time until it is unreadable.
+
+| № | Part            | What changes                                                                                                     |
+|---|-----------------|--------------------------------------------------------------------------------------------------------------------|
+| 1 | The core        | An edit that takes several tasks rather than one, so a group of twenty is one rewrite of the file and one commit rather than twenty of each. |
+| 2 | Failure         | A task whose heading moved under the edit fails on its own without taking the rest of the group down; what did not apply has to be named. |
+| 3 | The screens     | An action on the group header — move to today, drop the date, mark cancelled — and an undo, since the move rewrites notes wholesale. |
+| 4 | Repeats         | A missed repeat is not rescheduled but caught up: moving it to today has to keep the repeater and follow the same rule as the single-task edit. |
+
+Worth doing once the grouping settles: the groups are what an action would
+apply to, and they are new.
 
 ## Several note repositories at once
 

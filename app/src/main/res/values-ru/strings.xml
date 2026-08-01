@@ -7,7 +7,12 @@
     <string name="agenda_layout_list">Раскладка «Список»</string>
     <string name="agenda_now">Текущее время</string>
 
-    <string name="agenda_section_overdue">Просрочено</string>
+    <string name="agenda_section_overdue_repeat">Пропущенные повторы</string>
+    <string name="agenda_section_overdue_recent">Просрочено на этой неделе</string>
+    <string name="agenda_section_overdue_earlier">Просрочено раньше</string>
+    <string name="agenda_section_overdue_long">Просрочено давно</string>
+    <string name="agenda_section_expand">Показать группу %1$s</string>
+    <string name="agenda_section_collapse">Скрыть группу %1$s</string>
     <string name="agenda_section_timed">Назначено на сегодня</string>
     <string name="agenda_section_untimed">Без времени и впереди</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>
@@ -90,6 +95,12 @@
     </plurals>
 
     <plurals name="agenda_days_overdue">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+    <plurals name="agenda_days_overdue_spoken">
         <item quantity="one">просрочено на %d день</item>
         <item quantity="few">просрочено на %d дня</item>
         <item quantity="many">просрочено на %d дней</item>

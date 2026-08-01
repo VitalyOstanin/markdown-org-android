@@ -70,11 +70,37 @@ class AgendaScreenTest {
         ),
     ).toSections()
 
+    /**
+     * Overdue entries of every age, as a file kept for years holds them: a
+     * repeat missed this week next to a date from three years ago.
+     */
+    private val aged = agenda(
+        day(
+            overdue = listOf(
+                task(
+                    heading = "Missed the standup",
+                    line = 1u,
+                    repeater = "++7d",
+                    date = "2026-07-25",
+                    daysOffset = -3,
+                ),
+                task(heading = "Pay the tax", line = 2u, date = "2026-07-26", daysOffset = -2),
+                task(
+                    heading = "Service the car",
+                    line = 3u,
+                    date = "2026-03-02",
+                    daysOffset = -152,
+                ),
+                task(heading = "Eye clinic", line = 4u, date = "2021-04-02", daysOffset = -1947),
+            ),
+        ),
+    ).toSections()
+
     @Test
     fun timeLayoutShowsEverySection() {
         showAgenda(AgendaLayout.TIME)
 
-        compose.onNodeWithText(string(R.string.agenda_section_overdue), ignoreCase = true)
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_recent), ignoreCase = true)
             .assertIsDisplayed()
         compose.onNodeWithText("Renew the certificate").assertIsDisplayed()
         compose.onNodeWithText("Daily standup").assertIsDisplayed()
@@ -120,6 +146,62 @@ class AgendaScreenTest {
         for (heading in headings) {
             compose.onNodeWithText(heading).assertExists()
         }
+    }
+
+    @Test
+    fun theOldestBandOpensFoldedAndUnfoldsWhenItsHeadingIsTapped() {
+        showAgenda(AgendaLayout.LIST, sections = aged)
+
+        // What can be acted on today is on screen; the archive is behind its
+        // heading, which still says how much is in it.
+        compose.onNodeWithText("Missed the standup").assertIsDisplayed()
+        compose.onNodeWithText("Eye clinic").assertDoesNotExist()
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_long), ignoreCase = true)
+            .assertIsDisplayed()
+
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_long), ignoreCase = true)
+            .performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Eye clinic").assertIsDisplayed()
+    }
+
+    @Test
+    fun aFoldedBandStaysFoldedAcrossTheLayoutSwitch() {
+        var layout by mutableStateOf(AgendaLayout.LIST)
+        compose.setContent {
+            MarkdownOrgTheme {
+                AgendaScreen(
+                    state = readyState(aged, now = LocalTime.of(10, 0)),
+                    layout = layout,
+                    onLayoutChange = { layout = it },
+                )
+            }
+        }
+
+        // Folding is an answer about the agenda, not about one way of drawing
+        // it: the other layout has to come up with the same bands folded.
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_recent), ignoreCase = true)
+            .performClick()
+        compose.onNodeWithTag(AgendaLayout.TIME.testTag).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Pay the tax").assertDoesNotExist()
+        compose.onNodeWithText("Missed the standup").assertIsDisplayed()
+    }
+
+    @Test
+    fun anAgeNoLongerNewsIsNotSpelledOut() {
+        showAgenda(AgendaLayout.LIST, sections = aged)
+
+        compose.onNodeWithText(
+            string(R.string.agenda_section_overdue_earlier),
+            ignoreCase = true,
+        ).assertIsDisplayed()
+        // The row from May carries its date and its band; the sentence about
+        // how many days that is would take the heading's width.
+        compose.onNodeWithText(daysOverdue(152), substring = true).assertDoesNotExist()
+        compose.onNodeWithText(daysOverdue(2), substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -373,6 +455,10 @@ class AgendaScreenTest {
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
+
+    /** How the row words its age, in the plural form the count asks for. */
+    private fun daysOverdue(days: Int): String = compose.activity.resources
+        .getQuantityString(R.plurals.agenda_days_overdue, days, days)
 
     /** The label of a whole hour, as the device would write it. */
     private fun hour(of: Int): String = hourLabel(

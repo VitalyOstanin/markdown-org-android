@@ -9,7 +9,17 @@
     <string name="agenda_layout_list">List layout</string>
     <string name="agenda_now">Current time</string>
 
-    <string name="agenda_section_overdue">Overdue</string>
+    <!--
+      The overdue entries stand in bands rather than in one group: what each
+      of them asks for differs, and so does what is done about it.
+    -->
+    <string name="agenda_section_overdue_repeat">Missed repeats</string>
+    <string name="agenda_section_overdue_recent">Overdue this week</string>
+    <string name="agenda_section_overdue_earlier">Overdue earlier</string>
+    <string name="agenda_section_overdue_long">Overdue long ago</string>
+    <!-- Spoken for the heading that folds a group; %1$s is its name. -->
+    <string name="agenda_section_expand">Show group %1$s</string>
+    <string name="agenda_section_collapse">Hide group %1$s</string>
     <string name="agenda_section_timed">Scheduled today</string>
     <string name="agenda_section_untimed">Untimed and ahead</string>
     <!-- Start and end of a collapsed empty stretch on the hour axis. -->
@@ -103,7 +113,17 @@
         <item quantity="other">%d files changed since the last commit</item>
     </plurals>
 
+    <!--
+      Read under a heading that already says the entry is overdue, so the row
+      counts the days and no more: the sentence took the width the heading
+      needs and said what the heading had just said.
+    -->
     <plurals name="agenda_days_overdue">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <!-- The same count for a screen reader, where no heading stands above it. -->
+    <plurals name="agenda_days_overdue_spoken">
         <item quantity="one">%d day late</item>
         <item quantity="other">%d days late</item>
     </plurals>

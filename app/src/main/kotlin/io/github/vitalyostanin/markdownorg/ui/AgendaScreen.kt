@@ -100,6 +100,9 @@ private fun AgendaBody(
     // place in the list; one per layout, since the two scroll independently.
     val timeScroll = rememberLazyListState()
     val listScroll = rememberLazyListState()
+    // Shared by both layouts, unlike the scroll positions: a band answered in
+    // one of them is answered in the other, and the two show the same agenda.
+    val collapse = rememberOverdueCollapse()
 
     when (state) {
         AgendaUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -119,12 +122,14 @@ private fun AgendaBody(
                 AgendaLayout.TIME -> TimeLayout(
                     state.timeline,
                     scroll = timeScroll,
+                    collapse = collapse,
                     onTaskClick = onTaskClick,
                 )
 
                 AgendaLayout.LIST -> ListLayout(
                     state.sections,
                     scroll = listScroll,
+                    collapse = collapse,
                     onTaskClick = onTaskClick,
                 )
             }

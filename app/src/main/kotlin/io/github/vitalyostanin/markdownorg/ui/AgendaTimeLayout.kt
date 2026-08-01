@@ -59,12 +59,14 @@ internal fun TimeLayout(
     timeline: Timeline,
     modifier: Modifier = Modifier,
     scroll: LazyListState = rememberLazyListState(),
+    collapse: OverdueCollapse = rememberOverdueCollapse(),
     onTaskClick: (Task) -> Unit = {},
 ) {
     // Paired here rather than in the list body below. That body is a lambda
     // the list runs again on every recomposition — on each frame of a scroll
     // among others — and the pairing depends on nothing but the band itself.
     val bands = remember(timeline.allDay) { timeline.allDay.chunked(2) }
+    val overdue = remember(timeline.overdue) { timeline.overdue.intoBands() }
 
     LazyColumn(
         modifier = modifier,
@@ -75,16 +77,7 @@ internal fun TimeLayout(
             item { EmptyAgenda() }
         }
 
-        if (timeline.overdue.isNotEmpty()) {
-            item {
-                SectionLabel(
-                    stringResource(R.string.agenda_section_overdue),
-                    timeline.overdue.size,
-                    warn = true,
-                )
-            }
-            items(timeline.overdue, key = AgendaRow::key) { row -> OverdueRow(row, onTaskClick) }
-        }
+        overdueBands(overdue, collapse) { row -> OverdueRow(row, onTaskClick) }
 
         if (timeline.allDay.isNotEmpty()) {
             item {
@@ -208,7 +201,10 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
 @Composable
 private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val colors = LocalAgendaColors.current
-    val trailing = daysLabel(row.daysOffset)
+    // Only while the age is still news — see `statesAge`. On a note kept for
+    // years the label grew to "overdue by 1947 days" and took the heading's
+    // width with it.
+    val trailing = if (row.statesAge()) daysLabel(row.daysOffset) else ""
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
     Row(
@@ -242,6 +238,7 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
                 background = colors.onSolid,
                 foreground = colors.deadline.tone,
                 bold = true,
+                spoken = daysSpoken(row.daysOffset),
             )
         }
     }

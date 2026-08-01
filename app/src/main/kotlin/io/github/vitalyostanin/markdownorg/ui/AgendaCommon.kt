@@ -1,6 +1,8 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -87,7 +93,7 @@ fun AgendaKind.decoration(): TextDecoration? = if (this == AgendaKind.DONE ||
     null
 }
 
-/** How far off the date is, as text: `2 days late`, `in 5 days`, or nothing for today. */
+/** How far off the date is, as text: `2 days`, `in 5 days`, or nothing for today. */
 @Composable
 fun daysLabel(daysOffset: Long): String = when {
     daysOffset < 0 -> pluralStringResource(
@@ -103,6 +109,24 @@ fun daysLabel(daysOffset: Long): String = when {
     )
 
     else -> ""
+}
+
+/**
+ * The same count as a sentence, for a screen reader.
+ *
+ * The visible label counts days and leaves the word "late" to the heading
+ * above it. A reader moving row by row never hears that heading, so the row
+ * says it in full — `null` where there is nothing to say.
+ */
+@Composable
+fun daysSpoken(daysOffset: Long): String? = if (daysOffset < 0) {
+    pluralStringResource(
+        R.plurals.agenda_days_overdue_spoken,
+        (-daysOffset).toInt(),
+        (-daysOffset).toInt(),
+    )
+} else {
+    null
 }
 
 /**
@@ -192,6 +216,11 @@ internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
 /**
  * Heading over a group of entries, with how many are in it. The overdue group
  * is the one that gets the tone: the rest are neutral.
+ *
+ * [folded] turns the heading into the control that folds the group: `null`
+ * leaves it a plain label. The count stays visible either way — a folded group
+ * still has to say how much is behind it, or folding it hides the fact that it
+ * is there at all.
  */
 @Composable
 internal fun SectionLabel(
@@ -199,29 +228,101 @@ internal fun SectionLabel(
     count: Int,
     modifier: Modifier = Modifier,
     warn: Boolean = false,
+    folded: Boolean? = null,
+    onFold: () -> Unit = {},
 ) {
+    val label = if (folded == true) {
+        stringResource(R.string.agenda_section_expand, text)
+    } else {
+        stringResource(R.string.agenda_section_collapse, text)
+    }
+
     Row(
-        modifier = modifier.fillMaxWidth().padding(vertical = Spacing.sm),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (folded == null) {
+                    Modifier
+                } else {
+                    Modifier.clickable(onClickLabel = label, onClick = onFold)
+                },
+            )
+            .padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = text.uppercase(LocalLocale.current.platformLocale),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
-            color = if (warn) {
-                LocalAgendaColors.current.deadline.tone
-            } else {
-                MaterialTheme.colorScheme.outline
-            },
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (folded != null) {
+                Text(
+                    // A glyph rather than an icon: the row is monospace type
+                    // already, and a vector here would be the one drawable on
+                    // a screen that has none.
+                    text = if (folded) FOLDED_MARK else UNFOLDED_MARK,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                Spacer(Modifier.width(Spacing.xs))
+            }
+            Text(
+                text = text.uppercase(LocalLocale.current.platformLocale),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
+                color = if (warn) {
+                    LocalAgendaColors.current.deadline.tone
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+            )
+        }
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.outline,
         )
+    }
+}
+
+private const val FOLDED_MARK = "▸"
+private const val UNFOLDED_MARK = "▾"
+
+/** What the band is called on screen. */
+@get:StringRes
+internal val OverdueBand.label: Int
+    get() = when (this) {
+        OverdueBand.MISSED_REPEAT -> R.string.agenda_section_overdue_repeat
+        OverdueBand.RECENT -> R.string.agenda_section_overdue_recent
+        OverdueBand.EARLIER -> R.string.agenda_section_overdue_earlier
+        OverdueBand.LONG_AGO -> R.string.agenda_section_overdue_long
+    }
+
+/**
+ * The overdue bands, each under a heading that folds it.
+ *
+ * Written once for both layouts: they differ in how a row is drawn — [row] is
+ * what each passes in — and not in which groups there are or what folds them.
+ */
+internal fun LazyListScope.overdueBands(
+    groups: List<OverdueGroup>,
+    collapse: OverdueCollapse,
+    row: @Composable (AgendaRow) -> Unit,
+) {
+    for (group in groups) {
+        val folded = collapse.isCollapsed(group.band)
+
+        item(key = "band:${group.band.name}") {
+            SectionLabel(
+                text = stringResource(group.band.label),
+                count = group.rows.size,
+                warn = group.band != OverdueBand.LONG_AGO,
+                folded = folded,
+                onFold = { collapse.toggle(group.band) },
+            )
+        }
+        if (!folded) {
+            items(group.rows, key = AgendaRow::key) { entry -> row(entry) }
+        }
     }
 }
 
@@ -240,11 +341,19 @@ internal fun TrailingTag(
     foreground: Color,
     modifier: Modifier = Modifier,
     bold: Boolean = false,
+    spoken: String? = null,
 ) {
     Box(
         modifier = modifier
             .clip(MaterialTheme.shapes.small)
             .background(background)
+            .then(
+                if (spoken == null) {
+                    Modifier
+                } else {
+                    Modifier.semantics { contentDescription = spoken }
+                },
+            )
             .padding(horizontal = Spacing.sm),
     ) {
         Text(
