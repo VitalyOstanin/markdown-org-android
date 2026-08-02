@@ -52,6 +52,9 @@
     <string name="sync_host_accept_new">Accept the new server key</string>
     <!-- Branch, then the summary of the commit at its tip. -->
     <string name="sync_checkout">%1$s · %2$s</string>
+    <!-- One collection's line in the summary of a run over several: its name,
+         then what its own sync answered. -->
+    <string name="sync_collection_line">%1$s: %2$s</string>
     <!-- Date and time of the last successful sync, written by the locale. -->
     <string name="sync_last_synced">synced %1$s</string>
     <string name="sync_failed_auth">The server rejected the token</string>
@@ -162,6 +165,28 @@
     <string name="edit_failed_missing">The file is no longer there</string>
     <string name="edit_failed_encoding">The file is not UTF-8; convert it and try again</string>
     <string name="edit_failed_unnamed">The file name is not UTF-8, so the task cannot be changed</string>
+    <!-- The task was still on screen when the collection it came from was
+         removed; there is no directory left to write it to. -->
+    <string name="edit_failed_no_collection">The collection this task came from is no longer set up</string>
+
+    <!-- What the collection made out of an earlier version's single directory
+         is called, and what a set of one is labelled with. -->
+    <string name="collection_default_name">Notes</string>
+    <string name="collection_name_empty">Give the collection a name</string>
+    <string name="collection_path_taken">Another collection is already that directory</string>
+    <string name="collection_path_nested">The directory is inside another collection, so its notes would be read twice</string>
+    <!-- What a collection added from the settings screen is called until it is
+         renamed. -->
+    <string name="collection_new_name">New collection</string>
+    <string name="settings_collections">Collections</string>
+    <string name="settings_collection_add">Add a collection</string>
+    <string name="settings_collection_name">Name</string>
+    <string name="settings_collection_remove">Remove this collection</string>
+    <!-- The directory stays where it is: it may be a repository holding commits
+         that are nowhere else, and this screen only stops reading it. -->
+    <string name="settings_collection_remove_explain">The agenda stops showing its notes. The directory and everything in it stays on the device; the address, the branch and the token of this collection are forgotten.</string>
+    <string name="settings_collection_remove_confirm">Remove</string>
+    <string name="settings_collection_remove_cancel">Keep</string>
     <!-- The note was written; only the commit did not happen. Worded away
          from a failure: repeating the tap would edit an already edited file. -->
     <string name="edit_not_committed">Saved, but not committed; the next edit or sync will commit it</string>

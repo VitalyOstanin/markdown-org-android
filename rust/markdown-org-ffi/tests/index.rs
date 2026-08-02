@@ -31,7 +31,16 @@ fn write_vault(files: &[(&str, &str)]) -> tempfile::TempDir {
 }
 
 fn index(dir: &tempfile::TempDir) -> NotesIndex {
-    NotesIndex::open(dir.path().display().to_string(), options()).expect("open the index")
+    NotesIndex::open(vec![root(dir)], options()).expect("open the index")
+}
+
+/// The directory as the index reports it: canonical, which is what a task
+/// carries and what a re-read is addressed by.
+fn root(dir: &tempfile::TempDir) -> String {
+    fs::canonicalize(dir.path())
+        .expect("canonicalize")
+        .display()
+        .to_string()
 }
 
 /// The headings of a day agenda, in the order they come back.
@@ -93,7 +102,9 @@ fn a_re_read_file_brings_its_edit_and_leaves_the_rest() {
     // The edit an application would have made through set_status or
     // shift_planning: one file rewritten, everything else untouched.
     fs::write(vault.path().join("a.md"), MOVED).expect("rewrite");
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     // The moved task is a week out and off this day; the untouched one stays.
     let after = headings(&day_of(&index));
@@ -110,7 +121,9 @@ fn only_the_named_file_is_re_read() {
     // watcher, and a caller reading otherwise would be surprised later.
     fs::write(vault.path().join("a.md"), MOVED).expect("rewrite a");
     fs::write(vault.path().join("b.md"), TODAY).expect("rewrite b");
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     assert_eq!(
         headings(&day_of(&index)),
@@ -144,7 +157,9 @@ fn a_file_that_lost_its_tasks_loses_them_in_the_index() {
     let index = index(&vault);
 
     fs::write(vault.path().join("a.md"), "# Just a heading\n").expect("rewrite");
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     assert_eq!(
         headings(&day_of(&index)),
@@ -162,7 +177,9 @@ fn a_deleted_file_is_dropped_rather_than_reported() {
     // simply not have found it either.
     fs::remove_file(vault.path().join("a.md")).expect("remove");
 
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     assert_eq!(
         headings(&day_of(&index)),
@@ -178,7 +195,9 @@ fn a_file_that_is_not_utf8_is_dropped_rather_than_reported() {
     // A note saved in a single-byte encoding. The walk counts it and moves on,
     // and so does this: its tasks go, the rest of the index stands.
     fs::write(vault.path().join("a.md"), [0xff, 0xfe, 0x00]).expect("rewrite");
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     assert_eq!(
         headings(&day_of(&index)),
@@ -191,7 +210,7 @@ fn a_path_that_climbs_out_of_the_directory_is_refused() {
     let vault = write_vault(&[("a.md", TODAY)]);
     let index = index(&vault);
 
-    let refused = index.refresh_file("../elsewhere.md".to_string());
+    let refused = index.refresh_file(root(&vault), "../elsewhere.md".to_string());
 
     assert!(matches!(
         refused,
@@ -203,7 +222,7 @@ fn a_path_that_climbs_out_of_the_directory_is_refused() {
 fn the_task_cap_survives_a_re_read() {
     let vault = write_vault(&[("a.md", TODAY), ("b.md", LATER)]);
     let index = NotesIndex::open(
-        vault.path().display().to_string(),
+        vec![root(&vault)],
         Options {
             glob: None,
             locale: None,
@@ -216,7 +235,103 @@ fn the_task_cap_survives_a_re_read() {
     // index would hold more than a walk of the same directory ever would.
     let grown = format!("{TODAY}\n# TODO Second\n`SCHEDULED: <2026-03-02 Mon 11:00>`\n\n# TODO Third\n`SCHEDULED: <2026-03-02 Mon 12:00>`\n");
     fs::write(vault.path().join("a.md"), grown).expect("rewrite");
-    index.refresh_file("a.md".to_string()).expect("re-read");
+    index
+        .refresh_file(root(&vault), "a.md".to_string())
+        .expect("re-read");
 
     assert_eq!(headings(&day_of(&index)).len(), 2);
+}
+
+// Several collections at once. Notes live in more than one place — a work
+// repository and a private one — and the agenda over them is one agenda. What
+// has to hold is that a task still names the collection it came from, because
+// an edit is addressed by that pair and the same relative path occurs in both.
+
+#[test]
+fn the_index_merges_the_collections_it_was_opened_over() {
+    let work = write_vault(&[("a.md", TODAY)]);
+    let home = write_vault(&[("a.md", LETTER)]);
+
+    let index = NotesIndex::open(vec![root(&work), root(&home)], options()).expect("open");
+
+    let mut after = headings(&day_of(&index));
+    after.sort();
+    assert_eq!(
+        after,
+        vec![
+            "Write the letter".to_string(),
+            "Write the report".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn every_task_names_the_collection_it_came_from() {
+    let work = write_vault(&[("a.md", TODAY)]);
+    let home = write_vault(&[("a.md", LETTER)]);
+
+    let index = NotesIndex::open(vec![root(&work), root(&home)], options()).expect("open");
+
+    let agenda = day_of(&index);
+    let mut named: Vec<(String, String)> = agenda
+        .days
+        .iter()
+        .flat_map(|day| day.scheduled_timed.iter())
+        .map(|task| (task.heading.clone(), task.root.clone().unwrap_or_default()))
+        .collect();
+    named.sort();
+    assert_eq!(
+        named,
+        vec![
+            ("Write the letter".to_string(), root(&home)),
+            ("Write the report".to_string(), root(&work)),
+        ],
+        "the same relative path in two collections is two different files"
+    );
+}
+
+#[test]
+fn a_re_read_touches_only_the_collection_it_names() {
+    let work = write_vault(&[("a.md", TODAY)]);
+    let home = write_vault(&[("a.md", LETTER)]);
+    let index = NotesIndex::open(vec![root(&work), root(&home)], options()).expect("open");
+
+    // Both collections hold `a.md`. Re-reading the one in `work` must not
+    // drop the tasks of the one in `home`, which is what dropping by path
+    // alone would do.
+    fs::write(work.path().join("a.md"), MOVED).expect("rewrite");
+    index
+        .refresh_file(root(&work), "a.md".to_string())
+        .expect("re-read");
+
+    assert_eq!(
+        headings(&day_of(&index)),
+        vec!["Write the letter".to_string()]
+    );
+}
+
+#[test]
+fn a_root_the_index_was_not_opened_over_is_refused() {
+    let vault = write_vault(&[("a.md", TODAY)]);
+    let elsewhere = write_vault(&[("a.md", LETTER)]);
+    let index = index(&vault);
+
+    let refused = index.refresh_file(root(&elsewhere), "a.md".to_string());
+
+    assert!(matches!(
+        refused,
+        Err(ExtractError::InvalidDirectory { .. })
+    ));
+}
+
+#[test]
+fn an_index_over_no_directory_at_all_is_refused() {
+    // An empty list would answer every agenda with an empty one, which reads
+    // as a collection with nothing in it rather than as a missing setting.
+    let refused = NotesIndex::open(Vec::new(), options());
+
+    assert!(matches!(
+        refused,
+        Err(ExtractError::InvalidDirectory { .. })
+    ));
 }

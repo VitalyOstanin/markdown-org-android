@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -45,11 +49,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import io.github.vitalyostanin.markdownorg.ui.theme.collectionTone
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
@@ -68,6 +74,9 @@ fun AgendaScreen(
     sync: SyncUiState = SyncUiState(),
     editIssue: SyncMessage? = null,
     onEditIssueShown: () -> Unit = {},
+    /** The collections to filter by; empty while there is one of them. */
+    collections: List<CollectionChoice> = emptyList(),
+    onCollectionShown: (String, Boolean) -> Unit = { _, _ -> },
     /** What acting on a whole band did, and what it takes to undo it. */
     groupResult: GroupResult? = null,
     onGroupResultShown: () -> Unit = {},
@@ -131,6 +140,8 @@ fun AgendaScreen(
                 onReplaceNotes,
                 onTrustHost,
                 onGroupAction,
+                collections,
+                onCollectionShown,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
@@ -173,6 +184,8 @@ private fun AgendaBody(
     onReplaceNotes: () -> Unit,
     onTrustHost: () -> Unit,
     onGroupAction: (OverdueGroup, BulkAction) -> Unit,
+    collections: List<CollectionChoice>,
+    onCollectionShown: (String, Boolean) -> Unit,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -196,6 +209,7 @@ private fun AgendaBody(
             // Outside the scrolling area: the switch is how the user gets
             // back to the other layout, and it must not scroll away.
             AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
+            CollectionFilter(collections, onCollectionShown)
             RefreshingLine(state.refreshing)
             SyncBanner(sync, onTakeRemote, onReplaceNotes, onTrustHost)
             ScanNotices(state.notices)
@@ -221,6 +235,62 @@ private fun AgendaBody(
                     onGroupAction = onGroupAction,
                 )
             }
+        }
+    }
+}
+
+/**
+ * The collections, as chips that take their rows off the agenda and back.
+ *
+ * Under the header and outside the scrolling area, next to the layout switch:
+ * both say how much of the agenda is on screen, and a filter that scrolls away
+ * leaves a shortened list with nothing to explain it.
+ *
+ * Nothing is drawn while there is a single collection — see [CollectionChoice].
+ * The row scrolls sideways rather than wrapping: the number of collections is
+ * the user's to choose, and a filter that grows downwards would push the
+ * agenda off the screen.
+ */
+@Composable
+private fun CollectionFilter(
+    collections: List<CollectionChoice>,
+    onCollectionShown: (String, Boolean) -> Unit,
+) {
+    if (collections.isEmpty()) {
+        return
+    }
+
+    val colors = LocalAgendaColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.gutter, vertical = Spacing.xs)
+            .testTag("collection-filter"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        collections.forEach { choice ->
+            FilterChip(
+                selected = choice.shown,
+                onClick = { onCollectionShown(choice.label.id, !choice.shown) },
+                label = {
+                    Text(
+                        text = choice.label.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = Sizes.collectionName),
+                    )
+                },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(Sizes.collectionDot)
+                            .clip(CircleShape)
+                            .background(colors.collectionTone(choice.label.tone)),
+                    )
+                },
+                modifier = Modifier.testTag("collection-chip-${choice.label.id}"),
+            )
         }
     }
 }
@@ -391,9 +461,46 @@ private fun SyncBanner(
                 maxLines = 2,
             )
         }
+        CollectionRuns(sync)
         Answer(sync, onTakeRemote, onReplaceNotes, onTrustHost)
         Unpushed(sync)
         LastSynced(sync)
+    }
+}
+
+/**
+ * What each collection of the last run answered, one line apiece.
+ *
+ * Only from two collections up: with one, the line above already says it, and
+ * repeating it under its own name would be the same sentence twice. What this
+ * carries that the line above cannot is which repository failed — a run over
+ * three of them ends with the answer of the third, whatever the second did.
+ */
+@Composable
+private fun CollectionRuns(sync: SyncUiState) {
+    if (sync.runs.size < 2) {
+        return
+    }
+
+    val colors = LocalAgendaColors.current
+    Column(Modifier.fillMaxWidth().testTag("sync-collections")) {
+        sync.runs.forEach { run ->
+            Text(
+                text = stringResource(
+                    R.string.sync_collection_line,
+                    run.name,
+                    stringResource(run.message.text),
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (run.message.failed) {
+                    colors.deadline.tone
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

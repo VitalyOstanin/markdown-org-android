@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,11 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,9 +42,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
@@ -74,6 +80,15 @@ fun SyncSettingsScreen(
     onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
     initialNotesPath: String = "",
+    /** What the collection being edited is called, as it is stored. */
+    initialName: String = "",
+    /** Every collection there is, in the order the agenda keeps them. */
+    collections: List<NotesCollection> = emptyList(),
+    /** Which of [collections] the rest of this form is about. */
+    editingId: String = "",
+    onEditCollection: (String) -> Unit = {},
+    onAddCollection: (String) -> Unit = {},
+    onRemoveCollection: (String) -> Unit = {},
     ownNotesPath: String = "",
     storageGranted: Boolean = false,
     onRequestStorage: () -> Unit = {},
@@ -97,20 +112,28 @@ fun SyncSettingsScreen(
     // Saved rather than merely remembered: the activity declares no
     // configChanges, so a turn of the phone rebuilds it, and a URL typed by
     // hand or a token pasted from a browser would be gone.
-    var url by rememberSaveable { mutableStateOf(initialUrl) }
-    var branch by rememberSaveable { mutableStateOf(initialBranch) }
+    // Keyed on the collection being edited: every field below belongs to one
+    // of them, and switching from a work repository to a personal one has to
+    // bring that one's address rather than keep what was typed for the other.
+    var url by rememberSaveable(editingId) { mutableStateOf(initialUrl) }
+    var branch by rememberSaveable(editingId) { mutableStateOf(initialBranch) }
+    var name by rememberSaveable(editingId) { mutableStateOf(initialName) }
     // The token included. It goes into the saved state of the activity, which
     // lives in the process and in the private storage the process is killed
     // to — the same storage the token is already stored in, and only a
     // rotation away from being typed again by hand.
-    var token by rememberSaveable { mutableStateOf("") }
-    var dropToken by rememberSaveable { mutableStateOf(false) }
-    var notesPath by rememberSaveable { mutableStateOf(initialNotesPath) }
+    var token by rememberSaveable(editingId) { mutableStateOf("") }
+    var dropToken by rememberSaveable(editingId) { mutableStateOf(false) }
+    var notesPath by rememberSaveable(editingId) { mutableStateOf(initialNotesPath) }
     // The same rule as the token, and the same reason for saving it: a key
     // pasted from a password manager must not be lost to a rotation.
-    var sshKey by rememberSaveable { mutableStateOf("") }
-    var sshPassphrase by rememberSaveable { mutableStateOf("") }
-    var dropKey by rememberSaveable { mutableStateOf(false) }
+    var sshKey by rememberSaveable(editingId) { mutableStateOf("") }
+    var sshPassphrase by rememberSaveable(editingId) { mutableStateOf("") }
+    var dropKey by rememberSaveable(editingId) { mutableStateOf(false) }
+    // Which collection the confirmation is about, and nothing while there is
+    // no dialog up: removing one takes a directory off the agenda, and a
+    // stray tap on a list of chips must not be enough to do it.
+    var removing by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Caught in the field rather than after a clone failed over it: an address
     // that cannot work says so where it was typed. An empty field is not an
@@ -159,6 +182,26 @@ fun SyncSettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Above everything else on the screen: which collection the form
+            // is about decides what every field below it means.
+            CollectionsSection(
+                collections = collections,
+                editingId = editingId,
+                onEditCollection = onEditCollection,
+                onAddCollection = onAddCollection,
+            )
+
+            if (collections.isNotEmpty()) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.settings_collection_name)) },
+                    isError = name.isBlank(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
+                )
+            }
 
             // Offered while there is no remote and none has been declined:
             // the answer to a first launch that would otherwise keep asking
@@ -305,6 +348,20 @@ fun SyncSettingsScreen(
 
             Spacer(Modifier.height(Spacing.xs))
 
+            // Only while there is another collection to fall back to: an
+            // agenda over nothing has no way back except a reinstall.
+            if (collections.size > 1) {
+                TextButton(
+                    onClick = { removing = editingId },
+                    modifier = Modifier.testTag("settings-collection-remove"),
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_collection_remove),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+
             // The way to the notices of everything the APK carries. Here
             // rather than on the agenda: it is read once, if ever, and the
             // agenda's header is for what the reader came for.
@@ -380,6 +437,7 @@ fun SyncSettingsScreen(
                                 token = token,
                                 dropToken = dropToken,
                                 notesPath = notesPath,
+                                name = name,
                                 sshKey = sshKey,
                                 sshPassphrase = sshPassphrase,
                                 dropKey = dropKey,
@@ -388,13 +446,98 @@ fun SyncSettingsScreen(
                     },
                     // An empty address is not an obstacle any more: the form
                     // also carries where the notes are kept, and notes already
-                    // on the device need no remote at all.
-                    enabled = !malformed && !pathRefused,
+                    // on the device need no remote at all. A collection with
+                    // no name is one the filter offers as a blank chip.
+                    enabled = !malformed && !pathRefused &&
+                        (collections.isEmpty() || name.isNotBlank()),
                     modifier = Modifier.testTag("settings-save"),
                 ) {
                     Text(stringResource(R.string.settings_save))
                 }
             }
+        }
+    }
+
+    removing?.let { id ->
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text(stringResource(R.string.settings_collection_remove)) },
+            text = { Text(stringResource(R.string.settings_collection_remove_explain)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        removing = null
+                        onRemoveCollection(id)
+                    },
+                    modifier = Modifier.testTag("settings-collection-remove-confirm"),
+                ) {
+                    Text(stringResource(R.string.settings_collection_remove_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { removing = null }) {
+                    Text(stringResource(R.string.settings_collection_remove_cancel))
+                }
+            },
+        )
+    }
+}
+
+/**
+ * The collections there are, and the way to add another.
+ *
+ * Chips rather than a list: the set is short, switching between them is the
+ * common move, and which one the form below is about has to be readable
+ * without scrolling back up. Nothing is drawn until the collections are known
+ * — a screen shown before they arrive would offer a row of one chip that
+ * turns into two.
+ */
+@Composable
+private fun CollectionsSection(
+    collections: List<NotesCollection>,
+    editingId: String,
+    onEditCollection: (String) -> Unit,
+    onAddCollection: (String) -> Unit,
+) {
+    if (collections.isEmpty()) {
+        return
+    }
+
+    val newName = stringResource(R.string.collection_new_name)
+
+    Text(
+        text = stringResource(R.string.settings_collections),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .testTag("settings-collections"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        collections.forEach { collection ->
+            FilterChip(
+                selected = collection.id == editingId,
+                onClick = { onEditCollection(collection.id) },
+                label = {
+                    Text(
+                        text = collection.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = Sizes.collectionName),
+                    )
+                },
+                modifier = Modifier.testTag("settings-collection-${collection.id}"),
+            )
+        }
+        TextButton(
+            onClick = { onAddCollection(newName) },
+            modifier = Modifier.testTag("settings-collection-add"),
+        ) {
+            Text(stringResource(R.string.settings_collection_add))
         }
     }
 }

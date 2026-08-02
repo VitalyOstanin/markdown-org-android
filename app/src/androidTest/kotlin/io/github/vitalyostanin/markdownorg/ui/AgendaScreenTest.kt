@@ -541,7 +541,12 @@ class AgendaScreenTest {
                 changed = 2,
                 refused = 1,
                 rollback = listOf(
-                    FileRollback(file = "notes.md", before = "before", after = "after"),
+                    CollectionRollback(
+                        root = "/notes",
+                        files = listOf(
+                            FileRollback(file = "notes.md", before = "before", after = "after"),
+                        ),
+                    ),
                 ),
             ),
             onUndoGroup = { undone += 1 },

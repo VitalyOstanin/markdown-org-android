@@ -24,8 +24,13 @@ interface AgendaLoader {
      * For after an edit: the file that changed is known, and the rest of the
      * collection has not. What it saves is the whole of the walk — on a phone
      * with a thousand notes, seconds of it.
+     *
+     * Both halves of the name, because the same relative path occurs in more
+     * than one collection: [root] is the directory the task came from, as the
+     * task carries it, and dropping by [file] alone would take the tasks of a
+     * note in another collection out of the agenda.
      */
-    suspend fun reread(file: String): Result<Unit>
+    suspend fun reread(root: String, file: String): Result<Unit>
 
     /**
      * Forget what is held, so the next agenda walks the directory again.
@@ -39,22 +44,28 @@ interface AgendaLoader {
 /**
  * The agenda, as the Rust core returns it.
  *
- * The core keeps the notes of one directory between calls (`NotesIndex`), so
+ * The core keeps the notes of the directories between calls (`NotesIndex`), so
  * an agenda after an edit costs the file that changed rather than the whole
  * collection. Everything the agenda means stays over there: this decides when
  * the held notes are stale, and nothing else.
  *
+ * One index over every collection rather than one each, because the agenda
+ * over them is one agenda: the task cap is a budget for the whole of it, the
+ * scan statistics are one report, and the order of tasks falling on the same
+ * minute belongs to the walk that produced them. Each task carries the root it
+ * came from, which is how an edit reaches the collection it belongs to.
+ *
  * The calls are synchronous and touch the filesystem, so they run off the main
- * thread and under the lock on the notes directory: a scan overlapping a
+ * thread and under the lock on every notes directory: a scan overlapping a
  * fast-forward would read a mixture of the files before and after it. It is
  * not a subprocess: Android forbids spawning the CLI, and the bindings call
  * the same code in-process.
  */
-class AgendaSource(private val notes: NotesArea) : AgendaLoader {
+class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
 
-    /** The held notes, and the directory they were read from. */
+    /** The held notes, and the directories they were read from. */
     private var index: NotesIndex? = null
-    private var indexed: File? = null
+    private var indexed: List<File>? = null
 
     override suspend fun load(
         scope: Scope,
@@ -78,11 +89,11 @@ class AgendaSource(private val notes: NotesArea) : AgendaLoader {
         }
     }
 
-    override suspend fun reread(file: String): Result<Unit> = notes.exclusive {
+    override suspend fun reread(root: String, file: String): Result<Unit> = notes.exclusive {
         runCatching {
             // Nothing held means nothing to bring up to date: the next agenda
-            // walks the directory and reads this file along with the rest.
-            index?.takeIf { indexed == notes.root }?.refreshFile(file) ?: Unit
+            // walks the directories and reads this file along with the rest.
+            index?.takeIf { indexed == roots() }?.refreshFile(root, file) ?: Unit
         }
     }
 
@@ -91,24 +102,29 @@ class AgendaSource(private val notes: NotesArea) : AgendaLoader {
     }
 
     /**
-     * The index over the current directory, built if there is none.
+     * The index over the current directories, built if there is none.
      *
-     * The directory is compared rather than assumed: it changes under a
-     * running application, and an index over the previous one would answer
-     * with somebody else's notes.
+     * The directories are compared rather than assumed: they change under a
+     * running application — one added, one removed, one pointed elsewhere —
+     * and an index over the previous set would answer with a collection that
+     * is no longer read, or without one that now is.
      */
     private fun held(): NotesIndex {
-        index?.takeIf { indexed == notes.root }?.let { return it }
+        val roots = roots()
+        index?.takeIf { indexed == roots }?.let { return it }
 
         drop()
         // Left at what the core fills in: the file glob, the locales for
         // weekday names and the task cap are stated there, and repeating them
         // here as three nulls would only be a second place to keep them.
-        return NotesIndex.open(notes.root.absolutePath, Options()).also {
+        return NotesIndex.open(roots.map(File::getAbsolutePath), Options()).also {
             index = it
-            indexed = notes.root
+            indexed = roots
         }
     }
+
+    /** The directories in use, in the order the collections are shown. */
+    private fun roots(): List<File> = notes.areas.map(NotesArea::root)
 
     /**
      * Release the held notes.

@@ -62,6 +62,18 @@ object Sizes {
     /** The priority cookie, which has to hold one character. */
     val badge = 20.dp
 
+    /** The dot that carries a collection's colour beside its name. */
+    val collectionDot = 6.dp
+
+    /**
+     * How much of a collection's name a row shows before it is cut.
+     *
+     * Enough for a word: the mark says which of a handful of collections a row
+     * came from, and a name long enough to need more than that would take the
+     * width the heading is there for.
+     */
+    val collectionName = 72.dp
+
     /** An icon inside a control that is not an [androidx.compose.material3.IconButton]. */
     val icon = 20.dp
 

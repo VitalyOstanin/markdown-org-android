@@ -57,6 +57,7 @@ so a decision can be followed across the three repositories.
 | 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Accepted |
 | 0020 | [SSH remotes, with the server pinned by its host key](0020-ssh-remotes-with-a-pinned-host-key.md) | Accepted |
 | 0021 | [A group is one rewrite per file, and it can be put back](0021-a-group-is-one-rewrite-and-can-be-put-back.md) | Accepted |
+| 0022 | [Several collections, one agenda](0022-several-collections-one-agenda.md) | Accepted |
 
 ## Adding a new ADR
 

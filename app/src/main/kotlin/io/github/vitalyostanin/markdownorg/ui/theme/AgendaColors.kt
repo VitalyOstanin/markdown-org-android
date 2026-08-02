@@ -31,7 +31,23 @@ data class AgendaColors(
      * on top has to invert with the theme.
      */
     val onSolid: Color,
+    /**
+     * One colour per notes collection, taken by position.
+     *
+     * Apart from the roles above because it says something else: a role is
+     * what the entry is — a deadline, a repeat — and this is where it came
+     * from. Colours a row carries for both reasons have to stay told apart, so
+     * these are used for a small mark rather than for the row itself.
+     *
+     * A set larger than the list wraps round it. Six is past what a phone can
+     * usefully filter by, and a seventh colour distinct from the six and from
+     * the roles would not be distinct enough to read at this size.
+     */
+    val collections: List<Color>,
 )
+
+/** The colour of collection number [index], wrapping round for a long set. */
+fun AgendaColors.collectionTone(index: Int): Color = collections[index.mod(collections.size)]
 
 internal val LightAgendaColors = AgendaColors(
     deadline = AgendaRole(Color(0xFFC4262E), Color(0xFFFFDCDA), Color(0xFF470004)),
@@ -42,6 +58,14 @@ internal val LightAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF2E7D4F), Color(0xFFC4F0D4), Color(0xFF00210F)),
     cancelled = AgendaRole(Color(0xFF6E6A78), Color(0xFFE6E2EF), Color(0xFF2A2733)),
     onSolid = Color(0xFFFFFFFF),
+    collections = listOf(
+        Color(0xFF6750A4),
+        Color(0xFF0F7B6C),
+        Color(0xFFB3261E),
+        Color(0xFF7D5260),
+        Color(0xFF00639B),
+        Color(0xFF7A5900),
+    ),
 )
 
 internal val DarkAgendaColors = AgendaColors(
@@ -51,6 +75,14 @@ internal val DarkAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF7ED8A0), Color(0xFF14512F), Color(0xFFCFF3DC)),
     cancelled = AgendaRole(Color(0xFFA29DAF), Color(0xFF3A3745), Color(0xFFDFDAEA)),
     onSolid = Color(0xFF1B1620),
+    collections = listOf(
+        Color(0xFFCFBCFF),
+        Color(0xFF6FDBC6),
+        Color(0xFFFFB4AB),
+        Color(0xFFEFB8C8),
+        Color(0xFF9CCAFF),
+        Color(0xFFEDC26B),
+    ),
 )
 
 val LocalAgendaColors = staticCompositionLocalOf { LightAgendaColors }

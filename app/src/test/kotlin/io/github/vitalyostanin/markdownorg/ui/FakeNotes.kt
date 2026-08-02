@@ -1,9 +1,14 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
+import io.github.vitalyostanin.markdownorg.core.CollectionInUse
+import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
 import io.github.vitalyostanin.markdownorg.core.EditReport
+import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesArea
+import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import io.github.vitalyostanin.markdownorg.core.NotesCollectionsPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
@@ -11,6 +16,7 @@ import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UndoReport
+import io.github.vitalyostanin.markdownorg.core.holdingAll
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,9 +44,9 @@ import java.time.ZoneId
  * directory on the device; neither is available here, and neither is what
  * these tests are about — the order in which the view model asks is.
  */
-class FakeNotesArea : NotesArea {
+class FakeNotesArea(root: File = File("/notes")) : NotesArea {
 
-    override var root: File = File("/notes")
+    override var root: File = root
         private set
 
     /** What pointing the working copy elsewhere answers, so a refusal can be played. */
@@ -215,7 +221,11 @@ class FakeAgendaLoader : AgendaLoader {
         return answer.await()
     }
 
-    override suspend fun reread(file: String): Result<Unit> {
+    /** Roots re-read, beside [reread] — the pair is what names a note. */
+    val rereadRoots = mutableListOf<String>()
+
+    override suspend fun reread(root: String, file: String): Result<Unit> {
+        rereadRoots += root
         reread += file
         return rereadResult
     }
@@ -308,6 +318,85 @@ class FakeUiPreferences(override var layout: AgendaLayout = AgendaLayout.TIME) :
 
 /** Where the notes are kept, in memory. */
 class FakeNotesLocation(override var path: String? = null) : NotesLocationPreferences
+
+/** The stored set of collections, in memory. */
+class FakeCollectionsStore(override var collections: List<NotesCollection> = emptyList()) :
+    NotesCollectionsPreferences
+
+/**
+ * The collections in use, built out of the stand-ins above.
+ *
+ * A test names the directories and gets one entry per directory, each with its
+ * own area, settings and writer — which is what makes "the edit went to the
+ * collection the task came from" something that can be asserted.
+ */
+class FakeCollections(override var entries: List<CollectionInUse>) : CollectionsInUse {
+
+    override val areas: List<NotesArea> get() = entries.map(CollectionInUse::area)
+
+    /** The sets this was told to work with, in order. */
+    val used = mutableListOf<List<NotesCollection>>()
+
+    /** The collections whose settings were erased, in order. */
+    val forgotten = mutableListOf<String>()
+
+    override fun forget(collection: CollectionInUse) {
+        forgotten += collection.collection.id
+    }
+
+    override suspend fun <T> exclusive(block: suspend () -> T): T = holdingAll(areas, block)
+
+    override fun use(collections: List<NotesCollection>) {
+        used += collections
+        val known = entries.associateBy { it.collection.id }
+        entries = collections.map { collection ->
+            known[collection.id]?.copy(collection = collection)
+                ?: entry(collection.id, collection.name, collection.path)
+        }
+    }
+
+    companion object {
+
+        /** One collection over [path], with stand-ins for everything that acts on it. */
+        fun entry(
+            id: String = FIRST_ID,
+            name: String = "Notes",
+            path: String = "/notes",
+            area: FakeNotesArea = FakeNotesArea(File(path)),
+            settings: FakePreferences = FakePreferences(),
+            editor: FakeWriter = FakeWriter(),
+            syncer: FakeSyncer = FakeSyncer(),
+        ) = CollectionInUse(
+            collection = NotesCollection(id = id, name = name, path = path),
+            // The stand-in area names a directory that is not on disk, so the
+            // path is taken as it is rather than resolved: what matters here
+            // is that a task from it carries the same string.
+            root = path,
+            area = area,
+            settings = settings,
+            editor = editor,
+            syncer = syncer,
+        )
+
+        /** The single collection a device that has not been set up works with. */
+        fun one(
+            area: FakeNotesArea = FakeNotesArea(),
+            settings: FakePreferences = FakePreferences(),
+            editor: FakeWriter = FakeWriter(),
+            syncer: FakeSyncer = FakeSyncer(),
+        ) = FakeCollections(
+            listOf(
+                entry(
+                    path = area.root.absolutePath,
+                    area = area,
+                    settings = settings,
+                    editor = editor,
+                    syncer = syncer,
+                ),
+            ),
+        )
+    }
+}
 
 /** Settings in memory, with the same defaults the stored ones fall back to. */
 class FakePreferences(

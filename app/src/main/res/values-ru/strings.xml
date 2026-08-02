@@ -39,6 +39,7 @@
     <string name="sync_host_accept">Это мой сервер</string>
     <string name="sync_host_accept_new">Принять новый ключ сервера</string>
     <string name="sync_checkout">%1$s · %2$s</string>
+    <string name="sync_collection_line">%1$s: %2$s</string>
     <string name="sync_last_synced">синхронизировано %1$s</string>
     <string name="sync_failed_auth">Сервер отклонил токен</string>
     <string name="sync_failed_network">Сервер недоступен</string>
@@ -127,6 +128,20 @@
     <string name="edit_failed_missing">Файла больше нет</string>
     <string name="edit_failed_encoding">Файл не в UTF-8: преобразуйте его и повторите</string>
     <string name="edit_failed_unnamed">Имя файла не в UTF-8, задачу изменить нельзя</string>
+    <string name="edit_failed_no_collection">Каталог заметок, откуда эта задача, больше не подключён</string>
+
+    <string name="collection_default_name">Заметки</string>
+    <string name="collection_name_empty">Задайте название каталога заметок</string>
+    <string name="collection_path_taken">Этот каталог уже подключён</string>
+    <string name="collection_path_nested">Каталог вложен в другой подключённый, его заметки читались бы дважды</string>
+    <string name="collection_new_name">Новый каталог</string>
+    <string name="settings_collections">Каталоги заметок</string>
+    <string name="settings_collection_add">Добавить каталог</string>
+    <string name="settings_collection_name">Название</string>
+    <string name="settings_collection_remove">Отключить этот каталог</string>
+    <string name="settings_collection_remove_explain">Агенда перестанет показывать его задачи. Сам каталог и всё, что в нём есть, останется на устройстве; адрес, ветка и токен этого каталога будут забыты.</string>
+    <string name="settings_collection_remove_confirm">Отключить</string>
+    <string name="settings_collection_remove_cancel">Оставить</string>
     <string name="edit_not_committed">Сохранено, но не закоммичено; коммит выполнит следующая правка или синхронизация</string>
     <string name="notes_reset_failed">Не удалось очистить каталог заметок</string>
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.AgendaRole
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import io.github.vitalyostanin.markdownorg.ui.theme.collectionTone
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
@@ -148,6 +150,8 @@ fun RowScope.TaskRowHead(
     heading: Color = glyph,
     bold: Boolean = false,
     onDenseFill: Boolean = false,
+    /** Which collection the row came from, when there is more than one. */
+    collection: CollectionLabel? = null,
 ) {
     val kind = task.kind()
 
@@ -171,6 +175,56 @@ fun RowScope.TaskRowHead(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(1f),
     )
+    collection?.let { label ->
+        Spacer(Modifier.width(Spacing.xs))
+        CollectionMark(label, onDenseFill = onDenseFill)
+    }
+}
+
+/**
+ * Which collection a row came from: a dot in the collection's colour and its
+ * name.
+ *
+ * A mark rather than a section heading, because the agenda is one timeline
+ * over every collection — grouping the rows by where they live would break the
+ * axis the whole layout is built on. It sits at the end of the row, after the
+ * heading has had its width: what the row is about comes first.
+ *
+ * [onDenseFill] is for a row already filled with a solid tone, where the
+ * collection's own colour would not read; there the dot takes the row's text
+ * colour and the name carries the difference.
+ */
+@Composable
+fun CollectionMark(
+    label: CollectionLabel,
+    modifier: Modifier = Modifier,
+    onDenseFill: Boolean = false,
+) {
+    val colors = LocalAgendaColors.current
+    val tone = if (onDenseFill) colors.onSolid else colors.collectionTone(label.tone)
+
+    Row(
+        modifier = modifier.semantics {
+            contentDescription = label.name
+        },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(Sizes.collectionDot)
+                .clip(CircleShape)
+                .background(tone),
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        Text(
+            text = label.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = tone,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = Sizes.collectionName),
+        )
+    }
 }
 
 /**
@@ -211,8 +265,14 @@ fun PriorityBadge(priority: String, modifier: Modifier = Modifier, onDenseFill: 
     }
 }
 
-/** Where the task is, which is what makes a row unique across a rebuild. */
-internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
+/**
+ * Where the task is, which is what makes a row unique across a rebuild.
+ *
+ * The collection is part of it: the same relative path occurs in more than one
+ * of them, and two rows sharing a key is not a cosmetic problem — a lazy list
+ * refuses to draw a list whose keys repeat.
+ */
+internal val AgendaRow.key: String get() = "${task.root}:${task.file}:${task.line}"
 
 /**
  * Heading over a group of entries, with how many are in it. The overdue group

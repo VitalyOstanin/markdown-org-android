@@ -1,7 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
-import androidx.annotation.VisibleForTesting
 
 /**
  * Where the notes come from, as everything above the storage sees it.
@@ -71,7 +70,13 @@ interface SyncPreferences {
 }
 
 /**
- * Where the notes come from, and what is needed to reach them.
+ * Where the notes of one collection come from, and what is needed to reach
+ * them.
+ *
+ * One file per collection, because a remote, a branch, a token and a pinned
+ * host key belong to a directory rather than to the device: two collections
+ * are two repositories on two servers, and a token shared between them would
+ * be sent to whichever was synced first.
  *
  * Plain [android.content.SharedPreferences] hold the token. That is now the
  * documented advice: `EncryptedSharedPreferences` is deprecated in favour of
@@ -79,9 +84,10 @@ interface SyncPreferences {
  * private storage on a device with file-based encryption. The manifest sets
  * `allowBackup="false"`, so the token does not leave the device either.
  */
-class SyncSettings(context: Context) : SyncPreferences {
+class SyncSettings(context: Context, collectionId: String = FIRST_ID) : SyncPreferences {
 
-    private val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private val preferences =
+        context.getSharedPreferences(fileFor(collectionId), Context.MODE_PRIVATE)
 
     override var remoteUrl: String?
         get() = preferences.getString(KEY_URL, null)
@@ -158,30 +164,41 @@ class SyncSettings(context: Context) : SyncPreferences {
     /**
      * Forget every stored setting, the token included.
      *
-     * Nothing in the application calls this: a change of remote drops the
-     * token that belonged to the old one, and that is the whole of what the
-     * interface offers. It exists so a test can start from an empty store on
-     * a device whose preferences outlive the process.
+     * Called when a collection is removed: its directory stops being read, and
+     * the credentials that reached its server have no one left to belong to.
+     * A test also starts from here, on a device whose preferences outlive the
+     * process.
      */
-    @VisibleForTesting
     fun clear() {
         preferences.edit().clear().apply()
     }
 
-    private companion object {
-        const val FILE = "sync"
-        const val KEY_URL = "remote_url"
-        const val KEY_BRANCH = "branch"
-        const val KEY_TOKEN = "token"
-        const val KEY_SSH_KEY = "ssh_key"
-        const val KEY_SSH_PASSPHRASE = "ssh_passphrase"
-        const val KEY_SSH_PUBLIC = "ssh_public_key"
-        const val KEY_KNOWN_HOST = "known_host"
-        const val KEY_AUTHOR_NAME = "author_name"
-        const val KEY_AUTHOR_EMAIL = "author_email"
-        const val KEY_LAST_SYNCED = "last_synced_at"
-        const val KEY_LOCAL_STORE = "stores_locally"
-        const val DEFAULT_AUTHOR_NAME = "markdown-org"
+    companion object {
+
+        /**
+         * Which file holds the settings of collection [id].
+         *
+         * The first collection keeps the file a single-directory version of
+         * the application wrote, so an upgrade moves nothing: the remote, the
+         * branch and the token stay where they were written, and a copy that
+         * failed half way through cannot leave a device with two sets of
+         * credentials or none.
+         */
+        internal fun fileFor(id: String): String = if (id == FIRST_ID) FILE else "${FILE}_$id"
+
+        private const val FILE = "sync"
+        private const val KEY_URL = "remote_url"
+        private const val KEY_BRANCH = "branch"
+        private const val KEY_TOKEN = "token"
+        private const val KEY_SSH_KEY = "ssh_key"
+        private const val KEY_SSH_PASSPHRASE = "ssh_passphrase"
+        private const val KEY_SSH_PUBLIC = "ssh_public_key"
+        private const val KEY_KNOWN_HOST = "known_host"
+        private const val KEY_AUTHOR_NAME = "author_name"
+        private const val KEY_AUTHOR_EMAIL = "author_email"
+        private const val KEY_LAST_SYNCED = "last_synced_at"
+        private const val KEY_LOCAL_STORE = "stores_locally"
+        private const val DEFAULT_AUTHOR_NAME = "markdown-org"
         const val DEFAULT_AUTHOR_EMAIL = "markdown-org@localhost"
     }
 }

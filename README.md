@@ -6,7 +6,9 @@ extension reads, kept in sync over git.
 
 **Status: early.** The Rust core, its Kotlin bindings and a Compose
 application that renders the agenda all build. The agenda syncs over git and
-takes point edits — status, priority, a planning date, completion. The notes
+takes point edits — status, priority, a planning date, completion. Notes are
+read from a set of collections rather than from a single directory, each with
+its own directory, remote and credentials, shown as one agenda. A collection's
 directory can be one on the device rather than the one the application keeps
 to itself. Until a remote is configured the notes are a sample the application
 writes on first run. It runs on a physical `arm64-v8a` device as well as on
@@ -19,6 +21,7 @@ the emulator.
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [Where the notes live](#where-the-notes-live)
+- [Collections](#collections)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
 - [The certificate bundle a sync trusts](#the-certificate-bundle-a-sync-trusts)
 - [Where the token may travel](#where-the-token-may-travel)
@@ -127,10 +130,12 @@ Both walk the directory on every call, which is the right shape for the first
 agenda and the wrong one for the agendas after an edit. For those there is
 `NotesIndex`, which holds the tasks of one directory between calls:
 
-- `NotesIndex.open(dir, options)` — walk the directory and hold what is there;
-- `refreshFile(file)` — re-read one note, replacing the tasks that came from
-  it;
-- `rescan()` — walk the directory again, replacing everything held;
+- `NotesIndex.open(dirs, options)` — walk every directory of the set and hold
+  what is there;
+- `refreshFile(root, file)` — re-read one note, replacing the tasks that came
+  from it. Named by both halves: the same relative path occurs in more than one
+  collection;
+- `rescan()` — walk the directories again, replacing everything held;
 - `agenda(scope, currentDate, timezone, includeDone)` — build an agenda from
   what is held, walking nothing.
 
@@ -280,6 +285,33 @@ who owns a repository's directory: the shared storage reports an owner of its
 own for every file in it, so the check refuses those directories wholesale.
 What it defends against and why none of it applies here is
 [ADR-0017](docs/adr/0017-open-a-repository-the-platform-owns.md).
+
+## Collections
+
+Notes are read from a set of collections. A collection is a name, a directory
+and the settings that reach its server; a device that has never added a second
+one has a set of one, made out of the directory an earlier version kept, and
+sees the screen it always saw — no marks on the rows, no filter above them.
+
+| № | What                    | How it behaves                                                                                                |
+|---|-------------------------|---------------------------------------------------------------------------------------------------------------|
+| 1 | The agenda              | One agenda over every collection, merged by the core, on a single time axis                                   |
+| 2 | Which one a row is from | A coloured dot and the collection's name at the end of the row, from two collections up                       |
+| 3 | The filter              | A chip per collection above the list; turning one off regroups what was scanned rather than walking again     |
+| 4 | An edit                 | Goes to the collection the task came from, addressed by the pair of its root and its file                     |
+| 5 | A group action          | Split by collection, so each directory is still one rewrite and one commit                                    |
+| 6 | A sync                  | One collection at a time; a failure in one does not stop the rest, and the banner says what each one answered |
+| 7 | The settings form       | About one collection: its name, its directory, its remote, its branch, its token and its key                  |
+| 8 | Removing one            | Stops it being read and erases its settings; the directory and everything in it stays. The last one stays too |
+
+A directory may not be one already in the set, nor sit inside one: the core
+deduplicates exact roots and nothing else, so a nested directory would have its
+notes read twice and an edit would act on one of the two copies on screen.
+
+Each collection keeps its own working copy and its own lock, and work that
+spans the set takes them in the order of the set. The decision and what it
+costs are in
+[ADR-0022](docs/adr/0022-several-collections-one-agenda.md).
 
 ## What a sync does with the checkout
 

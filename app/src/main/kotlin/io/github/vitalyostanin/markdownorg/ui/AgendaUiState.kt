@@ -37,6 +37,24 @@ sealed interface RowTime {
     data object None : RowTime
 }
 
+/**
+ * Which collection a row came from, as the agenda shows it.
+ *
+ * [tone] is a place in the palette rather than a colour: the palette belongs
+ * to the theme, and the same collection has to keep its colour between a light
+ * screen and a dark one.
+ */
+data class CollectionLabel(val id: String, val name: String, val tone: Int)
+
+/**
+ * One collection as the filter over the agenda offers it.
+ *
+ * The whole row of them is empty while there is a single collection: a filter
+ * with one switch in it either shows everything or nothing, and neither is a
+ * choice worth a row of the screen.
+ */
+data class CollectionChoice(val label: CollectionLabel, val shown: Boolean)
+
 /** One line of the agenda: the task plus what the row shows around it. */
 data class AgendaRow(
     val task: Task,
@@ -48,6 +66,14 @@ data class AgendaRow(
      * belongs to the resources, not to this projection.
      */
     val daysOffset: Long,
+    /**
+     * Which collection the row is from, or `null` while there is only one.
+     *
+     * Absent rather than always shown: a device with one collection has
+     * nothing to tell apart, and a label on every row would be a column of the
+     * same word.
+     */
+    val collection: CollectionLabel? = null,
 )
 
 /**
@@ -71,6 +97,28 @@ data class AgendaSections(
     /** [overdue] split by what each row asks of the reader — see [OverdueBand]. */
     val overdueBands: List<OverdueGroup> get() = overdue.intoBands()
 }
+
+/**
+ * The same agenda without the rows of the collections named in [hidden].
+ *
+ * Applied to the sections rather than to the scan: hiding a collection is a
+ * change of view over notes already read, and walking the directories again
+ * for it would put a filesystem walk behind a tap on a chip.
+ *
+ * A row with no label belongs to a device with a single collection and is
+ * never hidden — there is nothing on that screen to tell it apart from.
+ */
+internal fun AgendaSections.showing(hidden: Set<String>): AgendaSections = if (hidden.isEmpty()) {
+    this
+} else {
+    AgendaSections(
+        overdue = overdue.filterNot { it.hiddenBy(hidden) },
+        timed = timed.filterNot { it.hiddenBy(hidden) },
+        untimed = untimed.filterNot { it.hiddenBy(hidden) },
+    )
+}
+
+private fun AgendaRow.hiddenBy(hidden: Set<String>): Boolean = collection?.id in hidden
 
 /**
  * What a row that has slipped asks of whoever reads it.
@@ -243,16 +291,29 @@ sealed interface AgendaUiState {
  * for week and month, which will want a header per day before their entries
  * can be told apart.
  */
-fun AgendaResult.toSections(): AgendaSections = AgendaSections(
-    overdue = days.flatMap { it.overdue }.map(Task::toAgendaRow),
-    timed = days.flatMap { it.scheduledTimed }.map(Task::toAgendaRow),
-    // The `Tasks` scope fills `tasks` instead of `days`, and its entries have
-    // no day to sit on; they join the untimed group rather than vanish.
-    untimed = (days.flatMap { it.scheduledNoTime + it.upcoming } + tasks).map(Task::toAgendaRow),
-)
+fun AgendaResult.toSections(labels: Map<String, CollectionLabel> = emptyMap()): AgendaSections =
+    AgendaSections(
+        overdue = days.flatMap { it.overdue }.map { it.toAgendaRow(labels) },
+        timed = days.flatMap { it.scheduledTimed }.map { it.toAgendaRow(labels) },
+        // The `Tasks` scope fills `tasks` instead of `days`, and its entries
+        // have no day to sit on; they join the untimed group rather than
+        // vanish.
+        untimed = (days.flatMap { it.scheduledNoTime + it.upcoming } + tasks)
+            .map { it.toAgendaRow(labels) },
+    )
 
-internal fun Task.toAgendaRow(): AgendaRow =
-    AgendaRow(task = this, time = rowTime(), daysOffset = daysOffset ?: 0)
+/**
+ * [labels] is keyed by the root a task carries, and empty while there is one
+ * collection — a row then carries no label, which is what keeps the screen of
+ * a device that has never added a second one exactly as it was.
+ */
+internal fun Task.toAgendaRow(labels: Map<String, CollectionLabel> = emptyMap()): AgendaRow =
+    AgendaRow(
+        task = this,
+        time = rowTime(),
+        daysOffset = daysOffset ?: 0,
+        collection = root?.let(labels::get),
+    )
 
 private fun Task.rowTime(): RowTime {
     // Held in a local rather than read twice through `!!`: the generated

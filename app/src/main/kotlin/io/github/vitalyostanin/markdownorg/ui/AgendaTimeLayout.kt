@@ -95,7 +95,16 @@ internal fun TimeLayout(
                     modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    pair.forEach { row -> Band(row, onTaskClick, Modifier.weight(1f)) }
+                    // The weight sits on a box of ours rather than on the card
+                    // itself. The card is wrapped in the tooltip, and what a
+                    // modifier handed to that wrapper reaches is not the node
+                    // this row measures — the weight was lost on the way, and
+                    // the second card of a row came out with no width at all.
+                    pair.forEach { row ->
+                        Box(Modifier.weight(1f)) {
+                            Band(row, onTaskClick, Modifier.fillMaxWidth())
+                        }
+                    }
                     if (pair.size == 1) {
                         Spacer(Modifier.weight(1f))
                     }
@@ -180,7 +189,7 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
         ) {
             val time = rowTimeLabel(row)
 
-            TaskRowHead(row.task, glyph = role.onContainer)
+            TaskRowHead(row.task, glyph = role.onContainer, collection = row.collection)
             if (time.isNotEmpty()) {
                 Spacer(Modifier.width(Spacing.sm))
                 TrailingTag(
@@ -224,7 +233,13 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
         ) {
             val time = rowTimeLabel(row)
 
-            TaskRowHead(row.task, glyph = colors.onSolid, bold = true, onDenseFill = true)
+            TaskRowHead(
+                row.task,
+                glyph = colors.onSolid,
+                bold = true,
+                onDenseFill = true,
+                collection = row.collection,
+            )
             if (time.isNotEmpty()) {
                 Spacer(Modifier.width(Spacing.sm))
                 Text(
@@ -268,7 +283,12 @@ private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TaskRowHead(row.task, glyph = role.onContainer, bold = true)
+                TaskRowHead(
+                    row.task,
+                    glyph = role.onContainer,
+                    bold = true,
+                    collection = row.collection,
+                )
             }
             Text(
                 text = listOf(date, trailing).filter(String::isNotEmpty).joinToString(" · "),

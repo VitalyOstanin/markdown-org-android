@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.SyncRun
@@ -23,6 +24,16 @@ data class SyncUiState(
     val lastSyncedAt: Long = 0,
     /** Outcome of the most recent attempt, cleared when a new one starts. */
     val message: SyncMessage? = null,
+    /**
+     * What the collections synced in the last run each answered.
+     *
+     * Beside [message], which is the last answer of the lot: a run over three
+     * repositories where the second failed is one where [message] describes
+     * the third, and a header saying "up to date" would hide the failure. Held
+     * empty while a single collection is synced — there the one line above says
+     * everything this would.
+     */
+    val runs: List<CollectionRun> = emptyList(),
     /**
      * The notes are kept on this device on purpose.
      *
@@ -57,6 +68,9 @@ data class SyncUiState(
     val publicKey: String = "",
 )
 
+/** What one collection's turn in a sync run ended with. */
+data class CollectionRun(val id: String, val name: String, val message: SyncMessage)
+
 /**
  * What the settings form opens with.
  *
@@ -71,6 +85,8 @@ data class SyncForm(
     val hasToken: Boolean,
     /** The chosen notes directory, empty for the application's own storage. */
     val notesPath: String,
+    /** What the collection is called on the agenda and in the filter. */
+    val name: String = "",
     /** A private key is stored, which the form shows no more of than this. */
     val hasKey: Boolean = false,
     /** The public half of a key made here, empty when there is none to offer. */
@@ -93,6 +109,8 @@ data class SyncFormValues(
     val token: String,
     val dropToken: Boolean,
     val notesPath: String,
+    /** What the collection is called; blank is refused rather than stored. */
+    val name: String = "",
     /** Blank leaves the stored key alone, the way a blank token does. */
     val sshKey: String = "",
     val sshPassphrase: String = "",
@@ -143,6 +161,20 @@ fun NotesPathProblem.toMessage(): SyncMessage? = when (this) {
     NotesPathProblem.RELATIVE -> SyncMessage(R.string.settings_notes_relative, failed = true)
     NotesPathProblem.NOT_A_DIRECTORY -> SyncMessage(R.string.settings_notes_not_dir, failed = true)
     NotesPathProblem.NEEDS_PERMISSION -> SyncMessage(R.string.settings_notes_denied, failed = true)
+}
+
+/**
+ * What to tell the user about a directory that clashes with a collection they
+ * already have.
+ *
+ * Apart from [NotesPathProblem] because it is a different question: that one
+ * is about the directory itself — is it there, may it be read — and this one
+ * is about the set, where the same notes read twice is the failure.
+ */
+fun CollectionProblem.toMessage(): SyncMessage = when (this) {
+    CollectionProblem.NAME_EMPTY -> SyncMessage(R.string.collection_name_empty, failed = true)
+    CollectionProblem.PATH_TAKEN -> SyncMessage(R.string.collection_path_taken, failed = true)
+    CollectionProblem.PATH_NESTED -> SyncMessage(R.string.collection_path_nested, failed = true)
 }
 
 /** What to tell the user about an address that cannot be used. */

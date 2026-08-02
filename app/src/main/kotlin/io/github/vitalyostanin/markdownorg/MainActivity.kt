@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
                 val selected by model.selected.collectAsStateWithLifecycle()
                 val editIssue by model.editIssue.collectAsStateWithLifecycle()
                 val groupResult by model.groupResult.collectAsStateWithLifecycle()
+                val collections by model.collectionFilter.collectAsStateWithLifecycle()
+                val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
+                val editingId by model.editingId.collectAsStateWithLifecycle()
                 // With the lifecycle, so the ticker behind it stops with the
                 // screen and reads the clock again when the screen comes back.
                 val now by model.now.collectAsStateWithLifecycle()
@@ -118,8 +121,10 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (settingsOpen) {
                     // Read once per opening, so a save followed by a reopen
-                    // shows what was stored.
-                    val form = remember { model.currentSettings() }
+                    // shows what was stored — and again when the form is
+                    // pointed at another collection, whose remote, token and
+                    // directory are its own.
+                    val form = remember(editingId) { model.currentSettings() }
 
                     // What the run that crashed left behind, off the main
                     // thread like the notices: a file read is a file read.
@@ -142,6 +147,7 @@ class MainActivity : ComponentActivity() {
                                 token = saved.token,
                                 dropToken = saved.dropToken,
                                 notesPath = saved.notesPath,
+                                name = saved.name,
                                 sshKey = saved.sshKey,
                                 sshPassphrase = saved.sshPassphrase,
                                 dropKey = saved.dropKey,
@@ -152,6 +158,12 @@ class MainActivity : ComponentActivity() {
                         onOpenLicences = { licencesOpen = true },
                         modifier = insets,
                         initialNotesPath = form.notesPath,
+                        initialName = form.name,
+                        collections = collectionSet,
+                        editingId = editingId,
+                        onEditCollection = model::editCollection,
+                        onAddCollection = model::addCollection,
+                        onRemoveCollection = model::removeCollection,
                         ownNotesPath = remember { ownNotesRoot(applicationContext).absolutePath },
                         storageGranted = storageGranted,
                         onRequestStorage = {
@@ -197,6 +209,8 @@ class MainActivity : ComponentActivity() {
                         sync = sync,
                         editIssue = editIssue,
                         onEditIssueShown = model::editIssueShown,
+                        collections = collections,
+                        onCollectionShown = model::setCollectionShown,
                         groupResult = groupResult,
                         onGroupResultShown = model::groupResultShown,
                         onGroupAction = { group, action ->

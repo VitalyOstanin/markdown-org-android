@@ -175,6 +175,14 @@ impl From<Scope> for AgendaScope {
 pub struct Task {
     /// Path relative to the scanned root.
     pub file: String,
+    /// The root [`file`](Self::file) is relative to, when the walk covered
+    /// several of them.
+    ///
+    /// Notes are kept in more than one place, and the same relative path in
+    /// two collections is two different files: an edit aimed at one of them by
+    /// path alone would reach the wrong note. `None` for a one-shot [`scan`]
+    /// or [`scan_agenda`], which the caller pointed at a single directory.
+    pub root: Option<String>,
     /// 1-based line of the heading, for opening the file at the right place.
     pub line: u32,
     /// Heading text without the keyword, priority cookie or tags.
@@ -204,6 +212,7 @@ impl From<markdown_org_extract::Task> for Task {
 
         Self {
             file: task.file,
+            root: task.root,
             line: task.line,
             heading: task.heading,
             task_type: task.task_type.map(|kind| match kind {

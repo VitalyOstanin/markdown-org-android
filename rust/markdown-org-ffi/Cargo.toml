@@ -43,7 +43,7 @@ foreign-types = "0.3"
 # was published in 0.12.0, so the dependency is a released version rather than
 # a git revision: advisories are checked against it, and the VS Code extension
 # pins the same number.
-markdown-org-extract = "0.12"
+markdown-org-extract = "0.13"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor

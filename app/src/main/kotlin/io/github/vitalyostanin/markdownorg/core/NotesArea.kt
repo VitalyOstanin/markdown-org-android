@@ -69,3 +69,46 @@ interface NotesArea {
      */
     suspend fun reset(): Result<Unit>
 }
+
+/**
+ * The working copies in use, and sole access to all of them at once.
+ *
+ * The agenda is one agenda over several collections, so the walk behind it
+ * touches every directory in one pass and has to hold every one of them: a
+ * fast-forward landing on the second collection while the first is being read
+ * would produce an agenda that never existed on disk.
+ *
+ * What belongs to one collection — an edit, a commit, a sync — still goes
+ * through that collection's own [NotesArea], so a sync of one server does not
+ * stop an edit in another directory.
+ */
+interface NotesAreas {
+
+    /** In the order the collections are shown, which the walk keeps. */
+    val areas: List<NotesArea>
+
+    /**
+     * Runs [block] with sole access to every working copy, off the main
+     * thread.
+     *
+     * Not reentrant, and not to be called from inside a single area's
+     * [NotesArea.exclusive]: the locks are taken in the order of [areas], and
+     * a block that already holds one of them out of that order would deadlock
+     * against a walk taking them from the start.
+     */
+    suspend fun <T> exclusive(block: suspend () -> T): T
+}
+
+/**
+ * Takes the areas one after another, in the order given, and runs [block]
+ * holding all of them.
+ *
+ * The order is what keeps two callers from deadlocking: everything that needs
+ * more than one working copy takes them in the order the collections are in,
+ * so one caller waiting on the second never holds what another needs first.
+ */
+internal suspend fun <T> holdingAll(areas: List<NotesArea>, block: suspend () -> T): T =
+    when (val first = areas.firstOrNull()) {
+        null -> block()
+        else -> first.exclusive { holdingAll(areas.drop(1), block) }
+    }

@@ -41,7 +41,7 @@ class AgendaSourceTest {
             """,
         )
 
-        val result = AgendaSource(NotesStore(folder.root))
+        val result = AgendaSource(areasOf(NotesStore(folder.root)))
             .load(Scope.DAY, today, zone)
             .getOrThrow()
         val day = result.days.single()
@@ -69,7 +69,7 @@ class AgendaSourceTest {
             """,
         )
 
-        val result = AgendaSource(NotesStore(folder.root))
+        val result = AgendaSource(areasOf(NotesStore(folder.root)))
             .load(Scope.TASKS, today, zone)
             .getOrThrow()
         val task = result.tasks.single()
@@ -85,11 +85,11 @@ class AgendaSourceTest {
         // This is the whole point of holding the notes — the agenda that
         // follows costs that file rather than the collection.
         write(SCHEDULED_TODAY)
-        val source = AgendaSource(NotesStore(folder.root))
+        val source = AgendaSource(areasOf(NotesStore(folder.root)))
         assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
-        source.reread("notes.md").getOrThrow()
+        source.reread(folder.root.canonicalPath, "notes.md").getOrThrow()
 
         assertEquals(0, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
     }
@@ -100,7 +100,7 @@ class AgendaSourceTest {
         // an explicit invalidation, not a watcher. A caller reading it as one
         // would be surprised by a stale agenda later, in a case harder to see.
         write(SCHEDULED_TODAY)
-        val source = AgendaSource(NotesStore(folder.root))
+        val source = AgendaSource(areasOf(NotesStore(folder.root)))
         source.load(Scope.DAY, today, zone).getOrThrow()
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
@@ -112,7 +112,7 @@ class AgendaSourceTest {
     fun invalidatingSendsTheNextAgendaBackToTheDirectory() = runBlocking {
         // What follows a fetch: files changed, and which ones is not known.
         write(SCHEDULED_TODAY)
-        val source = AgendaSource(NotesStore(folder.root))
+        val source = AgendaSource(areasOf(NotesStore(folder.root)))
         source.load(Scope.DAY, today, zone).getOrThrow()
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
@@ -127,7 +127,7 @@ class AgendaSourceTest {
         // from the previous one describe files this one does not have.
         write(SCHEDULED_TODAY)
         val store = NotesStore(folder.root)
-        val source = AgendaSource(store)
+        val source = AgendaSource(areasOf(store))
         assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
 
         val other = folder.newFolder("elsewhere")
@@ -143,13 +143,77 @@ class AgendaSourceTest {
     fun aMissingDirectoryFails() = runBlocking {
         val missing = File(folder.root, "nowhere")
 
-        val result = AgendaSource(NotesStore(missing)).load(Scope.DAY, today, zone)
+        val result = AgendaSource(areasOf(NotesStore(missing))).load(Scope.DAY, today, zone)
 
         assertTrue(result.isFailure)
     }
 
+    /**
+     * Two collections at once: the agenda over them is one agenda, and an edit
+     * still reaches the directory the task came from.
+     *
+     * Both hold a file of the same name, which is the case a walk over one
+     * directory could never produce and the one a re-read by path alone gets
+     * wrong.
+     */
+    @Test
+    fun theAgendaCoversEveryCollectionAndEachTaskNamesItsOwn() = runBlocking {
+        val work = folder.newFolder("work")
+        val home = folder.newFolder("home")
+        File(work, "notes.md").writeText(SCHEDULED_TODAY.trimIndent() + "\n")
+        File(home, "notes.md")
+            .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
+
+        val source = AgendaSource(areasOf(NotesStore(work), NotesStore(home)))
+        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+
+        assertEquals(
+            listOf("Daily review", "Daily standup"),
+            day.scheduledTimed.map { it.heading }.sorted(),
+        )
+        assertEquals(
+            listOf(home.canonicalPath, work.canonicalPath).sorted(),
+            day.scheduledTimed.mapNotNull { it.root }.sorted(),
+        )
+    }
+
+    @Test
+    fun aReReadTouchesOnlyTheCollectionItNames() = runBlocking {
+        val work = folder.newFolder("work")
+        val home = folder.newFolder("home")
+        File(work, "notes.md").writeText(SCHEDULED_TODAY.trimIndent() + "\n")
+        File(home, "notes.md")
+            .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
+        val source = AgendaSource(areasOf(NotesStore(work), NotesStore(home)))
+        source.load(Scope.DAY, today, zone).getOrThrow()
+
+        // The note in `work` moves out of today; the one in `home`, which has
+        // the same relative path, must stay where it is.
+        File(work, "notes.md")
+            .writeText(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28").trimIndent() + "\n")
+        source.reread(work.canonicalPath, "notes.md").getOrThrow()
+
+        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+        assertEquals(listOf("Daily review"), day.scheduledTimed.map { it.heading })
+    }
+
     private fun write(markdown: String) {
         File(folder.root, "notes.md").writeText(markdown.trimIndent() + "\n")
+    }
+
+    /**
+     * The working copies as the source reads them.
+     *
+     * The lock is taken over all of them in the order given, which is what the
+     * application does: the walk behind one agenda holds every directory it
+     * reads.
+     */
+    private fun areasOf(vararg areas: NotesArea): NotesAreas = object : NotesAreas {
+
+        override val areas: List<NotesArea> = areas.toList()
+
+        override suspend fun <T> exclusive(block: suspend () -> T): T =
+            holdingAll(this.areas, block)
     }
 
     /** Everything a day agenda puts on screen, however it is bucketed. */

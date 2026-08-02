@@ -16,6 +16,8 @@ internal fun task(
     heading: String = "Task",
     line: UInt = 1u,
     file: String = "notes.md",
+    /** The collection the task came from; the one a stand-in area reports. */
+    root: String? = "/notes",
     taskType: TaskType? = TaskType.TODO,
     priority: String? = null,
     timestampType: TimestampType? = TimestampType.SCHEDULED,
@@ -26,6 +28,7 @@ internal fun task(
     daysOffset: Long? = 0,
 ): Task = Task(
     file = file,
+    root = root,
     line = line,
     heading = heading,
     taskType = taskType,

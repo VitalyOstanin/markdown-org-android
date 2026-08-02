@@ -24,6 +24,20 @@ import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.FileRollback
 
 /**
+ * What one collection has to put back, named by the directory it is in.
+ *
+ * The core restores files relative to a directory, and a band of overdue
+ * entries may span several collections: the same relative path in two of them
+ * is two different notes, so the directory travels with the files rather than
+ * being assumed to be the one collection there used to be.
+ */
+data class CollectionRollback(
+    /** The collection's directory, as the tasks carried it. */
+    val root: String,
+    val files: List<FileRollback>,
+)
+
+/**
  * What a group action did, and what it takes to put it back.
  *
  * The rollback travels with the result because the two are one offer: the
@@ -35,9 +49,9 @@ data class GroupResult(
     val changed: Int,
     /** Tasks the core left alone — a heading that moved, a missing date. */
     val refused: Int,
-    val rollback: List<FileRollback>,
+    val rollback: List<CollectionRollback>,
 ) {
-    val canUndo: Boolean get() = rollback.isNotEmpty()
+    val canUndo: Boolean get() = rollback.any { it.files.isNotEmpty() }
 }
 
 /** What the action is called where it is chosen. */

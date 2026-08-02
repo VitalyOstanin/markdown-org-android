@@ -2,7 +2,9 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
+import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
+import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import kotlinx.coroutines.CompletableDeferred
@@ -49,12 +51,27 @@ class AgendaViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    private val notes = FakeNotesArea()
+    /**
+     * The working copy of the one collection, replaced by the tests that start
+     * from a directory other than the default: the collection is built around
+     * this area, so its path and this one are the same path by construction.
+     */
+    private var notes = FakeNotesArea()
     private val loader = FakeAgendaLoader()
     private val settings = FakePreferences()
     private val ui = FakeUiPreferences()
     private val writer = FakeWriter()
-    private val location = FakeNotesLocation()
+
+    /**
+     * The stored set of collections, holding the one the stand-ins are over.
+     *
+     * Kept beside the model rather than derived from it, so a test can read
+     * back what saving a directory wrote: the set the walk reads and the set
+     * the next launch reads are the same set.
+     */
+    private val store = FakeCollectionsStore(
+        listOf(NotesCollection(id = FIRST_ID, name = "Notes", path = "/notes")),
+    )
 
     /** What an empty choice of directory falls back to, as on a device. */
     private val own = File("/data/data/markdown-org/files/notes")
@@ -838,7 +855,7 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(File(SHARED), notes.root)
-        assertEquals(SHARED, location.path)
+        assertEquals(SHARED, storedPath)
     }
 
     @Test
@@ -857,7 +874,7 @@ class AgendaViewModelTest {
     @Test
     fun anEmptyDirectoryFieldPutsTheNotesBackInTheOwnStorage() = runTest(dispatcher) {
         val syncer = FakeSyncer()
-        location.path = SHARED
+        notes = FakeNotesArea(File(SHARED))
         val model = viewModel(syncer)
         advanceUntilIdle()
 
@@ -865,7 +882,7 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(own, notes.root)
-        assertNull(location.path)
+        assertEquals(own.absolutePath, storedPath)
     }
 
     @Test
@@ -881,7 +898,7 @@ class AgendaViewModelTest {
         model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
-        assertNull(location.path)
+        assertEquals(DEFAULT_NOTES, storedPath)
         assertEquals(R.string.settings_notes_failed, model.syncState.value.message?.text)
     }
 
@@ -912,7 +929,7 @@ class AgendaViewModelTest {
         model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
-        assertNull(location.path)
+        assertEquals(DEFAULT_NOTES, storedPath)
         assertFalse("the directory was moved into anyway", notes.trace.contains("move"))
         assertEquals(R.string.settings_notes_denied, model.syncState.value.message?.text)
     }
@@ -929,7 +946,7 @@ class AgendaViewModelTest {
         model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
-        assertEquals(SHARED, location.path)
+        assertEquals(SHARED, storedPath)
         assertNull(settings.remoteUrl)
         assertTrue("a sync was attempted without a remote", syncer.requested.isEmpty())
     }
@@ -957,7 +974,7 @@ class AgendaViewModelTest {
         // takes the lock the sync is waiting for and rebuilds the agenda for
         // nothing.
         val syncer = FakeSyncer()
-        location.path = SHARED
+        notes = FakeNotesArea(File(SHARED))
         val model = viewModel(syncer)
         advanceUntilIdle()
 
@@ -1172,18 +1189,38 @@ class AgendaViewModelTest {
         assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
     }
 
-    private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
-        notes = notes,
-        agenda = loader,
-        sync = syncer,
-        settings = settings,
-        ui = ui,
-        editor = writer,
-        location = location,
-        ownNotes = own,
-        storageGranted = { granted },
-        clock = { moment },
-    )
+    /**
+     * The model over one collection, which is what a device that has not been
+     * set up past the first directory works with.
+     *
+     * The stand-ins are the ones the assertions read, so the collection is
+     * built around them rather than the other way round.
+     */
+    private fun viewModel(syncer: FakeSyncer): AgendaViewModel {
+        // Stored to match the area the assertions read, so a test that starts
+        // from another directory says so in one place.
+        store.collections = listOf(
+            NotesCollection(id = FIRST_ID, name = "Notes", path = notes.root.absolutePath),
+        )
+
+        return AgendaViewModel(
+            collections = FakeCollections.one(
+                area = notes,
+                settings = settings,
+                editor = writer,
+                syncer = syncer,
+            ),
+            stored = store,
+            agenda = loader,
+            ui = ui,
+            ownNotes = own,
+            storageGranted = { granted },
+            clock = { moment },
+        )
+    }
+
+    /** Where the one collection is, as the settings hold it. */
+    private val storedPath: String? get() = store.collections.singleOrNull()?.path
 
     /** A task the core would not change, as it comes back from a group. */
     private fun refusal(heading: String) = BulkRefusal(
@@ -1210,6 +1247,9 @@ class AgendaViewModelTest {
 
         /** A directory on the shared storage, which is what needs the access. */
         const val SHARED = "/storage/emulated/0/Documents/notes"
+
+        /** Where the one collection starts, which a refused move leaves it at. */
+        const val DEFAULT_NOTES = "/notes"
 
         /** Where the hand-held clock starts, on a whole minute. */
         val NOON: LocalDateTime = LocalDate.of(2026, 7, 28).atTime(12, 0)

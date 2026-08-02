@@ -140,7 +140,7 @@ fun notesPathProblem(path: String, own: File, granted: Boolean): NotesPathProble
  * of the application's storage is not a case worth a disk read on every
  * keystroke in the field.
  */
-private fun isInside(target: File, parent: File): Boolean {
+internal fun isInside(target: File, parent: File): Boolean {
     val inside = target.absolutePath
     val root = parent.absolutePath
 

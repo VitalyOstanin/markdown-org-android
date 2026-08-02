@@ -132,6 +132,7 @@ private fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
                     row.task,
                     glyph = role.tone,
                     heading = MaterialTheme.colorScheme.onSurface,
+                    collection = row.collection,
                 )
                 Spacer(Modifier.width(Spacing.sm))
                 if (trailing.isEmpty()) {

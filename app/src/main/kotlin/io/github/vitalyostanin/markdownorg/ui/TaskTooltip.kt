@@ -146,6 +146,11 @@ internal fun taskTooltipText(task: Task): String {
  * still opens the sheet of actions. Wrapped around the row rather than around
  * the heading alone so the press lands anywhere on it — the heading is what is
  * cut off, and aiming at it is exactly what a reader cannot do when it is.
+ *
+ * No modifier is taken. What is given to the box here does not reach the node
+ * the caller's own layout measures — a weight passed through it was dropped,
+ * and the neighbour of the row that asked for it was left with no width. A
+ * caller that has to size a row wraps it instead.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

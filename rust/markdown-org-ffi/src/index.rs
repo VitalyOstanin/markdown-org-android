@@ -23,7 +23,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 
 use markdown_org_extract::{
-    extract_tasks_with_counter, get_weekday_mappings, scan_directory, ScanOptions,
+    extract_tasks_with_counter, get_weekday_mappings, scan_directories, ScanOptions,
     Task as CoreTask, MAX_FILE_SIZE,
 };
 
@@ -32,15 +32,22 @@ use crate::{
     DEFAULT_LOCALE,
 };
 
-/// The notes of one directory, kept between calls.
+/// The notes of one or more directories, kept between calls.
 ///
-/// Cheap to ask for an agenda, expensive to build: the constructor walks the
+/// Cheap to ask for an agenda, expensive to build: the constructor walks every
 /// directory, and so does [`rescan`](Self::rescan).
+///
+/// Several roots are one index rather than one index each because the agenda
+/// over them is one agenda: the task cap is a budget for the whole of it, the
+/// scan statistics are one report, and the ordering belongs to the extractor.
+/// Each task carries the root it came from, so an edit reaches the collection
+/// it belongs to.
 #[derive(uniffi::Object)]
 pub struct NotesIndex {
-    /// The scanned root, canonical — the paths in the tasks are relative to
-    /// it, and re-reading one of them joins it back on.
-    dir: PathBuf,
+    /// The scanned roots, canonical and in the order they were given — the
+    /// paths in the tasks are relative to one of them, and re-reading a file
+    /// joins its own root back on.
+    dirs: Vec<PathBuf>,
     glob: String,
     locale: String,
     max_tasks: usize,
@@ -58,12 +65,14 @@ struct IndexState {
 
 #[uniffi::export]
 impl NotesIndex {
-    /// Walk `dir` and hold what was found.
+    /// Walk `dirs` and hold what was found.
     ///
     /// Fails the same ways a scan does — a directory that is not there, a glob
-    /// that does not compile — and for the same reason: this is that scan.
+    /// that does not compile — and for the same reason: this is that scan. An
+    /// empty list is refused: an index over nothing would answer every agenda
+    /// with an empty one, which reads as a collection with no tasks in it.
     #[uniffi::constructor]
-    pub fn open(dir: String, options: Options) -> Result<Self, ExtractError> {
+    pub fn open(dirs: Vec<String>, options: Options) -> Result<Self, ExtractError> {
         let glob = options.glob.unwrap_or_else(|| DEFAULT_GLOB.to_string());
         let locale = options.locale.unwrap_or_else(|| DEFAULT_LOCALE.to_string());
         let defaults = ScanOptions::default();
@@ -71,8 +80,19 @@ impl NotesIndex {
             .max_tasks
             .map_or(defaults.max_tasks, |max| max as usize);
 
+        if dirs.is_empty() {
+            return Err(ExtractError::InvalidDirectory {
+                detail: "no notes directory to scan".to_string(),
+            });
+        }
+
+        let roots = dirs
+            .iter()
+            .map(|dir| markdown_org_extract::scan::validate_dir(Path::new(dir)))
+            .collect::<Result<Vec<_>, _>>()?;
+
         let index = Self {
-            dir: markdown_org_extract::scan::validate_dir(Path::new(&dir))?,
+            dirs: roots,
             glob,
             locale,
             max_tasks,
@@ -86,13 +106,13 @@ impl NotesIndex {
         Ok(index)
     }
 
-    /// Walk the directory again, replacing everything held.
+    /// Walk the directories again, replacing everything held.
     ///
     /// For the changes this was not told about one at a time: a fetch that
     /// fast-forwarded the checkout, a clone that filled the directory, notes
     /// edited by another application on the device.
     pub fn rescan(&self) -> Result<(), ExtractError> {
-        let outcome = scan_directory(&self.dir, &self.options(), None)?;
+        let outcome = scan_directories(&self.dirs, &self.options(), None)?;
         let mut state = self.lock();
         state.tasks = outcome.tasks;
         state.stats = outcome.stats.into();
@@ -100,16 +120,19 @@ impl NotesIndex {
         Ok(())
     }
 
-    /// Re-read one file, replacing the tasks that came from it.
+    /// Re-read one file of one root, replacing the tasks that came from it.
     ///
-    /// `file` is a path relative to the scanned directory, exactly as it comes
-    /// back in [`Task::file`](crate::Task::file).
+    /// `root` and `file` are what the task itself carries — see
+    /// [`Task::root`](crate::Task::root) and [`Task::file`](crate::Task::file)
+    /// — so the pair names the note whatever collection it belongs to. A root
+    /// this index was not opened over is refused: joining an arbitrary path on
+    /// would read a file outside the notes.
     ///
     /// A file that has gone, cannot be read, or is not UTF-8 is not a failure:
     /// its tasks are dropped and the rest of the index stands. That is what the
     /// walk would have done with it, and an edit that deleted the last task in
     /// a note has to leave the agenda without it rather than with an error.
-    pub fn refresh_file(&self, file: String) -> Result<(), ExtractError> {
+    pub fn refresh_file(&self, root: String, file: String) -> Result<(), ExtractError> {
         let relative = Path::new(&file);
         // The path comes back from a scan of this directory, so `..` in it is a
         // mistake upstream rather than a request — refused rather than joined,
@@ -123,8 +146,16 @@ impl NotesIndex {
             });
         }
 
+        let scanned = self
+            .dirs
+            .iter()
+            .find(|dir| dir.as_path() == Path::new(&root))
+            .ok_or_else(|| ExtractError::InvalidDirectory {
+                detail: format!("{root} is not one of the scanned directories"),
+            })?;
+
         let mappings = get_weekday_mappings(&self.locale);
-        let fresh = read_file(&self.dir.join(relative))
+        let fresh = read_file(&scanned.join(relative))
             .map(|content| {
                 let mut timestamps = 0_usize;
                 let mut properties = 0_usize;
@@ -140,8 +171,16 @@ impl NotesIndex {
             .unwrap_or_default();
 
         let mut state = self.lock();
-        state.tasks.retain(|task| Path::new(&task.file) != relative);
-        state.tasks.extend(fresh);
+        // Both halves, not the path alone: the same relative path in another
+        // collection is another file, and dropping its tasks here would take
+        // them out of the agenda until the next full walk.
+        state
+            .tasks
+            .retain(|task| !(task.root.as_deref() == Some(root.as_str()) && task.file == file));
+        state.tasks.extend(fresh.into_iter().map(|mut task| {
+            task.root = Some(root.clone());
+            task
+        }));
         // The cap belongs to the collection, not to one file: without this a
         // note whose tasks grew would push the total past a limit the walk
         // itself enforces.
