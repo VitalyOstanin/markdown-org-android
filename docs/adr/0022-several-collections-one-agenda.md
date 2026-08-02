@@ -10,7 +10,9 @@
 
 ## Status
 
-Accepted (2026-08-02).
+Accepted (2026-08-02). The shape of the mark on a row is amended by
+[ADR-0023](0023-a-collection-is-a-dot-at-the-head-of-the-row.md); the rest
+stands.
 
 ## Context
 

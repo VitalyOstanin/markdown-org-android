@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -47,8 +48,11 @@ class CollectionMarksTest {
     fun aRowCarriesTheNameOfTheCollectionItCameFrom() {
         showAgenda(AgendaLayout.LIST)
 
-        compose.onNodeWithText("Personal").assertIsDisplayed()
-        compose.onNodeWithText("Work").assertIsDisplayed()
+        // The mark is a dot, so the name is what it is spoken as rather than
+        // what it is written as: a screen reader still says which collection
+        // the row came from, where the colour says nothing.
+        compose.onNodeWithContentDescription("Personal").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Work").assertIsDisplayed()
     }
 
     @Test
@@ -57,8 +61,8 @@ class CollectionMarksTest {
 
         // Both layouts show the same agenda; a mark on one of them only would
         // make which collection a task is in a property of the layout.
-        compose.onNodeWithText("Personal").assertIsDisplayed()
-        compose.onNodeWithText("Work").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Personal").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Work").assertIsDisplayed()
     }
 
     /**
@@ -102,6 +106,7 @@ class CollectionMarksTest {
 
         compose.onNodeWithText("Pay the tax").assertIsDisplayed()
         compose.onNodeWithTag("collection-filter").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Personal").assertDoesNotExist()
     }
 
     @Test
@@ -136,9 +141,9 @@ class CollectionMarksTest {
     /**
      * The agenda with the marks and without the filter above it.
      *
-     * The chips carry the same names as the marks, so a screen showing both
-     * has every name twice and "the row says where it is from" cannot be
-     * asserted by looking for one. The filter has a test of its own.
+     * The marks are asserted through what they are spoken as, and a chip
+     * carries the same name; a screen with both would answer twice to the same
+     * query. The filter has a test of its own.
      */
     private fun showAgenda(layout: AgendaLayout) {
         compose.setContent {

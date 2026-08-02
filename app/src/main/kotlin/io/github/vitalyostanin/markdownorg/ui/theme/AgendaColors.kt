@@ -44,10 +44,56 @@ data class AgendaColors(
      * the roles would not be distinct enough to read at this size.
      */
     val collections: List<Color>,
+    /**
+     * The same collections over a solid [AgendaRole.tone] fill.
+     *
+     * A dense fill inverts the lightness of what a mark sits on — the tone is
+     * light where the screen is dark, and dark where it is light — so the
+     * palette of the theme goes flat there. These are the tones of the other
+     * theme, which is what that fill amounts to. One colour for every
+     * collection, as [collections] would give, rather than the row's text
+     * colour: a screen of overdue rows would otherwise say nothing about
+     * where any of them came from.
+     */
+    val collectionsOnSolid: List<Color>,
 )
 
-/** The colour of collection number [index], wrapping round for a long set. */
-fun AgendaColors.collectionTone(index: Int): Color = collections[index.mod(collections.size)]
+/**
+ * The colour of collection number [index], wrapping round for a long set.
+ *
+ * [onSolid] picks the palette for a row already filled with a dense tone.
+ */
+fun AgendaColors.collectionTone(index: Int, onSolid: Boolean = false): Color {
+    val palette = if (onSolid) collectionsOnSolid else collections
+
+    return palette[index.mod(palette.size)]
+}
+
+/**
+ * The collection tones that read over a light surface.
+ *
+ * Kept apart from the two schemes because each of them needs both lists: the
+ * light theme carries these on its background and the dark ones over a solid
+ * fill, and the dark theme the other way round.
+ */
+private val CollectionsOverLight = listOf(
+    Color(0xFF6750A4),
+    Color(0xFF0F7B6C),
+    Color(0xFFB3261E),
+    Color(0xFF7D5260),
+    Color(0xFF00639B),
+    Color(0xFF7A5900),
+)
+
+/** And the ones that read over a dark surface. */
+private val CollectionsOverDark = listOf(
+    Color(0xFFCFBCFF),
+    Color(0xFF6FDBC6),
+    Color(0xFFFFB4AB),
+    Color(0xFFEFB8C8),
+    Color(0xFF9CCAFF),
+    Color(0xFFEDC26B),
+)
 
 internal val LightAgendaColors = AgendaColors(
     deadline = AgendaRole(Color(0xFFC4262E), Color(0xFFFFDCDA), Color(0xFF470004)),
@@ -58,14 +104,8 @@ internal val LightAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF2E7D4F), Color(0xFFC4F0D4), Color(0xFF00210F)),
     cancelled = AgendaRole(Color(0xFF6E6A78), Color(0xFFE6E2EF), Color(0xFF2A2733)),
     onSolid = Color(0xFFFFFFFF),
-    collections = listOf(
-        Color(0xFF6750A4),
-        Color(0xFF0F7B6C),
-        Color(0xFFB3261E),
-        Color(0xFF7D5260),
-        Color(0xFF00639B),
-        Color(0xFF7A5900),
-    ),
+    collections = CollectionsOverLight,
+    collectionsOnSolid = CollectionsOverDark,
 )
 
 internal val DarkAgendaColors = AgendaColors(
@@ -75,14 +115,8 @@ internal val DarkAgendaColors = AgendaColors(
     done = AgendaRole(Color(0xFF7ED8A0), Color(0xFF14512F), Color(0xFFCFF3DC)),
     cancelled = AgendaRole(Color(0xFFA29DAF), Color(0xFF3A3745), Color(0xFFDFDAEA)),
     onSolid = Color(0xFF1B1620),
-    collections = listOf(
-        Color(0xFFCFBCFF),
-        Color(0xFF6FDBC6),
-        Color(0xFFFFB4AB),
-        Color(0xFFEFB8C8),
-        Color(0xFF9CCAFF),
-        Color(0xFFEDC26B),
-    ),
+    collections = CollectionsOverDark,
+    collectionsOnSolid = CollectionsOverLight,
 )
 
 val LocalAgendaColors = staticCompositionLocalOf { LightAgendaColors }

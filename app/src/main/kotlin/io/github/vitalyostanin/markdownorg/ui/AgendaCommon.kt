@@ -155,6 +155,10 @@ fun RowScope.TaskRowHead(
 ) {
     val kind = task.kind()
 
+    collection?.let { label ->
+        CollectionMark(label, onDenseFill = onDenseFill)
+        Spacer(Modifier.width(Spacing.sm))
+    }
     Text(
         text = kind.glyph,
         style = MaterialTheme.typography.labelLarge,
@@ -175,24 +179,26 @@ fun RowScope.TaskRowHead(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(1f),
     )
-    collection?.let { label ->
-        Spacer(Modifier.width(Spacing.xs))
-        CollectionMark(label, onDenseFill = onDenseFill)
-    }
 }
 
 /**
- * Which collection a row came from: a dot in the collection's colour and its
- * name.
+ * Which collection a row came from: a dot in the collection's colour, at the
+ * head of the row.
  *
  * A mark rather than a section heading, because the agenda is one timeline
  * over every collection — grouping the rows by where they live would break the
- * axis the whole layout is built on. It sits at the end of the row, after the
- * heading has had its width: what the row is about comes first.
+ * axis the whole layout is built on.
+ *
+ * A dot alone rather than a dot with the name. On a phone held upright the
+ * name took what the heading needed, cutting it off where it stopped saying
+ * anything and repeating the same word down the whole screen. The colours are
+ * read against the chips above the list, which carry the names; the name is
+ * still spoken, so nothing is lost where the colour cannot be seen.
  *
  * [onDenseFill] is for a row already filled with a solid tone, where the
- * collection's own colour would not read; there the dot takes the row's text
- * colour and the name carries the difference.
+ * lightness of the surface is the other way round; there the dot comes from
+ * the palette of the other theme rather than from a single colour, so a screen
+ * of overdue rows still says which collection each of them is from.
  */
 @Composable
 fun CollectionMark(
@@ -201,30 +207,15 @@ fun CollectionMark(
     onDenseFill: Boolean = false,
 ) {
     val colors = LocalAgendaColors.current
-    val tone = if (onDenseFill) colors.onSolid else colors.collectionTone(label.tone)
+    val tone = colors.collectionTone(label.tone, onSolid = onDenseFill)
 
-    Row(
-        modifier = modifier.semantics {
-            contentDescription = label.name
-        },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(Sizes.collectionDot)
-                .clip(CircleShape)
-                .background(tone),
-        )
-        Spacer(Modifier.width(Spacing.xs))
-        Text(
-            text = label.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = tone,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = Sizes.collectionName),
-        )
-    }
+    Box(
+        modifier = modifier
+            .semantics { contentDescription = label.name }
+            .size(Sizes.collectionDot)
+            .clip(CircleShape)
+            .background(tone),
+    )
 }
 
 /**

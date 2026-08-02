@@ -296,7 +296,7 @@ sees the screen it always saw — no marks on the rows, no filter above them.
 | № | What                    | How it behaves                                                                                                |
 |---|-------------------------|---------------------------------------------------------------------------------------------------------------|
 | 1 | The agenda              | One agenda over every collection, merged by the core, on a single time axis                                   |
-| 2 | Which one a row is from | A coloured dot and the collection's name at the end of the row, from two collections up                       |
+| 2 | Which one a row is from | A coloured dot at the head of the row, from two collections up; the name is what it is spoken as              |
 | 3 | The filter              | A chip per collection above the list; turning one off regroups what was scanned rather than walking again     |
 | 4 | An edit                 | Goes to the collection the task came from, addressed by the pair of its root and its file                     |
 | 5 | A group action          | Split by collection, so each directory is still one rewrite and one commit                                    |
@@ -613,10 +613,17 @@ scheduled, repeat, done, cancelled — in `ui/theme/AgendaColors.kt`, reached
 through `LocalAgendaColors`. The values are the ones the VS Code extension
 uses, so the same file reads the same way in both.
 
-Contrast was measured against WCAG 2.1: text pairs clear 4.5, rails and
-glyphs clear 3.0. A container fill sits below 3.0 by design — it is a
-backdrop, and the meaning is carried by the glyph, the rail and the label,
-each of which clears the threshold on its own.
+A collection is marked with a dot, so it needs a palette of its own beside
+the roles — six tones, taken by position in the set. It comes twice: the
+tones of the theme for an ordinary row, and the tones of the other theme for
+a row filled with a solid tone, where the lightness of the surface is the
+other way round. `AgendaPaletteTest` measures every tone against every
+surface it can land on.
+
+Contrast was measured against WCAG 2.1: text pairs clear 4.5, rails, glyphs
+and collection dots clear 3.0. A container fill sits below 3.0 by design — it
+is a backdrop, and the meaning is carried by the glyph, the rail and the
+label, each of which clears the threshold on its own.
 
 ## Testing
 

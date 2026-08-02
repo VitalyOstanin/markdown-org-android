@@ -62,15 +62,15 @@ object Sizes {
     /** The priority cookie, which has to hold one character. */
     val badge = 20.dp
 
-    /** The dot that carries a collection's colour beside its name. */
+    /** The dot that carries a collection's colour, at the head of a row. */
     val collectionDot = 6.dp
 
     /**
-     * How much of a collection's name a row shows before it is cut.
+     * How much of a collection's name a chip shows before it is cut.
      *
-     * Enough for a word: the mark says which of a handful of collections a row
-     * came from, and a name long enough to need more than that would take the
-     * width the heading is there for.
+     * Enough for a word: the chips above the list are what the dots on the
+     * rows are read against, and a row of chips wide enough for a sentence
+     * would push the agenda itself down the screen.
      */
     val collectionName = 72.dp
 
