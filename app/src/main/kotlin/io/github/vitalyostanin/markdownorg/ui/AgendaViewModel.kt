@@ -219,7 +219,13 @@ class AgendaViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(TICKER_LINGER_MS), clock())
 
     init {
-        refresh()
+        viewModelScope.launch {
+            // Before the first scan, not only when the set changes: a launch
+            // reads a set that was stored earlier, and a directory of it may
+            // be gone — removed by hand, or on storage that is not mounted.
+            useDirectories()
+            refresh()
+        }
         readCheckout()
     }
 
@@ -332,10 +338,32 @@ class AgendaViewModel(
         collections.use(set)
         _collectionSet.value = set
         viewModelScope.launch {
+            useDirectories()
             // What is held describes the directories of the previous set; the
             // index behind it is opened again over the new roots.
             agenda.invalidate()
             refresh()
+        }
+    }
+
+    /**
+     * Make sure every collection has the directory it names.
+     *
+     * A collection that has just been added names a directory nothing has
+     * created yet, and the walk refuses a root it cannot open — taking the
+     * whole agenda with it, the other collections included. Done here rather
+     * than at the first write, which on a collection that is only ever read
+     * would never come.
+     */
+    private suspend fun useDirectories() {
+        val refused = collections.entries.filterNot { entry ->
+            entry.area.prepareDirectory().isSuccess
+        }
+        if (refused.isNotEmpty()) {
+            Log.w(TAG, "directories could not be used: ${refused.map { it.collection.path }}")
+            _syncState.update {
+                it.copy(message = SyncMessage(R.string.settings_notes_failed, failed = true))
+            }
         }
     }
 

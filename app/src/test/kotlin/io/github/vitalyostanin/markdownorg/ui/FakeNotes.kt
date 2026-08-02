@@ -59,6 +59,16 @@ class FakeNotesArea(root: File = File("/notes")) : NotesArea {
         moveResult.onSuccess { root = directory }
     }
 
+    /** What making the directory answers, so a storage that is gone can be played. */
+    var prepareResult: Result<Unit> = Result.success(Unit)
+
+    override suspend fun prepareDirectory(): Result<Unit> = exclusive {
+        // Its own marker rather than "move": the tests about the working copy
+        // are about being pointed elsewhere, which this is not.
+        trace += "prepare"
+        prepareResult
+    }
+
     /** What happened to the directory, in order, with markers for the overlaps. */
     val trace = mutableListOf<String>()
 

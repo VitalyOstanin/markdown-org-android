@@ -323,6 +323,68 @@ class AgendaCollectionsTest {
         assertEquals("/data/data/markdown-org/files/notes-3", store.collections.last().path)
     }
 
+    /**
+     * The directory of a collection is made before anything walks it.
+     *
+     * A new collection names a directory nobody has created, and the walk
+     * refuses a root it cannot open — with the whole agenda, so the other
+     * collections go dark too. On a device this read as "the agenda could not
+     * be built: directory does not exist" the moment a second collection was
+     * added.
+     */
+    @Test
+    fun theDirectoryOfAnAddedCollectionIsMadeBeforeTheWalkReachesIt() = runTest(dispatcher) {
+        val model = viewModel()
+        advanceUntilIdle()
+
+        model.addCollection("Archive")
+        advanceUntilIdle()
+
+        val added = collections.entries.last().area as FakeNotesArea
+
+        assertEquals("/data/data/markdown-org/files/notes-3", added.root.absolutePath)
+        assertTrue("the directory was never made", added.trace.contains("prepare"))
+    }
+
+    /**
+     * And on a launch, not only when the set changes.
+     *
+     * The set a launch reads was stored earlier, and a directory in it may be
+     * gone by then — deleted by hand, or on storage that is not mounted. Left
+     * to the scan, that is again the whole agenda failing rather than the one
+     * collection.
+     */
+    @Test
+    fun theDirectoriesOfTheStoredSetAreMadeOnALaunch() = runTest(dispatcher) {
+        viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(true, true),
+            collections.entries.map { (it.area as FakeNotesArea).trace.contains("prepare") },
+        )
+    }
+
+    /**
+     * A directory that cannot be made is said so, and the rest goes on.
+     *
+     * The storage a collection sits on may be unplugged, or the permission to
+     * write it withdrawn. Stopping there would leave a device with no agenda
+     * at all over one directory it cannot reach, so the scan is asked for
+     * anyway and the failure is carried by the banner.
+     */
+    @Test
+    fun aDirectoryThatCannotBeMadeIsReportedRatherThanStoppingTheScan() = runTest(dispatcher) {
+        (work.area as FakeNotesArea).prepareResult =
+            Result.failure(IllegalStateException("no such volume"))
+
+        val model = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(R.string.settings_notes_failed, model.syncState.value.message?.text)
+        assertTrue("the scan was never asked for", loader.pending.isNotEmpty())
+    }
+
     @Test
     fun aRemovedCollectionLosesItsSettingsButKeepsItsDirectory() = runTest(dispatcher) {
         val model = viewModel()

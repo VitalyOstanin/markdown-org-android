@@ -50,16 +50,27 @@ class NotesStore(root: File) : NotesArea {
      */
     override suspend fun useDirectory(directory: File): Result<Unit> = exclusive {
         runCatching {
-            check(directory.isDirectory || directory.mkdirs()) {
-                "the notes directory could not be created: $directory"
-            }
-            // Both, because the notes are not only read: seeding writes the
-            // sample, an edit rewrites a file, and a clone fills the whole of
-            // it. A directory that only reads would fail at the first of those.
-            check(directory.canRead() && directory.canWrite()) {
-                "the notes directory cannot be read and written: $directory"
-            }
+            makeUsable(directory)
             current = directory
+        }
+    }
+
+    override suspend fun prepareDirectory(): Result<Unit> = exclusive {
+        // Nothing is pointed anywhere: the directory is the one this area
+        // already names, and the answer is only whether it is there and can
+        // be worked with.
+        runCatching { makeUsable(current) }
+    }
+
+    private fun makeUsable(directory: File) {
+        check(directory.isDirectory || directory.mkdirs()) {
+            "the notes directory could not be created: $directory"
+        }
+        // Both, because the notes are not only read: seeding writes the
+        // sample, an edit rewrites a file, and a clone fills the whole of
+        // it. A directory that only reads would fail at the first of those.
+        check(directory.canRead() && directory.canWrite()) {
+            "the notes directory cannot be read and written: $directory"
         }
     }
 

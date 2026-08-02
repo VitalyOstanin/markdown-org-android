@@ -39,6 +39,18 @@ interface NotesArea {
     suspend fun useDirectory(directory: File): Result<Unit>
 
     /**
+     * Makes sure [root] is a directory that can be read and written.
+     *
+     * Not the same act as [useDirectory], which points the working copy
+     * somewhere else and rebuilds everything that was about the old place:
+     * this one only answers whether the directory a collection already names
+     * is there, and creates it when it is not. A collection that has just
+     * been added names a directory nobody has made, and a walk refuses a root
+     * it cannot open — with the whole agenda, the other collections included.
+     */
+    suspend fun prepareDirectory(): Result<Unit>
+
+    /**
      * Runs [block] with sole access to [root], off the main thread.
      *
      * Not reentrant: a block must not call another operation that takes the

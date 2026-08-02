@@ -93,6 +93,9 @@ class NotesEditorTest {
 
         /** Nothing here moves the notes; the editor never asks for it. */
         override suspend fun useDirectory(directory: File) = Result.success(Unit)
+
+        /** Nor makes them: the directory of these tests is a temporary folder. */
+        override suspend fun prepareDirectory() = Result.success(Unit)
     }
 
     private class FakeSettings(
