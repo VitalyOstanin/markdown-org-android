@@ -514,14 +514,18 @@ message. A release cut by hand is tagged the same way (`git tag -a v0.1.0 -m
 | № | Where                             | What it says                                                     |
 |---|-----------------------------------|-------------------------------------------------------------------|
 | 1 | `appVersionName` in `gradle.properties` | the version being worked towards, raised by hand when one is cut |
-| 2 | `-PappVersionCode`, from the run number | what Android orders builds by; every published APK gets its own |
+| 2 | `-PappVersionCode`, from the run number | what Android orders builds by; every published APK gets its own, and `gradle.properties` holds what a build without it falls back to |
 | 3 | `-PappCommit`, the short sha      | which commit an installed build was made from                     |
 | 4 | [`CHANGELOG.md`](CHANGELOG.md)    | what changed, in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form |
 
-A build from a working copy keeps version code `1` and reports its commit as
-`working copy`; nothing but CI is meant to produce an APK for anyone else. All
-three are shown at the bottom of the settings screen, so a build can be named
-without reaching for `adb`.
+A build from a working copy reports its commit as `working copy`; nothing but
+CI is meant to produce an APK for anyone else. It takes its version code from
+`gradle.properties`, kept level with the latest release rather than at `1`:
+Android refuses a lower code over a higher one — and refuses it even with the
+downgrade flag, once the app is not debuggable — so a build from the tree
+could not otherwise land on a phone carrying a published release. Equal codes
+install either way round. All three are shown at the bottom of the settings
+screen, so a build can be named without reaching for `adb`.
 
 `tools/release-notes.sh` prints the section CHANGELOG.md holds for a version,
 which is what the notes of a release are made of. A prerelease has no section
