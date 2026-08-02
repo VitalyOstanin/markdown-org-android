@@ -28,6 +28,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import uniffi.markdown_org_ffi.BulkAction
+import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
@@ -466,6 +468,119 @@ class AgendaScreenTest {
         assertEquals(listOf("Renew the certificate"), tapped)
     }
 
+    @Test
+    fun aBandOffersItsThreeActionsAndHandsBackTheWholeGroup() {
+        val asked = mutableListOf<Pair<OverdueBand, BulkAction>>()
+        showAgenda(
+            AgendaLayout.LIST,
+            sections = aged,
+            onGroupAction = { group, action -> asked += group.band to action },
+        )
+
+        compose.onNodeWithTag(OverdueBand.EARLIER.menuTag).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(string(R.string.agenda_group_drop_date)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.agenda_group_cancel)).assertIsDisplayed()
+        compose.onNodeWithTag(BulkAction.MOVE_TO_TODAY.menuTag).performClick()
+        compose.waitForIdle()
+
+        // The band, not the row the menu happened to sit next to: the whole
+        // group is what one press answers.
+        assertEquals(listOf(OverdueBand.EARLIER to BulkAction.MOVE_TO_TODAY), asked)
+    }
+
+    @Test
+    fun aFoldedBandCanStillBeAnsweredWithoutUnfoldingIt() {
+        val asked = mutableListOf<BulkAction>()
+        showAgenda(
+            AgendaLayout.LIST,
+            sections = aged,
+            onGroupAction = { _, action -> asked += action },
+        )
+
+        // The oldest band opens folded, and it is exactly the one nobody
+        // wants to read task by task.
+        compose.onNodeWithText("Eye clinic").assertDoesNotExist()
+        compose.onNodeWithTag(OverdueBand.LONG_AGO.menuTag).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag(BulkAction.CANCEL.menuTag).performClick()
+        compose.waitForIdle()
+
+        assertEquals(listOf(BulkAction.CANCEL), asked)
+        // Opening the menu did not unfold the band underneath it.
+        compose.onNodeWithText("Eye clinic").assertDoesNotExist()
+    }
+
+    @Test
+    fun theMenuIsNotTheControlThatFoldsTheBand() {
+        val asked = mutableListOf<BulkAction>()
+        showAgenda(
+            AgendaLayout.LIST,
+            sections = aged,
+            onGroupAction = { _, action -> asked += action },
+        )
+
+        // The heading and the menu are two targets on one line, and the
+        // heading has to go on folding the band it always folded.
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_recent), ignoreCase = true)
+            .performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Pay the tax").assertDoesNotExist()
+        assertTrue("folding asked for an action", asked.isEmpty())
+    }
+
+    @Test
+    fun whatTheGroupDidIsShownWithTheUndoBesideIt() {
+        var undone = 0
+        showAgenda(
+            AgendaLayout.LIST,
+            sections = aged,
+            groupResult = GroupResult(
+                action = BulkAction.MOVE_TO_TODAY,
+                changed = 2,
+                refused = 1,
+                rollback = listOf(
+                    FileRollback(file = "notes.md", before = "before", after = "after"),
+                ),
+            ),
+            onUndoGroup = { undone += 1 },
+        )
+
+        val moved = compose.activity.resources
+            .getQuantityString(R.plurals.agenda_group_moved, 2, 2)
+        compose.onNodeWithText(moved, substring = true).assertIsDisplayed()
+        // The refusal rides on the same line: a group that left a task alone
+        // says so where it says what it did.
+        val left = compose.activity.resources
+            .getQuantityString(R.plurals.agenda_group_refused, 1, 1)
+        compose.onNodeWithText(left, substring = true).assertIsDisplayed()
+
+        compose.onNodeWithText(string(R.string.agenda_group_undo)).performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, undone)
+    }
+
+    @Test
+    fun aGroupThatWroteNothingIsNotOfferedAnUndo() {
+        showAgenda(
+            AgendaLayout.LIST,
+            sections = aged,
+            groupResult = GroupResult(
+                action = BulkAction.CANCEL,
+                changed = 0,
+                refused = 2,
+                rollback = emptyList(),
+            ),
+        )
+
+        val cancelled = compose.activity.resources
+            .getQuantityString(R.plurals.agenda_group_cancelled, 0, 0)
+        compose.onNodeWithText(cancelled, substring = true).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.agenda_group_undo)).assertDoesNotExist()
+    }
+
     private val controls = listOf(
         R.string.sync_now,
         R.string.settings_title,
@@ -481,12 +596,16 @@ class AgendaScreenTest {
         "Quarterly report",
     )
 
+    @Suppress("LongParameterList")
     private fun showAgenda(
         layout: AgendaLayout,
         sections: AgendaSections = sample,
         now: LocalDateTime = MID_MORNING,
         locale: Locale? = null,
         onTaskClick: (Task) -> Unit = {},
+        groupResult: GroupResult? = null,
+        onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
+        onUndoGroup: () -> Unit = {},
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -497,6 +616,9 @@ class AgendaScreenTest {
                         onLayoutChange = {},
                         now = now,
                         onTaskClick = onTaskClick,
+                        groupResult = groupResult,
+                        onGroupAction = onGroupAction,
+                        onUndoGroup = onUndoGroup,
                     )
                 }
 

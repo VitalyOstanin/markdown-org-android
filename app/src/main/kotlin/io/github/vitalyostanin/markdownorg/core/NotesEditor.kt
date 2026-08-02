@@ -1,15 +1,23 @@
 package io.github.vitalyostanin.markdownorg.core
 
+import uniffi.markdown_org_ffi.BulkAction
+import uniffi.markdown_org_ffi.BulkOutcome
+import uniffi.markdown_org_ffi.BulkTarget
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
+import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.TimestampType
 import uniffi.markdown_org_ffi.commitChanges
 import uniffi.markdown_org_ffi.holdsRepository
 import java.time.LocalDate
 import kotlin.math.abs
+import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.completeTask as coreComplete
+import uniffi.markdown_org_ffi.revertBulk as coreRevertBulk
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -25,6 +33,18 @@ import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
  */
 data class EditReport(val committed: Boolean, val commitFailure: Throwable? = null)
 
+/**
+ * What acting on a whole group did: to the notes, and to the history.
+ *
+ * [outcome] carries what the core changed and what it refused, task by task;
+ * [report] is the commit half, which fails apart from the write exactly as it
+ * does for a single edit.
+ */
+data class GroupReport(val outcome: BulkOutcome, val report: EditReport)
+
+/** What undoing a group did: which files went back, and whether it committed. */
+data class UndoReport(val outcome: RevertOutcome, val report: EditReport)
+
 /** Point edits to the notes. */
 interface NotesWriter {
 
@@ -35,6 +55,27 @@ interface NotesWriter {
     suspend fun setPriority(task: Task, priority: String?): Result<EditReport>
 
     suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<EditReport>
+
+    /**
+     * Apply one action to every task of a group.
+     *
+     * One pass over the notes and one commit, however many tasks are named:
+     * twenty single edits would rewrite the files twenty times and leave
+     * twenty commits describing one move.
+     */
+    suspend fun applyToGroup(
+        tasks: List<Task>,
+        action: BulkAction,
+        today: LocalDate,
+    ): Result<GroupReport>
+
+    /**
+     * Put back what a group action overwrote.
+     *
+     * The core restores only the files that still hold what the group wrote,
+     * so an undo cannot take away an edit or a sync that landed after it.
+     */
+    suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport>
 
     /**
      * Commit whatever earlier edits left uncommitted.
@@ -121,6 +162,33 @@ class NotesEditor internal constructor(
         shiftMessage(task.heading, keyword, days)
     }
 
+    /**
+     * Apply one action to a whole group, in one pass and one commit.
+     *
+     * Which planning line each task is acted on is decided here, from the kind
+     * the extractor reported for it — the same rule the sheet of one task
+     * follows. A task the agenda placed by neither kind is passed on with no
+     * keyword, and the core names it as refused rather than guessing.
+     */
+    override suspend fun applyToGroup(
+        tasks: List<Task>,
+        action: BulkAction,
+        today: LocalDate,
+    ): Result<GroupReport> = writing {
+        val outcome = coreApplyToGroup(
+            notes.root.absolutePath,
+            tasks.map(Task::bulkTarget),
+            action,
+            today.toString(),
+        )
+        outcome to groupMessage(action, outcome.changed.toInt())
+    }.map { (outcome, report) -> GroupReport(outcome, report) }
+
+    override suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport> = writing {
+        val outcome = coreRevertBulk(notes.root.absolutePath, rollback)
+        outcome to undoMessage(outcome.restored.size)
+    }.map { (outcome, report) -> UndoReport(outcome, report) }
+
     override suspend fun commitPending(): Result<Boolean> = notes.exclusive {
         runCatching { committer.commit(notes.root.absolutePath, PENDING_MESSAGE, author()) }
     }
@@ -143,14 +211,28 @@ class NotesEditor internal constructor(
      * changed". The uncommitted change is picked up by the next edit and by
      * the commit that precedes the next sync.
      */
-    internal suspend fun write(edit: () -> String): Result<EditReport> = notes.exclusive {
-        runCatching(edit).map { message ->
-            runCatching { committer.commit(notes.root.absolutePath, message, author()) }.fold(
-                onSuccess = { committed -> EditReport(committed = committed) },
-                onFailure = { failure -> EditReport(committed = false, commitFailure = failure) },
-            )
+    internal suspend fun write(edit: () -> String): Result<EditReport> =
+        writing { Unit to edit() }.map { (_, report) -> report }
+
+    /**
+     * [write] for an edit that has something to say beyond its message.
+     *
+     * The group actions answer with what the core did to each task, and that
+     * has to come back out of the lock along with the commit.
+     */
+    private suspend fun <T> writing(edit: () -> Pair<T, String>): Result<Pair<T, EditReport>> =
+        notes.exclusive {
+            runCatching(edit).map { (value, message) ->
+                value to runCatching {
+                    committer.commit(notes.root.absolutePath, message, author())
+                }.fold(
+                    onSuccess = { committed -> EditReport(committed = committed) },
+                    onFailure = { failure ->
+                        EditReport(committed = false, commitFailure = failure)
+                    },
+                )
+            }
         }
-    }
 
     private fun Task.target() = EditTarget(
         dir = notes.root.absolutePath,
@@ -177,6 +259,44 @@ class NotesEditor internal constructor(
  * the one part of an edit that can be pinned down without a device: the calls
  * around them go through the native library, these do not.
  */
+
+/**
+ * The task as a member of a group, carrying the planning line it was placed
+ * by.
+ *
+ * The kind comes from the extractor rather than from a guess: a closing date
+ * and a bare timestamp are neither `SCHEDULED` nor `DEADLINE`, and a group
+ * action aimed at one of those has nothing to move. Spelled out rather than
+ * left to `else`, so a kind added to the core has to be answered for here.
+ */
+internal fun Task.bulkTarget(): BulkTarget = BulkTarget(
+    file = file,
+    line = line,
+    heading = heading,
+    keyword = when (timestampType) {
+        TimestampType.DEADLINE -> PlanningKeyword.DEADLINE
+        TimestampType.SCHEDULED -> PlanningKeyword.SCHEDULED
+        TimestampType.CLOSED, TimestampType.PLAIN, null -> null
+    },
+)
+
+/** What a group action did, as one line of history. */
+internal fun groupMessage(action: BulkAction, changed: Int): String {
+    val tasks = if (changed == 1) "task" else "tasks"
+
+    return when (action) {
+        BulkAction.MOVE_TO_TODAY -> "Move $changed overdue $tasks to today"
+        BulkAction.DROP_PLANNING -> "Drop the date of $changed $tasks"
+        BulkAction.CANCEL -> "Cancel $changed $tasks"
+    }
+}
+
+/** What undoing a group did, as one line of history. */
+internal fun undoMessage(restored: Int): String {
+    val notes = if (restored == 1) "note" else "notes"
+
+    return "Undo the group edit of $restored $notes"
+}
 
 /** A completion that turned out to be a repeat says so. */
 internal fun completionMessage(heading: String, repeated: Boolean): String = when {

@@ -17,12 +17,17 @@ use markdown_org_extract::{
     filter_agenda, scan_directory, AgendaDates, AgendaOutput, AgendaScope, AppError, ScanOptions,
 };
 
+mod bulk;
 mod document;
 mod edit;
 mod index;
 mod planning;
 mod sync;
 
+pub use bulk::{
+    apply_to_group, revert_bulk, BulkAction, BulkOutcome, BulkRefusal, BulkTarget, FileRollback,
+    RefusalReason, RevertOutcome,
+};
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use index::NotesIndex;
 pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};

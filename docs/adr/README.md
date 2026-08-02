@@ -56,6 +56,7 @@ so a decision can be followed across the three repositories.
 | 0018 | [Edits go back to the remote as a fast-forward push, or not at all](0018-edits-go-back-as-a-fast-forward-push.md) | Accepted |
 | 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Accepted |
 | 0020 | [SSH remotes, with the server pinned by its host key](0020-ssh-remotes-with-a-pinned-host-key.md) | Accepted |
+| 0021 | [A group is one rewrite per file, and it can be put back](0021-a-group-is-one-rewrite-and-can-be-put-back.md) | Accepted |
 
 ## Adding a new ADR
 

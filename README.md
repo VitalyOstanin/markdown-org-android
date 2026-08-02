@@ -73,6 +73,7 @@ markdown-org-android/
 │   │   ├── src/document.rs   # reading a note and writing one line back
 │   │   ├── src/edit.rs       # the status and the priority cookie
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
+│   │   ├── src/bulk.rs       # one action over a whole group, and putting it back
 │   │   ├── src/sync.rs       # clone, fast-forward, commit, the state of the checkout
 │   │   └── tests/            # tests for the projection and error mapping
 │   └── uniffi-bindgen/       # binding generator entry point
@@ -167,6 +168,20 @@ merge an edit made on the phone with one made on a laptop instead of
 reporting a conflict. `target` carries the file, the line and the heading the
 caller believes is there — a file that moved on since the agenda was built is
 refused rather than overwritten.
+
+A group of tasks is answered in one move rather than one at a time:
+
+- `applyToGroup(dir, targets, action, today)` — move every task of the group
+  to today, drop its date or mark it cancelled. Each file is read and written
+  once however many of its tasks are named, and a task that cannot be edited
+  is reported on its own while the rest go through;
+- `revertBulk(dir, rollback)` — put the group back. Only the files that still
+  hold what the group wrote are restored, so an edit or a sync that landed in
+  the meantime is left alone.
+
+A missed repeat is caught up rather than dragged to today: moving it keeps the
+repeater and lands on the next occurrence its own interval gives, which is the
+rule `completeTask` follows for a single task.
 
 Keeping them in step with a remote:
 

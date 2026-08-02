@@ -41,6 +41,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 
 /** Height of one hour on the axis, and of the tile that sits in it. */
@@ -61,6 +62,7 @@ internal fun TimeLayout(
     scroll: LazyListState = rememberLazyListState(),
     collapse: OverdueCollapse = rememberOverdueCollapse(),
     onTaskClick: (Task) -> Unit = {},
+    onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
 ) {
     // Paired here rather than in the list body below. That body is a lambda
     // the list runs again on every recomposition — on each frame of a scroll
@@ -77,7 +79,7 @@ internal fun TimeLayout(
             item { EmptyAgenda() }
         }
 
-        overdueBands(overdue, collapse) { row -> OverdueRow(row, onTaskClick) }
+        overdueBands(overdue, collapse, onGroupAction) { row -> OverdueRow(row, onTaskClick) }
 
         if (timeline.allDay.isNotEmpty()) {
             item {

@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.EditReport
+import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
@@ -9,13 +10,18 @@ import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
+import io.github.vitalyostanin.markdownorg.core.UndoReport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.AgendaResult
+import uniffi.markdown_org_ffi.BulkAction
+import uniffi.markdown_org_ffi.BulkOutcome
+import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RepoStatus
+import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.Task
@@ -242,6 +248,49 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         keyword: PlanningKeyword,
         days: Int,
     ): Result<EditReport> = record()
+
+    /** What the last group action was asked to do, and to how many tasks. */
+    var group: Pair<BulkAction, List<Task>>? = null
+        private set
+
+    /** What acting on a group answers with. */
+    var groupOutcome: Result<GroupReport> = Result.success(
+        GroupReport(
+            outcome = BulkOutcome(changed = 0u, refused = emptyList(), rollback = emptyList()),
+            report = EditReport(committed = true),
+        ),
+    )
+
+    /** What the last undo was handed, so a test can see it was the rollback. */
+    var undone: List<FileRollback>? = null
+        private set
+
+    /** What undoing a group answers with. */
+    var undoOutcome: Result<UndoReport> = Result.success(
+        UndoReport(
+            outcome = RevertOutcome(
+                restored = emptyList(),
+                skipped = emptyList(),
+                failed = emptyList(),
+            ),
+            report = EditReport(committed = true),
+        ),
+    )
+
+    override suspend fun applyToGroup(
+        tasks: List<Task>,
+        action: BulkAction,
+        today: LocalDate,
+    ): Result<GroupReport> {
+        calls += 1
+        group = action to tasks
+        return groupOutcome
+    }
+
+    override suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport> {
+        undone = rollback
+        return undoOutcome
+    }
 
     override suspend fun commitPending(): Result<Boolean> {
         pendingCommits += 1

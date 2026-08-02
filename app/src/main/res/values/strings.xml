@@ -20,6 +20,14 @@
     <!-- Spoken for the heading that folds a group; %1$s is its name. -->
     <string name="agenda_section_expand">Show group %1$s</string>
     <string name="agenda_section_collapse">Hide group %1$s</string>
+    <!-- The menu on a band heading that acts on every task in the band. -->
+    <string name="agenda_group_actions">Act on the whole group</string>
+    <string name="agenda_group_move_today">Move to today</string>
+    <string name="agenda_group_drop_date">Drop the date</string>
+    <string name="agenda_group_cancel">Mark cancelled</string>
+    <string name="agenda_group_undo">Undo</string>
+    <!-- Part of the group went back and part of it had moved on since. -->
+    <string name="agenda_group_undo_partial">Some notes had changed and were left as they are</string>
     <string name="agenda_section_timed">Scheduled today</string>
     <string name="agenda_section_untimed">Untimed and ahead</string>
     <!-- Start and end of a collapsed empty stretch on the hour axis. -->
@@ -197,6 +205,24 @@
     <plurals name="agenda_days_ahead">
         <item quantity="one">in %d day</item>
         <item quantity="other">in %d days</item>
+    </plurals>
+    <!-- What acting on a whole band did, counting the tasks it changed. -->
+    <plurals name="agenda_group_moved">
+        <item quantity="one">%d task moved to today</item>
+        <item quantity="other">%d tasks moved to today</item>
+    </plurals>
+    <plurals name="agenda_group_dropped">
+        <item quantity="one">the date of %d task dropped</item>
+        <item quantity="other">the date of %d tasks dropped</item>
+    </plurals>
+    <plurals name="agenda_group_cancelled">
+        <item quantity="one">%d task cancelled</item>
+        <item quantity="other">%d tasks cancelled</item>
+    </plurals>
+    <!-- Second line of the same message: what the core would not change. -->
+    <plurals name="agenda_group_refused">
+        <item quantity="one">%d task left as it was</item>
+        <item quantity="other">%d tasks left as they were</item>
     </plurals>
 
     <!-- What the walk behind the agenda skipped, and why. -->

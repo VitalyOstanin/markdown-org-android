@@ -39,6 +39,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.AgendaRole
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
@@ -221,6 +222,10 @@ internal val AgendaRow.key: String get() = "${task.file}:${task.line}"
  * leaves it a plain label. The count stays visible either way — a folded group
  * still has to say how much is behind it, or folding it hides the fact that it
  * is there at all.
+ *
+ * [trailing] goes after the count, outside the area that folds the group: what
+ * is drawn there is a control of its own, and putting it inside would make
+ * every press on it fold the group as well.
  */
 @Composable
 internal fun SectionLabel(
@@ -230,6 +235,7 @@ internal fun SectionLabel(
     warn: Boolean = false,
     folded: Boolean? = null,
     onFold: () -> Unit = {},
+    trailing: @Composable () -> Unit = {},
 ) {
     val label = if (folded == true) {
         stringResource(R.string.agenda_section_expand, text)
@@ -238,49 +244,55 @@ internal fun SectionLabel(
     }
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (folded == null) {
-                    Modifier
-                } else {
-                    Modifier.clickable(onClickLabel = label, onClick = onFold)
-                },
-            )
-            .padding(vertical = Spacing.sm),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (folded != null) {
-                Text(
-                    // A glyph rather than an icon: the row is monospace type
-                    // already, and a vector here would be the one drawable on
-                    // a screen that has none.
-                    text = if (folded) FOLDED_MARK else UNFOLDED_MARK,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (folded == null) {
+                        Modifier
+                    } else {
+                        Modifier.clickable(onClickLabel = label, onClick = onFold)
+                    },
                 )
-                Spacer(Modifier.width(Spacing.xs))
+                .padding(vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (folded != null) {
+                    Text(
+                        // A glyph rather than an icon: the row is monospace
+                        // type already, and a vector here would be the one
+                        // drawable on a screen that has none.
+                        text = if (folded) FOLDED_MARK else UNFOLDED_MARK,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(Modifier.width(Spacing.xs))
+                }
+                Text(
+                    text = text.uppercase(LocalLocale.current.platformLocale),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
+                    color = if (warn) {
+                        LocalAgendaColors.current.deadline.tone
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                )
             }
             Text(
-                text = text.uppercase(LocalLocale.current.platformLocale),
+                text = count.toString(),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
-                fontWeight = if (warn) FontWeight.Bold else FontWeight.Normal,
-                color = if (warn) {
-                    LocalAgendaColors.current.deadline.tone
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
+                color = MaterialTheme.colorScheme.outline,
             )
         }
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.outline,
-        )
+        trailing()
     }
 }
 
@@ -306,6 +318,7 @@ internal val OverdueBand.label: Int
 internal fun LazyListScope.overdueBands(
     groups: List<OverdueGroup>,
     collapse: OverdueCollapse,
+    onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
     row: @Composable (AgendaRow) -> Unit,
 ) {
     for (group in groups) {
@@ -318,6 +331,9 @@ internal fun LazyListScope.overdueBands(
                 warn = group.band != OverdueBand.LONG_AGO,
                 folded = folded,
                 onFold = { collapse.toggle(group.band) },
+                // On the heading whether the band is folded or not: a band
+                // folded away is exactly the one answered without reading.
+                trailing = { GroupMenu(group.band) { action -> onGroupAction(group, action) } },
             )
         }
         if (!folded) {

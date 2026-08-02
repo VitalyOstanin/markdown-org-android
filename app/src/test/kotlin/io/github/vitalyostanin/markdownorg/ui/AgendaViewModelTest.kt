@@ -2,7 +2,9 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
+import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.SyncRun
+import io.github.vitalyostanin.markdownorg.core.UndoReport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +25,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import uniffi.markdown_org_ffi.Adoption
+import uniffi.markdown_org_ffi.BulkAction
+import uniffi.markdown_org_ffi.BulkOutcome
+import uniffi.markdown_org_ffi.BulkRefusal
+import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.RefusalReason
+import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.SyncException
 import java.io.File
 import java.time.LocalDate
@@ -1026,6 +1034,144 @@ class AgendaViewModelTest {
         assertEquals(NOON.plusMinutes(2), model.now.value)
     }
 
+    @Test
+    fun awholeBandGoesToTheWriterAsOneRequest() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val rows = listOf(
+            task(heading = "Pay the tax", line = 1u).toAgendaRow(),
+            task(heading = "Service the car", line = 2u).toAgendaRow(),
+        )
+
+        model.applyToGroup(rows, BulkAction.MOVE_TO_TODAY)
+        advanceUntilIdle()
+
+        // One call for the band rather than one per task: twenty taps would
+        // be twenty rewrites of the file and twenty commits.
+        assertEquals(1, writer.calls)
+        assertEquals(BulkAction.MOVE_TO_TODAY, writer.group?.first)
+        assertEquals(
+            listOf("Pay the tax", "Service the car"),
+            writer.group?.second?.map { it.heading },
+        )
+    }
+
+    @Test
+    fun whatTheBandDidIsOfferedWithTheUndoThatPutsItBack() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        writer.groupOutcome = Result.success(
+            GroupReport(
+                outcome = BulkOutcome(
+                    changed = 2u,
+                    refused = listOf(refusal("Eye clinic")),
+                    rollback = listOf(rollback("notes.md")),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+
+        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.CANCEL)
+        advanceUntilIdle()
+
+        val result = model.groupResult.value
+        assertEquals(BulkAction.CANCEL, result?.action)
+        assertEquals(2, result?.changed)
+        // The refusal is counted rather than swallowed: a group that left one
+        // task alone has to say so, or the user believes it did all of them.
+        assertEquals(1, result?.refused)
+        assertTrue("the move cannot be undone", result?.canUndo == true)
+    }
+
+    @Test
+    fun aBandThatChangedNothingIsNotOfferedAnUndo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.DROP_PLANNING)
+        advanceUntilIdle()
+
+        assertFalse("an undo was offered for nothing", model.groupResult.value?.canUndo == true)
+    }
+
+    @Test
+    fun theUndoHandsBackWhatTheGroupOverwrote() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val written = rollback("notes.md")
+        writer.groupOutcome = Result.success(
+            GroupReport(
+                outcome = BulkOutcome(
+                    changed = 1u,
+                    refused = emptyList(),
+                    rollback = listOf(written),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
+        advanceUntilIdle()
+
+        model.undoGroup()
+        advanceUntilIdle()
+
+        assertEquals(listOf(written), writer.undone)
+        // The offer is gone with it: pressing undo twice would put the notes
+        // back over an edit made in between.
+        assertNull(model.groupResult.value)
+    }
+
+    @Test
+    fun anUndoThatCouldNotPutEverythingBackSaysSo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        writer.groupOutcome = Result.success(
+            GroupReport(
+                outcome = BulkOutcome(
+                    changed = 2u,
+                    refused = emptyList(),
+                    rollback = listOf(rollback("work.md"), rollback("home.md")),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = listOf("work.md"),
+                    skipped = listOf("home.md"),
+                    failed = emptyList(),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
+        advanceUntilIdle()
+
+        model.undoGroup()
+        advanceUntilIdle()
+
+        assertEquals(
+            R.string.agenda_group_undo_partial,
+            model.editIssue.value?.text,
+        )
+    }
+
+    @Test
+    fun aBandOfNotesWithUnnamedFilesIsRefusedBeforeItReachesTheCore() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        // A filename that is not UTF-8 arrives with U+FFFD and names nothing
+        // on disk; every edit aimed at it would come back as "file not found".
+        val rows = listOf(task(file = "notes�.md").toAgendaRow())
+
+        model.applyToGroup(rows, BulkAction.CANCEL)
+        advanceUntilIdle()
+
+        assertEquals(0, writer.calls)
+        assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
+    }
+
     private fun viewModel(syncer: FakeSyncer) = AgendaViewModel(
         notes = notes,
         agenda = loader,
@@ -1037,6 +1183,22 @@ class AgendaViewModelTest {
         ownNotes = own,
         storageGranted = { granted },
         clock = { moment },
+    )
+
+    /** A task the core would not change, as it comes back from a group. */
+    private fun refusal(heading: String) = BulkRefusal(
+        file = "notes.md",
+        line = 9u,
+        heading = heading,
+        reason = RefusalReason.MOVED,
+        detail = "notes.md:9 is not a heading",
+    )
+
+    /** What the core hands back to undo one file's share of a group. */
+    private fun rollback(file: String) = FileRollback(
+        file = file,
+        before = "# TODO Pay the tax\n",
+        after = "# CANCELLED Pay the tax\n",
     )
 
     private companion object {

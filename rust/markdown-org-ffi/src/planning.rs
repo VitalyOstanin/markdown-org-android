@@ -182,7 +182,7 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
 ///
 /// Both keywords may be present, in either order, and a file may hold more
 /// than one of a kind after a manual edit.
-fn planning_lines(
+pub(crate) fn planning_lines(
     document: &Document,
     index: usize,
 ) -> Vec<(usize, PlanningKeyword, TimestampParts)> {
@@ -234,7 +234,11 @@ fn planning_keyword(line: &str) -> Option<PlanningKeyword> {
 /// The two tokens are written right to left — the weekday first, then the
 /// date — so a replacement of a different width cannot move the range the
 /// other one was located by.
-fn rewrite_date(line: &str, parts: &TimestampParts, date: NaiveDate) -> Result<String, EditError> {
+pub(crate) fn rewrite_date(
+    line: &str,
+    parts: &TimestampParts,
+    date: NaiveDate,
+) -> Result<String, EditError> {
     // Anything outside four digits comes back from chrono signed and of
     // another width (`+10021-04-01`), which no reader of these files accepts
     // — and the caller would be writing it into the user's notes.
@@ -351,7 +355,7 @@ const FULL_WEEKDAYS: [&str; 7] = [
 ];
 
 /// The date a repeating task moves to when it is completed.
-fn next_occurrence(
+pub(crate) fn next_occurrence(
     base: NaiveDate,
     today: NaiveDate,
     repeater: &Repeater,

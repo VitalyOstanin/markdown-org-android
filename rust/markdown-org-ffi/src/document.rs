@@ -26,6 +26,17 @@ use crate::edit::{EditError, EditTarget};
 /// step skips anything named this way rather than committing it.
 pub(crate) const TEMPORARY_PREFIX: &str = ".markdown-org-";
 
+/// A file as its lines, each with the ending it was written with.
+fn split_lines(content: &str) -> Vec<(String, String)> {
+    content
+        .split_inclusive('\n')
+        .map(|raw| {
+            let body = raw.trim_end_matches(['\n', '\r']);
+            (body.to_string(), raw[body.len()..].to_string())
+        })
+        .collect()
+}
+
 pub(crate) struct Document {
     path: PathBuf,
     /// Each line as its content and the ending that followed it. The last
@@ -36,22 +47,27 @@ pub(crate) struct Document {
 impl Document {
     /// Read the file `target` names, refusing a path that leaves the notes
     /// directory.
+    pub(crate) fn open(target: &EditTarget) -> Result<Self, EditError> {
+        Self::read(&target.dir, &target.file)
+    }
+
+    /// Read `file` from under `dir`, refusing a path that leaves it.
     ///
     /// The path comes back from a scan of that very directory, so a `..` in it
     /// means something went wrong upstream rather than that the user asked for
     /// a file elsewhere.
-    pub(crate) fn open(target: &EditTarget) -> Result<Self, EditError> {
-        let relative = Path::new(&target.file);
+    pub(crate) fn read(dir: &str, file: &str) -> Result<Self, EditError> {
+        let relative = Path::new(file);
         let climbs = relative
             .components()
             .any(|part| matches!(part, Component::ParentDir | Component::RootDir));
         if climbs {
             return Err(EditError::NotFound {
-                detail: format!("{} is outside the notes directory", target.file),
+                detail: format!("{file} is outside the notes directory"),
             });
         }
 
-        let path = Path::new(&target.dir).join(relative);
+        let path = Path::new(dir).join(relative);
         // `symlink_metadata` rather than `is_file`, which follows the link:
         // `..` is not the only way out of the directory, and a link inside it
         // points anywhere. The scan the path comes from does not follow links
@@ -81,15 +97,10 @@ impl Document {
             }
         })?;
 
-        let lines = content
-            .split_inclusive('\n')
-            .map(|raw| {
-                let body = raw.trim_end_matches(['\n', '\r']);
-                (body.to_string(), raw[body.len()..].to_string())
-            })
-            .collect();
-
-        Ok(Self { path, lines })
+        Ok(Self {
+            path,
+            lines: split_lines(&content),
+        })
     }
 
     /// The line at `index`, which the caller has already established is there.
@@ -117,15 +128,26 @@ impl Document {
         self.lines.len()
     }
 
-    /// Write the file out as a whole.
+    /// Drop the line at `index` from the document.
     ///
-    /// The content goes to a temporary file beside the target and is renamed
-    /// over it, because `rename` within one directory is atomic: a write that
-    /// runs out of space or is killed partway leaves the notes exactly as
-    /// they were, and `EditError::Io` therefore means "the file was not
-    /// changed". Writing over the file in place truncates it first, and the
-    /// next successful edit would commit that truncation to git.
-    pub(crate) fn save(&self) -> Result<(), EditError> {
+    /// The line that preceded it keeps the ending it was written with, except
+    /// where the dropped line was the last one and ended the file without a
+    /// newline: that property belongs to the file rather than to the line, so
+    /// it moves to whatever line is last now. A file that did not end in a
+    /// newline must not grow one because a planning line was taken out of it.
+    pub(crate) fn remove(&mut self, index: usize) {
+        let (_, ending) = self.lines.remove(index);
+
+        if ending.is_empty() {
+            if let Some(last) = self.lines.last_mut() {
+                last.1 = String::new();
+            }
+        }
+    }
+
+    /// The file as it now stands, byte for byte as [`Document::save`] writes
+    /// it.
+    pub(crate) fn text(&self) -> String {
         // Sized before it is filled: the file is known in full here, and a
         // string grown from nothing reallocates and copies its way up to the
         // same length once per doubling.
@@ -139,6 +161,28 @@ impl Document {
             content.push_str(body);
             content.push_str(ending);
         }
+        content
+    }
+
+    /// Replace the whole document with `content`, read the way a file is.
+    ///
+    /// What an undo writes back: the text it restores was produced by
+    /// [`Document::text`], so a file goes back to the bytes it held rather
+    /// than to a re-rendering of its lines.
+    pub(crate) fn set_text(&mut self, content: &str) {
+        self.lines = split_lines(content);
+    }
+
+    /// Write the file out as a whole.
+    ///
+    /// The content goes to a temporary file beside the target and is renamed
+    /// over it, because `rename` within one directory is atomic: a write that
+    /// runs out of space or is killed partway leaves the notes exactly as
+    /// they were, and `EditError::Io` therefore means "the file was not
+    /// changed". Writing over the file in place truncates it first, and the
+    /// next successful edit would commit that truncation to git.
+    pub(crate) fn save(&self) -> Result<(), EditError> {
+        let content = self.text();
 
         // The temporary has to share the directory with the target: `rename`
         // is only atomic within one filesystem.

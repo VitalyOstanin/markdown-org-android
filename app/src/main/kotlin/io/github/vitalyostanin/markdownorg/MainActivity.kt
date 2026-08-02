@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
                 val sync by model.syncState.collectAsStateWithLifecycle()
                 val selected by model.selected.collectAsStateWithLifecycle()
                 val editIssue by model.editIssue.collectAsStateWithLifecycle()
+                val groupResult by model.groupResult.collectAsStateWithLifecycle()
                 // With the lifecycle, so the ticker behind it stops with the
                 // screen and reads the clock again when the screen comes back.
                 val now by model.now.collectAsStateWithLifecycle()
@@ -196,6 +197,12 @@ class MainActivity : ComponentActivity() {
                         sync = sync,
                         editIssue = editIssue,
                         onEditIssueShown = model::editIssueShown,
+                        groupResult = groupResult,
+                        onGroupResultShown = model::groupResultShown,
+                        onGroupAction = { group, action ->
+                            model.applyToGroup(group.rows, action)
+                        },
+                        onUndoGroup = model::undoGroup,
                         onSync = model::syncNow,
                         onOpenSettings = { settingsOpen = true },
                         onTaskClick = model::select,

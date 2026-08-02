@@ -4,61 +4,11 @@ Work that is understood but deliberately not done yet.
 
 ## Table of contents
 
-- [A local directory as the store, with git added later](#a-local-directory-as-the-store-with-git-added-later)
-- [Acting on a whole overdue group at once](#acting-on-a-whole-overdue-group-at-once)
 - [Several note repositories at once](#several-note-repositories-at-once)
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
-- [SSH remotes](#ssh-remotes)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
 - [Notes carrying a byte-order mark](#notes-carrying-a-byte-order-mark)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
-
-## A local directory as the store, with git added later
-
-Notes on the device with no git at all, and git turned on over the same
-directory later without the notes being lost on the way.
-
-Half of this already works by accident: the notes directory is a plain
-directory until a remote is configured, and a fresh install seeds a sample into
-it. What is missing is that the state is treated as "not set up yet" rather
-than as a way to use the application. The directory is modelled as the working
-copy of a remote, and saving an address empties it —
-`AgendaViewModel.saveSettings` calls `NotesStore.reset` whenever `remoteUrl`
-changes, because the core clones into an empty directory. A user
-who kept notes locally and then entered an address would lose them.
-
-| № | Part          | What changes                                                                                                                                            |
-|---|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Settings      | The store is local or remote-backed, said outright, rather than inferred from an empty address. Local is a configured state: no sync, no banner asking for a remote, no retry timer. |
-| 2 | The screens   | Sync controls absent rather than failing in the local case, and the settings screen offers "start tracking this directory in git" instead of an address field that wipes on save. |
-| 3 | The core      | A path that takes a directory holding files: `git init`, add everything, one commit, then `remote add` and the first fetch — as opposed to `sync_repository`, which only clones into an empty directory and fast-forwards. |
-| 4 | Unrelated histories | The commit made from the directory and whatever the remote already holds share no ancestor. Fast-forward cannot join them, so the choice has to be offered and named: keep the local notes and push them (needs push, which does not exist yet), take the remote and set the local ones aside, or refuse and say why. |
-| 5 | Wiping        | `reset` stops being what a settings change does. Emptying the directory is only right when the user asked to replace its contents, and that has to be a separate, stated action. |
-
-Worth doing before the several-repositories work above: it changes what a
-"source" is, and the migration that turns one stored triple into a list should
-already know about the local case.
-
-## Acting on a whole overdue group at once
-
-The overdue entries are grouped by how long ago they slipped, and each group is
-still worked through one task at a time. A group of ten dates from three years
-ago is not read task by task — it is answered in one move, and today every one
-of those moves is a sheet, a date and a scroll back to where the list was.
-
-Todoist names the pattern: a "Reschedule" beside the overdue section that moves
-everything to today, or offers a date per task, and that is what stops the
-backlog from being postponed one day at a time until it is unreadable.
-
-| № | Part            | What changes                                                                                                     |
-|---|-----------------|--------------------------------------------------------------------------------------------------------------------|
-| 1 | The core        | An edit that takes several tasks rather than one, so a group of twenty is one rewrite of the file and one commit rather than twenty of each. |
-| 2 | Failure         | A task whose heading moved under the edit fails on its own without taking the rest of the group down; what did not apply has to be named. |
-| 3 | The screens     | An action on the group header — move to today, drop the date, mark cancelled — and an undo, since the move rewrites notes wholesale. |
-| 4 | Repeats         | A missed repeat is not rescheduled but caught up: moving it to today has to keep the repeater and follow the same rule as the single-task edit. |
-
-Worth doing once the grouping settles: the groups are what an action would
-apply to, and they are new.
 
 ## Several note repositories at once
 
@@ -105,28 +55,6 @@ core's sync fetches from and fast-forwards against a single remote.
 Worth doing together with the section above, or after it: both replace the
 single stored triple of URL, branch and token with a list, and writing that
 migration twice is the part not worth repeating.
-
-## SSH remotes
-
-Only `https://` remotes (and a local path) are accepted today; `remoteUrlProblem`
-in `app/src/main/kotlin/io/github/vitalyostanin/markdownorg/core/RemoteUrl.kt`
-refuses `ssh://` and `git@host:path` before anything is stored, because saving a
-remote empties the working copy and the failure would otherwise surface only
-after that.
-
-Two things are missing, not one:
-
-| № | Missing                                                                | What it takes                                                             |
-|---|------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| 1 | The transport. `git2` is built with `default-features = false` and the `https` feature only, so libgit2 carries no libssh2 and does not register the protocol. | Add the `ssh` and `ssh_key_from_memory` features, vendor libssh2, and check what it adds to the library — the vendored stack is already most of the 10 MB per ABI. |
-| 2 | Somewhere to keep a key. The settings hold a URL, a branch and a token; there is no private key, no passphrase and no host key. | An import path in the settings screen, storage in the application's own directory, and a `certificate_check` callback — without one the connection accepts any server that answers. |
-
-Tests would need an ssh server to clone from, which the instrumented suite does
-not have today.
-
-Worth doing when a repository that offers no token authentication has to be
-used. GitLab and GitHub both take a personal access token over https, which is
-what the core already sends.
 
 ## Weekday names beyond Russian and English
 

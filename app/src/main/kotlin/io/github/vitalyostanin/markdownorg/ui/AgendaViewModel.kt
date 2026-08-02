@@ -42,6 +42,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Adoption
+import uniffi.markdown_org_ffi.BulkAction
+import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
@@ -93,6 +95,16 @@ class AgendaViewModel(
      */
     private val _editIssue = MutableStateFlow<SyncMessage?>(null)
     val editIssue: StateFlow<SyncMessage?> = _editIssue.asStateFlow()
+
+    /**
+     * What the last group action did, until it has been shown.
+     *
+     * Apart from [editIssue] because it is not an issue: it carries what to
+     * undo, and the undo is what makes acting on twenty notes at once
+     * something a user can risk.
+     */
+    private val _groupResult = MutableStateFlow<GroupResult?>(null)
+    val groupResult: StateFlow<GroupResult?> = _groupResult.asStateFlow()
 
     /**
      * The task whose actions are open, if any.
@@ -225,6 +237,95 @@ class AgendaViewModel(
                 },
             )
         }
+    }
+
+    /**
+     * Apply one action to a whole band of overdue entries.
+     *
+     * A group of ten dates from three years ago is answered in one move rather
+     * than read task by task, and the core does it as one rewrite per file and
+     * one commit. Tasks whose file cannot be named are left out before the call
+     * rather than refused by the core with a reason that would be about the
+     * wrong thing — the same check a single tap makes.
+     */
+    fun applyToGroup(rows: List<AgendaRow>, action: BulkAction) {
+        val tasks = rows.map(AgendaRow::task).filter(Task::isEditable)
+        if (tasks.isEmpty()) {
+            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
+            return
+        }
+
+        viewModelScope.launch {
+            val started = System.nanoTime()
+            val outcome = editor.applyToGroup(tasks, action, clock().toLocalDate())
+            Log.i(TAG, "the group of ${tasks.size} took ${millisSince(started)} ms")
+
+            outcome.fold(
+                onSuccess = { group ->
+                    group.report.commitFailure?.let { failure ->
+                        Log.w(TAG, "the group was written but not committed", failure)
+                    }
+                    _groupResult.value = GroupResult(
+                        action = action,
+                        changed = group.outcome.changed.toInt(),
+                        refused = group.outcome.refused.size,
+                        rollback = group.outcome.rollback,
+                    )
+                    // Which files changed is known, but a band spans several
+                    // and the held notes for each would have to be dropped one
+                    // by one; the walk that follows is the same one an edit
+                    // ends in.
+                    agenda.invalidate()
+                    refresh()
+                },
+                onFailure = { error ->
+                    Log.w(TAG, "the group could not be applied", error)
+                    _editIssue.value = error.toEditMessage()
+                },
+            )
+        }
+    }
+
+    /**
+     * Put back what the last group action overwrote.
+     *
+     * Only the files that still hold what it wrote go back — a sync or an edit
+     * that landed since is left alone by the core — so this can be pressed
+     * without knowing what happened in between.
+     */
+    fun undoGroup() {
+        val rollback = _groupResult.value?.rollback.orEmpty()
+        _groupResult.value = null
+        if (rollback.isEmpty()) {
+            return
+        }
+
+        viewModelScope.launch {
+            editor.undoGroup(rollback).fold(
+                onSuccess = { undone ->
+                    undone.report.commitFailure?.let { failure ->
+                        Log.w(TAG, "the undo was written but not committed", failure)
+                    }
+                    if (undone.outcome.skipped.isNotEmpty() || undone.outcome.failed.isNotEmpty()) {
+                        // Some of it went back and some did not, which is a
+                        // state the user has to be told about rather than left
+                        // to notice: the agenda below will show both.
+                        _editIssue.value = SyncMessage(R.string.agenda_group_undo_partial)
+                    }
+                    agenda.invalidate()
+                    refresh()
+                },
+                onFailure = { error ->
+                    Log.w(TAG, "the group could not be undone", error)
+                    _editIssue.value = error.toEditMessage()
+                },
+            )
+        }
+    }
+
+    /** The group result has been shown, so it is not shown again. */
+    fun groupResultShown() {
+        _groupResult.value = null
     }
 
     /**

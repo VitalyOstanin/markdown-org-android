@@ -27,6 +27,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +50,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -66,6 +68,11 @@ fun AgendaScreen(
     sync: SyncUiState = SyncUiState(),
     editIssue: SyncMessage? = null,
     onEditIssueShown: () -> Unit = {},
+    /** What acting on a whole band did, and what it takes to undo it. */
+    groupResult: GroupResult? = null,
+    onGroupResultShown: () -> Unit = {},
+    onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
+    onUndoGroup: () -> Unit = {},
     onSync: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onTaskClick: (Task) -> Unit = {},
@@ -88,6 +95,27 @@ fun AgendaScreen(
         }
     }
 
+    // What a group action did, with the offer to put it back. The offer stands
+    // as long as the line does: an undo the user has to reach a menu for is
+    // not an undo, and the wording of the move is what makes it clear which
+    // of the four bands was moved.
+    val report = groupResult?.let { groupReport(it) }
+    val undo = stringResource(R.string.agenda_group_undo)
+    LaunchedEffect(groupResult) {
+        if (report != null) {
+            val answered = snackbar.showSnackbar(
+                message = report,
+                actionLabel = undo.takeIf { groupResult.canUndo },
+                withDismissAction = true,
+            )
+            if (answered == SnackbarResult.ActionPerformed) {
+                onUndoGroup()
+            } else {
+                onGroupResultShown()
+            }
+        }
+    }
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             AgendaBody(
@@ -102,10 +130,33 @@ fun AgendaScreen(
                 onTakeRemote,
                 onReplaceNotes,
                 onTrustHost,
+                onGroupAction,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
     }
+}
+
+/**
+ * What the group action did, as the line the snackbar shows.
+ *
+ * Two sentences rather than one built out of clauses: what was done, and — only
+ * when there is anything to say — what was left alone. A count woven into a
+ * translated clause is what makes such a line untranslatable.
+ */
+@Composable
+private fun groupReport(result: GroupResult): String {
+    val done = pluralStringResource(result.action.done, result.changed, result.changed)
+    if (result.refused == 0) {
+        return done
+    }
+
+    val refused = pluralStringResource(
+        R.plurals.agenda_group_refused,
+        result.refused,
+        result.refused,
+    )
+    return "$done\n$refused"
 }
 
 @Composable
@@ -121,6 +172,7 @@ private fun AgendaBody(
     onTakeRemote: () -> Unit,
     onReplaceNotes: () -> Unit,
     onTrustHost: () -> Unit,
+    onGroupAction: (OverdueGroup, BulkAction) -> Unit,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -158,6 +210,7 @@ private fun AgendaBody(
                     scroll = timeScroll,
                     collapse = collapse,
                     onTaskClick = onTaskClick,
+                    onGroupAction = onGroupAction,
                 )
 
                 AgendaLayout.LIST -> ListLayout(
@@ -165,6 +218,7 @@ private fun AgendaBody(
                     scroll = listScroll,
                     collapse = collapse,
                     onTaskClick = onTaskClick,
+                    onGroupAction = onGroupAction,
                 )
             }
         }

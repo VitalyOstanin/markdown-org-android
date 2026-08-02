@@ -34,6 +34,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 
 /**
@@ -49,6 +50,7 @@ internal fun ListLayout(
     scroll: LazyListState = rememberLazyListState(),
     collapse: OverdueCollapse = rememberOverdueCollapse(),
     onTaskClick: (Task) -> Unit = {},
+    onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
 ) {
     // Built once per set of rows rather than on every recomposition: the body
     // of a lazy list runs again on each frame of a scroll, and the split walks
@@ -64,7 +66,7 @@ internal fun ListLayout(
         if (sections.isEmpty) {
             item { EmptyAgenda() }
         }
-        overdueBands(bands, collapse) { row -> TaskRow(row, onTaskClick) }
+        overdueBands(bands, collapse, onGroupAction) { row -> TaskRow(row, onTaskClick) }
         section(R.string.agenda_section_timed, sections.timed, onTaskClick)
         section(R.string.agenda_section_untimed, sections.untimed, onTaskClick)
     }

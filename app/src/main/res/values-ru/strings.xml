@@ -13,6 +13,12 @@
     <string name="agenda_section_overdue_long">Просрочено давно</string>
     <string name="agenda_section_expand">Показать группу %1$s</string>
     <string name="agenda_section_collapse">Скрыть группу %1$s</string>
+    <string name="agenda_group_actions">Действия над всей группой</string>
+    <string name="agenda_group_move_today">Перенести на сегодня</string>
+    <string name="agenda_group_drop_date">Снять дату</string>
+    <string name="agenda_group_cancel">Отметить отменёнными</string>
+    <string name="agenda_group_undo">Вернуть</string>
+    <string name="agenda_group_undo_partial">Часть заметок изменилась и оставлена как есть</string>
     <string name="agenda_section_timed">Назначено на сегодня</string>
     <string name="agenda_section_untimed">Без времени и впереди</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>
@@ -165,6 +171,30 @@
         <item quantity="few">через %d дня</item>
         <item quantity="many">через %d дней</item>
         <item quantity="other">через %d дня</item>
+    </plurals>
+    <plurals name="agenda_group_moved">
+        <item quantity="one">%d задача перенесена на сегодня</item>
+        <item quantity="few">%d задачи перенесены на сегодня</item>
+        <item quantity="many">%d задач перенесены на сегодня</item>
+        <item quantity="other">%d задачи перенесены на сегодня</item>
+    </plurals>
+    <plurals name="agenda_group_dropped">
+        <item quantity="one">у %d задачи снята дата</item>
+        <item quantity="few">у %d задач снята дата</item>
+        <item quantity="many">у %d задач снята дата</item>
+        <item quantity="other">у %d задачи снята дата</item>
+    </plurals>
+    <plurals name="agenda_group_cancelled">
+        <item quantity="one">%d задача отменена</item>
+        <item quantity="few">%d задачи отменены</item>
+        <item quantity="many">%d задач отменены</item>
+        <item quantity="other">%d задачи отменены</item>
+    </plurals>
+    <plurals name="agenda_group_refused">
+        <item quantity="one">%d задача оставлена как была</item>
+        <item quantity="few">%d задачи оставлены как были</item>
+        <item quantity="many">%d задач оставлены как были</item>
+        <item quantity="other">%d задачи оставлены как были</item>
     </plurals>
 
     <!-- Что обход каталога заметок пропустил и почему. -->
