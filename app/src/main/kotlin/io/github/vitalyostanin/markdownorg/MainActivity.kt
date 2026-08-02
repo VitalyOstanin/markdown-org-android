@@ -134,8 +134,17 @@ class MainActivity : ComponentActivity() {
                         initialUrl = form.url,
                         initialBranch = form.branch,
                         hasToken = form.hasToken,
-                        onSave = { newUrl, newBranch, token, dropToken, notesPath ->
-                            model.saveSettings(newUrl, newBranch, token, dropToken, notesPath)
+                        onSave = { saved ->
+                            model.saveSettings(
+                                url = saved.url,
+                                branch = saved.branch,
+                                token = saved.token,
+                                dropToken = saved.dropToken,
+                                notesPath = saved.notesPath,
+                                sshKey = saved.sshKey,
+                                sshPassphrase = saved.sshPassphrase,
+                                dropKey = saved.dropKey,
+                            )
                             settingsOpen = false
                         },
                         onDismiss = { settingsOpen = false },
@@ -168,6 +177,14 @@ class MainActivity : ComponentActivity() {
                             model.keepNotesLocal()
                             settingsOpen = false
                         },
+                        hasKey = form.hasKey,
+                        // The state wins over what was read when the screen
+                        // opened: a key made just now is in the first and not
+                        // in the second, and it is the half that has to be
+                        // taken to a server.
+                        publicKey = sync.publicKey.ifEmpty { form.publicKey },
+                        knownHost = form.knownHost,
+                        onCreateKey = model::createSshKey,
                     )
                 } else {
                     AgendaScreen(
@@ -184,6 +201,7 @@ class MainActivity : ComponentActivity() {
                         onTaskClick = model::select,
                         onTakeRemote = model::takeRemoteNotes,
                         onReplaceNotes = model::replaceNotes,
+                        onTrustHost = model::trustHost,
                     )
 
                     // Over the agenda rather than instead of it: the list is

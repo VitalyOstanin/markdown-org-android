@@ -191,6 +191,79 @@ class AgendaViewModelTest {
         assertFalse(state.message?.failed == true)
     }
 
+    /**
+     * SSH has no certificate authorities: the first sync with a server has
+     * nothing to check its key against, and believing whatever answers is how
+     * the key and the notes reach the wrong machine. The key it offered goes
+     * on screen instead, with the press that vouches for it.
+     */
+    @Test
+    fun aServerNobodyHasVouchedForStopsTheSyncAndSaysWithWhatKey() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.result = Result.failure(SyncException.UnknownHost("git.example.test", FINGERPRINT))
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        val state = model.syncState.value
+        assertEquals(FINGERPRINT, state.pendingHost)
+        assertNull(state.pendingHostReplaces)
+        assertEquals(R.string.sync_host_unknown, state.message?.text)
+        // Nothing is stored on the strength of the server having answered.
+        assertNull(settings.knownHost)
+    }
+
+    @Test
+    fun vouchingForTheServerStoresItsKeyAndTriesAgain() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.result = Result.failure(SyncException.UnknownHost("git.example.test", FINGERPRINT))
+        syncer.checkout = true
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+        model.syncNow()
+        advanceUntilIdle()
+
+        syncer.result = Result.success(FakeSyncer.run(cloned = false))
+        model.trustHost()
+        advanceUntilIdle()
+
+        assertEquals(FINGERPRINT, settings.knownHost)
+        assertNull(model.syncState.value.pendingHost)
+        // The attempt that was interrupted, made again: a checkout fetches.
+        assertEquals(2, syncer.requested.size)
+    }
+
+    /**
+     * A stored key contradicted is the graver question of the two, and the
+     * screen has to word it as one — the same press, different wording.
+     */
+    @Test
+    fun aServerKeyThatDisagreesWithTheStoredOneIsNamedAsAReplacement() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.result = Result.failure(
+            SyncException.HostChanged("git.example.test", FINGERPRINT, "SHA256:what-was-known"),
+        )
+        settings.remoteUrl = REMOTE
+        settings.knownHost = "SHA256:what-was-known"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        val state = model.syncState.value
+        assertEquals(FINGERPRINT, state.pendingHost)
+        assertEquals("SHA256:what-was-known", state.pendingHostReplaces)
+        assertEquals(R.string.sync_host_changed, state.message?.text)
+        assertTrue(state.message?.failed == true)
+        // Still the stored one until somebody says otherwise.
+        assertEquals("SHA256:what-was-known", settings.knownHost)
+    }
+
     @Test
     fun takingTheRemotesNotesAnswersTheQuestionAndRebuildsTheAgenda() = runTest(dispatcher) {
         val syncer = FakeSyncer()
@@ -640,6 +713,61 @@ class AgendaViewModelTest {
         assertEquals("notes", settings.branch)
     }
 
+    /**
+     * The server key is what an `ssh://` remote is pinned by, and it is about
+     * that server and no other: kept across a change of address, it would
+     * vouch for whatever answers at the new one.
+     */
+    @Test
+    fun pointingTheApplicationElsewhereForgetsTheServerItVouchedFor() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.knownHost = "SHA256:the-old-server"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        advanceUntilIdle()
+
+        assertNull(settings.knownHost)
+    }
+
+    /**
+     * The key is not the token: it belongs to the device rather than to one
+     * server, and its owner adds it to as many as they like. Dropping it on a
+     * change of address would leave the new remote unreachable for a reason
+     * nothing on screen states.
+     */
+    @Test
+    fun theKeyOfTheDeviceOutlivesAChangeOfAddress() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.sshKey = "-----BEGIN PRIVATE KEY-----"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        advanceUntilIdle()
+
+        assertEquals("-----BEGIN PRIVATE KEY-----", settings.sshKey)
+    }
+
+    @Test
+    fun aPassphraseIsForgottenWithTheKeyItOpens() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        settings.remoteUrl = REMOTE
+        settings.sshKey = "-----BEGIN PRIVATE KEY-----"
+        settings.sshPassphrase = "let me in"
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        model.saveSettings(url = REMOTE, branch = "main", token = "", dropKey = true)
+        advanceUntilIdle()
+
+        assertNull(settings.sshKey)
+        assertNull(settings.sshPassphrase)
+    }
+
     @Test
     fun theTokenCanBeDroppedWithoutChangingTheRemote() = runTest(dispatcher) {
         val syncer = FakeSyncer()
@@ -914,6 +1042,9 @@ class AgendaViewModelTest {
     private companion object {
         const val REMOTE = "https://example.test/notes.git"
         const val OTHER_REMOTE = "https://example.test/other.git"
+
+        /** A server key, spelled the way OpenSSH spells one. */
+        const val FINGERPRINT = "SHA256:2sJ8mQBz1TeQ5iTGH7t7zZ0hqRk3sB0Xk8v0FhK0aBc"
 
         /** A directory on the shared storage, which is what needs the access. */
         const val SHARED = "/storage/emulated/0/Documents/notes"

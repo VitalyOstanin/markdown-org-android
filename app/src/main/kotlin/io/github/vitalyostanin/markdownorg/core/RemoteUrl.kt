@@ -20,11 +20,16 @@ enum class RemoteUrlProblem {
  * empties the working copy: edits are committed locally and never pushed, so
  * a typo in the address would take the only copy of them with it.
  *
- * `https` is the one network scheme the core is built for — git2 is vendored
- * with the `https` feature and no ssh. `http` is refused on purpose: the token
- * travels in the request, and the platform's cleartext ban does not reach the
- * vendored stack. A `file://` URL and a plain absolute path stay allowed;
- * that is what a repository copied onto the device looks like.
+ * `https` and `ssh` are the network schemes the core is built for. `http` is
+ * refused on purpose: the token travels in the request, and the platform's
+ * cleartext ban does not reach the vendored stack. `git://` is refused for
+ * more — it neither encrypts nor authenticates anything. A `file://` URL and
+ * a plain absolute path stay allowed; that is what a repository copied onto
+ * the device looks like.
+ *
+ * The rules here mirror `ensure_supported` in the core, which is what
+ * actually refuses an address. This one exists because the screen has to say
+ * so where the address was typed, before anything is stored.
  *
  * Returns `null` when the address is usable.
  */
@@ -39,19 +44,42 @@ fun remoteUrlProblem(url: String): RemoteUrlProblem? {
         value.startsWith(FILE) ->
             if (value.startsWith("$FILE/")) null else RemoteUrlProblem.INCOMPLETE
 
-        value.startsWith(HTTPS) -> httpsProblem(value.removePrefix(HTTPS))
+        value.startsWith(HTTPS) -> hostAndPath(value.removePrefix(HTTPS))
+
+        value.startsWith(SSH) -> hostAndPath(value.removePrefix(SSH))
+
+        // `git@host:path` — ssh spelled the scp way, which is how a repository
+        // page offers it. Recognised by shape: a user, a host with no slash in
+        // it, and a path after the colon.
+        value.contains(SEPARATOR) -> RemoteUrlProblem.SCHEME
+
+        value.contains('@') -> scpProblem(value)
 
         else -> RemoteUrlProblem.SCHEME
     }
 }
 
 /** A host and something after it: `https://host` alone names no repository. */
-private fun httpsProblem(rest: String): RemoteUrlProblem? {
+private fun hostAndPath(rest: String): RemoteUrlProblem? {
     val separator = rest.indexOf('/')
     val host = rest.substringBefore('/')
     val path = rest.substringAfter('/', missingDelimiterValue = "")
 
     return if (separator < 0 || host.isEmpty() || path.isEmpty()) {
+        RemoteUrlProblem.INCOMPLETE
+    } else {
+        null
+    }
+}
+
+/** `user@host:path`, with all three parts present. */
+private fun scpProblem(value: String): RemoteUrlProblem? {
+    val user = value.substringBefore('@')
+    val rest = value.substringAfter('@')
+    val host = rest.substringBefore(':')
+    val path = rest.substringAfter(':', missingDelimiterValue = "")
+
+    return if (user.isEmpty() || host.isEmpty() || host.contains('/') || path.isEmpty()) {
         RemoteUrlProblem.INCOMPLETE
     } else {
         null
@@ -76,11 +104,16 @@ data class SplitRemoteUrl(
  *
  * Only an address with a scheme is looked at — an `@` in a directory name on
  * the device is part of the name.
+ *
+ * `ssh://` is left alone, and so is `git@host:path`: what stands before the
+ * `@` there is the login name, not a secret. Moving it into the token field
+ * would both store a password that is not one and leave an address the server
+ * refuses to log anybody in with.
  */
 fun splitCredentials(url: String): SplitRemoteUrl {
     val value = url.trim()
     val scheme = value.indexOf(SEPARATOR)
-    if (scheme < 0) {
+    if (scheme < 0 || value.startsWith(SSH)) {
         return SplitRemoteUrl(value, null)
     }
 
@@ -116,5 +149,6 @@ fun maskCredentials(text: String): String = text.replace(CREDENTIALS, "$1***@")
 private val CREDENTIALS = Regex("""(://)[^/\s@]+@""")
 
 private const val HTTPS = "https://"
+private const val SSH = "ssh://"
 private const val FILE = "file://"
 private const val SEPARATOR = "://"

@@ -103,5 +103,9 @@ class NotesEditorTest {
         override var authorEmail: String = "markdown-org@localhost",
         override var lastSyncedAt: Long = 0,
         override var storesLocally: Boolean = false,
+        override var sshKey: String? = null,
+        override var sshPassphrase: String? = null,
+        override var sshPublicKey: String? = null,
+        override var knownHost: String? = null,
     ) : SyncPreferences
 }

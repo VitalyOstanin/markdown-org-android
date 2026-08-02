@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import io.github.vitalyostanin.markdownorg.BuildConfig
@@ -42,7 +43,7 @@ class SyncSettingsScreenTest {
             .performTextInput("https://example.org/notes.git")
         compose.onNodeWithTag("settings-branch").performTextInput("main")
         compose.onNodeWithTag("settings-token").performTextInput("ghp_secret")
-        compose.onNodeWithTag("settings-save").performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
 
         assertEquals(Triple("https://example.org/notes.git", "main", "ghp_secret"), saved)
     }
@@ -62,10 +63,10 @@ class SyncSettingsScreenTest {
         // An empty address is a form that is only about where the notes are
         // kept. It used to disable the button, which left no way to point the
         // application at notes already on the device.
-        compose.onNodeWithTag("settings-save").assertIsEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsEnabled()
 
         compose.onNodeWithTag("settings-url").performTextInput("https://example.org/notes.git")
-        compose.onNodeWithTag("settings-save").assertIsEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsEnabled()
     }
 
     @Test
@@ -79,7 +80,7 @@ class SyncSettingsScreenTest {
         compose.onNodeWithTag("settings-url").performTextInput("http://example.org/notes.git")
 
         compose.onNodeWithText(string(R.string.settings_url_scheme)).assertIsDisplayed()
-        compose.onNodeWithTag("settings-save").assertIsNotEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
@@ -90,7 +91,7 @@ class SyncSettingsScreenTest {
         // to say that leaving it alone is safe.
         compose.onNodeWithText(string(R.string.settings_token_kept)).assertIsDisplayed()
 
-        compose.onNodeWithTag("settings-save").performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
         assertTrue(saved?.third.isNullOrEmpty())
     }
 
@@ -108,8 +109,8 @@ class SyncSettingsScreenTest {
         // needs no credentials.
         showForm(url = "https://example.org/notes.git", hasToken = true)
 
-        compose.onNodeWithTag("settings-token-drop").performClick()
-        compose.onNodeWithTag("settings-save").performClick()
+        compose.onNodeWithTag("settings-token-drop").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
 
         assertEquals(true, droppedToken)
     }
@@ -127,7 +128,7 @@ class SyncSettingsScreenTest {
         // version it was made from, and this is the only screen that says it.
         showForm()
 
-        compose.onNodeWithTag("settings-version")
+        compose.onNodeWithTag("settings-version").performScrollTo()
             .assertIsDisplayed()
             .assertTextContains(BuildConfig.VERSION_NAME, substring = true)
     }
@@ -143,7 +144,7 @@ class SyncSettingsScreenTest {
                     initialUrl = "",
                     initialBranch = "",
                     hasToken = false,
-                    onSave = { _, _, _, _, _ -> },
+                    onSave = { },
                     onDismiss = {},
                     onOpenLicences = {},
                     crash = "java.lang.IllegalStateException: the list was empty",
@@ -152,10 +153,10 @@ class SyncSettingsScreenTest {
             }
         }
 
-        compose.onNodeWithTag("settings-crash").assertIsDisplayed()
+        compose.onNodeWithTag("settings-crash").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("settings-crash-trace")
             .assertTextContains("the list was empty", substring = true)
-        compose.onNodeWithTag("settings-crash-forget").performClick()
+        compose.onNodeWithTag("settings-crash-forget").performScrollTo().performClick()
 
         assertTrue(forgotten)
     }
@@ -172,7 +173,7 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git")
 
         compose.onNodeWithTag("settings-url").performTextReplacement("https://elsewhere/x.git")
-        compose.onNodeWithTag("settings-cancel").performClick()
+        compose.onNodeWithTag("settings-cancel").performScrollTo().performClick()
 
         assertTrue(dismissed)
         assertNull(saved)
@@ -185,7 +186,7 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git", notesPath = SHARED)
 
         compose.onNodeWithText(SHARED).assertIsDisplayed()
-        compose.onNodeWithTag("settings-save").performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
 
         assertEquals(SHARED, savedNotesPath)
     }
@@ -212,14 +213,14 @@ class SyncSettingsScreenTest {
     fun theDirectoryCanBePickedInsteadOfTyped() {
         showForm()
 
-        compose.onNodeWithTag("settings-notes-pick").performClick()
+        compose.onNodeWithTag("settings-notes-pick").performScrollTo().performClick()
         assertTrue(pickerOpened)
 
         picked = SHARED
         compose.waitForIdle()
 
         compose.onNodeWithText(SHARED).assertIsDisplayed()
-        compose.onNodeWithTag("settings-save").performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
         assertEquals(SHARED, savedNotesPath)
     }
 
@@ -228,7 +229,7 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git", notesPath = "notes")
 
         compose.onNodeWithText(string(R.string.settings_notes_relative)).assertIsDisplayed()
-        compose.onNodeWithTag("settings-save").assertIsNotEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
     }
 
     /**
@@ -241,8 +242,8 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git", notesPath = SHARED, granted = false)
 
         compose.onNodeWithText(string(R.string.settings_notes_denied)).assertIsDisplayed()
-        compose.onNodeWithTag("settings-save").assertIsNotEnabled()
-        compose.onNodeWithTag("settings-notes-grant").performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("settings-notes-grant").performScrollTo().performClick()
 
         assertTrue(accessRequested)
     }
@@ -252,7 +253,7 @@ class SyncSettingsScreenTest {
         showForm(url = "https://example.org/notes.git", notesPath = SHARED, granted = true)
 
         compose.onNodeWithTag("settings-notes-grant").assertDoesNotExist()
-        compose.onNodeWithTag("settings-save").assertIsEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsEnabled()
     }
 
     /**
@@ -265,7 +266,7 @@ class SyncSettingsScreenTest {
         showForm()
 
         compose.onNodeWithText(string(R.string.settings_hint)).assertIsDisplayed()
-        compose.onNodeWithTag("settings-keep-local").performClick()
+        compose.onNodeWithTag("settings-keep-local").performScrollTo().performClick()
 
         assertTrue(keptLocal)
     }
@@ -289,12 +290,108 @@ class SyncSettingsScreenTest {
         compose.onNodeWithText(string(R.string.settings_local_hint)).assertIsDisplayed()
         compose.onNodeWithText(string(R.string.settings_hint)).assertDoesNotExist()
         compose.onNodeWithTag("settings-keep-local").assertDoesNotExist()
-        compose.onNodeWithTag("settings-save").assertIsEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsEnabled()
+    }
+
+    /**
+     * A key is pasted rather than typed — it is many lines of base64 — and
+     * what it opens may be behind a passphrase. Both travel with the save.
+     */
+    @Test
+    fun theKeyAndItsPassphraseAreSavedWithTheRest() {
+        showForm(url = "ssh://git@example.org/notes.git")
+
+        compose.onNodeWithTag("settings-ssh-key").performScrollTo().performTextInput(KEY)
+        compose.onNodeWithTag("settings-ssh-passphrase")
+            .performScrollTo()
+            .performTextInput("let me in")
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals(KEY, savedKey)
+        assertEquals("let me in", savedPassphrase)
+    }
+
+    @Test
+    fun aBlankKeyFieldKeepsWhateverIsStored() {
+        showForm(url = "ssh://git@example.org/notes.git", hasKey = true)
+
+        compose.onNodeWithText(string(R.string.settings_ssh_key_kept)).assertIsDisplayed()
+
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+        assertTrue(savedKey.isNullOrEmpty())
+    }
+
+    @Test
+    fun theStoredKeyCanBeForgotten() {
+        showForm(url = "ssh://git@example.org/notes.git", hasKey = true)
+
+        compose.onNodeWithTag("settings-ssh-key-drop").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals(true, droppedKey)
+    }
+
+    @Test
+    fun withoutAStoredKeyThereIsNothingToForget() {
+        showForm(url = "ssh://git@example.org/notes.git")
+
+        compose.onNodeWithTag("settings-ssh-key-drop").assertDoesNotExist()
+    }
+
+    /**
+     * The public half is of no use on the phone: it has to reach a server's
+     * settings page, and the clipboard is how it gets there.
+     */
+    @Test
+    fun aKeyMadeHereIsShownWithTheWayToCarryItToAServer() {
+        showForm(publicKey = PUBLIC_KEY)
+
+        compose.onNodeWithTag("settings-ssh-toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-ssh-public")
+            .performScrollTo()
+            .assertTextContains(PUBLIC_KEY)
+        compose.onNodeWithTag("settings-ssh-copy").performScrollTo().performClick()
+    }
+
+    @Test
+    fun makingAKeyIsOfferedAndWithoutOneNothingIsShownToCopy() {
+        showForm()
+
+        compose.onNodeWithTag("settings-ssh-toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-ssh-public").assertDoesNotExist()
+        compose.onNodeWithTag("settings-ssh-copy").assertDoesNotExist()
+        compose.onNodeWithTag("settings-ssh-create").performScrollTo().performClick()
+
+        assertTrue(keyMade)
+    }
+
+    /**
+     * The server is pinned by its key and by nothing else, so the one it is
+     * pinned by has to be readable — that is what it gets compared against.
+     */
+    @Test
+    fun theServerKeyIsShownOnceOneHasBeenVouchedFor() {
+        showForm(url = "ssh://git@example.org/notes.git", knownHost = FINGERPRINT)
+
+        compose.onNodeWithTag("settings-ssh-host")
+            .performScrollTo()
+            .assertTextContains(FINGERPRINT, substring = true)
+    }
+
+    @Test
+    fun beforeAnySyncNoServerKeyIsClaimedToBeKnown() {
+        showForm(url = "ssh://git@example.org/notes.git")
+
+        compose.onNodeWithTag("settings-ssh-host").assertDoesNotExist()
     }
 
     private var savedNotesPath: String? = null
     private var accessRequested = false
     private var keptLocal = false
+    private var savedKey: String? = null
+    private var savedPassphrase: String? = null
+    private var droppedKey: Boolean? = null
+    private var keyMade = false
 
     /**
      * What the picker answered, as state: the form takes it in on the
@@ -311,6 +408,9 @@ class SyncSettingsScreenTest {
         notesPath: String = "",
         granted: Boolean = true,
         storesLocally: Boolean = false,
+        hasKey: Boolean = false,
+        publicKey: String = "",
+        knownHost: String = "",
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -318,10 +418,13 @@ class SyncSettingsScreenTest {
                     initialUrl = url,
                     initialBranch = branch,
                     hasToken = hasToken,
-                    onSave = { savedUrl, savedBranch, token, dropToken, directory ->
-                        saved = Triple(savedUrl, savedBranch, token)
-                        droppedToken = dropToken
-                        savedNotesPath = directory
+                    onSave = { values ->
+                        saved = Triple(values.url, values.branch, values.token)
+                        droppedToken = values.dropToken
+                        savedNotesPath = values.notesPath
+                        savedKey = values.sshKey
+                        savedPassphrase = values.sshPassphrase
+                        droppedKey = values.dropKey
                     },
                     onDismiss = { dismissed = true },
                     onOpenLicences = { licencesOpened = true },
@@ -334,6 +437,10 @@ class SyncSettingsScreenTest {
                     onPickedNotesTaken = { picked = null },
                     storesLocally = storesLocally,
                     onKeepLocal = { keptLocal = true },
+                    hasKey = hasKey,
+                    publicKey = publicKey,
+                    knownHost = knownHost,
+                    onCreateKey = { keyMade = true },
                 )
             }
         }
@@ -347,5 +454,13 @@ class SyncSettingsScreenTest {
     private companion object {
         /** A directory on the shared storage, which is what needs the access. */
         const val SHARED = "/storage/emulated/0/Documents/notes"
+
+        /** Stands in for a private key: what matters is that it travels whole. */
+        const val KEY = "-----BEGIN PRIVATE KEY-----"
+
+        const val PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample markdown-org"
+
+        /** A server key, spelled the way OpenSSH spells one. */
+        const val FINGERPRINT = "SHA256:2sJ8mQBz1TeQ5iTGH7t7zZ0hqRk3sB0Xk8v0FhK0aBc"
     }
 }

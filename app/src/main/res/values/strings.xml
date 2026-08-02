@@ -38,6 +38,10 @@
     <string name="sync_unrelated">Both this device and the server hold notes</string>
     <string name="sync_unrelated_detail">They share no history, so they cannot be joined here. Taking the server\'s keeps this device\'s on the branch %1$s.</string>
     <string name="sync_take_remote">Use the server\'s notes</string>
+    <string name="sync_host_unknown">This server has not been vouched for yet</string>
+    <string name="sync_host_changed">The server key is not the one this address was known by</string>
+    <string name="sync_host_accept">This is the right server</string>
+    <string name="sync_host_accept_new">Accept the new server key</string>
     <!-- Branch, then the summary of the commit at its tip. -->
     <string name="sync_checkout">%1$s · %2$s</string>
     <!-- Date and time of the last successful sync, written by the locale. -->
@@ -75,6 +79,17 @@
     <string name="settings_other_checkout">The directory is a checkout of another repository. Replace its contents, or point the application at a different directory.</string>
     <string name="settings_replace_notes">Replace the notes in the directory</string>
     <string name="settings_keep_local">Keep the notes on this device only</string>
+    <string name="settings_ssh">Access over SSH</string>
+    <string name="settings_ssh_key">Private key</string>
+    <string name="settings_ssh_key_kept">A key is stored. Leave this empty to keep it.</string>
+    <string name="settings_ssh_key_none">Paste a key, or make one below.</string>
+    <string name="settings_ssh_key_drop">Forget the stored key</string>
+    <string name="settings_ssh_passphrase">Key passphrase</string>
+    <string name="settings_ssh_passphrase_hint">Only for a key that is encrypted.</string>
+    <string name="settings_ssh_create">Make a key on this device</string>
+    <string name="settings_ssh_copy">Copy the public key</string>
+    <string name="settings_ssh_host">Server key: %1$s</string>
+    <string name="settings_key_failed">The key could not be made</string>
     <string name="settings_local_chosen">The notes stay on this device</string>
     <string name="settings_local_hint">No server is involved. A repository can be added later without the notes going anywhere.</string>
     <string name="settings_notes_grant">Grant access to all files</string>

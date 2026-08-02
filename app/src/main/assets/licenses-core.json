@@ -329,6 +329,11 @@
         "url": "https://github.com/rust-lang/git2-rs"
       },
       {
+        "name": "libssh2-sys",
+        "version": "0.3.2",
+        "url": "https://github.com/alexcrichton/ssh2-rs"
+      },
+      {
         "name": "libz-sys",
         "version": "1.1.29",
         "url": "https://github.com/rust-lang/libz-sys"

@@ -146,6 +146,29 @@ class SyncMessageTest {
         assertTrue(message.failed)
     }
 
+    /**
+     * The key is the whole of what there is to compare against what the server
+     * says about itself, so it travels verbatim rather than being worded away.
+     * The first of the two is not a failure: the server answered, and what is
+     * missing is somebody to say it is the right one.
+     */
+    @Test
+    fun theServerKeyIsPutOnScreenAsTheServerOfferedIt() {
+        val unknown = SyncException.UnknownHost("git.example.test", FINGERPRINT).toSyncMessage()
+
+        assertEquals(R.string.sync_host_unknown, unknown.text)
+        assertEquals(Detail.Verbatim(FINGERPRINT), unknown.detail)
+        assertFalse(unknown.failed)
+
+        val changed = SyncException
+            .HostChanged("git.example.test", FINGERPRINT, "SHA256:what-was-known")
+            .toSyncMessage()
+
+        assertEquals(R.string.sync_host_changed, changed.text)
+        assertEquals(Detail.Verbatim(FINGERPRINT), changed.detail)
+        assertTrue(changed.failed)
+    }
+
     @Test
     fun aRunWithNothingToSendReadsAsItAlwaysDid() {
         assertEquals(R.string.sync_cloned, FakeSyncer.run(cloned = true).toMessage().text)
@@ -157,5 +180,10 @@ class SyncMessageTest {
             R.string.sync_already_current,
             FakeSyncer.run(cloned = false).toMessage().text,
         )
+    }
+
+    private companion object {
+        /** A server key, spelled the way OpenSSH spells one. */
+        const val FINGERPRINT = "SHA256:2sJ8mQBz1TeQ5iTGH7t7zZ0hqRk3sB0Xk8v0FhK0aBc"
     }
 }

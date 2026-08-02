@@ -73,6 +73,8 @@ fun AgendaScreen(
     onTakeRemote: () -> Unit = {},
     /** Answer to a directory holding somebody else's checkout: empty it. */
     onReplaceNotes: () -> Unit = {},
+    /** Answer to a server key nobody has vouched for yet: it is the right one. */
+    onTrustHost: () -> Unit = {},
 ) {
     // What an edit answered with, if it could not be made. A snackbar rather
     // than the banner: it is about the tap that was just made, it goes away on
@@ -99,6 +101,7 @@ fun AgendaScreen(
                 onTaskClick,
                 onTakeRemote,
                 onReplaceNotes,
+                onTrustHost,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
@@ -117,6 +120,7 @@ private fun AgendaBody(
     onTaskClick: (Task) -> Unit,
     onTakeRemote: () -> Unit,
     onReplaceNotes: () -> Unit,
+    onTrustHost: () -> Unit,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -141,7 +145,7 @@ private fun AgendaBody(
             // back to the other layout, and it must not scroll away.
             AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
             RefreshingLine(state.refreshing)
-            SyncBanner(sync, onTakeRemote, onReplaceNotes)
+            SyncBanner(sync, onTakeRemote, onReplaceNotes, onTrustHost)
             ScanNotices(state.notices)
             when (layout) {
                 AgendaLayout.TIME -> TimeLayout(
@@ -289,7 +293,12 @@ private fun HeaderAction(
  * "not configured" on every launch would be noise.
  */
 @Composable
-private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNotes: () -> Unit) {
+private fun SyncBanner(
+    sync: SyncUiState,
+    onTakeRemote: () -> Unit,
+    onReplaceNotes: () -> Unit,
+    onTrustHost: () -> Unit,
+) {
     val colors = LocalAgendaColors.current
     val text = when {
         sync.running -> stringResource(R.string.sync_running)
@@ -328,7 +337,7 @@ private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNot
                 maxLines = 2,
             )
         }
-        Answer(sync, onTakeRemote, onReplaceNotes)
+        Answer(sync, onTakeRemote, onReplaceNotes, onTrustHost)
         Unpushed(sync)
         LastSynced(sync)
     }
@@ -337,15 +346,33 @@ private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNot
 /**
  * The button for a state that is waiting on the user rather than on a server.
  *
- * Two of those exist, and neither can be resolved by trying again: the notes
- * of the device and of the remote share no history, or the directory holds a
- * checkout of somewhere else. Both replace what is on disk, so both are a
- * press rather than something saving a form does.
+ * Three of those exist, and none can be resolved by trying again: an SSH
+ * server nobody has vouched for, notes on the device and on the remote that
+ * share no history, or a directory holding a checkout of somewhere else. Each
+ * takes a decision only the user can make, so each is a press rather than
+ * something saving a form does.
  */
 @Composable
-private fun Answer(sync: SyncUiState, onTakeRemote: () -> Unit, onReplaceNotes: () -> Unit) {
+private fun Answer(
+    sync: SyncUiState,
+    onTakeRemote: () -> Unit,
+    onReplaceNotes: () -> Unit,
+    onTrustHost: () -> Unit,
+) {
     val (label, act, tag) = when {
         sync.running -> return
+
+        // First, because it stops everything else: nothing was fetched, and
+        // the two questions below are about notes that never arrived.
+        sync.pendingHost != null -> Triple(
+            if (sync.pendingHostReplaces != null) {
+                R.string.sync_host_accept_new
+            } else {
+                R.string.sync_host_accept
+            },
+            onTrustHost,
+            "sync-trust-host",
+        )
 
         sync.unrelated != null -> Triple(
             R.string.sync_take_remote,

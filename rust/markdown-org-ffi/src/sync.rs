@@ -21,6 +21,7 @@ use git2::{
     Repository, Signature, StatusOptions,
 };
 use libgit2_sys as raw;
+use openssl::pkey::PKey;
 use openssl::x509::X509;
 
 use crate::document::TEMPORARY_PREFIX;
@@ -30,8 +31,8 @@ use crate::document::TEMPORARY_PREFIX;
 pub struct SyncRequest {
     /// Absolute path of the working copy inside the application's storage.
     pub dir: String,
-    /// Remote URL. `https://` in production; `file://` and plain paths work
-    /// too, which is what the tests use.
+    /// Remote URL. `https://` or `ssh://` in production; `file://` and plain
+    /// paths work too, which is what the tests use.
     pub url: String,
     /// Access token, sent as the HTTP password. Absent for a local or public
     /// read-only remote.
@@ -40,6 +41,24 @@ pub struct SyncRequest {
     /// Branch to track. The remote's default when unset.
     #[uniffi(default = None)]
     pub branch: Option<String>,
+    /// Private key for an `ssh://` remote, in PEM or OpenSSH form.
+    ///
+    /// Held in memory rather than named as a file: the key lives in the
+    /// application's preferences beside the token, and writing it out to be
+    /// read back would put it on the filesystem for no gain.
+    #[uniffi(default = None)]
+    pub ssh_key: Option<String>,
+    /// Passphrase the key is encrypted with, when it is.
+    #[uniffi(default = None)]
+    pub ssh_passphrase: Option<String>,
+    /// The server key this address is known by, as `SHA256:<base64>`.
+    ///
+    /// SSH has no certificate authorities: the only thing distinguishing the
+    /// server from whoever answered instead is this. Absent means the host has
+    /// not been vouched for yet, and the sync stops with
+    /// [`SyncError::UnknownHost`] rather than trusting whatever answered.
+    #[uniffi(default = None)]
+    pub known_host: Option<String>,
 }
 
 /// Result of a sync.
@@ -150,6 +169,34 @@ pub enum SyncError {
         /// Human-readable detail.
         detail: String,
     },
+    /// The server answering an `ssh://` address has not been vouched for.
+    ///
+    /// Not a failure of the connection but a question about it: SSH has no
+    /// certificate authorities, so the first sync with a host has nothing to
+    /// check its key against. The key it offered travels in `fingerprint` for
+    /// the caller to show and, if it is the right server, to store as
+    /// [`SyncRequest::known_host`].
+    #[error("{host} is not a known server; it offered {fingerprint}")]
+    UnknownHost {
+        /// The host as the address names it.
+        host: String,
+        /// The key it offered, as `SHA256:<base64>`.
+        fingerprint: String,
+    },
+    /// The server's key is not the one this address was known by.
+    ///
+    /// Apart from [`SyncError::UnknownHost`] because a stored key was
+    /// contradicted: either the server was rebuilt, or something else is
+    /// answering for it. Nothing is sent, and the answer is not a retry.
+    #[error("{host} answered with {fingerprint} instead of {known}")]
+    HostChanged {
+        /// The host as the address names it.
+        host: String,
+        /// The key it offered now.
+        fingerprint: String,
+        /// The key it was known by.
+        known: String,
+    },
     /// Anything else: a broken repository, a path that cannot be read.
     #[error("{detail}")]
     Repository {
@@ -184,9 +231,9 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
     use_timeouts();
 
     let path = Path::new(&request.dir);
-    match open(path) {
+    with_host_trust(&request, |trust| match open(path) {
         Ok(repository) => {
-            let applied = fast_forward(&repository, &request)?;
+            let applied = fast_forward(&repository, &request, trust)?;
             Ok(SyncOutcome {
                 cloned: false,
                 commits_applied: applied,
@@ -194,7 +241,7 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
             })
         }
         Err(error) if error.code() == ErrorCode::NotFound => {
-            let repository = clone(&request)?;
+            let repository = clone(&request, trust)?;
             Ok(SyncOutcome {
                 cloned: true,
                 commits_applied: 0,
@@ -202,7 +249,7 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
             })
         }
         Err(error) => Err(error.into()),
-    }
+    })
 }
 
 /// Hand the branch's local commits to the remote.
@@ -240,9 +287,10 @@ pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
     // success, so a push that changed nothing on the remote would otherwise
     // read as one that worked.
     let refused: RefCell<Option<String>> = RefCell::new(None);
+    let trust = HostTrust::new(&request);
     let attempt = {
         let mut remote = repository.find_remote("origin")?;
-        let mut options = push_options(&request, &refused);
+        let mut options = push_options(&request, &refused, &trust);
         // Written out on both sides, and no leading `+`: the local branch is
         // offered to the branch of the same name, and only as a fast-forward
         // of it.
@@ -255,13 +303,13 @@ pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
     // against what is here and stops before sending anything, which arrives as
     // an error rather than through the callback above.
     if let Err(error) = attempt {
-        return Err(match error.code() {
+        return Err(trust.explain(match error.code() {
             ErrorCode::NotFastForward => SyncError::Rejected {
                 branch,
                 detail: error.message().to_string(),
             },
             _ => error.into(),
-        });
+        }));
     }
 
     if let Some(detail) = refused.into_inner() {
@@ -342,7 +390,10 @@ pub fn adopt_directory(request: SyncRequest, author: CommitAuthor) -> Result<Ado
     // does not have it yet would make a named fetch fail, and "the branch is
     // not there" is an answer rather than a failure here.
     let mut remote = repository.find_remote("origin")?;
-    remote.fetch::<&str>(&[], Some(&mut fetch_options(&request)), None)?;
+    with_host_trust(&request, |trust| {
+        remote.fetch::<&str>(&[], Some(&mut fetch_options(&request, trust)), None)?;
+        Ok(())
+    })?;
     drop(remote);
 
     let theirs = reference_target(&repository, &format!("refs/remotes/origin/{branch}"))?;
@@ -407,6 +458,71 @@ pub fn take_remote_notes(request: SyncRequest) -> Result<SyncOutcome, SyncError>
         commits_applied: 0,
         head: read_status(&repository)?,
     })
+}
+
+/// A key pair for an `ssh://` remote, as the two sides need it written.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SshKeyPair {
+    /// The private half, PKCS#8 PEM, to be stored and never shown.
+    pub private_key: String,
+    /// The public half in the one line a server's settings page takes.
+    pub public_key: String,
+}
+
+/// Make a key pair for this device.
+///
+/// ed25519 rather than RSA: it is what a server's documentation now tells
+/// people to make, the private half is 32 bytes, and generating it costs
+/// nothing on a phone.
+///
+/// The private half comes out as PKCS#8 PEM rather than in OpenSSH's own
+/// format because that is what libssh2 reads first — see
+/// `_libssh2_ed25519_new_private_frommemory`, which tries `PEM_read_bio_
+/// PrivateKey` before anything else — and writing the OpenSSH container by
+/// hand would add a format to maintain for no gain. It never leaves the
+/// device: what travels is the public line below.
+#[uniffi::export]
+pub fn generate_ssh_key(comment: String) -> Result<SshKeyPair, SyncError> {
+    let key = PKey::generate_ed25519().map_err(openssl_failed)?;
+    let private_key = key.private_key_to_pem_pkcs8().map_err(openssl_failed)?;
+    let public = key.raw_public_key().map_err(openssl_failed)?;
+
+    Ok(SshKeyPair {
+        private_key: String::from_utf8(private_key).map_err(|error| SyncError::Repository {
+            detail: format!("the generated key is not text: {error}"),
+        })?,
+        public_key: openssh_public_line(&public, comment.trim()),
+    })
+}
+
+/// The `ssh-ed25519 AAAA… comment` line, built by hand.
+///
+/// The format is two SSH strings — the algorithm name and the 32 raw bytes,
+/// each behind its length as four big-endian bytes — base64'd together. Short
+/// enough to write out, and it saves a dependency whose only use would be this
+/// line.
+fn openssh_public_line(raw: &[u8], comment: &str) -> String {
+    const ALGORITHM: &[u8] = b"ssh-ed25519";
+
+    let mut blob = Vec::with_capacity(ALGORITHM.len() + raw.len() + 8);
+    for part in [ALGORITHM, raw] {
+        blob.extend_from_slice(&u32::try_from(part.len()).unwrap_or(u32::MAX).to_be_bytes());
+        blob.extend_from_slice(part);
+    }
+
+    let encoded = openssl::base64::encode_block(&blob);
+    let line = format!("ssh-ed25519 {encoded}");
+    if comment.is_empty() {
+        line
+    } else {
+        format!("{line} {comment}")
+    }
+}
+
+fn openssl_failed(error: openssl::error::ErrorStack) -> SyncError {
+    SyncError::Repository {
+        detail: format!("the key could not be made: {error}"),
+    }
 }
 
 /// Message of the commit that takes in a directory's existing notes.
@@ -483,35 +599,56 @@ fn reference_target(repository: &Repository, name: &str) -> Result<Option<git2::
 ///
 /// Checked here rather than left to the interface, because [`SyncRequest`] is
 /// the FFI surface: whoever calls the core gets the same guarantee the screen
-/// does. `https` is the one network scheme git2 is vendored with, and the
-/// reason to name an allowlist rather than ban `http` alone is the token — it
-/// travels as the HTTP password, and Android's ban on cleartext traffic does
-/// not reach libgit2 over a vendored OpenSSL. `git://` and `ssh://` would
-/// leave in the clear or not authenticate the server at all.
+/// does. The reason to name an allowlist rather than ban `http` alone is the
+/// token — it travels as the HTTP password, and Android's ban on cleartext
+/// traffic does not reach libgit2 over a vendored OpenSSL.
+///
+/// `ssh` is here because the transport encrypts and the server is pinned by
+/// its host key — see [`check_host`], which refuses a host that has not been
+/// vouched for rather than trusting whatever answered. `git://` stays out: it
+/// neither encrypts nor authenticates anything.
 ///
 /// A `file://` URL and an absolute path stay usable: that is a repository
 /// copied onto the device, and every test here works that way.
 fn ensure_supported(url: &str) -> Result<(), SyncError> {
     let refused = |what: &str| {
         Err(SyncError::Address {
-            detail: format!("{what}; use https:// or a path on the device"),
+            detail: format!("{what}; use https://, ssh:// or a path on the device"),
         })
     };
 
     match () {
         () if url.trim().is_empty() => refused("no address given"),
         () if url.starts_with('/') || url.starts_with(FILE_SCHEME) => Ok(()),
-        () if url.starts_with(HTTPS_SCHEME) => Ok(()),
+        () if url.starts_with(HTTPS_SCHEME) || url.starts_with(SSH_SCHEME) => Ok(()),
+        () if scp_endpoint(url).is_some() => Ok(()),
         () => match url.split_once("://") {
-            Some((scheme, _)) => refused(&format!("{scheme}:// is not encrypted")),
-            // `git@host:path` — ssh under another spelling, and git2 is built
-            // without ssh support, so it would fail later regardless.
+            Some((scheme, _)) => refused(&format!("{scheme}:// is not supported")),
             None => refused("the address names no scheme"),
         },
     }
 }
 
+/// The host of a `user@host:path` address, which is ssh spelled the scp way.
+///
+/// Recognised by shape rather than by scheme, and narrowly: something before
+/// an `@`, a host that is not empty and holds no `/`, and a path after the
+/// colon. `/srv/notes.git` and `https://host/x` do not match, and neither does
+/// a Windows drive letter — there is no `@`.
+fn scp_endpoint(url: &str) -> Option<&str> {
+    let (userinfo, rest) = url.split_once('@')?;
+    let (host, path) = rest.split_once(':')?;
+    let usable = !userinfo.is_empty()
+        && !host.is_empty()
+        && !path.is_empty()
+        && !host.contains('/')
+        && !userinfo.contains('/');
+
+    usable.then_some(host)
+}
+
 const HTTPS_SCHEME: &str = "https://";
+const SSH_SCHEME: &str = "ssh://";
 const FILE_SCHEME: &str = "file://";
 
 /// Who a commit is attributed to.
@@ -864,13 +1001,13 @@ fn open_directories_owned_by_the_platform() {
     *applied = true;
 }
 
-fn clone(request: &SyncRequest) -> Result<Repository, SyncError> {
+fn clone(request: &SyncRequest, trust: &HostTrust) -> Result<Repository, SyncError> {
     // Cloning ends in an open repository too, and the directory it lands in is
     // the one the check would refuse.
     open_directories_owned_by_the_platform();
 
     let mut builder = RepoBuilder::new();
-    builder.fetch_options(fetch_options(request));
+    builder.fetch_options(fetch_options(request, trust));
     if let Some(branch) = request.branch.as_deref() {
         builder.branch(branch);
     }
@@ -879,7 +1016,11 @@ fn clone(request: &SyncRequest) -> Result<Repository, SyncError> {
 }
 
 /// Fetch and move the checkout forward, or explain why it cannot move.
-fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, SyncError> {
+fn fast_forward(
+    repository: &Repository,
+    request: &SyncRequest,
+    trust: &HostTrust,
+) -> Result<u32, SyncError> {
     let checked_out = head_branch(repository)?;
     let branch = match request.branch.as_deref() {
         Some(branch) => branch.to_string(),
@@ -887,7 +1028,7 @@ fn fast_forward(repository: &Repository, request: &SyncRequest) -> Result<u32, S
     };
 
     let mut remote = repository.find_remote("origin")?;
-    remote.fetch(&[&branch], Some(&mut fetch_options(request)), None)?;
+    remote.fetch(&[&branch], Some(&mut fetch_options(request, trust)), None)?;
 
     let target = match repository.find_reference("FETCH_HEAD") {
         Ok(fetched) => repository.reference_to_annotated_commit(&fetched)?,
@@ -1006,9 +1147,9 @@ fn count_commits(
     Ok(walk.count() as u32)
 }
 
-fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
+fn fetch_options<'a>(request: &SyncRequest, trust: &'a HostTrust) -> FetchOptions<'a> {
     let mut options = FetchOptions::new();
-    options.remote_callbacks(remote_callbacks(request));
+    options.remote_callbacks(remote_callbacks(request, trust));
     // Redirects to another host are refused outright rather than left to the
     // credential callback to notice: `Initial` still allows the redirect from
     // `/repo` to `/repo.git` that servers use, which is the only one a notes
@@ -1027,8 +1168,9 @@ fn fetch_options(request: &SyncRequest) -> FetchOptions<'_> {
 fn push_options<'a>(
     request: &SyncRequest,
     refused: &'a RefCell<Option<String>>,
+    trust: &'a HostTrust,
 ) -> PushOptions<'a> {
-    let mut callbacks = remote_callbacks(request);
+    let mut callbacks = remote_callbacks(request, trust);
     callbacks.push_update_reference(|_reference, status| {
         if let Some(message) = status {
             // First one wins: one refspec goes up per push, and a second
@@ -1051,15 +1193,129 @@ fn push_options<'a>(
 ///
 /// The closure owns its copy of the token and the address, so the callbacks
 /// outlive the request and fit whatever lifetime the caller's options need.
-fn remote_callbacks<'a>(request: &SyncRequest) -> RemoteCallbacks<'a> {
+fn remote_callbacks<'a>(request: &SyncRequest, trust: &'a HostTrust) -> RemoteCallbacks<'a> {
     let mut callbacks = RemoteCallbacks::new();
-    let token = request.token.clone();
+    let secrets = Secrets::from(request);
     let configured = request.url.clone();
     callbacks.credentials(move |asked, username, allowed| {
-        credentials_for(&configured, asked, token.as_deref(), username, allowed)
+        credentials_for(&configured, asked, &secrets, username, allowed)
     });
+    callbacks.certificate_check(|certificate, host| trust.check(certificate, host));
 
     callbacks
+}
+
+/// Which server key this address is known by, and which one answered.
+///
+/// The check itself has nowhere to report to: libgit2 takes a yes or a no and
+/// turns a no into an error of its own, which says nothing about the key. So
+/// the key that answered is recorded here, and [`HostTrust::explain`] turns
+/// the failure that follows back into the question it was.
+#[derive(Debug, Default)]
+struct HostTrust {
+    known: Option<String>,
+    seen: RefCell<Option<(String, String)>>,
+}
+
+impl HostTrust {
+    fn new(request: &SyncRequest) -> Self {
+        HostTrust {
+            known: request
+                .known_host
+                .as_deref()
+                .map(str::trim)
+                .filter(|known| !known.is_empty())
+                .map(str::to_string),
+            seen: RefCell::new(None),
+        }
+    }
+
+    /// Whether to go on talking to whoever answered.
+    ///
+    /// A TLS certificate is passed through to libgit2, which has a chain to
+    /// check it against and the CA bundle to check it with. An SSH host key
+    /// has neither, and is compared against the one the caller stored.
+    fn check(
+        &self,
+        certificate: &git2::cert::Cert<'_>,
+        host: &str,
+    ) -> Result<git2::CertificateCheckStatus, git2::Error> {
+        let Some(hostkey) = certificate.as_hostkey() else {
+            return Ok(git2::CertificateCheckStatus::CertificatePassthrough);
+        };
+
+        // SHA-1 is not accepted as a fallback: a server old enough to offer no
+        // SHA-256 hash is not one to pin a key of the notes to.
+        let Some(hash) = hostkey.hash_sha256() else {
+            return Err(git2::Error::from_str(
+                "the server offered no SHA-256 host key",
+            ));
+        };
+
+        let fingerprint = fingerprint_of(hash);
+        if self.known.as_deref() == Some(fingerprint.as_str()) {
+            return Ok(git2::CertificateCheckStatus::CertificateOk);
+        }
+
+        *self.seen.borrow_mut() = Some((host.to_string(), fingerprint));
+        Err(git2::Error::from_str("the server key is not a known one"))
+    }
+
+    /// Restates a failure as the host question, when that is what it was.
+    fn explain(&self, error: SyncError) -> SyncError {
+        let Some((host, fingerprint)) = self.seen.borrow_mut().take() else {
+            return error;
+        };
+
+        match self.known.clone() {
+            Some(known) => SyncError::HostChanged {
+                host,
+                fingerprint,
+                known,
+            },
+            None => SyncError::UnknownHost { host, fingerprint },
+        }
+    }
+}
+
+/// A host key the way OpenSSH writes it: `SHA256:` and base64 without padding.
+///
+/// The same spelling `ssh-keygen -lf` prints, so what the phone shows can be
+/// compared with what the server says about itself without converting either.
+fn fingerprint_of(hash: &[u8; 32]) -> String {
+    let encoded = openssl::base64::encode_block(hash);
+    format!("SHA256:{}", encoded.trim_end_matches('='))
+}
+
+/// Runs `act` with the trust of one attempt, and restates what it refused.
+fn with_host_trust<T>(
+    request: &SyncRequest,
+    act: impl FnOnce(&HostTrust) -> Result<T, SyncError>,
+) -> Result<T, SyncError> {
+    let trust = HostTrust::new(request);
+    act(&trust).map_err(|error| trust.explain(error))
+}
+
+/// What may be handed to the remote, and what the remote must prove first.
+///
+/// One value rather than three parameters threaded through the callbacks: the
+/// closures own it, and adding a third secret should not change every
+/// signature between here and [`credentials_for`].
+#[derive(Debug, Clone, Default)]
+struct Secrets {
+    token: Option<String>,
+    key: Option<String>,
+    passphrase: Option<String>,
+}
+
+impl From<&SyncRequest> for Secrets {
+    fn from(request: &SyncRequest) -> Self {
+        Secrets {
+            token: request.token.clone(),
+            key: request.ssh_key.clone(),
+            passphrase: request.ssh_passphrase.clone(),
+        }
+    }
 }
 
 /// What to answer libgit2 when it asks for credentials for `asked`.
@@ -1072,16 +1328,42 @@ fn remote_callbacks<'a>(request: &SyncRequest) -> RemoteCallbacks<'a> {
 fn credentials_for(
     configured: &str,
     asked: &str,
-    token: Option<&str>,
+    secrets: &Secrets,
     username: Option<&str>,
     allowed: git2::CredentialType,
 ) -> Result<Cred, git2::Error> {
-    if let Some(token) = token {
+    let elsewhere = |what: &str| {
+        Err(git2::Error::from_str(&format!(
+            "{asked} is not the configured remote; the {what} was not sent"
+        )))
+    };
+
+    // Asked first on an ssh connection, before the key: libgit2 wants to know
+    // who is logging in when the address does not say. Everything git hosts
+    // answer to is `git`, and an address that names a user is answered with
+    // that name instead.
+    if allowed.contains(git2::CredentialType::USERNAME) {
+        return Cred::username(username.unwrap_or("git"));
+    }
+
+    if let Some(key) = &secrets.key {
+        if allowed.contains(git2::CredentialType::SSH_KEY) {
+            if !same_endpoint(configured, asked) {
+                return elsewhere("key");
+            }
+            return Cred::ssh_key_from_memory(
+                username.unwrap_or("git"),
+                None,
+                key,
+                secrets.passphrase.as_deref(),
+            );
+        }
+    }
+
+    if let Some(token) = &secrets.token {
         if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
             if !same_endpoint(configured, asked) {
-                return Err(git2::Error::from_str(&format!(
-                    "{asked} is not the configured remote; the token was not sent"
-                )));
+                return elsewhere("token");
             }
             // The username is ignored by GitHub when the password is a token,
             // but it cannot be empty; gitea and GitLab accept the same shape.
@@ -1110,6 +1392,16 @@ fn same_endpoint(configured: &str, asked: &str) -> bool {
 }
 
 fn endpoint(url: &str) -> Option<(String, String)> {
+    // `git@host:path` is ssh written the scp way, and libgit2 asks about it
+    // under the same host it would for `ssh://git@host/path`. Reduced to the
+    // same pair so the two spellings of one server compare equal.
+    if let Some(host) = scp_endpoint(url) {
+        return Some((
+            SSH_SCHEME.trim_end_matches("://").to_string(),
+            host.to_ascii_lowercase(),
+        ));
+    }
+
     let (scheme, rest) = url.split_once("://")?;
     let authority = rest.split('/').next().unwrap_or_default();
     let host = authority
@@ -1177,14 +1469,36 @@ mod tests {
     use super::*;
 
     const CONFIGURED: &str = "https://git.example.org/notes.git";
+    const OVER_SSH: &str = "ssh://git@git.example.org/notes.git";
+
+    fn token_secrets() -> Secrets {
+        Secrets {
+            token: Some("secret".to_string()),
+            ..Secrets::default()
+        }
+    }
 
     fn credentials(asked: &str) -> Result<Cred, git2::Error> {
         credentials_for(
             CONFIGURED,
             asked,
-            Some("secret"),
+            &token_secrets(),
             Some("x-access-token"),
             git2::CredentialType::USER_PASS_PLAINTEXT,
+        )
+    }
+
+    fn key_credentials(configured: &str, asked: &str) -> Result<Cred, git2::Error> {
+        let key = generate_ssh_key(String::new()).expect("generate a key");
+        credentials_for(
+            configured,
+            asked,
+            &Secrets {
+                key: Some(key.private_key),
+                ..Secrets::default()
+            },
+            Some("git"),
+            git2::CredentialType::SSH_KEY,
         )
     }
 
@@ -1241,6 +1555,8 @@ mod tests {
     fn the_addresses_the_application_talks_to() {
         for url in [
             "https://git.example.org/notes.git",
+            "ssh://git@git.example.org/notes.git",
+            "git@git.example.org:notes.git",
             "file:///data/notes",
             "/data/user/0/app/files/notes",
         ] {
@@ -1250,8 +1566,9 @@ mod tests {
         for url in [
             "http://git.example.org/notes.git",
             "git://git.example.org/notes.git",
-            "ssh://git@git.example.org/notes.git",
-            "git@git.example.org:notes.git",
+            "git@:notes.git",
+            "@git.example.org:notes.git",
+            "git@git.example.org:",
             "",
         ] {
             assert!(
@@ -1259,5 +1576,115 @@ mod tests {
                 "{url}",
             );
         }
+    }
+
+    /// `git@host:path` and `ssh://git@host/path` are one server written two
+    /// ways, and the key has to be offered to it under either spelling.
+    #[test]
+    fn the_two_spellings_of_an_ssh_address_name_one_server() {
+        assert!(same_endpoint(OVER_SSH, "git@git.example.org:notes.git"));
+        assert!(same_endpoint("git@git.example.org:notes.git", OVER_SSH));
+        assert!(!same_endpoint(
+            OVER_SSH,
+            "git@elsewhere.example.org:notes.git"
+        ));
+        // Not the same server as the one reached over HTTPS, either: the key
+        // and the token are separate secrets for separate transports.
+        assert!(!same_endpoint(CONFIGURED, OVER_SSH));
+    }
+
+    #[test]
+    fn the_key_goes_to_the_configured_host_and_nowhere_else() {
+        assert!(key_credentials(OVER_SSH, OVER_SSH).is_ok());
+
+        let Err(error) = key_credentials(OVER_SSH, "ssh://git@elsewhere.example.org/notes.git")
+        else {
+            panic!("the key was offered elsewhere");
+        };
+        assert!(error.message().contains("the key was not sent"), "{error}");
+    }
+
+    /// libgit2 asks who is logging in before it asks for anything to log in
+    /// with, and an unanswered question ends the connection.
+    #[test]
+    fn an_ssh_connection_is_told_which_user_is_logging_in() {
+        assert!(credentials_for(
+            OVER_SSH,
+            OVER_SSH,
+            &Secrets::default(),
+            None,
+            git2::CredentialType::USERNAME,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn a_generated_key_is_a_pair_both_sides_can_read() {
+        let key = generate_ssh_key("phone".to_string()).expect("generate a key");
+
+        assert!(
+            key.private_key.starts_with("-----BEGIN PRIVATE KEY-----"),
+            "{}",
+            key.private_key,
+        );
+        assert!(key
+            .public_key
+            .starts_with("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5"));
+        assert!(key.public_key.ends_with(" phone"));
+        // The one line has three fields and no newline in it: what is pasted
+        // into a server's settings page is pasted whole.
+        assert_eq!(3, key.public_key.split_whitespace().count());
+
+        let other = generate_ssh_key(String::new()).expect("generate another");
+        assert_ne!(key.private_key, other.private_key);
+        // No comment, no trailing space.
+        assert_eq!(2, other.public_key.split_whitespace().count());
+        assert_eq!(other.public_key.trim_end(), other.public_key);
+    }
+
+    /// The spelling `ssh-keygen -lf` prints, so what the phone shows can be
+    /// compared with what the server says about itself.
+    #[test]
+    fn a_host_key_is_written_the_way_openssh_writes_it() {
+        let fingerprint = fingerprint_of(&[0; 32]);
+
+        assert_eq!("SHA256:", &fingerprint[..7]);
+        assert!(!fingerprint.ends_with('='), "{fingerprint}");
+        assert_eq!(43, fingerprint.len() - "SHA256:".len());
+    }
+
+    /// The check has nowhere to report to, so the failure that follows it is
+    /// what carries the question — and it has to carry which question.
+    #[test]
+    fn a_server_that_is_not_the_known_one_is_a_question_not_a_failure() {
+        let unknown = HostTrust::default();
+        *unknown.seen.borrow_mut() = Some(("git.example.org".into(), "SHA256:aaa".into()));
+        assert!(matches!(
+            unknown.explain(SyncError::Network {
+                detail: "closed".into()
+            }),
+            SyncError::UnknownHost { .. },
+        ));
+
+        let changed = HostTrust {
+            known: Some("SHA256:bbb".into()),
+            seen: RefCell::new(Some(("git.example.org".into(), "SHA256:aaa".into()))),
+        };
+        assert!(matches!(
+            changed.explain(SyncError::Network {
+                detail: "closed".into()
+            }),
+            SyncError::HostChanged { .. },
+        ));
+
+        // Nothing was refused on the host's account, so the failure stands as
+        // it was: a network error over a known host is still a network error.
+        let quiet = HostTrust::default();
+        assert!(matches!(
+            quiet.explain(SyncError::Network {
+                detail: "closed".into()
+            }),
+            SyncError::Network { .. },
+        ));
     }
 }

@@ -45,6 +45,24 @@ class RemoteCredentialsTest {
         assertNull(split.token)
     }
 
+    /**
+     * What stands before the `@` of an ssh address is the login name, not a
+     * secret. Moved into the token field it would be stored as a password
+     * that is not one, and the address left behind logs nobody in.
+     */
+    @Test
+    fun theLoginNameOfAnSshAddressStaysInTheAddress() {
+        val explicit = splitCredentials("ssh://git@git.example.org/notes.git")
+
+        assertEquals("ssh://git@git.example.org/notes.git", explicit.url)
+        assertNull(explicit.token)
+
+        val scp = splitCredentials("git@git.example.org:notes.git")
+
+        assertEquals("git@git.example.org:notes.git", scp.url)
+        assertNull(scp.token)
+    }
+
     @Test
     fun theCoreSaysWhichHostAndTheCredentialsGoOutOfThatToo() {
         assertEquals(

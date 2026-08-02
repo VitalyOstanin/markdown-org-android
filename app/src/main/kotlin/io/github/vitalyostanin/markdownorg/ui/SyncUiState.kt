@@ -39,6 +39,22 @@ data class SyncUiState(
      * answer, and nothing else about the checkout says one is owed.
      */
     val unrelated: String? = null,
+    /**
+     * The server key waiting to be vouched for, as `SHA256:<base64>`.
+     *
+     * The other question the screen has to put: an SSH server proves itself
+     * by its host key and nothing else, so the first sync with one — and any
+     * sync where the key changed — stops here until the user says it is the
+     * right server. [`replaces`][pendingHostReplaces] holds the key it would
+     * take the place of, which is what makes the question the graver one.
+     */
+    val pendingHost: String? = null,
+    val pendingHostReplaces: String? = null,
+    /**
+     * The public half of a key just made, so the settings screen can offer it
+     * without being reopened.
+     */
+    val publicKey: String = "",
 )
 
 /**
@@ -55,6 +71,32 @@ data class SyncForm(
     val hasToken: Boolean,
     /** The chosen notes directory, empty for the application's own storage. */
     val notesPath: String,
+    /** A private key is stored, which the form shows no more of than this. */
+    val hasKey: Boolean = false,
+    /** The public half of a key made here, empty when there is none to offer. */
+    val publicKey: String = "",
+    /** The server key the remote is known by, empty until one is vouched for. */
+    val knownHost: String = "",
+)
+
+/**
+ * What the settings form hands back when it is saved.
+ *
+ * Named fields rather than eight positional arguments, for the reason
+ * [SyncForm] states: half of them are strings, three of them are secrets, and
+ * a call that swaps two would compile and store the passphrase as the key.
+ */
+data class SyncFormValues(
+    val url: String,
+    val branch: String,
+    /** Blank leaves the stored token alone; the form never shows it. */
+    val token: String,
+    val dropToken: Boolean,
+    val notesPath: String,
+    /** Blank leaves the stored key alone, the way a blank token does. */
+    val sshKey: String = "",
+    val sshPassphrase: String = "",
+    val dropKey: Boolean = false,
 )
 
 /**
@@ -195,6 +237,20 @@ fun Throwable.toSyncMessage(): SyncMessage = when (this) {
     is SyncException.Rejected -> SyncMessage(
         R.string.sync_failed_rejected,
         Detail.Worded(R.string.sync_rejected_detail, branch),
+        failed = true,
+    )
+
+    // Neither is a failure of the connection: the server answered, and what
+    // is missing is somebody to say it is the right server. The key travels
+    // as the detail because it is the whole of what there is to compare.
+    is SyncException.UnknownHost -> SyncMessage(
+        R.string.sync_host_unknown,
+        Detail.Verbatim(fingerprint),
+    )
+
+    is SyncException.HostChanged -> SyncMessage(
+        R.string.sync_host_changed,
+        Detail.Verbatim(fingerprint),
         failed = true,
     )
 

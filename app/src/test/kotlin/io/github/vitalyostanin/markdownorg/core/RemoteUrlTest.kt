@@ -43,14 +43,30 @@ class RemoteUrlTest {
         assertEquals(RemoteUrlProblem.SCHEME, remoteUrlProblem("http://gitlab.com/user/notes.git"))
     }
 
+    /** Both spellings a repository page offers, and the core takes either. */
     @Test
-    fun sshIsRefused() {
-        // git2 is vendored with the https feature and no ssh, so this would
-        // fail inside the core with a message about an unsupported transport.
-        assertEquals(RemoteUrlProblem.SCHEME, remoteUrlProblem("git@gitlab.com:user/notes.git"))
+    fun anSshRepositoryIsAcceptedInBothItsSpellings() {
+        assertNull(remoteUrlProblem("ssh://git@gitlab.com/user/notes.git"))
+        assertNull(remoteUrlProblem("ssh://git@git.example.org:2222/user/notes.git"))
+        assertNull(remoteUrlProblem("git@gitlab.com:user/notes.git"))
+        assertNull(remoteUrlProblem("git@gitlab.com:group/subgroup/notes.git"))
+    }
+
+    @Test
+    fun anSshAddressMissingAPartIsRefused() {
+        assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("ssh://git@gitlab.com"))
+        assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("git@gitlab.com:"))
+        assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("@gitlab.com:notes.git"))
+        assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("git@:notes.git"))
+    }
+
+    @Test
+    fun gitOverItsOwnProtocolIsRefused() {
+        // Neither encrypted nor authenticated: whoever answers is trusted with
+        // the notes and with whatever goes back.
         assertEquals(
             RemoteUrlProblem.SCHEME,
-            remoteUrlProblem("ssh://git@gitlab.com/user/notes.git"),
+            remoteUrlProblem("git://gitlab.com/user/notes.git"),
         )
     }
 

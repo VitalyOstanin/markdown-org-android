@@ -43,7 +43,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.Scope
+import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
+import uniffi.markdown_org_ffi.generateSshKey
 import java.io.File
 import java.time.Duration
 import java.time.LocalDate
@@ -321,13 +323,23 @@ class AgendaViewModel(
      * command copied from a repository page reads — is split before anything
      * else: the secret belongs in the token, not in the field the screen shows
      * in the clear.
+     *
+     * [sshKey] follows the token's rule, with one difference: it is not
+     * dropped when the address changes. A token is issued by one server; a key
+     * belongs to the device and is added to as many servers as its owner
+     * likes. What is dropped with the address is the server key it was known
+     * by — that one is about the host and about nothing else.
      */
+    @Suppress("LongParameterList")
     fun saveSettings(
         url: String,
         branch: String,
         token: String,
         dropToken: Boolean = false,
         notesPath: String = location.path.orEmpty(),
+        sshKey: String = "",
+        sshPassphrase: String = "",
+        dropKey: Boolean = false,
     ) {
         val split = splitCredentials(url)
         val address = split.url
@@ -396,9 +408,8 @@ class AgendaViewModel(
                 // The checkout is there but could not be read. Emptying it now
                 // would delete commits that exist nowhere else, so the address
                 // is stored and the directory left for a human to look at.
-                settings.remoteUrl = address
-                settings.branch = branch
-                settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
+                storeRemote(address, branch, secret, dropToken, configuredUrl)
+                storeKey(sshKey, sshPassphrase, dropKey)
                 _syncState.update {
                     it.copy(
                         configured = settings.isConfigured,
@@ -414,9 +425,8 @@ class AgendaViewModel(
             // to a decision there is nothing to decide.
             val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
             val checkout = previous.getOrNull() != null
-            settings.remoteUrl = address
-            settings.branch = branch
-            settings.token = tokenFor(secret, dropToken, changedHost = configuredUrl != address)
+            storeRemote(address, branch, secret, dropToken, configuredUrl)
+            storeKey(sshKey, sshPassphrase, dropKey)
             // An address was named, so this is no longer the store the user
             // said was local — whatever happens to the directory below.
             settings.storesLocally = false
@@ -514,6 +524,7 @@ class AgendaViewModel(
             val status = sync.status()
                 .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
                 .getOrNull()
+            val host = adopted.hostInQuestion()
 
             _syncState.update { current ->
                 current.copy(
@@ -529,6 +540,8 @@ class AgendaViewModel(
                     // reading: both sides hold notes, and joining them is not
                     // something this application does by itself.
                     unrelated = (adopted.getOrNull() as? Adoption.Unrelated)?.branch,
+                    pendingHost = host?.first,
+                    pendingHostReplaces = host?.second,
                 )
             }
 
@@ -570,6 +583,99 @@ class AgendaViewModel(
                 agenda.invalidate()
                 refresh()
             }
+        }
+    }
+
+    /**
+     * Vouch for the server key the last attempt stopped on, and try again.
+     *
+     * The key is stored only here, on a press: an application that recorded
+     * whatever answered the first time would pin nothing, since the first time
+     * is exactly when a wrong server would be believed. What follows is the
+     * attempt that was interrupted — a directory that is already a checkout
+     * fetches, one that is not is taken in as it stands.
+     */
+    fun trustHost() {
+        val fingerprint = _syncState.value.pendingHost ?: return
+        if (syncJob?.isActive == true) {
+            return
+        }
+
+        settings.knownHost = fingerprint
+        _syncState.update {
+            it.copy(pendingHost = null, pendingHostReplaces = null, message = null)
+        }
+
+        syncJob = viewModelScope.launch {
+            if (sync.holdsRepository()) {
+                startSync()
+            } else {
+                startAdoption()
+            }
+        }
+    }
+
+    /**
+     * The server key an attempt is waiting on, and the one it would replace.
+     *
+     * Both failures mean the same thing to the screen — a question about who
+     * answered — and differ only in how grave it is, which is what the second
+     * half of the pair says.
+     */
+    private fun Result<*>.hostInQuestion(): Pair<String, String?>? =
+        when (val failure = exceptionOrNull()) {
+            is SyncException.UnknownHost -> failure.fingerprint to null
+            is SyncException.HostChanged -> failure.fingerprint to failure.known
+            else -> null
+        }
+
+    /**
+     * Store the address and what is sent to it, dropping what belonged to the
+     * address it replaces.
+     *
+     * The server key goes with the address rather than surviving it: `origin`
+     * pointing somewhere else is a different server, and a key remembered for
+     * the old one would vouch for whatever answers at the new.
+     */
+    private fun storeRemote(
+        address: String,
+        branch: String,
+        secret: String,
+        dropToken: Boolean,
+        configuredUrl: String?,
+    ) {
+        val moved = configuredUrl != address
+        settings.remoteUrl = address
+        settings.branch = branch
+        settings.token = tokenFor(secret, dropToken, changedHost = moved)
+        if (moved) {
+            settings.knownHost = null
+        }
+    }
+
+    /**
+     * Store the key an `ssh://` remote is reached with.
+     *
+     * Blank means "leave the stored one alone", the way a blank token does:
+     * the form does not show a key it holds, so an empty field is silence
+     * rather than an instruction. [dropKey] takes both halves — a passphrase
+     * outliving the key it opens is worth nothing.
+     */
+    private fun storeKey(typed: String, passphrase: String, dropKey: Boolean) {
+        when {
+            dropKey -> {
+                settings.sshKey = null
+                settings.sshPassphrase = null
+            }
+
+            typed.isNotBlank() -> {
+                settings.sshKey = typed
+                settings.sshPassphrase = passphrase.ifEmpty { null }
+            }
+
+            // A passphrase typed against a key already stored: the key stays,
+            // and this is how a wrong one gets corrected.
+            passphrase.isNotEmpty() -> settings.sshPassphrase = passphrase
         }
     }
 
@@ -638,7 +744,38 @@ class AgendaViewModel(
         branch = settings.branch.orEmpty(),
         hasToken = !settings.token.isNullOrBlank(),
         notesPath = location.path.orEmpty(),
+        hasKey = !settings.sshKey.isNullOrBlank(),
+        publicKey = settings.sshPublicKey.orEmpty(),
+        knownHost = settings.knownHost.orEmpty(),
     )
+
+    /**
+     * Make a key for this device, keeping the private half here.
+     *
+     * Stored as it is made rather than when the form is saved: the public half
+     * has to be taken to a server before anything can be synced, and a key
+     * shown but not kept would let someone add a key to their account that
+     * this device no longer holds.
+     *
+     * A key made this way replaces whatever was stored, passphrase included:
+     * the new one has none, and an old passphrase against a new key is a
+     * failure with nothing on screen to explain it.
+     */
+    fun createSshKey() {
+        val made = runCatching { generateSshKey(KEY_COMMENT) }
+        made.onFailure { failure ->
+            Log.w(TAG, "the key could not be made", failure)
+            _syncState.update {
+                it.copy(message = SyncMessage(R.string.settings_key_failed, failed = true))
+            }
+        }
+
+        val key = made.getOrNull() ?: return
+        settings.sshKey = key.privateKey
+        settings.sshPassphrase = null
+        settings.sshPublicKey = key.publicKey
+        _syncState.update { it.copy(publicKey = key.publicKey) }
+    }
 
     private fun startSync() {
         if (!settings.isConfigured) {
@@ -670,6 +807,7 @@ class AgendaViewModel(
                 onFailure = Throwable::toSyncMessage,
             )
 
+            val host = outcome.hostInQuestion()
             _syncState.update { current ->
                 current.copy(
                     configured = settings.isConfigured,
@@ -677,6 +815,8 @@ class AgendaViewModel(
                     repository = status,
                     lastSyncedAt = settings.lastSyncedAt,
                     message = message,
+                    pendingHost = host?.first,
+                    pendingHostReplaces = host?.second,
                 )
             }
 
@@ -740,6 +880,15 @@ class AgendaViewModel(
          * not wake the process once a minute.
          */
         private const val TICKER_LINGER_MS = 5_000L
+
+        /**
+         * What a key made here is labelled with on the server it is added to.
+         *
+         * Not the device's own name: that is the user's to give, it says who
+         * they are to whoever reads the list of keys, and asking a phone for
+         * it needs a permission this application has no other use for.
+         */
+        private const val KEY_COMMENT = "markdown-org"
 
         /** Time from [moment] to the top of the next minute, in milliseconds. */
         private fun millisUntilNextMinute(moment: LocalDateTime): Long = Duration.between(

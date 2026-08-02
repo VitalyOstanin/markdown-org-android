@@ -27,9 +27,9 @@ pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use index::NotesIndex;
 pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};
 pub use sync::{
-    adopt_directory, commit_changes, holds_repository, load_ca_bundle, push_changes,
-    repository_status, sync_repository, take_remote_notes, Adoption, CommitAuthor, PushOutcome,
-    RepoStatus, SyncError, SyncOutcome, SyncRequest, KEPT_BRANCH,
+    adopt_directory, commit_changes, generate_ssh_key, holds_repository, load_ca_bundle,
+    push_changes, repository_status, sync_repository, take_remote_notes, Adoption, CommitAuthor,
+    PushOutcome, RepoStatus, SshKeyPair, SyncError, SyncOutcome, SyncRequest, KEPT_BRANCH,
 };
 
 uniffi::setup_scaffolding!();

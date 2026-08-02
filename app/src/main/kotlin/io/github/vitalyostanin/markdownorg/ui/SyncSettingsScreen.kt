@@ -30,8 +30,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,13 +69,7 @@ fun SyncSettingsScreen(
     initialUrl: String,
     initialBranch: String,
     hasToken: Boolean,
-    onSave: (
-        url: String,
-        branch: String,
-        token: String,
-        dropToken: Boolean,
-        notesPath: String,
-    ) -> Unit,
+    onSave: (SyncFormValues) -> Unit,
     onDismiss: () -> Unit,
     onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
@@ -90,6 +86,13 @@ fun SyncSettingsScreen(
     /** The notes are kept on this device on purpose, and no remote is wanted. */
     storesLocally: Boolean = false,
     onKeepLocal: () -> Unit = {},
+    /** A private key for an `ssh://` remote is stored, whatever it is. */
+    hasKey: Boolean = false,
+    /** The public half of a key made here, for pasting into a server. */
+    publicKey: String = "",
+    /** The server key the remote is known by, empty until one is vouched for. */
+    knownHost: String = "",
+    onCreateKey: () -> Unit = {},
 ) {
     // Saved rather than merely remembered: the activity declares no
     // configChanges, so a turn of the phone rebuilds it, and a URL typed by
@@ -103,6 +106,11 @@ fun SyncSettingsScreen(
     var token by rememberSaveable { mutableStateOf("") }
     var dropToken by rememberSaveable { mutableStateOf(false) }
     var notesPath by rememberSaveable { mutableStateOf(initialNotesPath) }
+    // The same rule as the token, and the same reason for saving it: a key
+    // pasted from a password manager must not be lost to a rotation.
+    var sshKey by rememberSaveable { mutableStateOf("") }
+    var sshPassphrase by rememberSaveable { mutableStateOf("") }
+    var dropKey by rememberSaveable { mutableStateOf(false) }
 
     // Caught in the field rather than after a clone failed over it: an address
     // that cannot work says so where it was typed. An empty field is not an
@@ -234,6 +242,22 @@ fun SyncSettingsScreen(
                 }
             }
 
+            SshSection(
+                hasKey = hasKey,
+                publicKey = publicKey.ifEmpty { null },
+                knownHost = knownHost.ifEmpty { null },
+                onCreateKey = onCreateKey,
+                key = sshKey,
+                onKeyChange = { sshKey = it },
+                passphrase = sshPassphrase,
+                onPassphraseChange = { sshPassphrase = it },
+                dropKey = dropKey,
+                onDropKeyChange = { dropKey = it },
+                // The address as it was stored, not as it is being typed: this
+                // decides the section's first state and nothing after it.
+                startsOpen = hasKey || reachedOverSsh(initialUrl),
+            )
+
             OutlinedTextField(
                 value = notesPath,
                 onValueChange = { notesPath = it },
@@ -348,7 +372,20 @@ fun SyncSettingsScreen(
                 }
                 Spacer(Modifier.width(Spacing.sm))
                 Button(
-                    onClick = { onSave(url, branch, token, dropToken, notesPath) },
+                    onClick = {
+                        onSave(
+                            SyncFormValues(
+                                url = url,
+                                branch = branch,
+                                token = token,
+                                dropToken = dropToken,
+                                notesPath = notesPath,
+                                sshKey = sshKey,
+                                sshPassphrase = sshPassphrase,
+                                dropKey = dropKey,
+                            ),
+                        )
+                    },
                     // An empty address is not an obstacle any more: the form
                     // also carries where the notes are kept, and notes already
                     // on the device need no remote at all.
@@ -361,6 +398,139 @@ fun SyncSettingsScreen(
         }
     }
 }
+
+/**
+ * Everything an `ssh://` remote needs, and nothing an `https://` one does.
+ *
+ * Folded away behind its heading, and open from the start only when there is
+ * something in it: a key already stored, or an address that is reached with
+ * one. Four more fields standing open under an HTTPS remote push the save
+ * button off the screen for settings that remote has no use for.
+ *
+ * Opened by a press rather than by what is being typed above: a section that
+ * appears and disappears while an address is half-typed moves everything
+ * under the fingers.
+ *
+ * The key itself is write-only, the way the token is: what is stored is never
+ * read back into the field, so the line under it says whether there is one.
+ */
+@Composable
+@Suppress("LongParameterList")
+private fun SshSection(
+    hasKey: Boolean,
+    publicKey: String?,
+    knownHost: String?,
+    onCreateKey: () -> Unit,
+    key: String,
+    onKeyChange: (String) -> Unit,
+    passphrase: String,
+    onPassphraseChange: (String) -> Unit,
+    dropKey: Boolean,
+    onDropKeyChange: (Boolean) -> Unit,
+    startsOpen: Boolean,
+) {
+    val clipboard = LocalClipboardManager.current
+    var open by rememberSaveable { mutableStateOf(startsOpen) }
+
+    TextButton(onClick = { open = !open }, modifier = Modifier.testTag("settings-ssh-toggle")) {
+        Text(
+            text = stringResource(R.string.settings_ssh),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+
+    if (!open) {
+        return
+    }
+
+    OutlinedTextField(
+        value = key,
+        onValueChange = onKeyChange,
+        label = { Text(stringResource(R.string.settings_ssh_key)) },
+        supportingText = {
+            val kept = R.string.settings_ssh_key_kept
+            Text(stringResource(if (hasKey) kept else R.string.settings_ssh_key_none))
+        },
+        // Several lines rather than one: a private key is many lines long, and
+        // a field showing one of them says nothing about what was pasted.
+        minLines = 2,
+        maxLines = 4,
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-ssh-key"),
+    )
+
+    OutlinedTextField(
+        value = passphrase,
+        onValueChange = onPassphraseChange,
+        label = { Text(stringResource(R.string.settings_ssh_passphrase)) },
+        supportingText = { Text(stringResource(R.string.settings_ssh_passphrase_hint)) },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().testTag("settings-ssh-passphrase"),
+    )
+
+    if (hasKey) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Checkbox(
+                checked = dropKey,
+                onCheckedChange = onDropKeyChange,
+                modifier = Modifier.testTag("settings-ssh-key-drop"),
+            )
+            Text(
+                text = stringResource(R.string.settings_ssh_key_drop),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+
+    TextButton(onClick = onCreateKey, modifier = Modifier.testTag("settings-ssh-create")) {
+        Text(stringResource(R.string.settings_ssh_create))
+    }
+
+    // The public half is of no use on the phone: it is taken to a server, and
+    // the way it gets there from here is the clipboard.
+    publicKey?.let { line ->
+        Text(
+            text = line,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().testTag("settings-ssh-public"),
+        )
+        TextButton(
+            onClick = { clipboard.setText(AnnotatedString(line)) },
+            modifier = Modifier.testTag("settings-ssh-copy"),
+        ) {
+            Text(stringResource(R.string.settings_ssh_copy))
+        }
+    }
+
+    // What the server is pinned by, once somebody has said it is the right
+    // server. Shown so it can be compared with what the server says about
+    // itself, which is the only check there is.
+    knownHost?.let { fingerprint ->
+        Text(
+            text = stringResource(R.string.settings_ssh_host, fingerprint),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().testTag("settings-ssh-host"),
+        )
+    }
+}
+
+/**
+ * Whether an address is one a key is needed for, in both its spellings.
+ *
+ * `git@host:path` is ssh written the scp way, and the core takes it as such —
+ * see `ensure_supported`. Recognised loosely on purpose: this only decides
+ * whether a section starts open.
+ */
+private fun reachedOverSsh(url: String): Boolean =
+    url.startsWith("ssh://") || (url.contains('@') && !url.contains("://"))
 
 /**
  * What stands under the directory field: the problem with what is in it, the

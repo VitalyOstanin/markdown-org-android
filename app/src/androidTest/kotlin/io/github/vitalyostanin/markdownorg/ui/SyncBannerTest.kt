@@ -32,6 +32,7 @@ class SyncBannerTest {
     private var issuesShown = 0
     private var remotesTaken = 0
     private var notesReplaced = 0
+    private var hostsTrusted = 0
 
     @Test
     fun beforeARemoteIsConfiguredNothingIsSaid() {
@@ -199,6 +200,51 @@ class SyncBannerTest {
         assertEquals(1, notesReplaced)
     }
 
+    /**
+     * The one question that stops everything else: nothing was fetched, and
+     * an SSH server proves itself by its host key alone. The key goes on
+     * screen to be compared with what the server says about itself.
+     */
+    @Test
+    fun aServerNobodyHasVouchedForIsShownWithItsKeyAndTheWayToAcceptIt() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                pendingHost = FINGERPRINT,
+                message = SyncException.UnknownHost("git.example.org", FINGERPRINT).toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_host_unknown)).assertIsDisplayed()
+        compose.onNodeWithText(FINGERPRINT).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.sync_host_accept)).assertIsDisplayed()
+        compose.onNodeWithTag("sync-trust-host").performClick()
+
+        assertEquals(1, hostsTrusted)
+    }
+
+    /**
+     * A key that contradicts a stored one is the graver of the two questions,
+     * and the button has to say which of them is being answered.
+     */
+    @Test
+    fun replacingAKnownServerKeyIsWordedAsAReplacement() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                pendingHost = FINGERPRINT,
+                pendingHostReplaces = "SHA256:what-was-known",
+                message = SyncException
+                    .HostChanged("git.example.org", FINGERPRINT, "SHA256:what-was-known")
+                    .toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_host_changed)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.sync_host_accept_new)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.sync_host_accept)).assertDoesNotExist()
+    }
+
     @Test
     fun aCheckoutWithNothingToDecideIsShownWithoutAButton() {
         showAgenda(SyncUiState(configured = true, repository = status()))
@@ -359,6 +405,7 @@ class SyncBannerTest {
                     onOpenSettings = { settingsOpened = true },
                     onTakeRemote = { remotesTaken++ },
                     onReplaceNotes = { notesReplaced++ },
+                    onTrustHost = { hostsTrusted++ },
                 )
             }
         }
@@ -380,5 +427,8 @@ class SyncBannerTest {
          * TimeLabelsTest — so these check that the line is there at all.
          */
         const val SYNCED_AT = 1_753_700_000_000L
+
+        /** A server key, spelled the way OpenSSH spells one. */
+        const val FINGERPRINT = "SHA256:2sJ8mQBz1TeQ5iTGH7t7zZ0hqRk3sB0Xk8v0FhK0aBc"
     }
 }

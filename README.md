@@ -186,8 +186,16 @@ Keeping them in step with a remote:
   touching the network;
 - `holdsRepository(dir)` — whether the directory is a checkout at all, which
   is how "not set up yet" is told from "set up and behind";
+- `generateSshKey(comment)` — make an ed25519 pair for this device: the
+  private half stays here, the public one is a line to paste into a server;
 - `loadCaBundle(pem)` — hand the certificate authorities over, once per
   process.
+
+An `ssh://` remote — or the same thing written `git@host:path` — is reached
+with a key the settings hold, and its server is pinned by its host key: a
+server nobody has vouched for stops the sync with the key it offered, which
+the agenda puts on screen to be accepted. A key that later disagrees with the
+stored one stops it as well, and says so in its own words.
 
 What a sync refuses to do, and what it retries, is the section
 [below](#what-a-sync-does-with-the-checkout). On the Kotlin side

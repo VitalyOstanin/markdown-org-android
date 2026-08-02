@@ -26,6 +26,7 @@ thiserror = "2"
 # system libgit2.
 git2 = { version = "0.21", default-features = false, features = [
     "https",
+    "ssh",
     "vendored-libgit2",
     "vendored-openssl",
 ] }

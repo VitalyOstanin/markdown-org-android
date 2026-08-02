@@ -101,11 +101,20 @@ class FakeSyncer(
     var running: Boolean = false
         private set
 
+    /**
+     * What the next sync answers, when a test decides that between attempts.
+     *
+     * Beside the constructor's own answer rather than instead of it: a test
+     * that only cares about the outcome sets this and changes it as it goes,
+     * while one that has to hold a sync mid-flight passes a function.
+     */
+    var result: Result<SyncRun>? = null
+
     override suspend fun sync(settings: SyncPreferences): Result<SyncRun> {
         requested += settings.remoteUrl
         running = true
         try {
-            return onSync(settings.remoteUrl)
+            return result ?: onSync(settings.remoteUrl)
         } finally {
             running = false
         }
@@ -260,4 +269,8 @@ class FakePreferences(
     override var authorEmail: String = "markdown-org@localhost",
     override var lastSyncedAt: Long = 0,
     override var storesLocally: Boolean = false,
+    override var sshKey: String? = null,
+    override var sshPassphrase: String? = null,
+    override var sshPublicKey: String? = null,
+    override var knownHost: String? = null,
 ) : SyncPreferences

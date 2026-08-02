@@ -189,6 +189,9 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         url = url,
         token = settings.token,
         branch = settings.branch,
+        sshKey = settings.sshKey,
+        sshPassphrase = settings.sshPassphrase,
+        knownHost = settings.knownHost,
     )
 
     /**

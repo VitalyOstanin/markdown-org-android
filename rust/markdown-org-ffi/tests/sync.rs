@@ -65,6 +65,18 @@ fn request(dir: &Path, url: &Path) -> SyncRequest {
         url: url.display().to_string(),
         token: None,
         branch: None,
+        ssh_key: None,
+        ssh_passphrase: None,
+        known_host: None,
+    }
+}
+
+/// A request naming an address that is not a path — the refused schemes, and
+/// the `file://` spelling of a local one.
+fn request_to(dir: &Path, url: &str) -> SyncRequest {
+    SyncRequest {
+        url: url.to_string(),
+        ..request(dir, Path::new(""))
     }
 }
 
@@ -769,14 +781,10 @@ fn an_address_that_would_carry_the_token_in_the_clear_is_refused() {
     for url in [
         "http://127.0.0.1:1/notes.git",
         "git://127.0.0.1:1/notes.git",
-        "ssh://git@127.0.0.1:1/notes.git",
-        "git@127.0.0.1:notes.git",
     ] {
         let error = sync_repository(SyncRequest {
-            dir: checkout.display().to_string(),
-            url: url.to_string(),
             token: Some("secret".to_string()),
-            branch: None,
+            ..request_to(&checkout, url)
         })
         .expect_err("must fail");
 
@@ -791,6 +799,24 @@ fn an_address_that_would_carry_the_token_in_the_clear_is_refused() {
     }
 }
 
+/// The other side of the guard: an `ssh://` address is carried to the
+/// transport rather than turned away, and what stops it is the connection. The
+/// port is one nothing listens on, so the attempt ends without a server — and
+/// deliberately not port 22 of this machine, which may well answer.
+#[test]
+fn an_ssh_address_reaches_the_transport_instead_of_being_refused() {
+    let local = tempfile::tempdir().expect("tempdir");
+    let checkout = local.path().join("notes");
+
+    let error = sync_repository(request_to(&checkout, "ssh://git@127.0.0.1:1/notes.git"))
+        .expect_err("nothing listens there");
+
+    assert!(
+        !matches!(error, SyncError::Address { .. }),
+        "the address itself must be acceptable now, got {error:?}",
+    );
+}
+
 /// The check belongs before the fetch as much as before the clone: settings
 /// changed under an existing checkout go down this path.
 #[test]
@@ -801,10 +827,8 @@ fn a_refused_address_stops_a_fetch_as_well_as_a_clone() {
     sync_repository(request(&checkout, remote.path())).expect("clone");
 
     let error = sync_repository(SyncRequest {
-        dir: checkout.display().to_string(),
-        url: "http://127.0.0.1:1/notes.git".to_string(),
         token: Some("secret".to_string()),
-        branch: None,
+        ..request_to(&checkout, "http://127.0.0.1:1/notes.git")
     })
     .expect_err("must fail");
 
@@ -821,12 +845,10 @@ fn a_local_path_and_a_file_url_stay_usable() {
     sync_repository(request(&local.path().join("by-path"), remote.path())).expect("path");
 
     let by_url = local.path().join("by-url");
-    sync_repository(SyncRequest {
-        dir: by_url.display().to_string(),
-        url: format!("file://{}", remote.path().display()),
-        token: None,
-        branch: None,
-    })
+    sync_repository(request_to(
+        &by_url,
+        &format!("file://{}", remote.path().display()),
+    ))
     .expect("file url");
 }
 
@@ -1007,10 +1029,8 @@ fn a_refused_address_stops_a_push() {
     sync_repository(request(&checkout, remote.path())).expect("clone");
 
     let error = push_changes(SyncRequest {
-        dir: checkout.display().to_string(),
-        url: "http://127.0.0.1:1/notes.git".to_string(),
         token: Some("secret".to_string()),
-        branch: None,
+        ..request_to(&checkout, "http://127.0.0.1:1/notes.git")
     })
     .expect_err("must fail");
 
