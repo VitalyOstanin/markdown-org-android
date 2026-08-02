@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -337,7 +336,13 @@ private fun AgendaHeader(
         date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale))
     }
 
-    Row(
+    // The day gets a line of its own, the controls another one. Sharing a
+    // single row left the day about a quarter of the width -- less than a
+    // long name of a day needs, and a word with nowhere to wrap breaks
+    // mid-letter ("Воскрес / енье"). The date under it fared no better,
+    // falling onto three lines. Neither depends on the language or on how
+    // large the system font is set once the width is the whole screen.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
@@ -346,40 +351,42 @@ private fun AgendaHeader(
                 top = Spacing.sm,
                 bottom = Spacing.sm,
             ),
-        verticalAlignment = Alignment.Bottom,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = weekday,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+        Text(
+            text = weekday,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = full,
+            style = MaterialTheme.typography.labelMedium,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Sync and settings sit next to the layout switch rather than in
+            // a menu: with three controls on the screen a menu would hide two
+            // of them behind a tap for no gain.
+            HeaderAction(
+                icon = R.drawable.ic_sync,
+                label = stringResource(R.string.sync_now),
+                tag = "sync-now",
+                enabled = sync.configured && !sync.running,
+                onClick = onSync,
             )
-            Text(
-                text = full,
-                style = MaterialTheme.typography.labelMedium,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.outline,
+            HeaderAction(
+                icon = R.drawable.ic_settings,
+                label = stringResource(R.string.settings_title),
+                tag = "open-settings",
+                onClick = onOpenSettings,
             )
+            Spacer(Modifier.weight(1f))
+            LayoutSwitch(layout, onLayoutChange)
         }
-        // Sync and settings sit next to the layout switch rather than in a
-        // menu: with three controls on the screen a menu would hide two of
-        // them behind a tap for no gain.
-        HeaderAction(
-            icon = R.drawable.ic_sync,
-            label = stringResource(R.string.sync_now),
-            tag = "sync-now",
-            enabled = sync.configured && !sync.running,
-            onClick = onSync,
-        )
-        HeaderAction(
-            icon = R.drawable.ic_settings,
-            label = stringResource(R.string.settings_title),
-            tag = "open-settings",
-            onClick = onOpenSettings,
-        )
-        Spacer(Modifier.width(Spacing.xs))
-        LayoutSwitch(layout, onLayoutChange)
     }
 }
 

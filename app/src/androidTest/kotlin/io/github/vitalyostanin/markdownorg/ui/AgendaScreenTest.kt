@@ -33,8 +33,11 @@ import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * The screen over a state built by hand.
@@ -586,6 +589,21 @@ class AgendaScreenTest {
         compose.onNodeWithText(string(R.string.agenda_group_undo)).assertDoesNotExist()
     }
 
+    @Test
+    fun theDayAndItsDateEachTakeOneLine() {
+        // The controls used to share the row with the day, leaving it about a
+        // quarter of the width. A word has nowhere to wrap, so the name of the
+        // day broke between two of its letters -- "Воскрес / енье" -- and the
+        // date under it fell onto three lines. Sunday in Russian is the
+        // longest name there is, which makes it the case to hold the header to.
+        val sunday = SHOWN_DAY.with(DayOfWeek.SUNDAY)
+
+        showAgenda(AgendaLayout.LIST, date = sunday, locale = Locale("ru"))
+
+        assertEquals("the name of the day is on one line", 1, linesOf(weekdayIn(sunday, "ru")))
+        assertEquals("the date is on one line", 1, linesOf(dateIn(sunday, "ru")))
+    }
+
     private val controls = listOf(
         R.string.sync_now,
         R.string.settings_title,
@@ -606,6 +624,7 @@ class AgendaScreenTest {
         layout: AgendaLayout,
         sections: AgendaSections = sample,
         now: LocalDateTime = MID_MORNING,
+        date: LocalDate = SHOWN_DAY,
         locale: Locale? = null,
         onTaskClick: (Task) -> Unit = {},
         groupResult: GroupResult? = null,
@@ -616,7 +635,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 val screen = @Composable {
                     AgendaScreen(
-                        state = readyState(sections),
+                        state = readyState(sections, date),
                         layout = layout,
                         onLayoutChange = {},
                         now = now,
@@ -643,10 +662,37 @@ class AgendaScreenTest {
         }
     }
 
-    private fun readyState(sections: AgendaSections) = AgendaUiState.Ready(
-        date = SHOWN_DAY,
-        sections = sections,
-    )
+    private fun readyState(sections: AgendaSections, date: LocalDate = SHOWN_DAY) =
+        AgendaUiState.Ready(
+            date = date,
+            sections = sections,
+        )
+
+    /** The name of the day as the header writes it, in the language asked for. */
+    private fun weekdayIn(date: LocalDate, tag: String): String {
+        val locale = java.util.Locale.forLanguageTag(tag)
+
+        return date.format(DateTimeFormatter.ofPattern("EEEE", locale))
+            .replaceFirstChar { it.titlecase(locale) }
+    }
+
+    /** The date as the header writes it, in the language asked for. */
+    private fun dateIn(date: LocalDate, tag: String): String {
+        val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+            .withLocale(java.util.Locale.forLanguageTag(tag))
+
+        return date.format(format)
+    }
+
+    /** How many lines the text laid out over. */
+    private fun linesOf(text: String): Int {
+        val laid = mutableListOf<TextLayoutResult>()
+
+        compose.onNodeWithText(text, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
+
+        return laid.first().lineCount
+    }
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
