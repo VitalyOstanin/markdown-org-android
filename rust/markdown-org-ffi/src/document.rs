@@ -6,11 +6,14 @@
 //! byte-for-byte, which is what keeps an edit to one task out of the way of a
 //! git merge with an edit to another.
 //!
-//! A byte-order mark is read as part of the first line and written back with
-//! it, so a file that carries one keeps it. Its heading is not editable
-//! either way: the extractor anchors the heading grammar at the start of the
-//! line, so a first line beginning with U+FEFF never becomes a task and never
-//! reaches an edit.
+//! A byte-order mark is held apart from the lines and written back at the
+//! front, so a file that carries one keeps it and its first heading is still
+//! a heading. Keeping the mark on the line instead left the first task of
+//! such a file uneditable: the heading grammar is anchored at the start of
+//! the line, and a line beginning with U+FEFF matches nothing. The scan
+//! agrees -- the markdown parser it goes through drops the mark before the
+//! grammar sees the line, so both sides read the file as starting with a
+//! heading.
 
 use std::fs;
 use std::io::{ErrorKind, Write};
@@ -26,6 +29,10 @@ use crate::edit::{EditError, EditTarget};
 /// step skips anything named this way rather than committing it.
 pub(crate) const TEMPORARY_PREFIX: &str = ".markdown-org-";
 
+/// The mark editors such as Notepad and VS Code put at the front of a file
+/// saved as "UTF-8 with BOM".
+const BYTE_ORDER_MARK: char = '\u{FEFF}';
+
 /// A file as its lines, each with the ending it was written with.
 fn split_lines(content: &str) -> Vec<(String, String)> {
     content
@@ -37,8 +44,20 @@ fn split_lines(content: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// A file's content without its byte-order mark, and whether it had one.
+fn split_byte_order_mark(content: &str) -> (bool, &str) {
+    match content.strip_prefix(BYTE_ORDER_MARK) {
+        Some(rest) => (true, rest),
+        None => (false, content),
+    }
+}
+
 pub(crate) struct Document {
     path: PathBuf,
+    /// Whether the file began with a byte-order mark. Held apart from the
+    /// lines so the first line reads as what it is, and put back by
+    /// [`Document::text`] so the file keeps the mark it was written with.
+    byte_order_mark: bool,
     /// Each line as its content and the ending that followed it. The last
     /// line of a file without a trailing newline has an empty ending.
     lines: Vec<(String, String)>,
@@ -97,9 +116,12 @@ impl Document {
             }
         })?;
 
+        let (byte_order_mark, body) = split_byte_order_mark(&content);
+
         Ok(Self {
             path,
-            lines: split_lines(&content),
+            byte_order_mark,
+            lines: split_lines(body),
         })
     }
 
@@ -151,12 +173,21 @@ impl Document {
         // Sized before it is filled: the file is known in full here, and a
         // string grown from nothing reallocates and copies its way up to the
         // same length once per doubling.
-        let size = self
-            .lines
-            .iter()
-            .map(|(body, ending)| body.len() + ending.len())
-            .sum();
+        let mark = if self.byte_order_mark {
+            BYTE_ORDER_MARK.len_utf8()
+        } else {
+            0
+        };
+        let size = mark
+            + self
+                .lines
+                .iter()
+                .map(|(body, ending)| body.len() + ending.len())
+                .sum::<usize>();
         let mut content = String::with_capacity(size);
+        if self.byte_order_mark {
+            content.push(BYTE_ORDER_MARK);
+        }
         for (body, ending) in &self.lines {
             content.push_str(body);
             content.push_str(ending);
@@ -170,7 +201,10 @@ impl Document {
     /// [`Document::text`], so a file goes back to the bytes it held rather
     /// than to a re-rendering of its lines.
     pub(crate) fn set_text(&mut self, content: &str) {
-        self.lines = split_lines(content);
+        let (byte_order_mark, body) = split_byte_order_mark(content);
+
+        self.byte_order_mark = byte_order_mark;
+        self.lines = split_lines(body);
     }
 
     /// Write the file out as a whole.

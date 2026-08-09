@@ -6,7 +6,6 @@ Work that is understood but deliberately not done yet.
 
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
-- [Notes carrying a byte-order mark](#notes-carrying-a-byte-order-mark)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
 
 ## One set of notes on more than one remote
@@ -47,17 +46,6 @@ from the phone at all. Adding one is a table in the extractor's `locale`
 module plus the matching entry in `SUPPORTED_LOCALES`, so that reading and
 writing agree; doing it here alone would let the application write names the
 extractor cannot read back.
-
-## Notes carrying a byte-order mark
-
-A file that starts with U+FEFF keeps it: it is read as part of the first line
-and written back with it. Its first heading is not editable, because the
-extractor anchors the heading grammar at the start of the line and a line
-beginning with the mark never becomes a task — so nothing reaches an edit.
-
-Stripping the mark on read and restoring it on write would only help once the
-extractor skips it as well. Until then the two would disagree about which
-line the file starts with.
 
 ## Unicode normalisation when a heading can be typed
 

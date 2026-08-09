@@ -417,6 +417,39 @@ fn a_heading_carrying_a_link_can_still_be_edited() {
 }
 
 #[test]
+fn a_heading_behind_a_byte_order_mark_can_still_be_edited() {
+    // Editors on Windows save "UTF-8 with BOM": the file opens with U+FEFF.
+    // The scan reads past it and hands back a task on line 1, but while the
+    // document kept the mark on that line the heading grammar saw
+    // "\u{FEFF}# TODO ..." -- which is not a heading -- and refused the edit
+    // as stale. The first task of such a file could not be acted on at all.
+    let vault = vault("\u{FEFF}# TODO Write the report\n");
+
+    let outcome = set_status(
+        scanned_target(vault.path(), "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("set status");
+
+    assert_eq!(outcome.line, "# DONE Write the report");
+    // The mark is the file's, not the line's: it goes back where it was.
+    assert_eq!(body(vault.path()), "\u{FEFF}# DONE Write the report\n");
+}
+
+#[test]
+fn a_file_without_a_byte_order_mark_is_not_given_one() {
+    let vault = vault("# TODO Write the report\n");
+
+    set_status(
+        target(vault.path(), 1, "Write the report"),
+        Some(TaskType::Done),
+    )
+    .expect("set status");
+
+    assert_eq!(body(vault.path()), "# DONE Write the report\n");
+}
+
+#[test]
 fn a_heading_that_really_did_change_is_still_refused() {
     // The comparison is loosened, not dropped: a line that now holds another
     // task must not be written to.

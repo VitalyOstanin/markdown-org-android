@@ -282,6 +282,34 @@ fn undoing_a_group_puts_the_notes_back() {
 }
 
 #[test]
+fn a_file_opening_with_a_byte_order_mark_keeps_it_through_the_undo() {
+    // The snapshot an undo restores is the file as the document reads it, so
+    // a mark held apart from the lines has to come back with them.
+    let marked = format!("\u{FEFF}{NOTES}");
+    let vault = vault(&[("notes.md", marked.as_str())]);
+
+    let outcome = apply_to_group(
+        dir(&vault),
+        vec![scheduled("notes.md", 1, "Pay the tax")],
+        BulkAction::MoveToToday,
+        TODAY.to_string(),
+    )
+    .expect("group");
+
+    assert_eq!(outcome.changed, 1);
+    assert!(
+        read(&vault, "notes.md").starts_with('\u{FEFF}'),
+        "the mark must survive the edit: {:?}",
+        read(&vault, "notes.md")
+    );
+
+    let undone = revert_bulk(dir(&vault), outcome.rollback);
+
+    assert_eq!(undone.restored, vec!["notes.md"]);
+    assert_eq!(read(&vault, "notes.md"), marked);
+}
+
+#[test]
 fn a_file_written_to_since_the_group_is_left_alone_by_the_undo() {
     let vault = vault(&[
         (
