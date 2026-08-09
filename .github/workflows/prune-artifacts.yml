@@ -1,0 +1,87 @@
+name: Prune artifacts
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List artifacts without deleting them
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+
+concurrency:
+  group: prune-artifacts
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Keep newest artifact per name
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Prune artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          # newest-per-name — keep the newest artifact of every name; none — keep nothing
+          KEEP: newest-per-name
+          # artifacts younger than this are left alone: a running build may still need them
+          MIN_AGE_MIN: '60'
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d "-${MIN_AGE_MIN} minutes" '+%Y-%m-%dT%H:%M:%SZ')
+          tab=$(printf '\t')
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired==false)
+                  | [(.id|tostring), .name, (.size_in_bytes|tostring), .created_at, (.workflow_run.id|tostring)]
+                  | @tsv' > all.tsv
+
+          # artifacts of unfinished runs are still being consumed by later jobs
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" \
+            --jq '.workflow_runs[] | select(.status != "completed") | .id' | paste -sd'|' || true)
+
+          if [ "${KEEP}" = none ]; then
+            cp all.tsv candidates.tsv
+          else
+            sort -t"${tab}" -k2,2 -k4,4r all.tsv | awk -F'\t' '{ if (seen[$2]++) print }' > candidates.tsv
+          fi
+
+          awk -F'\t' -v cutoff="${cutoff}" -v active="${active:-}" '
+            BEGIN { n = split(active, a, "|"); for (i = 1; i <= n; i++) if (a[i] != "") busy[a[i]] = 1 }
+            $4 < cutoff && !($5 in busy)
+          ' candidates.tsv > victims.tsv
+
+          total=$(grep -c . all.tsv || true)
+          doomed=$(grep -c . victims.tsv || true)
+          held=$(( $(grep -c . candidates.tsv || true) - doomed ))
+          bytes=$(awk -F'\t' '{s+=$3} END {printf "%d", s/1048576}' victims.tsv)
+
+          {
+            echo "### Prune artifacts"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Live artifacts | ${total} |"
+            echo "| Selected for deletion | ${doomed} (${bytes} MiB) |"
+            echo "| Held back (young or running) | ${held} |"
+            echo "| Mode | ${KEEP}, dry-run=${DRY_RUN:-false} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          awk -F'\t' '{print "  " $1 "  " $2 "  " $4}' victims.tsv
+
+          if [ "${DRY_RUN:-false}" = true ]; then
+            echo "dry-run: nothing deleted"
+            exit 0
+          fi
+
+          while IFS="${tab}" read -r id name size created run_id; do
+            [ -n "${id}" ] || continue
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" --silent
+          done < victims.tsv
+
+          echo "deleted ${doomed} artifacts, ${bytes} MiB"
