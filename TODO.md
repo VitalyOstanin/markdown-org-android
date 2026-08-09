@@ -6,6 +6,7 @@ Work that is understood but deliberately not done yet.
 
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
+- [Tooltips beyond the task row](#tooltips-beyond-the-task-row)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
 
 ## One set of notes on more than one remote
@@ -46,6 +47,28 @@ from the phone at all. Adding one is a table in the extractor's `locale`
 module plus the matching entry in `SUPPORTED_LOCALES`, so that reading and
 writing agree; doing it here alone would let the application write names the
 extractor cannot read back.
+
+## Tooltips beyond the task row
+
+`TaskTooltip` wraps the rows of both layouts, and nothing else on the screen
+carries a tooltip. The icon buttons have a `contentDescription`, which the
+screen reader announces but a long press does not show, so a glyph a sighted
+user does not recognise stays unexplained.
+
+What goes without one, from a walk over the screens on 2026-08-09:
+
+| № | Element                                                            | What it offers today                                          |
+|---|--------------------------------------------------------------------|---------------------------------------------------------------|
+| 1 | The icon buttons of the bar                                        | a `contentDescription`, and nothing on a long press            |
+| 2 | The collection chips and the collection filter                     | a label, with no word on the directory behind it               |
+| 3 | The sync banner, the unpushed count, the time of the last sync     | a line of text, with no word on what is being counted          |
+| 4 | The scan notices                                                   | the notice alone, with no word on what produced it             |
+| 5 | The group action menu and its items                                | a `contentDescription` on the anchor                           |
+| 6 | The collection dot at the head of a row                            | a colour, and nothing that names the collection                |
+
+`TooltipBox` already does the delay and the positioning, so what is missing is
+a string per element in both languages, worded as the extension words it — the
+same task should read the same on the phone and in the editor.
 
 ## Unicode normalisation when a heading can be typed
 
