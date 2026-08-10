@@ -63,6 +63,15 @@ internal val BulkAction.label: Int
         BulkAction.CANCEL -> R.string.agenda_group_cancel
     }
 
+/** What a long press on the item says: what it will do to the whole band. */
+@get:StringRes
+internal val BulkAction.hint: Int
+    get() = when (this) {
+        BulkAction.MOVE_TO_TODAY -> R.string.hint_group_move_today
+        BulkAction.DROP_PLANNING -> R.string.hint_group_drop_date
+        BulkAction.CANCEL -> R.string.hint_group_cancel
+    }
+
 /** What the screen says the action did, counting the tasks it did it to. */
 @get:PluralsRes
 internal val BulkAction.done: Int
@@ -86,33 +95,43 @@ internal fun GroupMenu(band: OverdueBand, onAction: (BulkAction) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val name = stringResource(band.label)
 
-    Text(
-        text = MENU_MARK,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier
-            .testTag(band.menuTag)
-            .clickable(onClickLabel = stringResource(R.string.agenda_group_actions)) {
-                open = true
-            }
-            // The mark is one glyph wide, well under the size a finger aims
-            // at; the padding is what makes the target a target.
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
-            // Named after the band it belongs to: a reader hearing "actions"
-            // four times down the screen learns nothing about which is which.
-            .semantics { contentDescription = name },
-    )
+    // The mark is a single glyph and says nothing about what is behind it,
+    // least of all that what is behind it writes to every note of the band.
+    HintTooltip(stringResource(R.string.hint_group_menu, name)) {
+        Text(
+            text = MENU_MARK,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier
+                .testTag(band.menuTag)
+                .clickable(onClickLabel = stringResource(R.string.agenda_group_actions)) {
+                    open = true
+                }
+                // The mark is one glyph wide, well under the size a finger
+                // aims at; the padding is what makes the target a target.
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+                // Named after the band it belongs to: a reader hearing
+                // "actions" four times down the screen learns nothing about
+                // which is which.
+                .semantics { contentDescription = name },
+        )
+    }
 
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         for (action in BulkAction.entries) {
-            DropdownMenuItem(
-                text = { Text(stringResource(action.label)) },
-                onClick = {
-                    open = false
-                    onAction(action)
-                },
-                modifier = Modifier.testTag(action.menuTag),
-            )
+            // Three words apiece, and each of them acts on every entry of the
+            // band at once: what "Move to today" does to a missed repeat, and
+            // what dropping the date leaves behind, are said here.
+            HintTooltip(stringResource(action.hint)) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(action.label)) },
+                    onClick = {
+                        open = false
+                        onAction(action)
+                    },
+                    modifier = Modifier.testTag(action.menuTag),
+                )
+            }
         }
     }
 }

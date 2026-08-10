@@ -71,12 +71,14 @@ fun TaskActionsSheet(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.testTag("action-heading"),
             )
-            Text(
-                text = "${task.file}:${task.line}",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.outline,
-            )
+            HintTooltip(stringResource(R.string.hint_action_where)) {
+                Text(
+                    text = "${task.file}:${task.line}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
 
             val repeating = task.timestampRepeater != null
             // A task that is already done has nothing to complete — writing
@@ -93,6 +95,13 @@ fun TaskActionsSheet(
                         },
                     ),
                     tag = "action-complete",
+                    hint = stringResource(
+                        if (repeating) {
+                            R.string.hint_action_complete_repeating
+                        } else {
+                            R.string.hint_action_complete
+                        },
+                    ),
                 ) { onAction(TaskAction.Complete) }
             }
 
@@ -100,6 +109,7 @@ fun TaskActionsSheet(
                 SheetButton(
                     label = stringResource(R.string.action_cancel_task),
                     tag = "action-cancel",
+                    hint = stringResource(R.string.hint_action_cancel),
                 ) { onAction(TaskAction.Status(TaskType.CANCELLED)) }
             }
 
@@ -107,6 +117,7 @@ fun TaskActionsSheet(
                 SheetButton(
                     label = stringResource(R.string.action_reopen),
                     tag = "action-reopen",
+                    hint = stringResource(R.string.hint_action_reopen),
                 ) { onAction(TaskAction.Status(TaskType.TODO)) }
             }
 
@@ -126,17 +137,27 @@ fun TaskActionsSheet(
                 TimestampType.CLOSED, TimestampType.PLAIN, null -> null
             }
             if (keyword != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    SheetButton(
-                        label = stringResource(R.string.action_shift_back),
-                        tag = "action-shift-back",
-                        modifier = Modifier.weight(1f),
-                    ) { onAction(TaskAction.Shift(keyword, -1)) }
-                    SheetButton(
-                        label = stringResource(R.string.action_shift_forward),
-                        tag = "action-shift-forward",
-                        modifier = Modifier.weight(1f),
-                    ) { onAction(TaskAction.Shift(keyword, 1)) }
+                // The same line for both: what a day earlier and a day later
+                // write differs only in the sign, and the rest — the time, the
+                // repeater, the weekday — is what is worth saying.
+                // Around the row rather than around each button: a weight
+                // handed to the tooltip is not the weight the row measures,
+                // and the second button ended up off the screen. A long press
+                // on either of them reaches this box all the same — a button
+                // takes the tap and leaves the long press alone.
+                HintTooltip(stringResource(R.string.hint_action_shift)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        ShiftButton(
+                            label = stringResource(R.string.action_shift_back),
+                            tag = "action-shift-back",
+                            modifier = Modifier.weight(1f),
+                        ) { onAction(TaskAction.Shift(keyword, -1)) }
+                        ShiftButton(
+                            label = stringResource(R.string.action_shift_forward),
+                            tag = "action-shift-forward",
+                            modifier = Modifier.weight(1f),
+                        ) { onAction(TaskAction.Shift(keyword, 1)) }
+                    }
                 }
             }
         }
@@ -153,11 +174,16 @@ fun TaskActionsSheet(
  */
 @Composable
 private fun PriorityChoice(current: String?, onAction: (TaskAction) -> Unit) {
-    Text(
-        text = stringResource(R.string.action_priority),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    // On the heading of the row rather than on every chip: the line is about
+    // the cookie the whole row writes, and repeating it four times would put a
+    // tooltip under every finger that reaches for a level.
+    HintTooltip(stringResource(R.string.hint_action_priority)) {
+        Text(
+            text = stringResource(R.string.action_priority),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         for (level in levels(current)) {
             val selected = level == current
@@ -186,8 +212,31 @@ private fun levels(current: String?): List<String?> =
 
 private val DEFAULT_RANGE = listOf("A", "B", "C")
 
+/**
+ * One action across the sheet, with a line behind a long press saying what it
+ * writes into the note.
+ *
+ * The tooltip wraps the button rather than the other way round, so the press
+ * that opens it is a press on the button itself. A button builds its own
+ * semantics node, so the tag stays where it is put.
+ */
 @Composable
-private fun SheetButton(
+private fun SheetButton(label: String, tag: String, hint: String, onClick: () -> Unit) {
+    HintTooltip(hint) {
+        ShiftButton(label = label, tag = tag, onClick = onClick)
+    }
+}
+
+/**
+ * A plain button of the sheet, with no line of its own.
+ *
+ * Separate from [SheetButton] because of what the two do with a width: this
+ * one takes a [modifier] the caller's row measures — a weight given to a
+ * tooltip is not a weight the row can see, and the button beside it ended up
+ * off the screen.
+ */
+@Composable
+private fun ShiftButton(
     label: String,
     tag: String,
     modifier: Modifier = Modifier,

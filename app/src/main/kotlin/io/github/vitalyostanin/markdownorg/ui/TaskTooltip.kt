@@ -124,7 +124,7 @@ private const val HOUR_UNIT = "h"
 
 /** The whole tooltip: the heading in full, then what the row could not say. */
 @Composable
-internal fun taskTooltipText(task: Task): String {
+internal fun taskTooltipText(task: Task, collection: CollectionLabel? = null): String {
     val locale = LocalLocale.current.platformLocale
     val use24Hour = use24Hour()
     val lines = listOfNotNull(
@@ -133,6 +133,10 @@ internal fun taskTooltipText(task: Task): String {
             time = { statedTimeLabel(it, locale, use24Hour) },
         ),
         task.tooltipPriority(),
+        // The dot at the head of the row is six points across — too small to
+        // aim a press at, and it is inside the row's own tooltip anyway. The
+        // name it stands for is said here instead.
+        collection?.let { TooltipLine(R.string.tooltip_collection, listOf(it.name)) },
     )
 
     return (listOf(task.heading) + lines.map { stringResource(it.text, *it.args.toTypedArray()) })
@@ -154,8 +158,12 @@ internal fun taskTooltipText(task: Task): String {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun TaskTooltip(task: Task, content: @Composable () -> Unit) {
-    val text = taskTooltipText(task)
+internal fun TaskTooltip(
+    task: Task,
+    collection: CollectionLabel? = null,
+    content: @Composable () -> Unit,
+) {
+    val text = taskTooltipText(task, collection)
 
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(

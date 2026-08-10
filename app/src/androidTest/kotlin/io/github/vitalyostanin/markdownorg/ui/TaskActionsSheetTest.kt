@@ -4,9 +4,11 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
@@ -147,7 +149,9 @@ class TaskActionsSheetTest {
     fun aDeadlineMovesItsOwnPlanningLine() {
         show(task(timestampType = TimestampType.DEADLINE))
 
-        compose.onNodeWithTag("action-shift-forward").performClick()
+        // Displayed as well as present: the two buttons share the row, and a
+        // wrapper that swallowed the weight once pushed this one off screen.
+        compose.onNodeWithTag("action-shift-forward").assertIsDisplayed().performClick()
 
         assertEquals(
             listOf<TaskAction>(TaskAction.Shift(PlanningKeyword.DEADLINE, 1)),
@@ -175,6 +179,38 @@ class TaskActionsSheetTest {
 
         compose.onNodeWithTag("action-shift-forward").assertDoesNotExist()
         compose.onNodeWithTag("action-shift-back").assertDoesNotExist()
+    }
+
+    @Test
+    fun anActionSaysWhatItWritesIntoTheNote() {
+        // The button is named after the outcome — "Done" — and says nothing
+        // about the keyword that lands in the file.
+        show(task())
+
+        compose.onNodeWithTag("action-complete").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_action_complete), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun aRepeatingTaskIsToldWhatCompletingMovesInstead() {
+        show(task(repeater = "+1w", timestampType = TimestampType.SCHEDULED))
+
+        compose.onNodeWithTag("action-complete").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_action_complete_repeating), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theLineUnderTheHeadingSaysWhatItPointsAt() {
+        show(task(file = "home.md", line = 12u))
+
+        compose.onNodeWithText("home.md:12").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_action_where), substring = true)
+            .assertIsDisplayed()
     }
 
     private fun show(task: Task) {

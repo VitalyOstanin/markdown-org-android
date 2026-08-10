@@ -6,8 +6,9 @@ Work that is understood but deliberately not done yet.
 
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
-- [Tooltips beyond the task row](#tooltips-beyond-the-task-row)
+- [Tooltips beyond the agenda screen](#tooltips-beyond-the-agenda-screen)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
+- [Publishing to the app stores](#publishing-to-the-app-stores)
 
 ## One set of notes on more than one remote
 
@@ -48,27 +49,29 @@ module plus the matching entry in `SUPPORTED_LOCALES`, so that reading and
 writing agree; doing it here alone would let the application write names the
 extractor cannot read back.
 
-## Tooltips beyond the task row
+## Tooltips beyond the agenda screen
 
-`TaskTooltip` wraps the rows of both layouts, and nothing else on the screen
-carries a tooltip. The icon buttons have a `contentDescription`, which the
-screen reader announces but a long press does not show, so a glyph a sighted
-user does not recognise stays unexplained.
+Every screen now carries them, and what is left is the wording rather than the
+mechanism.
 
-What goes without one, from a walk over the screens on 2026-08-09:
+The agenda screen: the header icons, the layout switch, the collection chips,
+the sync banner and the two lines under it, the scan notices, the band menu
+and each of its items; the row tooltip names the collection the dot stands
+for. The sheet of actions: what each action writes into the note — the
+keyword, the cookie, the date and what stays as written. The settings screen:
+every button, both checkboxes, the heading of the collections and the two
+lines at the bottom; the fields answer with a line under them instead, which
+is readable without a press. The licence screen: the card and the way back.
 
-| № | Element                                                            | What it offers today                                          |
-|---|--------------------------------------------------------------------|---------------------------------------------------------------|
-| 1 | The icon buttons of the bar                                        | a `contentDescription`, and nothing on a long press            |
-| 2 | The collection chips and the collection filter                     | a label, with no word on the directory behind it               |
-| 3 | The sync banner, the unpushed count, the time of the last sync     | a line of text, with no word on what is being counted          |
-| 4 | The scan notices                                                   | the notice alone, with no word on what produced it             |
-| 5 | The group action menu and its items                                | a `contentDescription` on the anchor                           |
-| 6 | The collection dot at the head of a row                            | a colour, and nothing that names the collection                |
+Wording follows the VS Code extension where the two show the same thing, so
+the same task reads alike on the phone and in the editor.
 
-`TooltipBox` already does the delay and the positioning, so what is missing is
-a string per element in both languages, worded as the extension words it — the
-same task should read the same on the phone and in the editor.
+Two rules the layout imposes, both learnt from a test that failed:
+
+| № | Rule                                                                                                     |
+|---|-----------------------------------------------------------------------------------------------------------|
+| 1 | A tag belongs on the tooltip rather than on what it wraps — the box merges the semantics of its content, and a `testTag` on a bare `Text` inside stops existing in the merged tree. A control with a semantics node of its own — a button, a chip — keeps its tag either way. |
+| 2 | A weight must not be handed to the tooltip: the row measures its own children, and the box is not the button. Two buttons sharing a row are wrapped as a row, not one by one — the second one went off the screen otherwise. |
 
 ## Unicode normalisation when a heading can be typed
 
@@ -81,3 +84,81 @@ diacritics — and a visually identical heading would then be refused as
 `Stale`. The answer is to compare after NFC normalisation
 (`unicode-normalization`), and it is worth adding together with whatever first
 lets a heading be entered.
+
+## Publishing to the app stores
+
+The only way to install the application today is the GitHub release: a tag
+builds a signed APK and publishes it, and a phone downloads that file. That
+asks the user to allow installs from an unknown source and leaves updates to
+whoever remembers to check the releases page. A store does both for them.
+
+Where the build already is:
+
+| № | Piece                     | State                                                                                       |
+|---|---------------------------|---------------------------------------------------------------------------------------------|
+| 1 | Application id            | `io.github.vitalyostanin.markdownorg`, which any store will take as the package name         |
+| 2 | Signing                   | a release keystore held as a CI secret, read from `APP_KEYSTORE_*`; a local build is unsigned |
+| 3 | Artefact                  | APK only. Google Play takes an Android App Bundle, so `bundleRelease` has to be added         |
+| 4 | Version                   | `versionCode` / `versionName` come from the tag, which is what a store increments against     |
+| 5 | Licence notices           | already generated for the APK, and every store asks for the same list                         |
+| 6 | Store listing             | `fastlane/metadata/android/{en-US,ru}` holds the title, both descriptions, the icon and four screenshots per language; no feature graphic and no privacy policy yet |
+| 7 | Releases                  | every tag so far is a prerelease `v0.1.0-build.<run>`, and a store that tracks releases has nothing marked final to pick up |
+
+The listing was written against the IzzyOnDroid policy, read on 2026-08-10
+(<https://izzyondroid.org/docs/general/AppInclusionPolicy/>): fastlane
+metadata with a short description, a full description, an icon and
+screenshots; an APK signed with the developer's release key, carrying neither
+`debuggable` nor `testOnly`, published on the releases page; at most 30 MB per
+application, against the 24.8 MB the last build weighs; an OSI licence, which
+MIT is; no proprietary component, tracker or analytics, of which the
+application has none.
+
+The icon is rendered from the launcher vector by `tools/store-icon.sh` rather
+than drawn a second time. The screenshots were taken on the emulator, in both
+languages, of the sample notes the application writes on first run — which are
+written in the language of the device, so the Russian listing shows Russian
+headings throughout. The emulator was put into Russian per application
+(`cmd locale set-app-locales`) rather than as a whole: changing the system
+language restarts the shell, and the emulator came back with an unresponsive
+system UI over everything.
+
+What each store wants. Every requirement below is from general knowledge and
+has to be re-checked against the store's own documentation before anything is
+submitted — these rules change often, and the numbers most of all.
+
+| № | Store                       | What it costs and what it asks for                                                                                     |
+|---|-----------------------------|------------------------------------------------------------------------------------------------------------------------|
+| 1 | Google Play                 | a one-off developer fee, an AAB rather than an APK, Play App Signing, a data-safety declaration, a target API level no older than the current floor, and — for a personal account opened recently — a closed test with a number of testers over a number of days before production is unlocked |
+| 2 | F-Droid                     | no fee and no account: a metadata file in their repository, a build from source on their own machines, and no proprietary dependency. Their build would have to reproduce the NDK and Rust toolchain this project pins |
+| 3 | IzzyOnDroid                 | the lightest of them: a repository that publishes signed APKs on its releases page is enough, and the store tracks the tags. Closest to how the project already publishes |
+| 4 | RuStore                     | a Russian developer account; takes an APK, which is what the build already produces |
+| 5 | Huawei AppGallery           | an account and their own review; no Google Play Services in the application, which this one does not use anyway |
+| 6 | Amazon Appstore, Galaxy Store | an account each, an APK, and a listing per store |
+
+Two things have to be decided before any of it, and they are the reason this
+is a note rather than a task:
+
+1. **Who holds the signing key.** Google Play App Signing keeps the upload key
+   separate from the one the store signs with, and an application published
+   both there and elsewhere is then signed by two different keys — the same
+   package cannot be updated across the two. The usual answer is to pick one
+   distribution as the primary and let the others carry a different package
+   name, or to publish everywhere with the project's own key and skip Play.
+2. **Paying the developer fee.** The Google and Apple fees are charged in a way
+   a Russian card does not satisfy, so the account itself is the obstacle
+   rather than the review. Until that is answered, F-Droid, IzzyOnDroid and
+   RuStore are the reachable ones.
+
+The cheapest first step is IzzyOnDroid: it wants what the build already emits.
+F-Droid is the one worth the work — it is where a notes application of this
+kind is looked for — and the effort there is making the build reproduce on
+their infrastructure, not the paperwork.
+
+What is left before the request to include it can be filed:
+
+| № | Step                                                                                        |
+|---|---------------------------------------------------------------------------------------------|
+| 1 | Cut a release that is not a prerelease, so there is a version for a store to track          |
+| 2 | Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for that release      |
+| 3 | Decide whether a feature graphic is worth drawing — the listing renders without one          |
+| 4 | File the inclusion request, naming the repository and the tag pattern the APK is published under |

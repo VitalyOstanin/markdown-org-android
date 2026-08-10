@@ -2,12 +2,16 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.test.platform.app.InstrumentationRegistry
+import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.Component
 import io.github.vitalyostanin.markdownorg.core.LicenceGroup
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -94,6 +98,24 @@ class LicensesScreenTest {
         }
 
         compose.onNodeWithTag("licences-unavailable").assertIsDisplayed()
+    }
+
+    /**
+     * The card carries a name, an identifier and a list of components, and
+     * nothing that says the text is behind a press.
+     */
+    @Test
+    fun theCardSaysThatTheTextIsBehindIt() {
+        show()
+
+        compose.onAllNodesWithText("Apache License 2.0")
+            .onFirst()
+            .performTouchInput { longClick() }
+
+        val hint = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.hint_licence_card)
+        compose.onNodeWithText(hint, substring = true).assertIsDisplayed()
     }
 
     private fun show() {

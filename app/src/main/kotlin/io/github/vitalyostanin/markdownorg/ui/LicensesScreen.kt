@@ -61,8 +61,10 @@ fun LicensesScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                TextButton(onClick = onDismiss, modifier = Modifier.testTag("licences-close")) {
-                    Text(stringResource(R.string.licences_close))
+                HintTooltip(stringResource(R.string.hint_licences_close)) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.testTag("licences-close")) {
+                        Text(stringResource(R.string.licences_close))
+                    }
                 }
             }
 
@@ -107,50 +109,52 @@ private fun LicenceCard(group: LicenceGroup) {
         mutableStateOf(false)
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { open = !open },
-    ) {
-        Column(
-            modifier = Modifier.padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    HintTooltip(stringResource(R.string.hint_licence_card)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { open = !open },
         ) {
-            Text(
-                text = group.name,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = group.id,
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = group.usedBy.joinToString(", ", transform = Component::stated),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            when {
-                open && group.text.isNotEmpty() -> Text(
-                    text = group.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
+            Column(
+                modifier = Modifier.padding(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = group.name,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = Spacing.sm),
                 )
-
-                // A licence nobody collected a text for still has somewhere to
-                // be read; the link is what the artifact itself stated.
-                open && group.url.isNotEmpty() -> Text(
-                    text = group.url,
-                    style = MaterialTheme.typography.bodySmall,
+                Text(
+                    text = group.id,
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.sm),
                 )
+                Text(
+                    text = group.usedBy.joinToString(", ", transform = Component::stated),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                when {
+                    open && group.text.isNotEmpty() -> Text(
+                        text = group.text,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+
+                    // A licence nobody collected a text for still has somewhere
+                    // to be read; the link is what the artifact itself stated.
+                    open && group.url.isNotEmpty() -> Text(
+                        text = group.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
             }
         }
     }

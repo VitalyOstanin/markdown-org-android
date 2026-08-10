@@ -197,6 +197,9 @@ fun SyncSettingsScreen(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.settings_collection_name)) },
+                    supportingText = {
+                        Text(stringResource(R.string.settings_collection_name_hint))
+                    },
                     isError = name.isBlank(),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
@@ -207,11 +210,13 @@ fun SyncSettingsScreen(
             // the answer to a first launch that would otherwise keep asking
             // for an address the user has no intention of giving.
             if (!storesLocally && url.isBlank()) {
-                TextButton(
-                    onClick = onKeepLocal,
-                    modifier = Modifier.testTag("settings-keep-local"),
-                ) {
-                    Text(stringResource(R.string.settings_keep_local))
+                HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
+                    TextButton(
+                        onClick = onKeepLocal,
+                        modifier = Modifier.testTag("settings-keep-local"),
+                    ) {
+                        Text(stringResource(R.string.settings_keep_local))
+                    }
                 }
             }
 
@@ -221,9 +226,13 @@ fun SyncSettingsScreen(
                 label = { Text(stringResource(R.string.settings_url)) },
                 placeholder = { Text("https://gitlab.com/user/notes.git") },
                 isError = malformed,
-                supportingText = problem
-                    ?.takeIf { malformed }
-                    ?.let { { Text(stringResource(it.toMessage().text)) } },
+                // What is wrong with the address, or — while nothing is — what
+                // an address here may be. A field that says nothing until it
+                // is wrong leaves the shape of the answer to be guessed at.
+                supportingText = {
+                    val line = problem?.takeIf { malformed }?.let { it.toMessage().text }
+                    Text(stringResource(line ?: R.string.settings_url_default))
+                },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -277,11 +286,16 @@ fun SyncSettingsScreen(
                         onCheckedChange = { dropToken = it },
                         modifier = Modifier.testTag("settings-token-drop"),
                     )
-                    Text(
-                        text = stringResource(R.string.settings_token_drop),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    // On the label rather than on the box: a long press over a
+                    // checkbox is a press over the thing it toggles, and the
+                    // line is what the tick will do when the form is saved.
+                    HintTooltip(stringResource(R.string.hint_settings_token_drop)) {
+                        Text(
+                            text = stringResource(R.string.settings_token_drop),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
 
@@ -326,22 +340,26 @@ fun SyncSettingsScreen(
                 // capitalises, autocorrects and turns `/sdcard` into
                 // `/SD card`. The picker only fills the field in; the notes
                 // are read by path all the same.
-                TextButton(
-                    onClick = onPickNotesDirectory,
-                    modifier = Modifier.testTag("settings-notes-pick"),
-                ) {
-                    Text(stringResource(R.string.settings_notes_pick))
+                HintTooltip(stringResource(R.string.hint_settings_notes_pick)) {
+                    TextButton(
+                        onClick = onPickNotesDirectory,
+                        modifier = Modifier.testTag("settings-notes-pick"),
+                    ) {
+                        Text(stringResource(R.string.settings_notes_pick))
+                    }
                 }
 
                 // Only while it is the missing permission that stands in the
                 // way: a button offering what has already been granted, or
                 // what would not help, is a button that answers nothing.
                 if (pathProblem == NotesPathProblem.NEEDS_PERMISSION) {
-                    TextButton(
-                        onClick = onRequestStorage,
-                        modifier = Modifier.testTag("settings-notes-grant"),
-                    ) {
-                        Text(stringResource(R.string.settings_notes_grant))
+                    HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
+                        TextButton(
+                            onClick = onRequestStorage,
+                            modifier = Modifier.testTag("settings-notes-grant"),
+                        ) {
+                            Text(stringResource(R.string.settings_notes_grant))
+                        }
                     }
                 }
             }
@@ -351,25 +369,29 @@ fun SyncSettingsScreen(
             // Only while there is another collection to fall back to: an
             // agenda over nothing has no way back except a reinstall.
             if (collections.size > 1) {
-                TextButton(
-                    onClick = { removing = editingId },
-                    modifier = Modifier.testTag("settings-collection-remove"),
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_collection_remove),
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                HintTooltip(stringResource(R.string.hint_settings_collection_remove)) {
+                    TextButton(
+                        onClick = { removing = editingId },
+                        modifier = Modifier.testTag("settings-collection-remove"),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_collection_remove),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
 
             // The way to the notices of everything the APK carries. Here
             // rather than on the agenda: it is read once, if ever, and the
             // agenda's header is for what the reader came for.
-            TextButton(
-                onClick = onOpenLicences,
-                modifier = Modifier.testTag("settings-licences"),
-            ) {
-                Text(stringResource(R.string.settings_licences))
+            HintTooltip(stringResource(R.string.hint_settings_licences)) {
+                TextButton(
+                    onClick = onOpenLicences,
+                    modifier = Modifier.testTag("settings-licences"),
+                ) {
+                    Text(stringResource(R.string.settings_licences))
+                }
             }
 
             // What is left of the run that ended in a crash. Here rather than
@@ -377,12 +399,17 @@ fun SyncSettingsScreen(
             // it, and the trace is the whole of what makes such a report
             // worth anything.
             crash?.let { trace ->
-                Text(
-                    text = stringResource(R.string.settings_crash),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                HintTooltip(
+                    stringResource(R.string.hint_settings_crash),
+                    // On the anchor rather than on the line inside it: see HintTooltip.
                     modifier = Modifier.testTag("settings-crash"),
-                )
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_crash),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 Text(
                     text = trace,
                     style = MaterialTheme.typography.bodySmall.copy(
@@ -407,52 +434,64 @@ fun SyncSettingsScreen(
             // only by the run that produced them, so the code and the commit
             // are here as well: a report about a build nobody can identify
             // cannot be acted on.
-            Text(
-                text = stringResource(
-                    R.string.settings_version,
-                    BuildConfig.VERSION_NAME,
-                    BuildConfig.VERSION_CODE,
-                    BuildConfig.COMMIT,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            HintTooltip(
+                stringResource(R.string.hint_settings_version),
                 modifier = Modifier.testTag("settings-version"),
-            )
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.settings_version,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE,
+                        BuildConfig.COMMIT,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.testTag("settings-cancel")) {
-                    Text(stringResource(R.string.settings_cancel))
+                HintTooltip(stringResource(R.string.hint_settings_cancel)) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("settings-cancel"),
+                    ) {
+                        Text(stringResource(R.string.settings_cancel))
+                    }
                 }
                 Spacer(Modifier.width(Spacing.sm))
-                Button(
-                    onClick = {
-                        onSave(
-                            SyncFormValues(
-                                url = url,
-                                branch = branch,
-                                token = token,
-                                dropToken = dropToken,
-                                notesPath = notesPath,
-                                name = name,
-                                sshKey = sshKey,
-                                sshPassphrase = sshPassphrase,
-                                dropKey = dropKey,
-                            ),
-                        )
-                    },
-                    // An empty address is not an obstacle any more: the form
-                    // also carries where the notes are kept, and notes already
-                    // on the device need no remote at all. A collection with
-                    // no name is one the filter offers as a blank chip.
-                    enabled = !malformed && !pathRefused &&
-                        (collections.isEmpty() || name.isNotBlank()),
-                    modifier = Modifier.testTag("settings-save"),
-                ) {
-                    Text(stringResource(R.string.settings_save))
+                HintTooltip(stringResource(R.string.hint_settings_save)) {
+                    Button(
+                        onClick = {
+                            onSave(
+                                SyncFormValues(
+                                    url = url,
+                                    branch = branch,
+                                    token = token,
+                                    dropToken = dropToken,
+                                    notesPath = notesPath,
+                                    name = name,
+                                    sshKey = sshKey,
+                                    sshPassphrase = sshPassphrase,
+                                    dropKey = dropKey,
+                                ),
+                            )
+                        },
+                        // An empty address is not an obstacle any more: the
+                        // form also carries where the notes are kept, and
+                        // notes already on the device need no remote at all. A
+                        // collection with no name is one the filter offers as
+                        // a blank chip.
+                        enabled = !malformed && !pathRefused &&
+                            (collections.isEmpty() || name.isNotBlank()),
+                        modifier = Modifier.testTag("settings-save"),
+                    ) {
+                        Text(stringResource(R.string.settings_save))
+                    }
                 }
             }
         }
@@ -505,11 +544,15 @@ private fun CollectionsSection(
 
     val newName = stringResource(R.string.collection_new_name)
 
-    Text(
-        text = stringResource(R.string.settings_collections),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
+    // On the heading rather than on each chip: the chips already carry a name
+    // apiece, and what needs saying is what picking one of them changes.
+    HintTooltip(stringResource(R.string.hint_settings_collection)) {
+        Text(
+            text = stringResource(R.string.settings_collections),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -533,11 +576,13 @@ private fun CollectionsSection(
                 modifier = Modifier.testTag("settings-collection-${collection.id}"),
             )
         }
-        TextButton(
-            onClick = { onAddCollection(newName) },
-            modifier = Modifier.testTag("settings-collection-add"),
-        ) {
-            Text(stringResource(R.string.settings_collection_add))
+        HintTooltip(stringResource(R.string.hint_settings_collection_add)) {
+            TextButton(
+                onClick = { onAddCollection(newName) },
+                modifier = Modifier.testTag("settings-collection-add"),
+            ) {
+                Text(stringResource(R.string.settings_collection_add))
+            }
         }
     }
 }
@@ -575,12 +620,17 @@ private fun SshSection(
     val clipboard = LocalClipboardManager.current
     var open by rememberSaveable { mutableStateOf(startsOpen) }
 
-    TextButton(onClick = { open = !open }, modifier = Modifier.testTag("settings-ssh-toggle")) {
-        Text(
-            text = stringResource(R.string.settings_ssh),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+    HintTooltip(stringResource(R.string.hint_settings_ssh)) {
+        TextButton(
+            onClick = { open = !open },
+            modifier = Modifier.testTag("settings-ssh-toggle"),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_ssh),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 
     if (!open) {
@@ -621,16 +671,20 @@ private fun SshSection(
                 onCheckedChange = onDropKeyChange,
                 modifier = Modifier.testTag("settings-ssh-key-drop"),
             )
-            Text(
-                text = stringResource(R.string.settings_ssh_key_drop),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            HintTooltip(stringResource(R.string.hint_settings_ssh_key_drop)) {
+                Text(
+                    text = stringResource(R.string.settings_ssh_key_drop),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
     }
 
-    TextButton(onClick = onCreateKey, modifier = Modifier.testTag("settings-ssh-create")) {
-        Text(stringResource(R.string.settings_ssh_create))
+    HintTooltip(stringResource(R.string.hint_settings_ssh_create)) {
+        TextButton(onClick = onCreateKey, modifier = Modifier.testTag("settings-ssh-create")) {
+            Text(stringResource(R.string.settings_ssh_create))
+        }
     }
 
     // The public half is of no use on the phone: it is taken to a server, and
@@ -643,11 +697,13 @@ private fun SshSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().testTag("settings-ssh-public"),
         )
-        TextButton(
-            onClick = { clipboard.setText(AnnotatedString(line)) },
-            modifier = Modifier.testTag("settings-ssh-copy"),
-        ) {
-            Text(stringResource(R.string.settings_ssh_copy))
+        HintTooltip(stringResource(R.string.hint_settings_ssh_copy)) {
+            TextButton(
+                onClick = { clipboard.setText(AnnotatedString(line)) },
+                modifier = Modifier.testTag("settings-ssh-copy"),
+            ) {
+                Text(stringResource(R.string.settings_ssh_copy))
+            }
         }
     }
 

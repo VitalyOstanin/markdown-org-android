@@ -9,12 +9,14 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -383,6 +385,41 @@ class SyncSettingsScreenTest {
         showForm(url = "ssh://git@example.org/notes.git")
 
         compose.onNodeWithTag("settings-ssh-host").assertDoesNotExist()
+    }
+
+    @Test
+    fun aButtonSaysWhatSavingActuallyDoes() {
+        // "Save" names the gesture, not what the collection does next: the
+        // notes are read again straight away, and the server is not touched.
+        showForm()
+
+        compose.onNodeWithTag("settings-save")
+            .performScrollTo()
+            .performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_settings_save), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theButtonForTheDirectoryPickerSaysWhatIsStored() {
+        showForm()
+
+        compose.onNodeWithTag("settings-notes-pick")
+            .performScrollTo()
+            .performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_settings_notes_pick), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theAddressFieldSaysWhatItTakesBeforeAnythingIsWrong() {
+        // A line that only appears once the address is refused leaves the
+        // shape of a working one to be guessed at.
+        showForm()
+
+        compose.onNodeWithText(string(R.string.settings_url_default)).assertIsDisplayed()
     }
 
     private var savedNotesPath: String? = null
