@@ -81,14 +81,17 @@ class NotesStore(root: File) : NotesArea {
      * and dropping an untracked file into it would show up as a dirty working
      * copy and block the next sync.
      */
-    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean): Result<Unit> =
-        exclusive {
-            runCatching {
-                if (!synced() && !hasNotes()) {
-                    File(root, "sample.md").writeText(sampleNotes(today))
-                }
+    override suspend fun ensureSeeded(
+        today: LocalDate,
+        wording: SampleWording,
+        synced: () -> Boolean,
+    ): Result<Unit> = exclusive {
+        runCatching {
+            if (!synced() && !hasNotes()) {
+                File(root, "sample.md").writeText(sampleNotes(today, wording))
             }
         }
+    }
 
     /**
      * Clears the checkout so a different remote can be cloned into it.
@@ -142,31 +145,31 @@ class NotesStore(root: File) : NotesArea {
      * schedules. The sample is the only example of the format the application
      * shows, so a line written the other way teaches a form it cannot read.
      */
-    private fun sampleNotes(today: LocalDate): String {
+    private fun sampleNotes(today: LocalDate, wording: SampleWording): String {
         fun day(offset: Long): String = today.plusDays(offset).toString()
 
         return """
-            # Sample notes
+            # ${wording.heading}
 
-            ## TODO [#A] Renew the TLS certificate
+            ## TODO [#A] ${wording.certificate}
             `DEADLINE: <${day(-3)}>`
 
-            ## TODO [#B] Review the release notes
+            ## TODO [#B] ${wording.releaseNotes}
             `SCHEDULED: <${day(0)} 09:30>`
 
-            ## TODO Team sync
+            ## TODO ${wording.teamSync}
             `SCHEDULED: <${day(0)} 14:00 ++7d>`
 
-            ## TODO [#C] Update the dependency pins
+            ## TODO [#C] ${wording.dependencyPins}
             `SCHEDULED: <${day(0)}>`
 
-            ## TODO Quarterly report
+            ## TODO ${wording.quarterlyReport}
             `DEADLINE: <${day(5)}>`
 
-            ## DONE Archive the old branch
+            ## DONE ${wording.archivedBranch}
             `CLOSED: [${day(-1)}]`
 
-            ## CANCELLED Migrate the staging host
+            ## CANCELLED ${wording.stagingHost}
             `SCHEDULED: <${day(2)}>`
         """.trimIndent() + "\n"
     }

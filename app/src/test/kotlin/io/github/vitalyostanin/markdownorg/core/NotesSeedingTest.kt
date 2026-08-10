@@ -31,7 +31,7 @@ class NotesSeedingTest {
         // after it fails over a name inside something that is not a directory.
         val store = NotesStore(folder.newFile("in-the-way"))
 
-        val seeded = store.ensureSeeded(today) { false }
+        val seeded = store.ensureSeeded(today, testWording) { false }
 
         assertTrue("a file was written under a plain file", seeded.isFailure)
         assertTrue(seeded.exceptionOrNull()?.message.orEmpty().contains("could not be created"))
@@ -42,7 +42,7 @@ class NotesSeedingTest {
         val root = File(folder.newFolder(), "notes")
         val store = NotesStore(root)
 
-        val seeded = store.ensureSeeded(today) { false }
+        val seeded = store.ensureSeeded(today, testWording) { false }
 
         assertTrue(seeded.isSuccess)
         assertTrue(File(root, "sample.md").isFile)

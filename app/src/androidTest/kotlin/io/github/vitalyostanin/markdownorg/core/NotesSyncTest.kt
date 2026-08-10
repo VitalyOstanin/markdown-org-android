@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.vitalyostanin.markdownorg.ui.sampleWording
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +24,7 @@ class NotesSyncTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val store = NotesStore(context)
     private val sync = NotesSync(context, store)
+    private val wording = sampleWording(context)
 
     private class Settings(
         override var remoteUrl: String? = null,
@@ -46,7 +48,7 @@ class NotesSyncTest {
 
     @Test
     fun anEmptyCheckoutHoldsNoRepositoryRatherThanBeingUnreadable() = runBlocking {
-        store.ensureSeeded(LocalDate.of(2026, 7, 29)) { false }
+        store.ensureSeeded(LocalDate.of(2026, 7, 29), wording) { false }
 
         val status = sync.status()
 

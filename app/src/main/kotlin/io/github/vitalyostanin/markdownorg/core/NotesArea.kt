@@ -65,12 +65,19 @@ interface NotesArea {
      * remote saved while this was queued still counts: seeding a directory
      * that is about to be cloned into would make the clone fail.
      *
+     * [wording] carries the words of the sample, which are the device's
+     * language rather than this layer's — see [SampleWording].
+     *
      * Answers with a [Result] rather than throwing: this runs in the same
      * coroutine as the scan that follows it, and an exception out of that
      * coroutine takes the process down — over a directory that cannot be
      * written to, which is something a screen can say.
      */
-    suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean): Result<Unit>
+    suspend fun ensureSeeded(
+        today: LocalDate,
+        wording: SampleWording,
+        synced: () -> Boolean,
+    ): Result<Unit>
 
     /**
      * Clears the checkout so a different remote can be cloned into it.

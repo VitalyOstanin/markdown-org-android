@@ -1,6 +1,9 @@
 package io.github.vitalyostanin.markdownorg.core
 
+import android.content.Context
+import android.content.res.Configuration
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.vitalyostanin.markdownorg.ui.sampleWording
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -12,7 +15,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import uniffi.markdown_org_ffi.TimestampType
+import java.io.File
 import java.time.LocalDate
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -29,6 +34,13 @@ class NotesStoreTest {
     private val store = NotesStore(context)
     private val today = LocalDate.of(2026, 7, 28)
 
+    /**
+     * The real strings rather than words invented here: the sample is written
+     * in the language of the device, and a translation that broke the format
+     * would only show up against the resources the application ships.
+     */
+    private val wording = sampleWording(context)
+
     @Before
     @After
     fun clean(): Unit = runBlocking {
@@ -37,22 +49,22 @@ class NotesStoreTest {
 
     @Test
     fun aFreshInstallHasSomethingToShow() = runBlocking {
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
 
         assertTrue(store.root.resolve("sample.md").exists())
     }
 
     @Test
     fun theSampleIsWrittenOnlyOnce() = runBlocking {
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
         val first = store.root.resolve("sample.md").readText()
         store.root.resolve("sample.md").writeText("# Edited\n")
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
 
         // Seeding again would overwrite whatever is there; the second call has
         // to leave the directory alone.
         assertTrue(store.root.resolve("sample.md").readText() == "# Edited\n")
-        assertTrue(first.contains("Sample notes"))
+        assertTrue(first.contains(wording.heading))
     }
 
     @Test
@@ -63,7 +75,7 @@ class NotesStoreTest {
         val folder = store.root.resolve("projects").apply { mkdirs() }
         folder.resolve("plan.md").writeText("# Plan\n")
 
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
 
         assertFalse(store.root.resolve("sample.md").exists())
     }
@@ -75,7 +87,7 @@ class NotesStoreTest {
         // dirty working copy.
         store.root.resolve(".git").mkdirs()
 
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
 
         assertFalse(store.root.resolve("sample.md").exists())
     }
@@ -85,21 +97,56 @@ class NotesStoreTest {
         // The sample is the only example of the format the application ever
         // shows, so a line it cannot read back teaches the wrong form. `CLOSED:`
         // takes the inactive brackets, the others the active ones.
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
 
         val tasks = uniffi.markdown_org_ffi.scan(
             store.root.absolutePath,
             uniffi.markdown_org_ffi.Options(),
         ).tasks
-        val archived = tasks.single { it.heading == "Archive the old branch" }
+        val archived = tasks.single { it.heading == wording.archivedBranch }
 
         assertEquals(TimestampType.CLOSED, archived.timestampType)
         assertTrue(tasks.all { it.timestampDate != null })
     }
 
     @Test
+    fun theSampleReadsBackInEveryLanguageItIsTranslatedInto() = runBlocking {
+        // Only the wording is translated, and a translation is where a heading
+        // gains a character the grammar stops at — the file then opens to an
+        // agenda missing the task it names, on that language alone. Read here
+        // rather than on a device set to each language, which no test can do.
+        for (language in listOf("en", "ru")) {
+            val translated = sampleWording(context.forLanguage(language))
+            val store = NotesStore(File(context.cacheDir, "sample-$language"))
+            store.reset()
+
+            store.ensureSeeded(today, translated) { false }
+            val tasks = uniffi.markdown_org_ffi.scan(
+                store.root.absolutePath,
+                uniffi.markdown_org_ffi.Options(),
+            ).tasks
+
+            assertEquals("$language: every heading of the sample", 7, tasks.size)
+            assertTrue("$language: every task is dated", tasks.all { it.timestampDate != null })
+            assertTrue(
+                "$language: the closing date is inactive",
+                tasks.single { it.heading == translated.archivedBranch }
+                    .timestampType == TimestampType.CLOSED,
+            )
+            store.reset()
+        }
+    }
+
+    /** The same resources as a device set to [language] would read. */
+    private fun Context.forLanguage(language: String): Context = createConfigurationContext(
+        Configuration(resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(language))
+        },
+    )
+
+    @Test
     fun aConfiguredRemoteIsNeverSeeded() = runBlocking {
-        store.ensureSeeded(today) { true }
+        store.ensureSeeded(today, wording) { true }
 
         // The directory belongs to the repository from here on: a sample file
         // would show up as an untracked change.
@@ -112,7 +159,7 @@ class NotesStoreTest {
         // is about to land in this directory, and a sample file dropped into
         // it now would make that clone fail.
         var configured = false
-        val seeding = async { store.ensureSeeded(today) { configured } }
+        val seeding = async { store.ensureSeeded(today, wording) { configured } }
         configured = true
         seeding.await()
 
@@ -121,7 +168,7 @@ class NotesStoreTest {
 
     @Test
     fun resetLeavesRoomForAClone() = runBlocking {
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
         store.reset()
 
         // The core clones into an empty directory, and the very first setup
@@ -131,7 +178,7 @@ class NotesStoreTest {
 
     @Test
     fun theNotesCanBeMovedToAnotherDirectory() = runBlocking {
-        store.ensureSeeded(today) { false }
+        store.ensureSeeded(today, wording) { false }
         val before = store.root
         val elsewhere = context.filesDir.resolve("notes-elsewhere")
 

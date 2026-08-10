@@ -86,8 +86,11 @@ class NotesEditorTest {
 
         override suspend fun <T> exclusive(block: suspend () -> T): T = block()
 
-        override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) =
-            Result.success(Unit)
+        override suspend fun ensureSeeded(
+            today: LocalDate,
+            wording: SampleWording,
+            synced: () -> Boolean,
+        ) = Result.success(Unit)
 
         override suspend fun reset() = Result.success(Unit)
 
