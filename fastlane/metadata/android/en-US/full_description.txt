@@ -1,0 +1,59 @@
+Your notes are markdown files. The tasks in them are headings carrying the
+task markers Emacs Org-mode uses — TODO, DONE, a priority in brackets, a
+SCHEDULED or DEADLINE date. This application reads those files and shows what
+they say about today.
+
+Nothing is imported and nothing is converted. The files stay files: the same
+notes are read by the markdown-org extension for VS Code on a desktop and by
+the command-line tool both of them are built on, and every one of the three
+sees the same agenda because they share the same core.
+
+What it does
+
+* Two layouts over the same day. A list ordered by date, and a timeline that
+  stands each entry against the hour it is due.
+* Overdue entries grouped by how long ago they slipped — missed repeats, the
+  past week, this year, older than a year — each band foldable and counted, so
+  a note kept for years does not fill the screen before today does.
+* A whole band answered in one move: date them today, drop the date, or mark
+  them cancelled. A missed repeat is caught up to its next occurrence instead
+  of being dragged to today, and the move can be put back.
+* Editing from the agenda: the keyword of a task, its priority, and moving a
+  planning date. Every edit is written into the note it came from and
+  committed straight away.
+* Repeating tasks move to their next occurrence when they are marked done,
+  following the repeater in the timestamp rather than dropping it.
+* Several collections of notes read as one agenda — a work repository and a
+  personal one, each with its own directory and its own server, each row
+  marked with the colour of where it came from.
+
+How it syncs
+
+Over git, to a server you name. The first sync clones, later ones fetch and
+hand the server what was committed here. Nothing is merged: notes that have
+moved on both sides are reported rather than silently resolved, and commits
+that could not be sent stay counted until a sync gets them across.
+
+Both transports a hosted repository offers are supported. HTTPS trusts a
+certificate bundle carried inside the application. SSH pins the server by its
+host key, which you are asked to accept once; the device makes its own ed25519
+key pair, and the private half never leaves it.
+
+The notes can also be kept on the device alone, with git added to them later.
+
+What it does not do
+
+There are no accounts, no analytics, no advertisements and no telemetry. The
+token or key that reaches your server lives in the application's private
+preferences, is never written into the notes, and is not carried off the
+device by a backup. Nothing is uploaded anywhere except to the git server you
+configured.
+
+English and Russian throughout, including the dates and the hours, which
+follow the locale of the device rather than the language of the build.
+
+The licence of every component compiled into the application is listed on the
+settings screen.
+
+Free software under the MIT licence. The source, the decisions behind it and
+the issue tracker are at https://github.com/VitalyOstanin/markdown-org-android

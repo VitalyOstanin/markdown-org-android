@@ -1,0 +1,1 @@
+An agenda over your markdown notes, kept in a git repository
