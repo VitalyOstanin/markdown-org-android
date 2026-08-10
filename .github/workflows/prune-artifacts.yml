@@ -21,6 +21,9 @@ jobs:
   prune:
     name: Keep newest artifact per name
     runs-on: ubuntu-24.04
+    # Paging over the artifacts of one repository is a handful of API calls;
+    # anything longer than this is the API not answering, not more artifacts.
+    timeout-minutes: 10
     steps:
       - name: Prune artifacts
         env:
