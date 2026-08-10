@@ -45,11 +45,14 @@ class MainActivity : ComponentActivity() {
                 val model: AgendaViewModel = viewModel(factory = AgendaViewModel.Factory)
                 val state by model.state.collectAsStateWithLifecycle()
                 val layout by model.layout.collectAsStateWithLifecycle()
+                val span by model.span.collectAsStateWithLifecycle()
                 val sync by model.syncState.collectAsStateWithLifecycle()
                 val selected by model.selected.collectAsStateWithLifecycle()
                 val editIssue by model.editIssue.collectAsStateWithLifecycle()
                 val groupResult by model.groupResult.collectAsStateWithLifecycle()
                 val collections by model.collectionFilter.collectAsStateWithLifecycle()
+                val tags by model.tags.collectAsStateWithLifecycle()
+                val currentTag by model.currentTag.collectAsStateWithLifecycle()
                 val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
                 val editingId by model.editingId.collectAsStateWithLifecycle()
                 // With the lifecycle, so the ticker behind it stops with the
@@ -205,12 +208,17 @@ class MainActivity : ComponentActivity() {
                         layout = layout,
                         onLayoutChange = model::setLayout,
                         modifier = insets,
+                        span = span,
+                        onSpanChange = model::setSpan,
                         now = now,
                         sync = sync,
                         editIssue = editIssue,
                         onEditIssueShown = model::editIssueShown,
                         collections = collections,
                         onCollectionShown = model::setCollectionShown,
+                        tags = tags,
+                        currentTag = currentTag,
+                        onTagChange = model::setTag,
                         groupResult = groupResult,
                         onGroupResultShown = model::groupResultShown,
                         onGroupAction = { group, action ->

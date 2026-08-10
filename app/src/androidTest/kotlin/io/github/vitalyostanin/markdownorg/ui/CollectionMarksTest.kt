@@ -6,10 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -31,8 +34,8 @@ class CollectionMarksTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val labels = mapOf(
-        PERSONAL to CollectionLabel(id = "1", name = "Personal", tone = 0),
-        WORK to CollectionLabel(id = "2", name = "Work", tone = 1),
+        PERSONAL to CollectionLabel(id = "1", name = "Personal", tone = 0, root = PERSONAL),
+        WORK to CollectionLabel(id = "2", name = "Work", tone = 1, root = WORK),
     )
 
     private val mixed = agenda(
@@ -139,6 +142,30 @@ class CollectionMarksTest {
     }
 
     /**
+     * The dot is six points across and sits inside the row's own tooltip, so
+     * it is the row that answers a press with the name behind the colour.
+     */
+    @Test
+    fun aLongPressOnARowNamesTheCollectionBehindTheDot() {
+        showAgenda(AgendaLayout.LIST)
+
+        compose.onNodeWithText("Write the report").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.tooltip_collection, "Work"), substring = true)
+            .assertIsDisplayed()
+    }
+
+    /** The chip carries a name; where that name reads from is the question. */
+    @Test
+    fun aLongPressOnAChipNamesTheDirectoryItReads() {
+        showFilter()
+
+        compose.onNodeWithTag("collection-chip-2").performTouchInput { longClick() }
+
+        compose.onNodeWithText(WORK, substring = true).assertIsDisplayed()
+    }
+
+    /**
      * The agenda with the marks and without the filter above it.
      *
      * The marks are asserted through what they are spoken as, and a chip
@@ -158,10 +185,28 @@ class CollectionMarksTest {
         }
     }
 
+    /** The same agenda with the row of chips above it, none of them turned off. */
+    private fun showFilter() {
+        compose.setContent {
+            MarkdownOrgTheme {
+                AgendaScreen(
+                    state = readyState(mixed),
+                    layout = AgendaLayout.LIST,
+                    onLayoutChange = {},
+                    now = MOMENT,
+                    collections = labels.values.map { CollectionChoice(label = it, shown = true) },
+                )
+            }
+        }
+    }
+
     private fun readyState(sections: AgendaSections) = AgendaUiState.Ready(
         date = SHOWN_DAY,
         sections = sections,
     )
+
+    private fun string(id: Int, vararg formatArgs: Any): String =
+        compose.activity.getString(id, *formatArgs)
 
     private companion object {
         const val PERSONAL = "/notes/personal"

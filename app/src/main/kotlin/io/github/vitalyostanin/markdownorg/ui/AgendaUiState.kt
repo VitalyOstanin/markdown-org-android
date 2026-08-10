@@ -3,8 +3,11 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.MergedTag
+import io.github.vitalyostanin.markdownorg.core.fileMatchesTag
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Task
+import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -43,8 +46,13 @@ sealed interface RowTime {
  * [tone] is a place in the palette rather than a colour: the palette belongs
  * to the theme, and the same collection has to keep its colour between a light
  * screen and a dark one.
+ *
+ * [root] is the directory the collection reads, as the walk reports it. The
+ * chips carry names, and two collections may be named alike or named after
+ * something other than where they live; the directory is what a long press on
+ * the chip says, and it is the answer to which of them a row came from.
  */
-data class CollectionLabel(val id: String, val name: String, val tone: Int)
+data class CollectionLabel(val id: String, val name: String, val tone: Int, val root: String = "")
 
 /**
  * One collection as the filter over the agenda offers it.
@@ -96,6 +104,77 @@ data class AgendaSections(
 
     /** [overdue] split by what each row asks of the reader — see [OverdueBand]. */
     val overdueBands: List<OverdueGroup> get() = overdue.intoBands()
+}
+
+/**
+ * One day of the agenda, with what falls on it.
+ *
+ * [date] is `null` for a span whose entries carry no day at all — see
+ * [AgendaSpan.TASKS]. Everything else names the day it describes, which is what
+ * a week and a month need before their entries can be told apart: without it
+ * the two of them are one long list where Tuesday and Friday sit together.
+ */
+data class AgendaDay(val date: LocalDate?, val sections: AgendaSections)
+
+/**
+ * Everything on screen as one set of sections.
+ *
+ * What the hour axis is drawn from, and what a single day was before there were
+ * several: the axis covers one day, and only [AgendaSpan.DAY] is ever drawn on
+ * it. For the wider spans this is what the notices and the empty state are
+ * counted against.
+ */
+internal fun List<AgendaDay>.merged(): AgendaSections = when (size) {
+    1 -> single().sections
+
+    else -> AgendaSections(
+        overdue = flatMap { it.sections.overdue },
+        timed = flatMap { it.sections.timed },
+        untimed = flatMap { it.sections.untimed },
+    )
+}
+
+/** The same days without the rows of the collections named in [hidden]. */
+internal fun List<AgendaDay>.showing(hidden: Set<String>): List<AgendaDay> = if (hidden.isEmpty()) {
+    this
+} else {
+    map { day -> day.copy(sections = day.sections.showing(hidden)) }
+}
+
+/**
+ * The same days narrowed to one tag of [dictionary].
+ *
+ * Second of the two levels the agenda is filtered by, and applied after the
+ * first: which collections are read is what put these rows here, and a tag
+ * selects notes among them by their file name. A name the dictionary does not
+ * hold narrows nothing — a tag left over from an edited file must not empty the
+ * agenda.
+ */
+internal fun List<AgendaDay>.tagged(tag: String?, dictionary: List<MergedTag>): List<AgendaDay> {
+    val selected = dictionary.firstOrNull { it.name == tag } ?: return this
+    return map { day -> day.copy(sections = day.sections.tagged(selected, dictionary)) }
+}
+
+/**
+ * The same sections narrowed to one tag, for the spans that carry no days.
+ *
+ * The pair of [showing] and this one exists on both shapes for the same reason:
+ * `Tasks` is a flat list, and a filter that only knew how to walk days would
+ * quietly leave that span unfiltered.
+ */
+internal fun AgendaSections.tagged(tag: String?, dictionary: List<MergedTag>): AgendaSections {
+    val selected = dictionary.firstOrNull { it.name == tag } ?: return this
+    return tagged(selected, dictionary)
+}
+
+private fun AgendaSections.tagged(tag: MergedTag, dictionary: List<MergedTag>): AgendaSections {
+    fun keeps(row: AgendaRow): Boolean = fileMatchesTag(File(row.task.file).name, tag, dictionary)
+
+    return AgendaSections(
+        overdue = overdue.filter(::keeps),
+        timed = timed.filter(::keeps),
+        untimed = untimed.filter(::keeps),
+    )
 }
 
 /**
@@ -260,7 +339,18 @@ sealed interface AgendaUiState {
      */
     data class Ready(
         val date: LocalDate,
-        val sections: AgendaSections,
+        /**
+         * The days the span covers, each with what falls on it.
+         *
+         * One entry for a day agenda, seven for a week, and one dateless entry
+         * for the flat list of tasks. The core puts the overdue and the
+         * upcoming entries into the bucket of the current date and nowhere
+         * else, so a week carries them under today rather than repeated under
+         * every day of it.
+         */
+        val days: List<AgendaDay>,
+        /** How much of the plan this agenda was asked for. */
+        val span: AgendaSpan = AgendaSpan.DAY,
         /** What the walk behind this agenda skipped, if anything. */
         val notices: List<ScanNotice> = emptyList(),
         /**
@@ -273,7 +363,25 @@ sealed interface AgendaUiState {
          * was at.
          */
         val refreshing: Boolean = false,
-    ) : AgendaUiState
+    ) : AgendaUiState {
+
+        /**
+         * The single day this used to be.
+         *
+         * Kept for the callers that are about one day and only ever see one —
+         * the hour axis, and the tests that hand a screen its sections
+         * directly.
+         */
+        constructor(
+            date: LocalDate,
+            sections: AgendaSections,
+            notices: List<ScanNotice> = emptyList(),
+            refreshing: Boolean = false,
+        ) : this(date, listOf(AgendaDay(date, sections)), AgendaSpan.DAY, notices, refreshing)
+
+        /** Everything on screen as one set of sections — see [merged]. */
+        val sections: AgendaSections get() = days.merged()
+    }
 
     /**
      * The scan failed and there is no agenda to show.
@@ -285,11 +393,44 @@ sealed interface AgendaUiState {
 }
 
 /**
- * Regroups the day buckets the core returns.
+ * The day buckets the core returns, kept apart.
  *
- * Days are flattened together. That is right for a single day and stands in
- * for week and month, which will want a header per day before their entries
- * can be told apart.
+ * The bucket of the flat list ([AgendaSpan.TASKS]) fills `tasks` instead of
+ * `days` and has no day to sit on; it becomes the one dateless day, so that
+ * every span above this is a list of days whatever was asked for.
+ */
+fun AgendaResult.toDays(labels: Map<String, CollectionLabel> = emptyMap()): List<AgendaDay> = days
+    .map { day ->
+        AgendaDay(
+            // A date the core wrote and this side could not read is not worth
+            // dropping the day over: the entries are still the entries, and a
+            // heading with no date above them says as much as it can.
+            date = runCatching { LocalDate.parse(day.date) }.getOrNull(),
+            sections = AgendaSections(
+                overdue = day.overdue.map { it.toAgendaRow(labels) },
+                timed = day.scheduledTimed.map { it.toAgendaRow(labels) },
+                untimed = (day.scheduledNoTime + day.upcoming).map { it.toAgendaRow(labels) },
+            ),
+        )
+    }
+    .ifEmpty {
+        listOf(
+            AgendaDay(
+                date = null,
+                sections = AgendaSections(
+                    overdue = emptyList(),
+                    timed = emptyList(),
+                    untimed = tasks.map { it.toAgendaRow(labels) },
+                ),
+            ),
+        )
+    }
+
+/**
+ * Regroups the day buckets the core returns, flattening them together.
+ *
+ * What a single day is read through, and what the hour axis is built from.
+ * A span of several days keeps them apart instead — see [toDays].
  */
 fun AgendaResult.toSections(labels: Map<String, CollectionLabel> = emptyMap()): AgendaSections =
     AgendaSections(

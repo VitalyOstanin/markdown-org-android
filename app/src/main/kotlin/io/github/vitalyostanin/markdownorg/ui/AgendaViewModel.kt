@@ -14,6 +14,7 @@ import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
+import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsPreferences
@@ -22,6 +23,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesLocation
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
@@ -30,10 +32,12 @@ import io.github.vitalyostanin.markdownorg.core.UiSettings
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.collectionProblem
+import io.github.vitalyostanin.markdownorg.core.mergeTagDictionaries
 import io.github.vitalyostanin.markdownorg.core.migratedCollections
 import io.github.vitalyostanin.markdownorg.core.nextCollectionId
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
+import io.github.vitalyostanin.markdownorg.core.readDeclaredTags
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
@@ -52,7 +56,6 @@ import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.FileRollback
-import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.generateSshKey
@@ -71,6 +74,11 @@ class AgendaViewModel(
     private val ui: UiPreferences,
     /** The directory an empty choice falls back to. */
     private val ownNotes: File,
+    /**
+     * The words the sample notes are written in, read from the resources so
+     * the first run speaks the language of the device.
+     */
+    private val sample: SampleWording,
     /** Whether a directory outside that one may be read, asked of the platform. */
     private val storageGranted: () -> Boolean,
     /** The wall clock, taken as a parameter so a test can move it by hand. */
@@ -113,16 +121,35 @@ class AgendaViewModel(
     val state: StateFlow<AgendaUiState> = _state.asStateFlow()
 
     /**
-     * The sections as the scan produced them, before the filter.
+     * The days as the scan produced them, before the filter.
      *
      * Held so that hiding a collection is a regroup of what is already in
      * hand: [state] carries what is on screen, and rebuilding the full agenda
      * out of it after a chip has been turned off is not possible.
      */
-    private var scanned: AgendaSections? = null
+    private var scanned: List<AgendaDay>? = null
 
     /** The collections whose rows the filter is keeping off the screen. */
     private var hidden: Set<String> = emptySet()
+
+    /**
+     * The tags the collections declare, merged, as of the last scan.
+     *
+     * Read with the notes rather than watched: the file arrives with a sync
+     * like the notes around it, and a scan is what follows a sync.
+     */
+    private val _tags = MutableStateFlow<List<MergedTag>>(emptyList())
+    val tags: StateFlow<List<MergedTag>> = _tags.asStateFlow()
+
+    /**
+     * The tag the agenda is narrowed to, or null while it is not narrowed.
+     *
+     * Not stored between launches, for the reason the collection filter is not:
+     * an agenda missing half its tasks with no memory of why is worse than one
+     * that starts whole.
+     */
+    private val _currentTag = MutableStateFlow<String?>(null)
+    val currentTag: StateFlow<String?> = _currentTag.asStateFlow()
 
     /**
      * The filter over the agenda, empty while there is one collection.
@@ -142,6 +169,18 @@ class AgendaViewModel(
      */
     private val _layout = MutableStateFlow(ui.layout)
     val layout: StateFlow<AgendaLayout> = _layout.asStateFlow()
+
+    /**
+     * How much of the plan is asked for, read from the stored preference for
+     * the same reason as the layout: a span chosen yesterday is the one the
+     * screen opens on today.
+     *
+     * Unlike the layout, changing it costs a scan — the core groups the tasks
+     * against the span, and a week is not something the day agenda on screen
+     * can be regrouped into.
+     */
+    private val _span = MutableStateFlow(ui.span)
+    val span: StateFlow<AgendaSpan> = _span.asStateFlow()
 
     private val _syncState = MutableStateFlow(SyncUiState())
     val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
@@ -235,6 +274,24 @@ class AgendaViewModel(
     }
 
     /**
+     * Ask the core for another span of the plan.
+     *
+     * A scan follows, because the grouping is the core's: a week is the same
+     * notes read against seven dates, and the day already on screen carries
+     * neither the other six nor the tasks that have no date at all. The one on
+     * screen stays up while it runs — see [refresh].
+     */
+    fun setSpan(span: AgendaSpan) {
+        if (span == _span.value) {
+            return
+        }
+
+        _span.value = span
+        ui.span = span
+        refresh()
+    }
+
+    /**
      * Show or hide the rows of one collection.
      *
      * Answers on the spot, without a scan: the notes have not changed, only
@@ -249,11 +306,35 @@ class AgendaViewModel(
                 if (choice.label.id == id) choice.copy(shown = shown) else choice
             }
         }
+        reshow()
+    }
 
+    /**
+     * Narrow the agenda to one tag, or to none when [tag] is null.
+     *
+     * Costs no scan, like the collection chips: the tag reads the name of the
+     * file a row came from, which the rows already carry.
+     */
+    fun setTag(tag: String?) {
+        _currentTag.value = tag
+        reshow()
+    }
+
+    /**
+     * Redraw what is on screen from the scan already in hand.
+     *
+     * Both filters run here and in this order: the collections decide which
+     * rows exist at all, the tag selects among them. Order matters for what
+     * the reader sees, not for the outcome -- neither can bring back a row the
+     * other removed -- but keeping it in one place is what stops the two from
+     * drifting apart.
+     */
+    private fun reshow() {
         val full = scanned ?: return
+        val shown = full.showing(hidden).tagged(_currentTag.value, _tags.value)
         _state.update { current ->
             when (current) {
-                is AgendaUiState.Ready -> current.copy(sections = full.showing(hidden))
+                is AgendaUiState.Ready -> current.copy(days = shown)
                 else -> current
             }
         }
@@ -617,22 +698,27 @@ class AgendaViewModel(
             // file of ours into a directory somebody added on purpose — a work
             // repository, a shared one — is not that.
             val seeded = collections.entries.singleOrNull()
-                ?.let { only -> only.area.ensureSeeded(today) { only.settings.isConfigured } }
+                ?.let { only ->
+                    only.area.ensureSeeded(today, sample) { only.settings.isConfigured }
+                }
                 ?: Result.success(Unit)
 
             val labels = collectionLabels()
             offerFilter(labels.values.toList())
+            offerTags()
 
+            // Read once, so the agenda that comes back is grouped the way the
+            // header above it says: the span can be changed while a scan is in
+            // flight, and the answer of that scan describes the span it was
+            // asked for.
+            val span = _span.value
             _state.value = seeded
-                // One day, and nothing else asks for another: the wider scopes
-                // want a header per day before their entries can be told
-                // apart, and a parameter nobody passes would say the screen
-                // can already show them.
-                .mapCatching { agenda.load(Scope.DAY, today).getOrThrow() }
+                .mapCatching { agenda.load(span.scope, today).getOrThrow() }
                 .fold(
                     onSuccess = { result ->
-                        val sections = result.toSections(labels)
-                        scanned = sections
+                        val days = result.toDays(labels)
+                        scanned = days
+                        val sections = days.merged()
                         val rows = sections.overdue.size + sections.timed.size +
                             sections.untimed.size
                         Log.i(
@@ -641,7 +727,8 @@ class AgendaViewModel(
                         )
                         AgendaUiState.Ready(
                             date = today,
-                            sections = sections.showing(hidden),
+                            days = days.showing(hidden).tagged(_currentTag.value, _tags.value),
+                            span = span,
                             notices = result.notices(),
                         )
                     },
@@ -1344,6 +1431,7 @@ class AgendaViewModel(
                 id = entry.collection.id,
                 name = entry.collection.name,
                 tone = tone,
+                root = entry.root,
             )
         }
     }
@@ -1359,6 +1447,30 @@ class AgendaViewModel(
         hidden = hidden.intersect(labels.map(CollectionLabel::id).toSet())
         _collectionFilter.value = labels.map { label ->
             CollectionChoice(label = label, shown = label.id !in hidden)
+        }
+    }
+
+    /**
+     * Reread the tags the collections declare and merge them into one
+     * dictionary.
+     *
+     * Every collection is asked, not only the ones whose rows are on screen: a
+     * tag is a word about the notes as a whole, and hiding a collection for a
+     * moment should not take its vocabulary with it.
+     *
+     * The chosen tag survives only while the dictionary still holds it. A file
+     * edited elsewhere and arriving with a sync can retire a tag, and going on
+     * filtering by a name nothing declares would leave the agenda narrowed with
+     * nothing on screen to say by what.
+     */
+    private fun offerTags() {
+        _tags.value = mergeTagDictionaries(
+            collections.entries.mapNotNull { entry ->
+                readDeclaredTags(entry.collection.name, File(entry.root))
+            },
+        )
+        if (_currentTag.value !in _tags.value.map(MergedTag::name)) {
+            _currentTag.value = null
         }
     }
 
@@ -1432,6 +1544,7 @@ class AgendaViewModel(
                     agenda = AgendaSource(inUse),
                     ui = UiSettings(application),
                     ownNotes = ownNotesRoot(application),
+                    sample = sampleWording(application),
                     // Asked at every check rather than read once: it is
                     // granted in a settings screen of the platform, and the
                     // application is still running when the user comes back

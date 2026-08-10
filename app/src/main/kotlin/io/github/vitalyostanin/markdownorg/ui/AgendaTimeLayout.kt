@@ -176,7 +176,7 @@ private fun Tile(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val role = LocalAgendaColors.current.role(row.task.kind())
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    TaskTooltip(row.task) {
+    TaskTooltip(row.task, row.collection) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -220,7 +220,7 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
     val trailing = if (row.statesAge()) daysLabel(row.daysOffset) else ""
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    TaskTooltip(row.task) {
+    TaskTooltip(row.task, row.collection) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -273,7 +273,7 @@ private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier
     val date = row.task.timestampDate.orEmpty()
     val actionsLabel = stringResource(R.string.agenda_task_actions)
 
-    TaskTooltip(row.task) {
+    TaskTooltip(row.task, row.collection) {
         Column(
             modifier = modifier
                 .clip(MaterialTheme.shapes.medium)

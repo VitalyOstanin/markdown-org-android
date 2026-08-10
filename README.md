@@ -4,6 +4,14 @@ An Android client for markdown files carrying Emacs Org-mode task markers —
 the same format the [`markdown-org-vscode`](https://github.com/VitalyOstanin/markdown-org-vscode)
 extension reads, kept in sync over git.
 
+It is one of three projects reading the same files:
+
+| Project                                                                         | What it is                                                           |
+|---------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `markdown-org-android` (this one)                                               | the Android client, syncing the notes over git                       |
+| [`markdown-org-extract`](https://github.com/VitalyOstanin/markdown-org-extract) | the CLI and Rust library this application links in-process           |
+| [`markdown-org-vscode`](https://github.com/VitalyOstanin/markdown-org-vscode)   | the VS Code extension: agenda panel, editing commands, time tracking |
+
 **Status: early.** The Rust core, its Kotlin bindings and a Compose
 application that renders the agenda all build. The agenda syncs over git and
 takes point edits — status, priority, a planning date, completion. Notes are
@@ -22,6 +30,7 @@ the emulator.
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [Where the notes live](#where-the-notes-live)
 - [Collections](#collections)
+- [Tags](#tags)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
 - [The certificate bundle a sync trusts](#the-certificate-bundle-a-sync-trusts)
 - [Where the token may travel](#where-the-token-may-travel)
@@ -31,6 +40,7 @@ the emulator.
 - [Continuous integration](#continuous-integration)
 - [Versions and what changed](#versions-and-what-changed)
   - [Rolling back a build](#rolling-back-a-build)
+- [The store listing](#the-store-listing)
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
 - [Colour](#colour)
 - [Testing](#testing)
@@ -99,8 +109,10 @@ markdown-org-android/
 │   ├── coverage-core.sh      # what the Rust tests reach, as an llvm-cov report
 │   ├── licenses.sh           # collects the notices; --check fails on a stale one
 │   ├── check-apk.sh          # reads a built APK back: did shrinking keep the core reachable
+│   ├── store-icon.sh         # renders the launcher vector as the listing's icon.png
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
+├── fastlane/metadata/android/    # the store listing: descriptions, icon, screenshots
 ├── rust/jniLibs/<abi>/       # build output, not committed
 └── generated/                # generated Kotlin, not committed
 ```
@@ -312,6 +324,48 @@ Each collection keeps its own working copy and its own lock, and work that
 spans the set takes them in the order of the set. The decision and what it
 costs are in
 [ADR-0022](docs/adr/0022-several-collections-one-agenda.md).
+
+## Tags
+
+One person is one pool of work, so everything is read into one agenda and the
+narrowing happens afterwards, in two steps that are not the same thing:
+
+| № | Level          | What it decides                        | Where it is set                                     |
+|---|----------------|----------------------------------------|-----------------------------------------------------|
+| 1 | The collection | Which directories are read at all      | The set of collections; the chips above the list turn one off for a moment |
+| 2 | The tag        | Which notes of what was read are shown | `.markdown-org/tags.json` in a collection's directory |
+
+A tag matches the **file name**, case-sensitively, as a substring — never the
+path. `"work"` takes `work-plan.md` and `homework.md` alike, and does not take
+a note in a directory called `networking`: which directories are read is the
+level above, and a tag cannot reach it.
+
+The file holds what the editor extension's `markdown-org.fileTags` holds, and
+travels with the notes through git, which is how both clients come to know the
+same tags:
+
+```json
+[
+    { "name": "ALL", "pattern": "" },
+    { "name": "WORK", "include": ["work", "job"], "exclude": ["archive"] },
+    { "name": "REST", "pattern": "!" }
+]
+```
+
+Every collection's file merges into one dictionary, so a tag means the same
+wherever a note came from:
+
+| № | Rule                                                            | Why                                                                     |
+|---|-----------------------------------------------------------------|-------------------------------------------------------------------------|
+| 1 | Tags of the same name join; their including patterns are alternatives | A tag declared in one directory still filters the notes of the others |
+| 2 | Refusing beats taking, from any directory                       | Otherwise a directory that never heard of an exclusion would undo it     |
+| 3 | An empty pattern takes everything                               | The "no filter" entry, kept as a tag so it can be named                  |
+| 4 | `!` takes what no tag took, after the refusals                  | A note refused everywhere falls here rather than off the screen          |
+| 5 | The order of the collections changes nothing                    | The merge is by name, not by who was read first                          |
+
+**What the tags mean** in the tag menu opens the merged dictionary as it came
+out: a line per pattern, saying what it takes or keeps out and which
+collection declared it.
 
 ## What a sync does with the checkout
 
@@ -578,6 +632,22 @@ its age, on a change, on a schedule and by hand. libgit2 and OpenSSL are
 compiled into the native library, so an advisory against either reaches a phone
 through a release of this project and through nothing else — and it is
 published when nobody is committing.
+
+## The store listing
+
+`fastlane/metadata/android/<locale>/` holds what a store shows beside the
+build: `title.txt`, `short_description.txt` (80 characters at most),
+`full_description.txt` (4000 at most), `images/icon.png` and
+`images/phoneScreenshots/`. English (`en-US`) and Russian (`ru`) are both
+there, the layout the F-Droid family reads.
+
+The icon is not drawn twice: `tools/store-icon.sh` lays the launcher's vector
+foreground over its background colour, both taken from the resources the build
+compiles, and rasterises the result at 512x512. Run it after changing either.
+
+The screenshots are taken by hand on the emulator — `tools/run-emulator.sh`,
+then `adb exec-out screencap -p`. They show the sample notes the application
+writes on first run.
 
 ## The generated Kotlin surface
 

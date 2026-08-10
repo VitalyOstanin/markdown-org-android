@@ -12,6 +12,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesCollectionsPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesLocationPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
+import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
@@ -89,7 +90,11 @@ class FakeNotesArea(root: File = File("/notes")) : NotesArea {
 
     override suspend fun <T> exclusive(block: suspend () -> T): T = lock.withLock { block() }
 
-    override suspend fun ensureSeeded(today: LocalDate, synced: () -> Boolean) = exclusive {
+    override suspend fun ensureSeeded(
+        today: LocalDate,
+        wording: SampleWording,
+        synced: () -> Boolean,
+    ) = exclusive {
         if (!synced()) {
             seeded++
             trace += "seed"
@@ -220,12 +225,16 @@ class FakeAgendaLoader : AgendaLoader {
     /** What a re-read answers, for the test that makes one fail. */
     var rereadResult: Result<Unit> = Result.success(Unit)
 
+    /** Which span each agenda was asked for, in the order the calls came. */
+    val scopes = mutableListOf<Scope>()
+
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
         zone: ZoneId,
         includeDone: Boolean,
     ): Result<AgendaResult> {
+        scopes += scope
         val answer = CompletableDeferred<Result<AgendaResult>>()
         pending += answer
         return answer.await()
@@ -324,7 +333,10 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
 }
 
 /** What the user chose about the interface, in memory. */
-class FakeUiPreferences(override var layout: AgendaLayout = AgendaLayout.TIME) : UiPreferences
+class FakeUiPreferences(
+    override var layout: AgendaLayout = AgendaLayout.TIME,
+    override var span: AgendaSpan = AgendaSpan.DAY,
+) : UiPreferences
 
 /** Where the notes are kept, in memory. */
 class FakeNotesLocation(override var path: String? = null) : NotesLocationPreferences

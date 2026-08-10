@@ -492,6 +492,59 @@ class AgendaScreenTest {
         assertEquals(listOf(OverdueBand.EARLIER to BulkAction.MOVE_TO_TODAY), asked)
     }
 
+    /**
+     * The mark that opens the menu is one glyph, and what is behind it writes
+     * to every note of the band; the press that says so costs nothing.
+     */
+    @Test
+    fun aLongPressOnABandMenuSaysItActsOnTheWholeBand() {
+        showAgenda(AgendaLayout.LIST, sections = aged)
+
+        compose.onNodeWithTag(OverdueBand.EARLIER.menuTag).performTouchInput { longClick() }
+
+        val band = string(OverdueBand.EARLIER.label)
+        compose.onNodeWithText(string(R.string.hint_group_menu, band), substring = true)
+            .assertIsDisplayed()
+    }
+
+    /** Each item is three words, and each of them acts on the whole band. */
+    @Test
+    fun aLongPressOnAMenuItemSaysWhatItDoesToEveryEntry() {
+        showAgenda(AgendaLayout.LIST, sections = aged)
+
+        compose.onNodeWithTag(OverdueBand.EARLIER.menuTag).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag(BulkAction.MOVE_TO_TODAY.menuTag).performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_group_move_today), substring = true)
+            .assertIsDisplayed()
+    }
+
+    /**
+     * The header carries two icons. What the sync one will do to the notes is
+     * the question worth answering before it is pressed, and a control that
+     * cannot be pressed at all answers why instead.
+     */
+    @Test
+    fun aLongPressOnTheSyncIconSaysWhatASyncDoes() {
+        showAgenda(AgendaLayout.LIST, sync = SyncUiState(configured = true))
+
+        compose.onNodeWithTag("sync-now").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_sync_now), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theSyncIconSaysWhyItCannotBePressedWhileNoServerIsGiven() {
+        showAgenda(AgendaLayout.LIST)
+
+        compose.onNodeWithTag("sync-now").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_sync_unavailable), substring = true)
+            .assertIsDisplayed()
+    }
+
     @Test
     fun aFoldedBandCanStillBeAnsweredWithoutUnfoldingIt() {
         val asked = mutableListOf<BulkAction>()
@@ -626,6 +679,7 @@ class AgendaScreenTest {
         now: LocalDateTime = MID_MORNING,
         date: LocalDate = SHOWN_DAY,
         locale: Locale? = null,
+        sync: SyncUiState = SyncUiState(),
         onTaskClick: (Task) -> Unit = {},
         groupResult: GroupResult? = null,
         onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
@@ -639,6 +693,7 @@ class AgendaScreenTest {
                         layout = layout,
                         onLayoutChange = {},
                         now = now,
+                        sync = sync,
                         onTaskClick = onTaskClick,
                         groupResult = groupResult,
                         onGroupAction = onGroupAction,

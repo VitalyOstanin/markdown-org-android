@@ -7,6 +7,7 @@ import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.UndoReport
+import io.github.vitalyostanin.markdownorg.core.testWording
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +34,7 @@ import uniffi.markdown_org_ffi.BulkRefusal
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.RefusalReason
 import uniffi.markdown_org_ffi.RevertOutcome
+import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import java.io.File
 import java.time.LocalDate
@@ -1189,6 +1191,84 @@ class AgendaViewModelTest {
         assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
     }
 
+    @Test
+    fun theSpanThatWasChosenIsTheSpanTheCoreIsAskedFor() = runTest(dispatcher) {
+        // The grouping is the core's: a week is the same notes read against
+        // seven dates, and nothing on this side can regroup a day into one.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.setSpan(AgendaSpan.WEEK)
+        advanceUntilIdle()
+
+        assertEquals(listOf(Scope.DAY, Scope.WEEK), loader.scopes)
+    }
+
+    @Test
+    fun theAgendaOpensOnTheSpanItWasClosedIn() = runTest(dispatcher) {
+        // Stored beside the layout and for the same reason: a choice that
+        // survives a rotation but not the process being killed is one the user
+        // makes again on every launch.
+        ui.span = AgendaSpan.MONTH
+
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        assertEquals(listOf(Scope.MONTH), loader.scopes)
+        assertEquals(AgendaSpan.MONTH, model.span.value)
+    }
+
+    @Test
+    fun aWeekArrivesWithItsDaysStillApart() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        model.setSpan(AgendaSpan.WEEK)
+        advanceUntilIdle()
+
+        loader.pending.last().complete(
+            Result.success(
+                agenda(
+                    day(date = "2026-07-27", scheduledNoTime = listOf(task(heading = "Monday"))),
+                    day(date = "2026-07-28", scheduledNoTime = listOf(task(heading = "Tuesday"))),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val ready = model.state.value as AgendaUiState.Ready
+        assertEquals(
+            listOf(LocalDate.of(2026, 7, 27), LocalDate.of(2026, 7, 28)),
+            ready.days.map(AgendaDay::date),
+        )
+        assertEquals(
+            listOf("Monday"),
+            ready.days.first().sections.untimed.map { it.task.heading },
+        )
+    }
+
+    @Test
+    fun theFlatListOfTasksArrivesAsOneDayWithNoDate() = runTest(dispatcher) {
+        // The core fills `tasks` rather than `days` for that scope, and the
+        // entries in it carry no date to sit under: a screen that dropped
+        // them would show nothing at all for the one span that answers "what
+        // is left".
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        model.setSpan(AgendaSpan.TASKS)
+        advanceUntilIdle()
+
+        loader.pending.last().complete(
+            Result.success(flatAgenda(task(heading = "Someday", daysOffset = null))),
+        )
+        advanceUntilIdle()
+
+        val ready = model.state.value as AgendaUiState.Ready
+        assertNull(ready.days.single().date)
+        assertEquals(listOf("Someday"), ready.sections.untimed.map { it.task.heading })
+    }
+
     /**
      * The model over one collection, which is what a device that has not been
      * set up past the first directory works with.
@@ -1214,6 +1294,7 @@ class AgendaViewModelTest {
             agenda = loader,
             ui = ui,
             ownNotes = own,
+            sample = testWording,
             storageGranted = { granted },
             clock = { moment },
         )

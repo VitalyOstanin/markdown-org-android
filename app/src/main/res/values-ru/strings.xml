@@ -7,6 +7,23 @@
     <string name="agenda_layout_list">Раскладка «Список»</string>
     <string name="agenda_now">Текущее время</string>
 
+    <string name="agenda_span_day">День</string>
+    <string name="agenda_span_week">Неделя</string>
+    <string name="agenda_span_month">Месяц</string>
+    <string name="agenda_span_tasks">Задачи</string>
+    <string name="agenda_day_empty">В этот день ничего нет</string>
+
+    <string name="agenda_tag_none">Все заметки</string>
+    <string name="agenda_tags_explain">Что значат теги</string>
+    <string name="agenda_tags_title">Теги</string>
+    <string name="agenda_tags_close">Закрыть</string>
+    <string name="agenda_tag_origin">%1$s — из %2$s</string>
+    <string name="agenda_tag_takes_every">берёт все заметки</string>
+    <string name="agenda_tag_takes">берёт заметки, в имени которых есть «%1$s»</string>
+    <string name="agenda_tag_keeps_out">не берёт заметки, в имени которых есть «%1$s»</string>
+    <string name="agenda_tag_takes_rest">берёт всё, что не взял ни один другой тег</string>
+    <string name="agenda_tag_exclusion_wins">Заметка, подходящая под оба правила, не берётся.</string>
+
     <string name="agenda_section_overdue_repeat">Пропущенные повторы</string>
     <string name="agenda_section_overdue_recent">Просрочено на этой неделе</string>
     <string name="agenda_section_overdue_earlier">Просрочено раньше</string>
@@ -55,6 +72,7 @@
     <string name="settings_title">Репозиторий заметок</string>
     <string name="settings_hint">Репозиторий клонируется в указанный ниже каталог заметок. Синхронизация забирает изменения с сервера и отдаёт ему то, что изменено здесь; слияние и перезапись истории не выполняются ни с одной стороны.</string>
     <string name="settings_url">Адрес репозитория</string>
+    <string name="settings_url_default">https://, ssh:// или путь на этом устройстве; пусто — заметки остаются здесь</string>
     <string name="settings_branch">Ветка</string>
     <string name="settings_branch_default">по умолчанию — ветка удалённого репозитория</string>
     <string name="settings_token">Токен доступа</string>
@@ -86,7 +104,7 @@
     <string name="settings_notes_pick">Выбрать каталог</string>
     <string name="settings_notes_failed">Не удалось использовать каталог заметок; оставлен прежний</string>
     <string name="settings_url_empty">Укажите адрес репозитория</string>
-    <string name="settings_url_scheme">Поддерживаются только https:// и локальный путь</string>
+    <string name="settings_url_scheme">Поддерживаются только https://, ssh:// и локальный путь</string>
     <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
@@ -112,6 +130,52 @@
     <string name="tooltip_priority">Приоритет %1$s</string>
     <string name="tooltip_priority_highest">Приоритет %1$s (высший)</string>
     <string name="tooltip_priority_lowest">Приоритет %1$s (низший)</string>
+    <string name="tooltip_collection">Коллекция %1$s</string>
+
+    <string name="hint_sync_now">Получить с сервера, затем отдать ему сделанные здесь коммиты. Слияние не выполняется: расхождение с сервером показывается, а не разрешается.</string>
+    <string name="hint_sync_unavailable">Ни у одной коллекции нет сервера. Заметки хранятся на устройстве, пока адрес не задан в настройках.</string>
+    <string name="hint_open_settings">Коллекции, каталог заметок каждой из них и сервер, с которым она синхронизируется.</string>
+    <string name="hint_layout_switch">Два способа читать один и тот же день: ось часов, где каждая запись стоит на своём времени, либо все записи строками по порядку дат.</string>
+    <string name="hint_span_menu">Сколько плана показывать сразу: сегодняшний день, неделю вокруг него, весь месяц или все открытые задачи — с датами и без них. Ось часов рисует один день, поэтому более широкие диапазоны показываются списком.</string>
+    <string name="hint_tag_menu">Сужает агенду до заметок, которые берёт тег, по имени файла каждой записи. Теги объявляют сами заметки, в .markdown-org/tags.json, и ездят вместе с ними — расширение редактора читает те же самые. Какие коллекции читать, выбирается отдельно, фишками ниже.</string>
+    <string name="hint_collection_chip">%1$s читает %2$s. Нажмите, чтобы убрать её записи из повестки и вернуть обратно.</string>
+    <string name="hint_sync_banner">Результат последней попытки синхронизации. Прогон по нескольким коллекциям заканчивается ответом последней, а строки ниже называют каждую.</string>
+    <string name="hint_sync_unpushed">Коммиты, сделанные на этом устройстве и ещё не отданные серверу. Счётчик держится до успешной синхронизации, ничего при этом не теряется.</string>
+    <string name="hint_sync_last_synced">Когда заметки на экране в последний раз совпадали с сервером. Неудачная попытка это значение не меняет: строка говорит о возрасте заметок, а не об исходе попытки.</string>
+    <string name="hint_scan_notice">С чем столкнулся обход заметок. Найденные записи показаны в повестке ниже, а эта строка говорит, чего в ней не хватает.</string>
+    <string name="hint_group_menu">Действие сразу над всеми записями группы «%1$s», одним коммитом, который можно отменить.</string>
+    <string name="hint_group_move_today">Поставить всем записям группы сегодняшнюю дату. Пропущенное повторение вместо этого догоняется до следующего срока и сохраняет свой повторитель.</string>
+    <string name="hint_group_drop_date">Снять дату планирования со всех записей группы. Задачи остаются и уходят из повестки, пока им снова не назначат дату.</string>
+    <string name="hint_group_cancel">Отметить все записи группы отменёнными, записав ключевое слово в исходную заметку.</string>
+
+    <string name="hint_action_where">Файл, в котором записана задача, и строка её заголовка — внутри каталога своей коллекции.</string>
+    <string name="hint_action_complete">Записывает в заголовок DONE и делает коммит. Задача уходит из повестки и остаётся в заметке.</string>
+    <string name="hint_action_complete_repeating">Переносит каждую строку с повторителем на следующий срок после сегодняшнего дня и возвращает ключевое слово TODO. Ничего не закрывается: задача вернётся в новую дату.</string>
+    <string name="hint_action_cancel">Записывает в заголовок CANCELLED. Если в заметке написано CANCELED, это написание сохраняется.</string>
+    <string name="hint_action_reopen">Записывает в заголовок TODO, каким бы ни было прежнее ключевое слово.</string>
+    <string name="hint_action_priority">Метка [#A] в заголовке. A, B и C — то, что org-mode предлагает по умолчанию; текущий уровень показан выбранным, а другой появляется здесь, если он записан в заметке.</string>
+    <string name="hint_action_shift">Двигает дату строки планирования на один день. Время, повторитель и предупреждение остаются как записаны, а день недели переписывается под новую дату на языке файла.</string>
+
+    <string name="hint_settings_collection">К какой коллекции относятся все поля ниже. Повестка читает их все сразу; здесь выбирается только та, которая правится.</string>
+    <string name="hint_settings_collection_add">Ещё один каталог заметок со своим адресом и своим токеном. Добавляется пустым и начинает читаться после сохранения.</string>
+    <string name="hint_settings_keep_local">Экран перестанет просить адрес. Заметки останутся в каталоге ниже, а сервер можно задать позже — заметки при этом никуда не денутся.</string>
+    <string name="hint_settings_token_drop">При сохранении формы удаляет сохранённый токен. Приватный репозиторий перестанет синхронизироваться, пока не будет введён другой.</string>
+    <string name="hint_settings_ssh">Приватный ключ, пароль к нему и отпечаток сервера. Всё это нужно только адресу ssh://.</string>
+    <string name="hint_settings_ssh_key_drop">При сохранении формы удаляет сохранённый приватный ключ.</string>
+    <string name="hint_settings_ssh_create">Создаёт на устройстве ключ ed25519 и оставляет приватную половину здесь. Публичная появится ниже — её нужно вставить на сервере.</string>
+    <string name="hint_settings_ssh_copy">Кладёт публичный ключ в буфер обмена. На телефоне он не нужен: его место — на сервере.</string>
+    <string name="hint_settings_notes_pick">Заполняет поле выше из системного выбора каталога. Хранится всё равно путь — заметки читаются по пути, а не через выбор каталога.</string>
+    <string name="hint_settings_notes_grant">Открывает экран системы, где выдаётся доступ ко всем файлам. Без него каталог вне собственного хранилища приложения не прочитать.</string>
+    <string name="hint_settings_collection_remove">Убирает коллекцию из повестки и забывает её адрес, ветку и токен. Каталог и все заметки в нём остаются на устройстве.</string>
+    <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
+    <string name="hint_settings_crash">То, что осталось от аварийно завершившегося запуска. Это стоит приложить к сообщению об ошибке; само никуда не отправляется.</string>
+    <string name="hint_settings_version">Какая сборка установлена. Две сборки одной версии различаются только коммитом — поэтому он здесь.</string>
+    <string name="hint_settings_save">Записывает поля в настройки этой коллекции. Заметки сразу перечитываются, а к серверу приложение обращается только при синхронизации.</string>
+    <string name="hint_settings_cancel">Закрывает форму, ничего не записывая. Введённое теряется, сохранённое остаётся.</string>
+
+    <string name="hint_licence_card">Что это за компонент, под какой лицензией и что в приложении им пользуется. Нажатие раскрывает полный текст.</string>
+    <string name="hint_licences_close">Вернуться к настройкам.</string>
+
     <string name="action_complete">Готово</string>
     <string name="action_complete_repeating">Готово, перенести на следующий раз</string>
     <string name="action_cancel_task">Снять задачу</string>
@@ -130,6 +194,15 @@
     <string name="edit_failed_unnamed">Имя файла не в UTF-8, задачу изменить нельзя</string>
     <string name="edit_failed_no_collection">Каталог заметок, откуда эта задача, больше не подключён</string>
 
+    <string name="sample_heading">Пример заметок</string>
+    <string name="sample_certificate">Продлить сертификат TLS</string>
+    <string name="sample_release_notes">Просмотреть заметки к выпуску</string>
+    <string name="sample_team_sync">Планёрка команды</string>
+    <string name="sample_dependency_pins">Обновить версии зависимостей</string>
+    <string name="sample_quarterly_report">Квартальный отчёт</string>
+    <string name="sample_archived_branch">Отправить старую ветку в архив</string>
+    <string name="sample_staging_host">Перенести тестовый сервер</string>
+
     <string name="collection_default_name">Заметки</string>
     <string name="collection_name_empty">Задайте название каталога заметок</string>
     <string name="collection_path_taken">Этот каталог уже подключён</string>
@@ -138,6 +211,7 @@
     <string name="settings_collections">Каталоги заметок</string>
     <string name="settings_collection_add">Добавить каталог</string>
     <string name="settings_collection_name">Название</string>
+    <string name="settings_collection_name_hint">то, что написано на фишке в повестке</string>
     <string name="settings_collection_remove">Отключить этот каталог</string>
     <string name="settings_collection_remove_explain">Агенда перестанет показывать его задачи. Сам каталог и всё, что в нём есть, останется на устройстве; адрес, ветка и токен этого каталога будут забыты.</string>
     <string name="settings_collection_remove_confirm">Отключить</string>

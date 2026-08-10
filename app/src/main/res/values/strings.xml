@@ -10,6 +10,36 @@
     <string name="agenda_now">Current time</string>
 
     <!--
+      How much of the plan is on screen. The first three are dates; the fourth
+      is everything still to do, dates or no dates.
+    -->
+    <string name="agenda_span_day">Day</string>
+    <string name="agenda_span_week">Week</string>
+    <string name="agenda_span_month">Month</string>
+    <string name="agenda_span_tasks">Tasks</string>
+    <!-- A day of a week that has nothing on it. -->
+    <string name="agenda_day_empty">Nothing on this day</string>
+
+    <!--
+      Tags: the second of the two filters over the agenda. Which collections
+      are read decides what is there at all; a tag selects among those notes by
+      the name of the file each one came from. The names of the tags are
+      whatever the notes declare and are never translated.
+    -->
+    <string name="agenda_tag_none">All notes</string>
+    <string name="agenda_tags_explain">What the tags mean</string>
+    <string name="agenda_tags_title">Tags</string>
+    <string name="agenda_tags_close">Close</string>
+    <!-- %1$s is what the pattern does, %2$s the collection that declared it. -->
+    <string name="agenda_tag_origin">%1$s — from %2$s</string>
+    <string name="agenda_tag_takes_every">takes every note</string>
+    <!-- %1$s is the text looked for in the file name. -->
+    <string name="agenda_tag_takes">takes notes whose name holds \"%1$s\"</string>
+    <string name="agenda_tag_keeps_out">keeps out notes whose name holds \"%1$s\"</string>
+    <string name="agenda_tag_takes_rest">takes what no other tag takes</string>
+    <string name="agenda_tag_exclusion_wins">A note matching both is kept out.</string>
+
+    <!--
       The overdue entries stand in bands rather than in one group: what each
       of them asks for differs, and so does what is done about it.
     -->
@@ -74,6 +104,7 @@
     <string name="settings_title">Notes repository</string>
     <string name="settings_hint">The repository is cloned into the notes directory below. Syncing takes what the server has and then hands it what was changed here; neither side is ever merged or rewritten.</string>
     <string name="settings_url">Repository URL</string>
+    <string name="settings_url_default">https://, ssh:// or a path on this device; empty keeps the notes here</string>
     <string name="settings_branch">Branch</string>
     <string name="settings_branch_default">the remote default</string>
     <string name="settings_token">Access token</string>
@@ -107,7 +138,7 @@
     <string name="settings_notes_pick">Choose a directory</string>
     <string name="settings_notes_failed">The notes directory could not be used; the previous one was kept</string>
     <string name="settings_url_empty">Enter the address of the repository</string>
-    <string name="settings_url_scheme">Only https:// and a local path are supported</string>
+    <string name="settings_url_scheme">Only https://, ssh:// and a local path are supported</string>
     <string name="settings_url_incomplete">The address names no repository</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
@@ -145,6 +176,74 @@
     <string name="tooltip_priority">Priority %1$s</string>
     <string name="tooltip_priority_highest">Priority %1$s (highest)</string>
     <string name="tooltip_priority_lowest">Priority %1$s (lowest)</string>
+    <!-- Which collection the row came from; %1$s is its name. The row shows
+         it as a coloured dot, which is too small a target for a press of its
+         own, so the name is said by the tooltip of the row around it. -->
+    <string name="tooltip_collection">In %1$s</string>
+
+    <!--
+      What a long press on a control says. The header carries icons, the
+      filter carries names with no word on the directory behind them, and the
+      lines under the banner carry a count and a time with nothing to say what
+      is being counted; each of those is a line here.
+    -->
+    <string name="hint_sync_now">Fetch from the server, then hand it what was committed here. Nothing is merged: notes that moved on both sides are reported rather than resolved.</string>
+    <string name="hint_sync_unavailable">No collection has a server yet. The notes are kept on this device until one is given an address in the settings.</string>
+    <string name="hint_open_settings">The collections, the directory each of them reads and the server it syncs with.</string>
+    <string name="hint_layout_switch">Two ways to read the same day: the hours it spans, with each entry against its own time, or every entry as a line ordered by date.</string>
+    <string name="hint_span_menu">How much of the plan to read at once: today, the week around it, the whole month, or every task still open — dated or not. The hour axis draws a day, so the wider spans are shown as the list.</string>
+    <string name="hint_tag_menu">Narrows the agenda to the notes a tag takes, by the name of the file each entry came from. The tags are declared by the notes themselves, in .markdown-org/tags.json, and travel with them — the editor extension reads the same ones. Which collections are read is a separate choice, made by the chips below.</string>
+    <!-- %1$s is the collection's name, %2$s the directory it reads. -->
+    <string name="hint_collection_chip">%1$s reads %2$s. Press to take its entries off the agenda and back.</string>
+    <string name="hint_sync_banner">What the sync just attempted did. A run over several collections ends with the answer of the last one, and the lines below name each of them.</string>
+    <string name="hint_sync_unpushed">Commits made on this device that the server has not been given. They stay counted until a sync gets them across, and nothing is lost meanwhile.</string>
+    <string name="hint_sync_last_synced">When the notes on screen last matched the server. A failed attempt leaves this as it was — it says how old the notes are, not how the attempt went.</string>
+    <string name="hint_scan_notice">What the walk over the notes ran into. The entries it did find are on the agenda below; this says what is missing from it.</string>
+    <!-- %1$s is the name of the band the menu belongs to. -->
+    <string name="hint_group_menu">Act on every entry of “%1$s” at once, in one commit that can be put back.</string>
+    <string name="hint_group_move_today">Date every entry of the band today. A missed repeat is caught up to its next occurrence instead, keeping its repeater.</string>
+    <string name="hint_group_drop_date">Take the planning date off every entry of the band. The tasks stay, and leave the agenda until they are dated again.</string>
+    <string name="hint_group_cancel">Mark every entry of the band cancelled, writing the keyword into the note it came from.</string>
+
+    <!--
+      The sheet of actions over a task. Every line here says what is written
+      into the note rather than what the button is called: the name is already
+      on the button, and what a tap changes in the file is what is not.
+    -->
+    <string name="hint_action_where">The file the task is written in and the line its heading is on, inside the directory of its collection.</string>
+    <string name="hint_action_complete">Writes DONE into the heading and commits. The task leaves the agenda and stays in the note.</string>
+    <string name="hint_action_complete_repeating">Moves every dated line that carries a repeater on to its next occurrence after today, and sets the keyword back to TODO. Nothing is closed: the task returns on its new date.</string>
+    <string name="hint_action_cancel">Writes CANCELLED into the heading. A note that already spells it CANCELED keeps that spelling.</string>
+    <string name="hint_action_reopen">Writes TODO into the heading, whatever it carried before.</string>
+    <string name="hint_action_priority">The [#A] cookie of the heading. A, B and C are what org-mode uses out of the box, and the level in force is drawn as the selection; another one appears here when the note carries it.</string>
+    <string name="hint_action_shift">Moves the date of the planning line by one day. The time, the repeater and the warning cookie stay as written, and the weekday is rewritten to match in the language the file uses.</string>
+
+    <!--
+      The settings screen. The fields carry a line under them; what a button
+      does is said here, since a name alone does not tell what it writes, what
+      it forgets, or what it leaves on the device.
+    -->
+    <string name="hint_settings_collection">Which collection every field below is about. The agenda reads all of them at once; this only says which one is being edited.</string>
+    <string name="hint_settings_collection_add">Another directory of notes, with its own address and its own token. It is added empty and starts being read once it is saved.</string>
+    <string name="hint_settings_keep_local">Stops the screen asking for an address. The notes stay in the directory below, and a server can be given later without them going anywhere.</string>
+    <string name="hint_settings_token_drop">Deletes the stored token when the form is saved. A private repository stops syncing until another one is entered.</string>
+    <string name="hint_settings_ssh">The private key, its passphrase and the fingerprint of the server. Only an ssh:// address uses any of it.</string>
+    <string name="hint_settings_ssh_key_drop">Deletes the stored private key when the form is saved.</string>
+    <string name="hint_settings_ssh_create">Makes an ed25519 key on this device and keeps the private half here. The public half appears below, for pasting into the server.</string>
+    <string name="hint_settings_ssh_copy">Puts the public key on the clipboard. It is of no use on the phone: the server is where it goes.</string>
+    <string name="hint_settings_notes_pick">Fills the field above from the system picker. What is stored is a path either way — the notes are read by path, not through the picker.</string>
+    <string name="hint_settings_notes_grant">Opens the screen of the platform where access to all files is granted. A directory outside the application\'s own storage cannot be read without it.</string>
+    <string name="hint_settings_collection_remove">Takes this collection off the agenda and forgets its address, branch and token. The directory and every note in it stay on the device.</string>
+    <string name="hint_settings_licences">What the application carries besides its own sources, and under what terms.</string>
+    <string name="hint_settings_crash">What was left by the run that stopped unexpectedly. It is worth attaching to a report; nothing is sent anywhere by itself.</string>
+    <string name="hint_settings_version">Which build is installed. Two builds of the same version differ only by the commit, which is why it is here.</string>
+    <string name="hint_settings_save">Writes the fields into the settings of this collection. The notes are read again straight away, and the server is only contacted by a sync.</string>
+    <string name="hint_settings_cancel">Leaves the form without writing anything. What was typed is lost; what was stored stays.</string>
+
+    <!-- The licence screen. -->
+    <string name="hint_licence_card">What the component is, the licence it is under and what in this application uses it. Press to read the full text.</string>
+    <string name="hint_licences_close">Back to the settings.</string>
+
     <string name="action_complete">Done</string>
     <string name="action_complete_repeating">Done, move to next occurrence</string>
     <!-- Worded away from "cancel": in the sheet it writes CANCELLED into the
@@ -169,6 +268,19 @@
          removed; there is no directory left to write it to. -->
     <string name="edit_failed_no_collection">The collection this task came from is no longer set up</string>
 
+    <!-- The sample written into an empty notes directory on the first run. Only
+         the wording is translated: the keywords, the brackets and the dates are
+         the format the extractor reads, and a translated `TODO` would not be
+         read back. -->
+    <string name="sample_heading">Sample notes</string>
+    <string name="sample_certificate">Renew the TLS certificate</string>
+    <string name="sample_release_notes">Review the release notes</string>
+    <string name="sample_team_sync">Team sync</string>
+    <string name="sample_dependency_pins">Update the dependency pins</string>
+    <string name="sample_quarterly_report">Quarterly report</string>
+    <string name="sample_archived_branch">Archive the old branch</string>
+    <string name="sample_staging_host">Migrate the staging host</string>
+
     <!-- What the collection made out of an earlier version's single directory
          is called, and what a set of one is labelled with. -->
     <string name="collection_default_name">Notes</string>
@@ -181,6 +293,7 @@
     <string name="settings_collections">Collections</string>
     <string name="settings_collection_add">Add a collection</string>
     <string name="settings_collection_name">Name</string>
+    <string name="settings_collection_name_hint">what the chip on the agenda says</string>
     <string name="settings_collection_remove">Remove this collection</string>
     <!-- The directory stays where it is: it may be a repository holding commits
          that are nowhere else, and this screen only stops reading it. -->

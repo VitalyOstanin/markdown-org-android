@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +38,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,16 +56,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import io.github.vitalyostanin.markdownorg.ui.theme.collectionTone
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 
 @Composable
 fun AgendaScreen(
@@ -68,6 +74,9 @@ fun AgendaScreen(
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
     modifier: Modifier = Modifier,
+    /** Which span the header offers; what is on screen is the state's own. */
+    span: AgendaSpan = AgendaSpan.DAY,
+    onSpanChange: (AgendaSpan) -> Unit = {},
     /** The wall clock the marker line follows; see [AgendaViewModel.now]. */
     now: LocalDateTime = LocalDateTime.now(),
     sync: SyncUiState = SyncUiState(),
@@ -76,6 +85,11 @@ fun AgendaScreen(
     /** The collections to filter by; empty while there is one of them. */
     collections: List<CollectionChoice> = emptyList(),
     onCollectionShown: (String, Boolean) -> Unit = { _, _ -> },
+    /** The tags the notes declare; empty while none of them declares any. */
+    tags: List<MergedTag> = emptyList(),
+    /** The tag in force, or null while the agenda is not narrowed. */
+    currentTag: String? = null,
+    onTagChange: (String?) -> Unit = {},
     /** What acting on a whole band did, and what it takes to undo it. */
     groupResult: GroupResult? = null,
     onGroupResultShown: () -> Unit = {},
@@ -130,6 +144,8 @@ fun AgendaScreen(
                 state,
                 layout,
                 onLayoutChange,
+                span,
+                onSpanChange,
                 now,
                 sync,
                 onSync,
@@ -141,6 +157,9 @@ fun AgendaScreen(
                 onGroupAction,
                 collections,
                 onCollectionShown,
+                tags,
+                currentTag,
+                onTagChange,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
@@ -174,6 +193,8 @@ private fun AgendaBody(
     state: AgendaUiState,
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
+    span: AgendaSpan,
+    onSpanChange: (AgendaSpan) -> Unit,
     now: LocalDateTime,
     sync: SyncUiState,
     onSync: () -> Unit,
@@ -185,6 +206,9 @@ private fun AgendaBody(
     onGroupAction: (OverdueGroup, BulkAction) -> Unit,
     collections: List<CollectionChoice>,
     onCollectionShown: (String, Boolean) -> Unit,
+    tags: List<MergedTag>,
+    currentTag: String?,
+    onTagChange: (String?) -> Unit,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -207,13 +231,27 @@ private fun AgendaBody(
             val marker = now.toLocalTime().takeIf { state.date == now.toLocalDate() }
             // Outside the scrolling area: the switch is how the user gets
             // back to the other layout, and it must not scroll away.
-            AgendaHeader(state.date, layout, onLayoutChange, sync, onSync, onOpenSettings)
+            AgendaHeader(
+                state,
+                layout,
+                onLayoutChange,
+                span,
+                onSpanChange,
+                sync,
+                onSync,
+                onOpenSettings,
+                tags,
+                currentTag,
+                onTagChange,
+            )
             CollectionFilter(collections, onCollectionShown)
             RefreshingLine(state.refreshing)
             SyncBanner(sync, onTakeRemote, onReplaceNotes, onTrustHost)
             ScanNotices(state.notices)
-            when (layout) {
-                AgendaLayout.TIME -> TimeLayout(
+            // The axis covers one day; every wider span is read as the list,
+            // whatever the layout switch was left on last time it was shown.
+            if (layout == AgendaLayout.TIME && state.span.fitsTimeLayout) {
+                TimeLayout(
                     // Rebuilt when the hour turns over, not every minute: the
                     // marker sits on an hour boundary, so that is how often
                     // the axis it belongs to can differ.
@@ -225,9 +263,11 @@ private fun AgendaBody(
                     onTaskClick = onTaskClick,
                     onGroupAction = onGroupAction,
                 )
-
-                AgendaLayout.LIST -> ListLayout(
-                    state.sections,
+            } else {
+                ListLayout(
+                    days = state.days,
+                    span = state.span,
+                    today = state.date,
                     scroll = listScroll,
                     collapse = collapse,
                     onTaskClick = onTaskClick,
@@ -269,27 +309,38 @@ private fun CollectionFilter(
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         collections.forEach { choice ->
-            FilterChip(
-                selected = choice.shown,
-                onClick = { onCollectionShown(choice.label.id, !choice.shown) },
-                label = {
-                    Text(
-                        text = choice.label.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = Sizes.collectionName),
-                    )
-                },
-                leadingIcon = {
-                    Box(
-                        modifier = Modifier
-                            .size(Sizes.collectionDot)
-                            .clip(CircleShape)
-                            .background(colors.collectionTone(choice.label.tone)),
-                    )
-                },
-                modifier = Modifier.testTag("collection-chip-${choice.label.id}"),
-            )
+            // The chip carries the name the collection was given, which need
+            // not say anything about where it reads from — and two of them
+            // may be named alike. The directory is what the press answers.
+            HintTooltip(
+                stringResource(
+                    R.string.hint_collection_chip,
+                    choice.label.name,
+                    choice.label.root,
+                ),
+            ) {
+                FilterChip(
+                    selected = choice.shown,
+                    onClick = { onCollectionShown(choice.label.id, !choice.shown) },
+                    label = {
+                        Text(
+                            text = choice.label.name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = Sizes.collectionName),
+                        )
+                    },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(Sizes.collectionDot)
+                                .clip(CircleShape)
+                                .background(colors.collectionTone(choice.label.tone)),
+                        )
+                    },
+                    modifier = Modifier.testTag("collection-chip-${choice.label.id}"),
+                )
+            }
         }
     }
 }
@@ -315,12 +366,17 @@ private fun RefreshingLine(refreshing: Boolean) {
 
 @Composable
 private fun AgendaHeader(
-    date: LocalDate,
+    state: AgendaUiState.Ready,
     layout: AgendaLayout,
     onLayoutChange: (AgendaLayout) -> Unit,
+    span: AgendaSpan,
+    onSpanChange: (AgendaSpan) -> Unit,
     sync: SyncUiState,
     onSync: () -> Unit,
     onOpenSettings: () -> Unit,
+    tags: List<MergedTag>,
+    currentTag: String?,
+    onTagChange: (String?) -> Unit,
 ) {
     // The device locale, not the application's: the interface is English, but
     // a date is read in whatever language the user reads dates in. Read from
@@ -328,13 +384,12 @@ private fun AgendaHeader(
     // observable — the header would keep yesterday's language until something
     // else redrew it.
     val locale = LocalLocale.current.platformLocale
-    val weekday = remember(date, locale) {
-        date.format(DateTimeFormatter.ofPattern("EEEE", locale))
-            .replaceFirstChar { it.titlecase(locale) }
-    }
-    val full = remember(date, locale) {
-        date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale))
-    }
+    // What the span on screen is called, and what it covers. The day says its
+    // weekday and its date; the wider spans say their name and the dates they
+    // run between, which is the one thing the list below cannot repeat on
+    // every row.
+    val weekday = headingOf(state, locale)
+    val full = captionOf(state, locale)
 
     // The day gets a line of its own, the controls another one. Sharing a
     // single row left the day about a quarter of the width -- less than a
@@ -357,13 +412,19 @@ private fun AgendaHeader(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.testTag("agenda-heading"),
         )
-        Text(
-            text = full,
-            style = MaterialTheme.typography.labelMedium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.outline,
-        )
+        // The flat list of tasks has no dates to state, and an empty line
+        // where the date was would leave a gap under the heading.
+        if (full.isNotEmpty()) {
+            Text(
+                text = full,
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.testTag("agenda-caption"),
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -374,6 +435,14 @@ private fun AgendaHeader(
             HeaderAction(
                 icon = R.drawable.ic_sync,
                 label = stringResource(R.string.sync_now),
+                // A disabled control says why it is disabled rather than what
+                // it would do: "fetch, then push" reads as an offer, and this
+                // one cannot be taken up until a collection has an address.
+                hint = if (sync.configured) {
+                    stringResource(R.string.hint_sync_now)
+                } else {
+                    stringResource(R.string.hint_sync_unavailable)
+                },
                 tag = "sync-now",
                 enabled = sync.configured && !sync.running,
                 onClick = onSync,
@@ -381,11 +450,111 @@ private fun AgendaHeader(
             HeaderAction(
                 icon = R.drawable.ic_settings,
                 label = stringResource(R.string.settings_title),
+                hint = stringResource(R.string.hint_open_settings),
                 tag = "open-settings",
                 onClick = onOpenSettings,
             )
             Spacer(Modifier.weight(1f))
-            LayoutSwitch(layout, onLayoutChange)
+            TagMenu(tags, currentTag, onTagChange)
+            SpanMenu(span, onSpanChange)
+            // Left out rather than left there doing nothing: the axis draws
+            // one day, and a switch that changes nothing is a control the user
+            // presses twice before deciding it is broken.
+            if (span.fitsTimeLayout) {
+                LayoutSwitch(layout, onLayoutChange)
+            }
+        }
+    }
+}
+
+/**
+ * The heading of the header: what the span on screen is.
+ *
+ * A day names its weekday, because that is what it is looked up by; the wider
+ * spans name themselves, and a month names the month it is.
+ */
+@Composable
+private fun headingOf(state: AgendaUiState.Ready, locale: Locale): String = when (state.span) {
+    AgendaSpan.DAY -> remember(state.date, locale) {
+        state.date.format(DateTimeFormatter.ofPattern("EEEE", locale))
+            .replaceFirstChar { it.titlecase(locale) }
+    }
+
+    AgendaSpan.MONTH -> remember(state.date, locale) {
+        state.date.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+            .replaceFirstChar { it.titlecase(locale) }
+    }
+
+    else -> stringResource(state.span.labelRes)
+}
+
+/**
+ * The line under the heading: which dates the span covers.
+ *
+ * Read off the days that came back rather than worked out here: the boundaries
+ * of a week and of a month are the core's to decide — which day a week starts
+ * on among them — and a second opinion about it here would eventually differ.
+ * Empty for the flat list of tasks, which covers no dates at all.
+ */
+@Composable
+private fun captionOf(state: AgendaUiState.Ready, locale: Locale): String {
+    if (state.span == AgendaSpan.TASKS) {
+        return ""
+    }
+
+    val dates = remember(state.days) { state.days.mapNotNull(AgendaDay::date) }
+    val first = dates.firstOrNull() ?: state.date
+    val last = dates.lastOrNull() ?: state.date
+
+    return remember(first, last, locale) {
+        val written = DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale)
+        val short = DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
+        if (first ==
+            last
+        ) {
+            first.format(written)
+        } else {
+            "${first.format(short)} — ${last.format(short)}"
+        }
+    }
+}
+
+/**
+ * How much of the plan to show, as a menu rather than a row of buttons.
+ *
+ * Four spans in a segmented row would take the width the header keeps for the
+ * layout switch, and three of the four are chosen rarely: the day is what a
+ * phone is opened on. The button carries the name of the span on screen, so
+ * the choice is readable without opening anything.
+ */
+@Composable
+private fun SpanMenu(current: AgendaSpan, onSpanChange: (AgendaSpan) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        HintTooltip(stringResource(R.string.hint_span_menu)) {
+            TextButton(
+                onClick = { open = true },
+                modifier = Modifier.testTag("span-menu"),
+            ) {
+                Text(
+                    text = stringResource(current.labelRes),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                )
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            AgendaSpan.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.labelRes)) },
+                    onClick = {
+                        open = false
+                        onSpanChange(option)
+                    },
+                    modifier = Modifier.testTag(option.testTag),
+                )
+            }
         }
     }
 }
@@ -396,23 +565,30 @@ private fun AgendaHeader(
  * [IconButton] rather than a hand-built `Box`: the ripple, the size of the
  * touch target and how a disabled control reads all come with it, and they
  * are the same ones the buttons on the other screens get.
+ *
+ * [hint] is what a long press says. The icon is a glyph, [label] is two words,
+ * and neither states what pressing it will do to the notes — which is the
+ * question worth answering before a control that writes to them is pressed.
  */
 @Composable
 private fun HeaderAction(
     @DrawableRes icon: Int,
     label: String,
+    hint: String,
     tag: String,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
-        Icon(
-            painter = painterResource(icon),
-            // Named rather than described: what the button does is what the
-            // user needs to hear, and it is the same wording the settings
-            // screen uses for the place it leads to.
-            contentDescription = label,
-        )
+    HintTooltip(hint) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
+            Icon(
+                painter = painterResource(icon),
+                // Named rather than described: what the button does is what
+                // the user needs to hear, and it is the same wording the
+                // settings screen uses for the place it leads to.
+                contentDescription = label,
+            )
+        }
     }
 }
 
@@ -446,16 +622,21 @@ private fun SyncBanner(
     }
 
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter)) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (sync.message?.failed == true) {
-                colors.deadline.tone
-            } else {
-                MaterialTheme.colorScheme.outline
-            },
+        HintTooltip(
+            stringResource(R.string.hint_sync_banner),
+            // On the anchor rather than on the line inside it: see HintTooltip.
             modifier = Modifier.testTag("sync-banner"),
-        )
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (sync.message?.failed == true) {
+                    colors.deadline.tone
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+            )
+        }
         sync.message?.detail?.let { detail ->
             Text(
                 text = detailText(detail),
@@ -577,12 +758,16 @@ private fun Unpushed(sync: SyncUiState) {
         return
     }
 
-    Text(
-        text = pluralStringResource(R.plurals.sync_unpushed, owed, owed),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.outline,
+    HintTooltip(
+        stringResource(R.string.hint_sync_unpushed),
         modifier = Modifier.testTag("sync-unpushed"),
-    )
+    ) {
+        Text(
+            text = pluralStringResource(R.plurals.sync_unpushed, owed, owed),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
 }
 
 /**
@@ -600,12 +785,16 @@ private fun LastSynced(sync: SyncUiState) {
     }
     val moment = syncedAtLabel(sync.lastSyncedAt) ?: return
 
-    Text(
-        text = stringResource(R.string.sync_last_synced, moment),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.outline,
+    HintTooltip(
+        stringResource(R.string.hint_sync_last_synced),
         modifier = Modifier.testTag("sync-last-synced"),
-    )
+    ) {
+        Text(
+            text = stringResource(R.string.sync_last_synced, moment),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
 }
 
 /**
@@ -628,16 +817,18 @@ private fun ScanNotices(notices: List<ScanNotice>) {
             .testTag("scan-notices"),
     ) {
         notices.forEach { notice ->
-            Text(
-                text = when (notice) {
-                    is ScanNotice.Counted ->
-                        pluralStringResource(notice.text, notice.count, notice.count)
+            HintTooltip(stringResource(R.string.hint_scan_notice)) {
+                Text(
+                    text = when (notice) {
+                        is ScanNotice.Counted ->
+                            pluralStringResource(notice.text, notice.count, notice.count)
 
-                    is ScanNotice.Flag -> stringResource(notice.text)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = LocalAgendaColors.current.deadline.tone,
-            )
+                        is ScanNotice.Flag -> stringResource(notice.text)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = LocalAgendaColors.current.deadline.tone,
+                )
+            }
         }
     }
 }
@@ -650,24 +841,30 @@ private fun ScanNotices(notices: List<ScanNotice>) {
  */
 @Composable
 private fun LayoutSwitch(current: AgendaLayout, onLayoutChange: (AgendaLayout) -> Unit) {
-    SingleChoiceSegmentedButtonRow {
-        AgendaLayout.entries.forEachIndexed { index, option ->
-            SegmentedButton(
-                selected = option == current,
-                onClick = { onLayoutChange(option) },
-                shape = SegmentedButtonDefaults.itemShape(index, AgendaLayout.entries.size),
-                // The check mark the default slot draws would say the same
-                // thing the fill already says, in the space the icon needs.
-                icon = {},
-                // Tagged rather than found by its icon: the tests should
-                // survive a change of drawable.
-                modifier = Modifier.testTag(option.testTag),
-            ) {
-                Icon(
-                    painter = painterResource(option.iconRes),
-                    contentDescription = stringResource(option.labelRes),
-                    modifier = Modifier.size(Sizes.icon),
-                )
+    // The whole switch, not a tooltip per button. The row measures its
+    // children to a common height, and a box between it and them is one more
+    // thing for that measurement to go through; one anchor over the pair also
+    // says what the choice is, which is what a reader of two glyphs is after.
+    HintTooltip(stringResource(R.string.hint_layout_switch)) {
+        SingleChoiceSegmentedButtonRow {
+            AgendaLayout.entries.forEachIndexed { index, option ->
+                SegmentedButton(
+                    selected = option == current,
+                    onClick = { onLayoutChange(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, AgendaLayout.entries.size),
+                    // The check mark the default slot draws would say the same
+                    // thing the fill already says, in the space the icon needs.
+                    icon = {},
+                    // Tagged rather than found by its icon: the tests should
+                    // survive a change of drawable.
+                    modifier = Modifier.testTag(option.testTag),
+                ) {
+                    Icon(
+                        painter = painterResource(option.iconRes),
+                        contentDescription = stringResource(option.labelRes),
+                        modifier = Modifier.size(Sizes.icon),
+                    )
+                }
             }
         }
     }

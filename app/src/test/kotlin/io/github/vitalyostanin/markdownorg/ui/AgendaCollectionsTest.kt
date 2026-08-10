@@ -4,6 +4,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import io.github.vitalyostanin.markdownorg.core.testWording
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -449,6 +450,7 @@ class AgendaCollectionsTest {
             agenda = loader,
             ui = ui,
             ownNotes = OWN,
+            sample = testWording,
             storageGranted = { true },
             clock = { NOON },
         )
@@ -486,6 +488,7 @@ class AgendaCollectionsTest {
         agenda = loader,
         ui = ui,
         ownNotes = OWN,
+        sample = testWording,
         storageGranted = { true },
         clock = { NOON },
     )

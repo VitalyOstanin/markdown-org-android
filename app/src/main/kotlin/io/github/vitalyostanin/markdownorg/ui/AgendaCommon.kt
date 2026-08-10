@@ -266,6 +266,17 @@ fun PriorityBadge(priority: String, modifier: Modifier = Modifier, onDenseFill: 
 internal val AgendaRow.key: String get() = "${task.root}:${task.file}:${task.line}"
 
 /**
+ * The same key inside a list that shows several days at once.
+ *
+ * A repeating task falls on more than one day of a week, and every occurrence
+ * of it names the same file and the same line: without the day in front, a week
+ * of a task that repeats daily is a list whose keys repeat, which a lazy list
+ * refuses to draw. An empty [prefix] leaves the key as it was — that is the
+ * single-day case, where there is nothing to tell apart.
+ */
+internal fun AgendaRow.keyIn(prefix: String): String = if (prefix.isEmpty()) key else "$prefix|$key"
+
+/**
  * Heading over a group of entries, with how many are in it. The overdue group
  * is the one that gets the tone: the rest are neutral.
  *
@@ -370,12 +381,14 @@ internal fun LazyListScope.overdueBands(
     groups: List<OverdueGroup>,
     collapse: OverdueCollapse,
     onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
+    /** Which day these bands belong to, in a list showing several — see [keyIn]. */
+    prefix: String = "",
     row: @Composable (AgendaRow) -> Unit,
 ) {
     for (group in groups) {
         val folded = collapse.isCollapsed(group.band)
 
-        item(key = "band:${group.band.name}") {
+        item(key = "$prefix|band:${group.band.name}") {
             SectionLabel(
                 text = stringResource(group.band.label),
                 count = group.rows.size,
@@ -388,7 +401,7 @@ internal fun LazyListScope.overdueBands(
             )
         }
         if (!folded) {
-            items(group.rows, key = AgendaRow::key) { entry -> row(entry) }
+            items(group.rows, key = { entry -> entry.keyIn(prefix) }) { entry -> row(entry) }
         }
     }
 }
