@@ -1,6 +1,10 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.RepoStatus
@@ -95,10 +99,11 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
     override suspend fun sync(settings: SyncPreferences): Result<SyncRun> {
         val url = settings.remoteUrl
             ?: return Result.failure(IllegalStateException("no remote configured"))
-        // Handed over before the lock, and only until the core has it: 180 kB
-        // off the assets is not work the rest of the application should be
-        // waiting behind, and the certificate store lives as long as the
-        // process.
+        // Handed over before the lock on the directory, and off the main
+        // thread: 180 kB out of the assets is not work the rest of the
+        // application should be waiting behind, and it is not work the frame
+        // showing "syncing" should be waiting behind either. The certificate
+        // store lives as long as the process, so this is once.
         val certificates = runCatching { loadCertificates() }
         certificates.exceptionOrNull()?.let { return Result.failure(it) }
 
@@ -207,7 +212,7 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
      * either, so the next sync tries again rather than connecting without
      * certificates.
      */
-    private fun loadCertificates() {
+    private suspend fun loadCertificates() {
         CertificateStore.fill(context)
     }
 
@@ -225,7 +230,15 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         @Volatile
         private var filled: Boolean = false
 
-        fun fill(context: Context) {
+        /**
+         * A coroutine lock rather than a monitor: what is held across it is the
+         * read of 180 kB and the parsing of 119 certificates on the core side,
+         * and `synchronized` would hold a thread of the IO pool for all of it
+         * while a second sync stood on another one waiting.
+         */
+        private val lock = Mutex()
+
+        suspend fun fill(context: Context) {
             if (filled) {
                 return
             }
@@ -233,13 +246,18 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
             // Locked so that two syncs starting together do the reading once.
             // Checked again inside: the first of them may have finished
             // between the read above and the lock.
-            synchronized(this) {
+            lock.withLock {
                 if (filled) {
                     return
                 }
 
-                val pem = context.assets.open(CA_BUNDLE).use { it.readBytes().decodeToString() }
-                loadCaBundle(pem)
+                // Off the main thread, which is where a sync is asked for: this
+                // is a file out of the assets and a parse of every authority in
+                // it, and it lands on the frame that puts "syncing" on screen.
+                withContext(Dispatchers.IO) {
+                    val pem = context.assets.open(CA_BUNDLE).use { it.readBytes().decodeToString() }
+                    loadCaBundle(pem)
+                }
                 filled = true
             }
         }
