@@ -116,10 +116,10 @@
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
     <string name="settings_notes_not_dir">That path is a file, not a directory</string>
     <string name="settings_notes_denied">A directory outside the application\'s storage needs access to all files</string>
-    <!-- The directory holds a checkout of somewhere else. Saving does not
-         empty it: the commits in it may exist nowhere but here. -->
-    <string name="settings_other_checkout">The directory is a checkout of another repository. Replace its contents, or point the application at a different directory.</string>
-    <string name="settings_replace_notes">Replace the notes in the directory</string>
+    <!-- The directory holds a checkout of somewhere else, and the way on is
+         outside this application: nothing here removes files it did not
+         write, and the commits in this one may exist nowhere but here. -->
+    <string name="settings_other_checkout">The directory is a checkout of another repository, and its files are left as they are. Point the application at a different directory, or empty this one yourself.</string>
     <string name="settings_keep_local">Keep the notes on this device only</string>
     <string name="settings_ssh">Access over SSH</string>
     <string name="settings_ssh_key">Private key</string>
@@ -303,7 +303,6 @@
     <!-- The note was written; only the commit did not happen. Worded away
          from a failure: repeating the tap would edit an already edited file. -->
     <string name="edit_not_committed">Saved, but not committed; the next edit or sync will commit it</string>
-    <string name="notes_reset_failed">The notes directory could not be emptied</string>
 
     <string name="agenda_truncated">The task limit was reached; the list is incomplete</string>
     <!-- Shown when a failure carries nothing readable of its own. -->

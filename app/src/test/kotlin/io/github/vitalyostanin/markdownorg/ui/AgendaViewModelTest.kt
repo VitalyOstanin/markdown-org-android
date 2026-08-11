@@ -129,55 +129,7 @@ class AgendaViewModelTest {
         model.saveSettings(OTHER_REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
-        assertEquals(0, notes.wiped)
         assertEquals(R.string.settings_other_checkout, model.syncState.value.message?.text)
-    }
-
-    @Test
-    fun replacingTheNotesWaitsForTheSyncInFlight() = runTest(dispatcher) {
-        val held = CompletableDeferred<Result<SyncRun>>()
-        val syncer = FakeSyncer { held.await() }
-        var syncingWhenWiped: Boolean? = null
-        notes.onWipe = { syncingWhenWiped = syncer.running }
-        settings.remoteUrl = REMOTE
-        val model = viewModel(syncer)
-
-        model.syncNow()
-        advanceUntilIdle()
-        assertTrue(syncer.running)
-
-        model.replaceNotes()
-        advanceUntilIdle()
-
-        // The wipe is `deleteRecursively` over the directory a clone is
-        // writing into. It may only happen once that clone is out of the way.
-        assertEquals(1, notes.wiped)
-        assertFalse(syncingWhenWiped!!)
-    }
-
-    @Test
-    fun replacingTheNotesMidSyncStillClonesTheNewRemote() = runTest(dispatcher) {
-        // The old code ended the wipe with the same `syncNow()` that skips
-        // when a sync is running, so the directory was emptied and nothing
-        // was ever fetched into it.
-        val held = CompletableDeferred<Result<SyncRun>>()
-        val syncer = FakeSyncer { url ->
-            if (url == REMOTE) held.await() else Result.success(FakeSyncer.run())
-        }
-        syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
-        settings.remoteUrl = REMOTE
-        val model = viewModel(syncer)
-
-        model.syncNow()
-        advanceUntilIdle()
-        model.saveSettings(OTHER_REMOTE, branch = "", token = "")
-        advanceUntilIdle()
-        model.replaceNotes()
-        advanceUntilIdle()
-
-        assertEquals(listOf(REMOTE, OTHER_REMOTE), syncer.requested)
-        assertEquals(1, notes.wiped)
-        assertFalse(model.syncState.value.running)
     }
 
     /**
@@ -196,7 +148,6 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(REMOTE), syncer.adopted)
-        assertEquals(0, notes.wiped)
         assertTrue(syncer.requested.isEmpty())
     }
 
@@ -342,15 +293,14 @@ class AgendaViewModelTest {
 
         assertFalse(settings.storesLocally)
         assertEquals(listOf(REMOTE), syncer.adopted)
-        assertEquals(0, notes.wiped)
     }
 
     @Test
-    fun anUnreadableCheckoutIsNotWiped() = runTest(dispatcher) {
+    fun anUnreadableCheckoutIsLeftAloneAndSaidToBeUnreadable() = runTest(dispatcher) {
         // `status()` failing means the directory holds a repository that could
         // not be read — not that there is none. An edit made offline is
-        // committed here and nowhere else until a sync gets through, so wiping
-        // on an unreadable checkout destroys the only copy of it.
+        // committed here and nowhere else until a sync gets through, so this
+        // is said out loud rather than treated as an empty directory.
         val syncer = FakeSyncer()
         syncer.statusResult = Result.failure(IllegalStateException("broken .git/config"))
         settings.remoteUrl = REMOTE
@@ -360,7 +310,6 @@ class AgendaViewModelTest {
         model.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
-        assertEquals(0, notes.wiped)
         assertEquals(R.string.sync_status_unreadable, model.syncState.value.message?.text)
     }
 
@@ -373,9 +322,41 @@ class AgendaViewModelTest {
         model.saveSettings("http://example.test/notes.git", branch = "", token = "")
         advanceUntilIdle()
 
-        assertEquals(0, notes.wiped)
         assertNull(settings.remoteUrl)
         assertEquals(R.string.settings_url_scheme, model.syncState.value.message?.text)
+    }
+
+    /**
+     * Saving settings is work on the working copy like a sync is, and the two
+     * must not run beside each other: saving stops the sync in flight, moves
+     * the directory, stores the address and starts a sync of its own. It ran
+     * outside the job that stands for "a sync is under way", so a tap on the
+     * sync icon in that window passed the check and fetched into a directory
+     * being pointed somewhere else.
+     */
+    @Test
+    fun aSyncAskedForWhileSettingsAreBeingSavedDoesNotRunBesideThem() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
+        settings.remoteUrl = REMOTE
+        val model = viewModel(syncer)
+        advanceUntilIdle()
+
+        // The save has stopped the sync that was running and is now reading
+        // the checkout. The tap lands in that window.
+        val reading = CompletableDeferred<Unit>()
+        syncer.statusGate = reading
+        model.saveSettings(REMOTE, branch = "notes", token = "")
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+        reading.complete(Unit)
+        advanceUntilIdle()
+
+        // One fetch, the one the save started. Two means the tap got its own,
+        // beside a save that was still moving the directory under it.
+        assertEquals(listOf(REMOTE), syncer.requested)
     }
 
     @Test
@@ -588,29 +569,6 @@ class AgendaViewModelTest {
             assertTrue(model.state.value is AgendaUiState.Failed)
             assertEquals(0, loader.pending.size)
         }
-
-    @Test
-    fun aWipeThatOnlyHalfHappenedIsReportedInsteadOfBeingClonedInto() = runTest(dispatcher) {
-        // The clone that follows refuses a directory that is not empty and
-        // reports it as a repository failure, which says nothing about the
-        // directory it is actually about.
-        val syncer = FakeSyncer()
-        syncer.statusResult = Result.success(FakeSyncer.status(OTHER_REMOTE))
-        notes.resetResult = Result.failure(IllegalStateException("could not be emptied"))
-        val model = viewModel(syncer)
-        advanceUntilIdle()
-
-        model.saveSettings(url = REMOTE, branch = "main", token = "")
-        advanceUntilIdle()
-        model.replaceNotes()
-        advanceUntilIdle()
-
-        assertEquals(R.string.notes_reset_failed, model.syncState.value.message?.text)
-        assertTrue(
-            "a clone was started over a directory that is not empty",
-            syncer.requested.isEmpty(),
-        )
-    }
 
     @Test
     fun anEditFailureIsDroppedOnceItHasBeenShown() = runTest(dispatcher) {
@@ -833,8 +791,8 @@ class AgendaViewModelTest {
 
     @Test
     fun changingOnlyTheBranchKeepsTheCheckoutForTheCoreToMoveOver() = runTest(dispatcher) {
-        // The core checks the branch out itself. Wiping the directory here
-        // would throw away commits made on the device that no remote has.
+        // The core checks the branch out itself: the checkout stays where it
+        // is and is fetched into, rather than being taken into git afresh.
         val syncer = FakeSyncer()
         syncer.statusResult = Result.success(FakeSyncer.status(REMOTE))
         settings.remoteUrl = REMOTE
@@ -844,7 +802,8 @@ class AgendaViewModelTest {
         model.saveSettings(url = REMOTE, branch = "notes", token = "")
         advanceUntilIdle()
 
-        assertEquals(0, notes.wiped)
+        assertEquals(listOf(REMOTE), syncer.requested)
+        assertTrue(syncer.adopted.isEmpty())
     }
 
     @Test

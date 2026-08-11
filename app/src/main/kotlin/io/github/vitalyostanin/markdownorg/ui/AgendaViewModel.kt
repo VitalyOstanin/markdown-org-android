@@ -778,15 +778,15 @@ class AgendaViewModel(
      * Stores the remote and gets the directory into a state it can be synced
      * from.
      *
-     * Nothing here empties anything. A directory that already holds notes and
-     * no git is taken in as it stands — `adopt` makes what is in it the first
-     * commit and only then adds the remote — and a directory holding neither
-     * is cloned into. Replacing what is on disk is a separate, stated action
-     * ([replaceNotes]) rather than a side effect of saving a form.
+     * Nothing here empties anything, and nothing anywhere else does either. A
+     * directory that already holds notes and no git is taken in as it stands —
+     * `adopt` makes what is in it the first commit and only then adds the
+     * remote — and a directory holding neither is cloned into.
      *
-     * A checkout of another remote is the one case saving cannot resolve: it
-     * says so and leaves both alone, because the commits in it may exist
-     * nowhere else.
+     * A checkout of another remote is the one case saving cannot resolve, and
+     * it stays unresolved: it says so and leaves both alone. The files are the
+     * user's, the commits in them may exist nowhere else, and the way on is
+     * another directory or a hand emptying this one — not a button here.
      *
      * [token] empty means "leave the stored one alone", since the form never
      * shows it. That cannot hold across a change of host, though — a token is
@@ -852,32 +852,27 @@ class AgendaViewModel(
             return
         }
 
-        viewModelScope.launch {
-            // A sync in flight owns the directory that is about to be emptied,
-            // so it is stopped rather than raced with.
+        // Saving is work on the working copy, so it becomes the job that
+        // stands for one: everything that asks "is a sync under way" — the
+        // sync icon, the answers beside the banner — has to be told yes while
+        // the directory is being moved and the address stored. Held in a local
+        // first, because the job this is about to become cannot cancel itself.
+        val running = syncJob
+        syncJob = viewModelScope.launch {
+            // A sync in flight owns the directory this is about to point
+            // somewhere else, so it is stopped rather than raced with.
             //
             // Cancelling asks; it does not interrupt. The sync is inside a
             // call into the core, and that call returns when it returns — a
             // fetch on a stalled connection, at the outside, when the core's
             // own network timeouts expire. This waits for that, and it is why
             // the core has those timeouts rather than the operating system's.
-            syncJob?.cancelAndJoin()
+            running?.cancelAndJoin()
             _syncState.update { it.copy(running = false) }
 
-            // Before the remote is looked at: everything below reads the
-            // checkout, and after a move that has to be the checkout in the
-            // new directory. A move that fails leaves the rest untouched —
-            // storing a remote against a directory the notes are not in would
-            // clone into the old one.
-            val moved = moveNotes(notesPath)
-            if (moved.isFailure) {
+            if (!saveDirectory(notesPath, named)) {
                 return@launch
             }
-
-            // After the move, and over what the move stored: the two are edits
-            // to the same set, and renaming against the set as it was would put
-            // the old directory back.
-            renameEditing(named)
 
             // The rest is about a remote, and there is none in the form. What
             // was stored before stays: clearing it here would be a way to lose
@@ -886,101 +881,106 @@ class AgendaViewModel(
                 return@launch
             }
 
-            // Which host the stored token was issued for: the settings, not
-            // the checkout. A directory holding no repository yet says nothing
-            // about where the token came from.
-            val configuredUrl = settings.remoteUrl
-
-            // Read off disk rather than from the state: the state is filled in
-            // asynchronously after launch, and saving before it arrives would
-            // throw away a checkout that did not need to go.
-            val previous = sync.status()
-            if (previous.isFailure) {
-                // The checkout is there but could not be read. Emptying it now
-                // would delete commits that exist nowhere else, so the address
-                // is stored and the directory left for a human to look at.
-                storeRemote(address, branch, secret, dropToken, configuredUrl)
-                storeKey(sshKey, sshPassphrase, dropKey)
-                _syncState.update {
-                    it.copy(
-                        configured = settings.isConfigured,
-                        message = SyncMessage(R.string.sync_status_unreadable, failed = true),
-                    )
-                }
-                return@launch
-            }
-
-            // Compared without the credentials the checkout's own `origin` may
-            // carry: a clone made before those were split off names the same
-            // repository, and treating it as another one would send the user
-            // to a decision there is nothing to decide.
-            val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
-            val checkout = previous.getOrNull() != null
-            storeRemote(address, branch, secret, dropToken, configuredUrl)
-            storeKey(sshKey, sshPassphrase, dropKey)
-            // An address was named, so this is no longer the store the user
-            // said was local — whatever happens to the directory below.
-            settings.storesLocally = false
-            _syncState.update { it.copy(configured = settings.isConfigured) }
-
-            when {
-                // Somebody else's checkout, or this one pointed elsewhere.
-                // Emptying it here is what used to happen, and it took every
-                // commit that had not been pushed with it.
-                checkout && before != settings.remoteUrl -> _syncState.update {
-                    it.copy(
-                        message = SyncMessage(R.string.settings_other_checkout, failed = true),
-                    )
-                }
-
-                // Already a checkout of this remote: fetch into it, branch
-                // change included — the core moves the checkout onto the new
-                // branch without touching what is committed here.
-                checkout -> startSync()
-
-                // A directory with notes and no git: taken in as it stands.
-                else -> startAdoption()
-            }
+            saveRemote(address, branch, secret, dropToken, sshKey, sshPassphrase, dropKey)
         }
     }
 
     /**
-     * Empty the notes directory and clone the configured remote into it.
+     * Put the notes where the form says, under the name it gives them.
      *
-     * The one thing that deletes notes, and it exists so that saving a form
-     * never does: the user asks for it, having been told the directory holds a
-     * checkout of somewhere else.
+     * Runs before the remote half of the same save: everything there reads the
+     * checkout, and after a move that has to be the checkout in the new
+     * directory. Returns whether the save may go on — a move that failed leaves
+     * the rest untouched, because storing a remote against a directory the
+     * notes are not in would clone into the old one.
      */
-    fun replaceNotes() {
-        if (!settings.isConfigured) {
+    private suspend fun saveDirectory(notesPath: String, named: String): Boolean {
+        if (moveNotes(notesPath).isFailure) {
+            return false
+        }
+
+        // After the move, and over what the move stored: the two are edits to
+        // the same set, and renaming against the set as it was would put the
+        // old directory back.
+        renameEditing(named)
+
+        return true
+    }
+
+    /**
+     * Store the address and the credentials, then take up the directory.
+     *
+     * The second half of a save, reached only with an address in the form. What
+     * happens to the directory afterwards is decided from the checkout that is
+     * already in it: a fetch into a checkout of this same remote, an adoption
+     * of notes that are not in git yet, or a refusal to touch a checkout of
+     * somewhere else.
+     */
+    @Suppress("LongParameterList")
+    private suspend fun saveRemote(
+        address: String,
+        branch: String,
+        secret: String,
+        dropToken: Boolean,
+        sshKey: String,
+        sshPassphrase: String,
+        dropKey: Boolean,
+    ) {
+        // Which host the stored token was issued for: the settings, not the
+        // checkout. A directory holding no repository yet says nothing about
+        // where the token came from.
+        val configuredUrl = settings.remoteUrl
+
+        // Read off disk rather than from the state: the state is filled in
+        // asynchronously after launch, and saving before it arrives would
+        // throw away a checkout that did not need to go.
+        val previous = sync.status()
+        if (previous.isFailure) {
+            // The checkout is there but could not be read. Emptying it now
+            // would delete commits that exist nowhere else, so the address
+            // is stored and the directory left for a human to look at.
+            storeRemote(address, branch, secret, dropToken, configuredUrl)
+            storeKey(sshKey, sshPassphrase, dropKey)
+            _syncState.update {
+                it.copy(
+                    configured = settings.isConfigured,
+                    message = SyncMessage(R.string.sync_status_unreadable, failed = true),
+                )
+            }
             return
         }
 
-        val running = syncJob
-        syncJob = viewModelScope.launch {
-            // A sync in flight owns the directory that is about to be emptied,
-            // so it is stopped rather than raced with — the same wait, and for
-            // the same reason, as a change of settings makes.
-            running?.cancelAndJoin()
-            _syncState.update { it.copy(running = false) }
+        // Compared without the credentials the checkout's own `origin` may
+        // carry: a clone made before those were split off names the same
+        // repository, and treating it as another one would send the user
+        // to a decision there is nothing to decide.
+        val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
+        val checkout = previous.getOrNull() != null
+        storeRemote(address, branch, secret, dropToken, configuredUrl)
+        storeKey(sshKey, sshPassphrase, dropKey)
+        // An address was named, so this is no longer the store the user
+        // said was local — whatever happens to the directory below.
+        settings.storesLocally = false
+        _syncState.update { it.copy(configured = settings.isConfigured) }
 
-            val wiped = notes.reset()
-            if (wiped.isFailure) {
-                // A directory emptied only in part cannot be cloned into, and
-                // the clone would report it as a repository failure — a
-                // sentence about git, not about the directory it is about.
-                Log.w(TAG, "the notes directory could not be emptied", wiped.exceptionOrNull())
-                _syncState.update {
-                    it.copy(message = SyncMessage(R.string.notes_reset_failed, failed = true))
-                }
-                return@launch
+        when {
+            // Somebody else's checkout, or this one pointed elsewhere. The
+            // address is kept and the directory is not touched: emptying
+            // it is what used to happen, and it took every commit that had
+            // not been pushed with it. The message says the way on.
+            checkout && before != settings.remoteUrl -> _syncState.update {
+                it.copy(
+                    message = SyncMessage(R.string.settings_other_checkout, failed = true),
+                )
             }
 
-            // The directory has just been emptied, so what is held about it
-            // describes files that no longer exist.
-            agenda.invalidate()
-            _syncState.update { it.copy(repository = null) }
-            startSync()
+            // Already a checkout of this remote: fetch into it, branch
+            // change included — the core moves the checkout onto the new
+            // branch without touching what is committed here.
+            checkout -> startSync()
+
+            // A directory with notes and no git: taken in as it stands.
+            else -> startAdoption()
         }
     }
 

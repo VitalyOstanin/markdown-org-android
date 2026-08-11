@@ -93,23 +93,6 @@ class NotesStore(root: File) : NotesArea {
         }
     }
 
-    /**
-     * Clears the checkout so a different remote can be cloned into it.
-     *
-     * The core clones into an empty directory; pointing the application at
-     * another repository has to start from one.
-     */
-    override suspend fun reset(): Result<Unit> = exclusive {
-        runCatching {
-            // deleteRecursively answers false for a directory it emptied only
-            // in part, and the clone that follows would then fail over "the
-            // directory is not empty" — a sentence about git, not about this.
-            check(!root.exists() || root.deleteRecursively()) {
-                "the notes directory could not be emptied: $root"
-            }
-        }
-    }
-
     private fun hasNotes(): Boolean {
         // mkdirs answers false when it created nothing, which over a path
         // that is a plain file, or one that cannot be written to, is the

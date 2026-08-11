@@ -84,8 +84,7 @@
     <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
     <string name="settings_notes_not_dir">По этому пути файл, а не каталог</string>
     <string name="settings_notes_denied">Для каталога вне хранилища приложения нужен доступ ко всем файлам</string>
-    <string name="settings_other_checkout">В каталоге рабочая копия другого репозитория. Замените его содержимое или укажите приложению другой каталог.</string>
-    <string name="settings_replace_notes">Заменить заметки в каталоге</string>
+    <string name="settings_other_checkout">В каталоге рабочая копия другого репозитория, его файлы оставлены как есть. Укажите приложению другой каталог или очистите этот сами.</string>
     <string name="settings_keep_local">Хранить заметки только на устройстве</string>
     <string name="settings_ssh">Доступ по SSH</string>
     <string name="settings_ssh_key">Приватный ключ</string>
@@ -217,7 +216,6 @@
     <string name="settings_collection_remove_confirm">Отключить</string>
     <string name="settings_collection_remove_cancel">Оставить</string>
     <string name="edit_not_committed">Сохранено, но не закоммичено; коммит выполнит следующая правка или синхронизация</string>
-    <string name="notes_reset_failed">Не удалось очистить каталог заметок</string>
 
     <string name="agenda_truncated">Достигнут предел числа задач, список неполон</string>
     <string name="agenda_failed_unknown">Причина записана в журнал</string>

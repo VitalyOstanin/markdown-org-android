@@ -41,10 +41,15 @@ class NotesStoreTest {
      */
     private val wording = sampleWording(context)
 
+    /**
+     * The directory of this test run, emptied here rather than through the
+     * store: the application removes nothing of its own accord, and a test
+     * clearing the directory it made itself is not that.
+     */
     @Before
     @After
-    fun clean(): Unit = runBlocking {
-        store.reset().getOrThrow()
+    fun clean() {
+        store.root.deleteRecursively()
     }
 
     @Test
@@ -118,7 +123,7 @@ class NotesStoreTest {
         for (language in listOf("en", "ru")) {
             val translated = sampleWording(context.forLanguage(language))
             val store = NotesStore(File(context.cacheDir, "sample-$language"))
-            store.reset()
+            store.root.deleteRecursively()
 
             store.ensureSeeded(today, translated) { false }
             val tasks = uniffi.markdown_org_ffi.scan(
@@ -133,7 +138,7 @@ class NotesStoreTest {
                 tasks.single { it.heading == translated.archivedBranch }
                     .timestampType == TimestampType.CLOSED,
             )
-            store.reset()
+            store.root.deleteRecursively()
         }
     }
 
@@ -164,16 +169,6 @@ class NotesStoreTest {
         seeding.await()
 
         assertFalse(store.root.resolve("sample.md").exists())
-    }
-
-    @Test
-    fun resetLeavesRoomForAClone() = runBlocking {
-        store.ensureSeeded(today, wording) { false }
-        store.reset()
-
-        // The core clones into an empty directory, and the very first setup
-        // has the sample sitting in the way.
-        assertFalse(store.root.exists())
     }
 
     @Test

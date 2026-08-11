@@ -56,8 +56,9 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
 - Notes kept on the device alone, with git added to them later rather than
   the directory being a working copy from the start. Saving an address no
   longer empties what is already there: the directory is taken into git as it
-  stands, and emptying it is an action of its own behind a button that says
-  what it does.
+  stands. Nothing in the application removes a file it did not write — a
+  directory holding a checkout of somewhere else is refused and left alone,
+  with the way on named in the message.
 - Several notes directories read as one agenda. A collection is a name, a
   directory and the settings that reach its server; a row carries a dot in
   the colour of the collection it came from, and the agenda can be narrowed

@@ -54,11 +54,12 @@ so a decision can be followed across the three repositories.
 | 0016 | [The release is shrunk, and the APK is read back to check it](0016-shrink-the-release-and-read-the-apk-back.md) | Accepted |
 | 0017 | [A repository is opened whoever the platform says owns its directory](0017-open-a-repository-the-platform-owns.md) | Accepted |
 | 0018 | [Edits go back to the remote as a fast-forward push, or not at all](0018-edits-go-back-as-a-fast-forward-push.md) | Accepted |
-| 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Accepted |
+| 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Amended by 0024 |
 | 0020 | [SSH remotes, with the server pinned by its host key](0020-ssh-remotes-with-a-pinned-host-key.md) | Accepted |
 | 0021 | [A group is one rewrite per file, and it can be put back](0021-a-group-is-one-rewrite-and-can-be-put-back.md) | Accepted |
 | 0022 | [Several collections, one agenda](0022-several-collections-one-agenda.md) | Accepted |
 | 0023 | [A collection is a dot at the head of the row](0023-a-collection-is-a-dot-at-the-head-of-the-row.md) | Accepted |
+| 0024 | [The application removes no file it did not write](0024-the-application-removes-no-file-it-did-not-write.md) | Accepted |
 
 ## Adding a new ADR
 

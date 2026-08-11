@@ -10,7 +10,8 @@
 
 ## Status
 
-Accepted (2026-08-01).
+Accepted (2026-08-01). Amended by [ADR-0024](0024-the-application-removes-no-file-it-did-not-write.md) (2026-08-11): the application removes no file it did not write, so the
+stated action that emptied the directory no longer exists.
 
 ## Context
 

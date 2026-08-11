@@ -76,17 +76,8 @@ class FakeNotesArea(root: File = File("/notes")) : NotesArea {
     var seeded: Int = 0
         private set
 
-    var wiped: Int = 0
-        private set
-
-    /** Run at the moment of the wipe, so a test can see what else was going on. */
-    var onWipe: () -> Unit = {}
-
     /** What seeding answers, so a directory that cannot be written to can be played. */
     var seedResult: Result<Unit> = Result.success(Unit)
-
-    /** What the wipe answers: a directory emptied only in part fails here. */
-    var resetResult: Result<Unit> = Result.success(Unit)
 
     override suspend fun <T> exclusive(block: suspend () -> T): T = lock.withLock { block() }
 
@@ -100,13 +91,6 @@ class FakeNotesArea(root: File = File("/notes")) : NotesArea {
             trace += "seed"
         }
         seedResult
-    }
-
-    override suspend fun reset() = exclusive {
-        wiped++
-        trace += "wipe"
-        onWipe()
-        resetResult
     }
 }
 
@@ -147,8 +131,16 @@ class FakeSyncer(
         }
     }
 
+    /**
+     * Held open by the test that needs the checkout read to take a while:
+     * saving settings reads it, and what a tap on the sync icon does in that
+     * window is what such a test is about.
+     */
+    var statusGate: CompletableDeferred<Unit>? = null
+
     override suspend fun status(): Result<RepoStatus?> {
         statusReads += 1
+        statusGate?.await()
         return statusResult
     }
 

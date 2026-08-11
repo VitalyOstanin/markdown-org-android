@@ -1,7 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -12,11 +11,10 @@ import java.time.LocalDate
 /**
  * What the notes directory answers when it cannot be written to.
  *
- * Every one of these used to be a boolean nobody read: `mkdirs` and
- * `deleteRecursively` report failure by returning false, and the code carried
- * on either way — the seed then failed with a message about `sample.md`, and
- * the wipe was followed by a clone that refused a directory it said nothing
- * about.
+ * Every one of these used to be a boolean nobody read: `mkdirs` reports
+ * failure by returning false, and the code carried on either way — the seed
+ * then failed with a message about `sample.md` rather than about the directory
+ * it could not use.
  */
 class NotesSeedingTest {
 
@@ -46,24 +44,5 @@ class NotesSeedingTest {
 
         assertTrue(seeded.isSuccess)
         assertTrue(File(root, "sample.md").isFile)
-    }
-
-    @Test
-    fun aWipeOfADirectoryThatIsNotThereIsNotAFailure() = runBlocking {
-        // Nothing to empty is the state the wipe was after; the clone that
-        // follows it needs an empty directory, not a wipe that happened.
-        val store = NotesStore(File(folder.newFolder(), "never-created"))
-
-        assertTrue(store.reset().isSuccess)
-    }
-
-    @Test
-    fun aWipeThatWentThroughLeavesRoomForAClone() = runBlocking {
-        val root = folder.newFolder()
-        File(root, "sample.md").writeText("# notes\n")
-        val store = NotesStore(root)
-
-        assertTrue(store.reset().isSuccess)
-        assertFalse(root.exists())
     }
 }

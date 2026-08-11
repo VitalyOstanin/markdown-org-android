@@ -31,7 +31,6 @@ class SyncBannerTest {
     private var settingsOpened = false
     private var issuesShown = 0
     private var remotesTaken = 0
-    private var notesReplaced = 0
     private var hostsTrusted = 0
 
     @Test
@@ -182,11 +181,12 @@ class SyncBannerTest {
 
     /**
      * Saving an address over a directory that is a checkout of somewhere else
-     * used to empty it. Emptying it is now a press of its own, and this is
-     * where that press lives.
+     * used to empty it, and then offered to empty it at a press. Neither
+     * happens now: the files are the user's, and the banner says what to do
+     * instead of holding a button that would remove them.
      */
     @Test
-    fun aDirectoryHoldingAnotherCheckoutIsReplacedOnlyWhenAskedTo() {
+    fun aDirectoryHoldingAnotherCheckoutIsLeftAloneAndSaysWhatToDo() {
         showAgenda(
             SyncUiState(
                 configured = true,
