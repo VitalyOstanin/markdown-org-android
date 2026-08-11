@@ -54,6 +54,11 @@ chrono = { version = "0.4.44", default-features = false, features = ["std"] }
 # An edit writes beside the note and renames over it, so an interrupted write
 # leaves the file alone; this is the temporary half of that.
 tempfile = "3"
+# Deciding whether the address libgit2 asks about is the configured one means
+# comparing host names, and a host name is not a run of ASCII: `MÜNCHEN.example`,
+# `münchen.example` and the punycode a client puts on the wire are one server.
+# The crate already builds as part of the tree, so naming it here adds no code.
+idna = "1"
 
 # Which OpenSSL the vendored build compiles. Nothing here calls into this
 # crate — `openssl-sys` builds the TLS stack with it, which is why the entry

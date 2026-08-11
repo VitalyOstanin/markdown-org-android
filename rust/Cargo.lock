@@ -885,6 +885,7 @@ dependencies = [
  "chrono",
  "foreign-types",
  "git2",
+ "idna",
  "libgit2-sys",
  "markdown-org-extract",
  "openssl",

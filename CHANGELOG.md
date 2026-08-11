@@ -48,7 +48,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   server by its host key: an unvouched-for server stops the sync and reports
   the SHA-256 key it offered, a key contradicting the stored one stops it and
   says so, and the key is stored only when it is accepted. The device makes
-  its own ed25519 pair, whose private half never leaves the preferences.
+  its own ed25519 pair, whose private half never leaves the preferences. The
+  token and the key are offered only to the configured server, and a server is
+  recognised by its name rather than by the spelling of it: capitals, lower
+  case and punycode name one host, so a domain written outside ASCII is
+  answered the same way an ASCII one is.
 - Notes kept on the device alone, with git added to them later rather than
   the directory being a working copy from the start. Saving an address no
   longer empties what is already there: the directory is taken into git as it

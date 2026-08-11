@@ -1398,7 +1398,7 @@ fn endpoint(url: &str) -> Option<(String, String)> {
     if let Some(host) = scp_endpoint(url) {
         return Some((
             SSH_SCHEME.trim_end_matches("://").to_string(),
-            host.to_ascii_lowercase(),
+            one_host(host)?,
         ));
     }
 
@@ -1411,7 +1411,38 @@ fn endpoint(url: &str) -> Option<(String, String)> {
         return None;
     }
 
-    Some((scheme.to_ascii_lowercase(), host.to_ascii_lowercase()))
+    Some((scheme.to_ascii_lowercase(), one_host(host)?))
+}
+
+/// A host reduced to the single spelling that compares: the domain in the
+/// punycode form a client puts on the wire, with the port left as written.
+///
+/// Lowercasing the ASCII alone would leave `MÜNCHEN.example` apart from
+/// `münchen.example`, and both apart from `xn--mnchen-3ya.example`, which is
+/// what the address turns into on the wire. Three spellings of one server must
+/// not decide differently whether the token is sent. A name IDNA refuses is
+/// no host at all, and `None` withholds the secret rather than guessing.
+fn one_host(host: &str) -> Option<String> {
+    // An IPv6 literal is bracketed and carries colons of its own. It is an
+    // address, not a domain name, and IDNA has nothing to say about it.
+    if host.starts_with('[') {
+        return Some(host.to_ascii_lowercase());
+    }
+
+    let (domain, port) = match host.rsplit_once(':') {
+        Some((domain, port)) => (domain, Some(port)),
+        None => (host, None),
+    };
+    // Lowercasing is part of the conversion, so it is not repeated here.
+    let domain = idna::domain_to_ascii(domain).ok()?;
+    if domain.is_empty() {
+        return None;
+    }
+
+    Some(match port {
+        Some(port) => format!("{domain}:{port}"),
+        None => domain,
+    })
 }
 
 fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
@@ -1542,6 +1573,35 @@ mod tests {
         assert!(same_endpoint(
             CONFIGURED,
             "https://GIT.EXAMPLE.ORG/notes.git"
+        ));
+    }
+
+    /// A host is a domain name, not a run of ASCII: one server written with
+    /// capitals, in lowercase, and in the punycode a client puts on the wire
+    /// is one endpoint, and the token has to be offered under all three.
+    #[test]
+    fn a_host_outside_ascii_names_one_server_however_it_is_written() {
+        const LOWERCASE: &str = "https://münchen.example/notes.git";
+        const CAPITALS: &str = "https://MÜNCHEN.example/notes.git";
+        const PUNYCODE: &str = "https://xn--mnchen-3ya.example/notes.git";
+
+        assert!(same_endpoint(LOWERCASE, CAPITALS));
+        assert!(same_endpoint(LOWERCASE, PUNYCODE));
+        assert!(same_endpoint(CAPITALS, PUNYCODE));
+        assert!(same_endpoint(
+            "git@münchen.example:notes.git",
+            "git@xn--mnchen-3ya.example:notes.git",
+        ));
+
+        // A different domain stays different, and so does a port written out.
+        assert!(!same_endpoint(LOWERCASE, "https://köln.example/notes.git"));
+        assert!(!same_endpoint(
+            LOWERCASE,
+            "https://münchen.example:8443/notes.git"
+        ));
+        assert!(same_endpoint(
+            "https://MÜNCHEN.example:8443/notes.git",
+            "https://münchen.example:8443/notes.git",
         ));
     }
 
