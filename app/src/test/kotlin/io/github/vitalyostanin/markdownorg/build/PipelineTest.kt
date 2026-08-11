@@ -73,6 +73,31 @@ class PipelineTest {
         }
     }
 
+    /**
+     * A tool installed from a registry names the version it wants.
+     *
+     * Without one, every run takes whatever was published last, and the job
+     * that installs these goes on to decrypt the signing key and hand its
+     * passwords to the next step. A release of the tool compromised an hour
+     * ago would be in that process, beside the key, with no window in which
+     * anybody could notice. Every other tool here is already pinned — the
+     * digest-checked binaries, the actions by commit, the Gradle
+     * distribution — so this is the one door left open.
+     */
+    @Test
+    fun everyToolInstalledFromARegistryNamesItsVersion() {
+        val installs = (workflow.lines() + root.resolve("tools/Containerfile.ndk").readLines())
+            .map(String::trim)
+            .filter { it.contains("cargo install ") || it.contains("cargo binstall ") }
+
+        assertTrue("nothing installs a cargo tool?", installs.isNotEmpty())
+        val loose = installs.filterNot { it.contains("@") }
+        assertTrue(
+            "these install whatever was published last:\n${loose.joinToString("\n")}",
+            loose.isEmpty(),
+        )
+    }
+
     /** The wrapper downloads a Gradle distribution; TLS is not the only check. */
     @Test
     fun theGradleDistributionIsCheckedAgainstItsDigest() {
