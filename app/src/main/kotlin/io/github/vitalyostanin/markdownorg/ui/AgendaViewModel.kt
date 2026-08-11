@@ -41,9 +41,11 @@ import io.github.vitalyostanin.markdownorg.core.readDeclaredTags
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -712,8 +714,19 @@ class AgendaViewModel(
             // flight, and the answer of that scan describes the span it was
             // asked for.
             val span = _span.value
-            _state.value = seeded
-                .mapCatching { agenda.load(span.scope, today).getOrThrow() }
+            val built = seeded.mapCatching { agenda.load(span.scope, today).getOrThrow() }
+            // `mapCatching` catches every throwable, and the cancellation this
+            // scan is dropped by is one of them: folded like any other failure
+            // it put "the agenda could not be built" on screen, over a scan
+            // nobody was waiting for any more. Rethrown, it ends this
+            // coroutine and leaves the screen to the scan that replaced it.
+            (built.exceptionOrNull() as? CancellationException)?.let { throw it }
+            // And once more for the cancellation that arrived after the load
+            // answered: there is no exception to rethrow then, and writing the
+            // result would be this scan overtaking the one it was dropped for.
+            ensureActive()
+
+            _state.value = built
                 .fold(
                     onSuccess = { result ->
                         val days = result.toDays(labels)

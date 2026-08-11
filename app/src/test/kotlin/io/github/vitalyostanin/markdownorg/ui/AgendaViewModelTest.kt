@@ -14,6 +14,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -378,6 +379,41 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertTrue(model.state.value is AgendaUiState.Failed)
+    }
+
+    /**
+     * A scan dropped for a newer one ends by being cancelled, and cancellation
+     * is not an outcome the screen has anything to say about: the agenda the
+     * user is waiting for is the newer scan. It was reported as a failed
+     * agenda — briefly, between the two scans, and for good if the newer one
+     * was itself replaced by an edit that never triggered a third.
+     */
+    @Test
+    fun aScanDroppedForANewerOneIsNeverShownAsAFailure() = runTest(dispatcher) {
+        val syncer = FakeSyncer()
+        val model = viewModel(syncer)
+        val seen = mutableListOf<AgendaUiState>()
+        // Unconfined, so the collector resumes at the moment of the write
+        // rather than on the next turn of the scheduler: `state` is a
+        // StateFlow, and a value replaced before the collector runs again is
+        // one it never sees — which is exactly the value under test here.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            model.state.toList(seen)
+        }
+        advanceUntilIdle()
+
+        // The load from `init` is still open; a second one drops it.
+        model.refresh()
+        advanceUntilIdle()
+        loader.pending.last().complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        assertTrue(
+            "the newer scan did not reach the screen",
+            model.state.value is AgendaUiState.Ready,
+        )
+        val failed = seen.filterIsInstance<AgendaUiState.Failed>()
+        assertTrue("a cancelled scan was shown as a failure: $failed", failed.isEmpty())
     }
 
     @Test
