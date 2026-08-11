@@ -56,6 +56,7 @@ ensure_ndk_image() {
     ensure_image "${NDK_IMAGE}" Containerfile.ndk \
         --build-arg "NDK_RELEASE=${NDK_RELEASE}" \
         --build-arg "NDK_SHA256=${NDK_SHA256}" \
+        --build-arg "CARGO_NDK_VERSION=${CARGO_NDK_VERSION}" \
         --build-arg "CARGO_ABOUT_VERSION=${CARGO_ABOUT_VERSION}" \
         --build-arg "CARGO_ABOUT_SHA256=${CARGO_ABOUT_SHA256}" \
         --build-arg "CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION}" \

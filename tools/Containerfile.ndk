@@ -14,6 +14,7 @@ FROM docker.io/library/rust:1.97-trixie@sha256:1bcff4befb740599103a2c7cb51058e14
 
 ARG NDK_RELEASE
 ARG NDK_SHA256
+ARG CARGO_NDK_VERSION
 ARG CARGO_ABOUT_VERSION
 ARG CARGO_ABOUT_SHA256
 ARG CARGO_LLVM_COV_VERSION
@@ -42,7 +43,10 @@ ENV ANDROID_NDK_ROOT=/opt/android-ndk-${NDK_RELEASE}
 # arm64-v8a is what nearly every device runs; armeabi-v7a covers older ones
 # and x86_64 the emulator.
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-RUN cargo install cargo-ndk --locked
+# Named with a version, like everything else installed here: --locked
+# fixes the dependencies of whichever release is chosen, not which
+# release that is.
+RUN cargo install "cargo-ndk@${CARGO_NDK_VERSION}" --locked
 
 # The base image ships the minimal profile, so the two components CI fails on
 # are missing — tools/check-core.sh runs them here. llvm-tools carries the

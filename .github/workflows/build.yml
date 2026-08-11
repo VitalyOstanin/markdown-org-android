@@ -218,7 +218,11 @@ jobs:
       - name: Install cargo-ndk
         # A prebuilt binary rather than `cargo install`: building it here costs
         # a couple of minutes on every cache miss and produces the same tool.
-        run: cargo binstall --no-confirm cargo-ndk
+        #
+        # The version comes from tools/versions.env, like every other tool
+        # here: this job decrypts the signing key a few steps further down,
+        # and "whatever was published last" is not something to run beside it.
+        run: cargo binstall --no-confirm "cargo-ndk@${CARGO_NDK_VERSION}"
 
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
