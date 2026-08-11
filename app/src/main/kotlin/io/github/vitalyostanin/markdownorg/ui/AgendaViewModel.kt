@@ -478,8 +478,8 @@ class AgendaViewModel(
         // the wrong directory would edit whatever note happens to sit at the
         // same relative path there. A collection removed while its tasks were
         // still on screen has nothing to write to.
-        val editor = collections.byRoot(task.root)?.editor
-        if (editor == null) {
+        val theirEditor = collections.byRoot(task.root)?.editor
+        if (theirEditor == null) {
             _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
             refresh()
             return
@@ -491,10 +491,10 @@ class AgendaViewModel(
             // reads the whole working copy, so this grows with the notes too.
             val started = System.nanoTime()
             val outcome = when (action) {
-                TaskAction.Complete -> editor.complete(task, clock().toLocalDate())
-                is TaskAction.Status -> editor.setStatus(task, action.status)
-                is TaskAction.Priority -> editor.setPriority(task, action.value)
-                is TaskAction.Shift -> editor.shift(task, action.keyword, action.days)
+                TaskAction.Complete -> theirEditor.complete(task, clock().toLocalDate())
+                is TaskAction.Status -> theirEditor.setStatus(task, action.status)
+                is TaskAction.Priority -> theirEditor.setPriority(task, action.value)
+                is TaskAction.Shift -> theirEditor.shift(task, action.keyword, action.days)
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 
@@ -1340,8 +1340,11 @@ class AgendaViewModel(
      * held one at a time and the screen is told after each.
      */
     private suspend fun runSync(collection: CollectionInUse) {
-        val settings = collection.settings
-        val sync = collection.syncer
+        // Named apart from the properties of the same shape: those read the
+        // collection the settings screen is about, and this run is over the one
+        // it was handed.
+        val theirSettings = collection.settings
+        val theirSyncer = collection.syncer
 
         _syncState.update { it.copy(running = true, message = null) }
 
@@ -1353,13 +1356,13 @@ class AgendaViewModel(
             Log.w(TAG, "the uncommitted edits could not be committed", failure)
         }
 
-        val outcome = sync.sync(settings)
+        val outcome = theirSyncer.sync(theirSettings)
         // A sync that went through hands back the state of the checkout it
         // wrote. Asking again walks every file in the working copy, untracked
         // ones included, for an answer already in hand; only a failed sync has
         // nothing to report and has to read.
         val status = outcome.getOrNull()?.head
-            ?: sync.status()
+            ?: theirSyncer.status()
                 .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
                 .getOrNull()
         val message = outcome.fold(
@@ -1370,13 +1373,13 @@ class AgendaViewModel(
         val host = outcome.hostInQuestion()
         _syncState.update { current ->
             current.copy(
-                configured = settings.isConfigured,
+                configured = theirSettings.isConfigured,
                 running = false,
                 // The header is about the collection the settings screen is
                 // about, so a run over the others leaves what it says alone.
                 repository = status.takeIf { collection.collection.id == _editingId.value }
                     ?: current.repository,
-                lastSyncedAt = settings.lastSyncedAt,
+                lastSyncedAt = theirSettings.lastSyncedAt,
                 message = message,
                 // The collection's own answer, kept apart from the last one of
                 // the run: over several repositories the header alone cannot

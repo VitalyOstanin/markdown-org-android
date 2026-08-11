@@ -304,6 +304,37 @@ class AgendaCollectionsTest {
     }
 
     @Test
+    fun eachCollectionIsSyncedWithItsOwnSettings() = runTest(dispatcher) {
+        val personalSync = FakeSyncer()
+        val workSync = FakeSyncer()
+        val model = viewModel(
+            FakeCollections(
+                listOf(
+                    personal.copy(
+                        settings = FakePreferences(remoteUrl = "https://example.test/personal.git"),
+                        syncer = personalSync,
+                    ),
+                    work.copy(
+                        settings = FakePreferences(remoteUrl = "https://example.test/work.git"),
+                        syncer = workSync,
+                    ),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        model.syncNow()
+        advanceUntilIdle()
+
+        // The settings of the collection being synced, never those of the one
+        // the settings screen is about: the run walks the whole set, and one
+        // address handed to every working copy would fetch a repository into a
+        // directory that has nothing to do with it.
+        assertEquals(listOf("https://example.test/personal.git"), personalSync.requested)
+        assertEquals(listOf("https://example.test/work.git"), workSync.requested)
+    }
+
+    @Test
     fun anAddedCollectionIsStoredAndBecomesTheOneBeingEdited() = runTest(dispatcher) {
         val model = viewModel()
         advanceUntilIdle()
