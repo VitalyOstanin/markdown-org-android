@@ -1357,6 +1357,21 @@ class AgendaViewModel(
         }
 
         val outcome = theirSyncer.sync(theirSettings)
+            // The path with the most ways to fail — the network, the
+            // credentials, a host key, a history that diverged, a checkout
+            // left dirty — and the only failure that used to leave nothing
+            // behind it. What reaches the screen is a phrase assembled from
+            // the resources, so afterwards neither the class of the failure
+            // nor what the core said with it was anywhere. Safe to write down:
+            // the address is stored with the credentials already split off it
+            // (`splitCredentials`, where the settings are saved).
+            .onFailure { failure -> Log.w(TAG, "the sync failed", failure) }
+        outcome.getOrNull()?.pushFailure?.let { failure ->
+            // Beside a fetch that went through, so it never reaches the branch
+            // above: the run is reported as a success with a note, and the
+            // refusal itself is the half the screen says least about.
+            Log.w(TAG, "the push was refused", failure)
+        }
         // A sync that went through hands back the state of the checkout it
         // wrote. Asking again walks every file in the working copy, untracked
         // ones included, for an answer already in hand; only a failed sync has
