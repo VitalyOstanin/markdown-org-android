@@ -40,10 +40,11 @@ class NotesSyncTest {
         override var knownHost: String? = null,
     ) : SyncPreferences
 
+    /** The directory of this test run, cleared by the test that made it. */
     @Before
     @After
-    fun clean(): Unit = runBlocking {
-        store.reset().getOrThrow()
+    fun clean() {
+        store.root.deleteRecursively()
     }
 
     @Test
