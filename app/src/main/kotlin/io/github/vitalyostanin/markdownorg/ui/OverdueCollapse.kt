@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 
@@ -31,21 +31,32 @@ class OverdueCollapse(collapsed: Set<OverdueBand> = setOf(OverdueBand.LONG_AGO))
 
     companion object {
         /**
+         * One string rather than a list of names, because "nothing is folded"
+         * is a state too. `listSaver` saves nothing at all for an empty list,
+         * so the screen that came back folded after a rotation was precisely
+         * the one where every band had been opened by hand — the state the
+         * saved fold exists to carry across.
+         *
          * Names rather than ordinals: a saved state outlives the process, and
          * an ordinal changes meaning the moment a band is added in the middle.
          * A name that no longer matches a band is dropped, which unfolds it —
          * the safe direction, since nothing is then hidden without being asked.
          */
-        val Saver = listSaver<OverdueCollapse, String>(
-            save = { state -> state.collapsed.map(OverdueBand::name) },
-            restore = { names ->
+        val Saver: Saver<OverdueCollapse, String> = Saver(
+            save = { state ->
+                state.collapsed.joinToString(SEPARATOR, transform = OverdueBand::name)
+            },
+            restore = { saved ->
                 OverdueCollapse(
-                    names.mapNotNullTo(mutableSetOf()) { name ->
+                    saved.split(SEPARATOR).mapNotNullTo(mutableSetOf()) { name ->
                         OverdueBand.entries.firstOrNull { it.name == name }
                     },
                 )
             },
         )
+
+        /** Not part of any band name, so a split can never cut one in half. */
+        private const val SEPARATOR = ","
     }
 }
 
