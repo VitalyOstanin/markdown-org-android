@@ -170,8 +170,16 @@ fun fileMatchesTag(basename: String, tag: MergedTag, dictionary: List<MergedTag>
  * never declare tags. Everything else -- unreadable file, JSON that will not
  * parse -- goes to the log and the directory is skipped, so the tags of the
  * other collections still describe the agenda.
+ *
+ * Suspend, and to be called under the lock of the collection it is about --
+ * [NotesArea.exclusive], which is also where the step off the main thread is.
+ * This is a stat, a file and the parsing of it, per collection, every time the
+ * agenda is rebuilt, which is every tap on a task; on the frame loop it is a
+ * stall nobody notices on a warm cache and everybody notices on a cold one.
+ * The lock matters for its own reason: the file lives in the working copy, and
+ * a fetch rewriting it is exactly when its JSON is half a file.
  */
-fun readDeclaredTags(collection: String, directory: File): TagDeclaration? {
+suspend fun readDeclaredTags(collection: String, directory: File): TagDeclaration? {
     val file = File(directory, TAGS_FILE)
     if (!file.isFile) return null
     return runCatching { JSON.decodeFromString<List<DeclaredTag>>(file.readText()) }

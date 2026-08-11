@@ -1475,11 +1475,18 @@ class AgendaViewModel(
      * edited elsewhere and arriving with a sync can retire a tag, and going on
      * filtering by a name nothing declares would leave the agenda narrowed with
      * nothing on screen to say by what.
+     *
+     * Suspend because the declarations are files: one stat and one parse per
+     * collection, and this runs on every rebuild of the agenda.
      */
-    private fun offerTags() {
+    private suspend fun offerTags() {
         _tags.value = mergeTagDictionaries(
             collections.entries.mapNotNull { entry ->
-                readDeclaredTags(entry.collection.name, File(entry.root))
+                // Under the collection's own lock, which is where the step off
+                // the main thread lives: this used to be the one read of
+                // storage on the frame loop. The lock is also what keeps the
+                // file from being read halfway through the fetch rewriting it.
+                entry.area.exclusive { readDeclaredTags(entry.collection.name, File(entry.root)) }
             },
         )
         if (_currentTag.value !in _tags.value.map(MergedTag::name)) {

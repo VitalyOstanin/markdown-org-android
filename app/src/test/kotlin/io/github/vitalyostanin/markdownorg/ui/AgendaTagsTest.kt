@@ -4,8 +4,10 @@ import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.TAGS_FILE
 import io.github.vitalyostanin.markdownorg.core.testWording
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -200,13 +202,53 @@ class AgendaTagsTest {
         assertEquals(listOf("BILLS"), model.tags.value.map(MergedTag::name))
     }
 
+    /**
+     * The tag file of a collection is read holding that collection's lock.
+     *
+     * Which is where the step off the main thread is, and what keeps the read
+     * away from the fetch rewriting the same file. Asserted by holding the lock
+     * and watching the declaration on screen stay as it was: a read that took
+     * no lock would answer straight away, off the frame loop it was asked from.
+     */
+    @Test
+    fun theTagsOfACollectionAreReadHoldingItsLock() = runTest(dispatcher) {
+        declare(work, """[{"name":"TASKS","pattern":"task"}]""")
+        val model = viewModel()
+        advanceUntilIdle()
+
+        declare(work, """[{"name":"TASKS","pattern":"task"},{"name":"URGENT","pattern":"now"}]""")
+        val opened = CompletableDeferred<Unit>()
+        val holder = backgroundScope.launch {
+            collections.entries.first().area.exclusive { opened.await() }
+        }
+        advanceUntilIdle()
+
+        model.refresh()
+        advanceUntilIdle()
+
+        assertEquals(
+            "the tag file was read without the lock on the working copy it lives in",
+            listOf("TASKS"),
+            model.tags.value.map(MergedTag::name),
+        )
+
+        opened.complete(Unit)
+        holder.join()
+        advanceUntilIdle()
+
+        assertEquals(listOf("TASKS", "URGENT"), model.tags.value.map(MergedTag::name))
+    }
+
+    /** The collections the model under test is working with, for a test that holds a lock. */
+    private lateinit var collections: FakeCollections
+
     private fun viewModel(): AgendaViewModel = AgendaViewModel(
         collections = FakeCollections(
             listOf(
                 FakeCollections.entry(id = "1", name = "Work", path = work.path),
                 FakeCollections.entry(id = "2", name = "Home", path = home.path),
             ),
-        ),
+        ).also { collections = it },
         stored = FakeCollectionsStore(
             listOf(
                 NotesCollection(id = "1", name = "Work", path = work.path),

@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -186,7 +187,7 @@ class TagDictionaryTest {
     }
 
     @Test
-    fun `the file a collection carries is read into a declaration`() {
+    fun `the file a collection carries is read into a declaration`() = runTest {
         val directory = folder.newFolder("notes")
         File(directory, TAGS_FILE).apply {
             parentFile?.mkdirs()
@@ -202,12 +203,12 @@ class TagDictionaryTest {
     }
 
     @Test
-    fun `a collection without the file declares nothing, which is not a failure`() {
+    fun `a collection without the file declares nothing, which is not a failure`() = runTest {
         assertNull(readDeclaredTags("work", folder.newFolder("bare")))
     }
 
     @Test
-    fun `a file that will not parse is skipped rather than thrown`() {
+    fun `a file that will not parse is skipped rather than thrown`() = runTest {
         val directory = folder.newFolder("broken")
         File(directory, TAGS_FILE).apply {
             parentFile?.mkdirs()
@@ -218,7 +219,7 @@ class TagDictionaryTest {
     }
 
     @Test
-    fun `a key this version has not heard of does not drop the tag`() {
+    fun `a key this version has not heard of does not drop the tag`() = runTest {
         val directory = folder.newFolder("newer")
         File(directory, TAGS_FILE).apply {
             parentFile?.mkdirs()
