@@ -72,13 +72,13 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
         today: LocalDate,
         zone: ZoneId,
         includeDone: Boolean,
-    ): Result<AgendaResult> = notes.exclusive {
+    ): Result<AgendaResult> = notes.exclusive { areas ->
         // Failures arrive as ExtractException from the core and as
         // UnsatisfiedLinkError when the native library is missing for the
         // device's ABI; both have to reach the screen rather than turn into
         // an empty agenda.
         runCatching {
-            held().agenda(
+            held(roots(areas)).agenda(
                 scope = scope,
                 // The core never reads the clock; the caller decides what
                 // "today" is, so the same files always render the same agenda.
@@ -89,28 +89,29 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
         }
     }
 
-    override suspend fun reread(root: String, file: String): Result<Unit> = notes.exclusive {
-        runCatching {
-            // Nothing held means nothing to bring up to date: the next agenda
-            // walks the directories and reads this file along with the rest.
-            index?.takeIf { indexed == roots() }?.refreshFile(root, file) ?: Unit
+    override suspend fun reread(root: String, file: String): Result<Unit> =
+        notes.exclusive { areas ->
+            runCatching {
+                // Nothing held means nothing to bring up to date: the next
+                // agenda walks the directories and reads this file along with
+                // the rest.
+                index?.takeIf { indexed == roots(areas) }?.refreshFile(root, file) ?: Unit
+            }
         }
-    }
 
     override suspend fun invalidate() {
         notes.exclusive { drop() }
     }
 
     /**
-     * The index over the current directories, built if there is none.
+     * The index over [roots], built if there is none over exactly those.
      *
      * The directories are compared rather than assumed: they change under a
      * running application — one added, one removed, one pointed elsewhere —
      * and an index over the previous set would answer with a collection that
      * is no longer read, or without one that now is.
      */
-    private fun held(): NotesIndex {
-        val roots = roots()
+    private fun held(roots: List<File>): NotesIndex {
         index?.takeIf { indexed == roots }?.let { return it }
 
         drop()
@@ -123,8 +124,13 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
         }
     }
 
-    /** The directories in use, in the order the collections are shown. */
-    private fun roots(): List<File> = notes.areas.map(NotesArea::root)
+    /**
+     * The directories of [areas], in the order the collections are shown.
+     *
+     * Named from the areas the lock was taken over rather than from the set as
+     * it is now: those are the directories this walk is allowed to read.
+     */
+    private fun roots(areas: List<NotesArea>): List<File> = areas.map(NotesArea::root)
 
     /**
      * Release the held notes.

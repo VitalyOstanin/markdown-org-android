@@ -358,7 +358,11 @@ class FakeCollections(override var entries: List<CollectionInUse>) : Collections
         forgotten += collection.collection.id
     }
 
-    override suspend fun <T> exclusive(block: suspend () -> T): T = holdingAll(areas, block)
+    override suspend fun <T> exclusive(block: suspend (List<NotesArea>) -> T): T {
+        val held = areas
+
+        return holdingAll(held) { block(held) }
+    }
 
     override fun use(collections: List<NotesCollection>) {
         used += collections

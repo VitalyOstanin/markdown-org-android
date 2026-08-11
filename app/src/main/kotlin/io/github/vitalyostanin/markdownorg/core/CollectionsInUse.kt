@@ -118,7 +118,14 @@ class DeviceCollections(private val context: Context, collections: List<NotesCol
 
     override val areas: List<NotesArea> get() = entries.map(CollectionInUse::area)
 
-    override suspend fun <T> exclusive(block: suspend () -> T): T = holdingAll(areas, block)
+    override suspend fun <T> exclusive(block: suspend (List<NotesArea>) -> T): T {
+        // Read once, and the same list is both locked and handed over: the
+        // entries are replaced from the main thread, so a second read inside
+        // would name working copies these locks say nothing about.
+        val held = areas
+
+        return holdingAll(held) { block(held) }
+    }
 
     override fun use(collections: List<NotesCollection>) {
         val known = entries.associateBy { it.collection.id }

@@ -197,6 +197,30 @@ class AgendaSourceTest {
         assertEquals(listOf("Daily review"), day.scheduledTimed.map { it.heading })
     }
 
+    /**
+     * A collection that appears while the walk is inside the block is not
+     * walked.
+     *
+     * The set of collections is replaced from the main thread, by the settings
+     * screen, and a walk that is already under way holds the locks of the set
+     * it started on. Reading the set again from inside the block takes the walk
+     * into a directory whose lock nobody is holding — at the very moment the
+     * code that added the collection is creating that directory.
+     */
+    @Test
+    fun aCollectionThatAppearsMidWalkIsNotTheOneWalked() = runBlocking {
+        val work = folder.newFolder("work")
+        val appearing = folder.newFolder("appearing")
+        File(work, "notes.md").writeText(SCHEDULED_TODAY.trimIndent() + "\n")
+        File(appearing, "notes.md")
+            .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
+
+        val areas = ShiftingAreas(NotesStore(work), NotesStore(appearing))
+        val day = AgendaSource(areas).load(Scope.DAY, today, zone).getOrThrow().days.single()
+
+        assertEquals(listOf("Daily standup"), day.scheduledTimed.map { it.heading })
+    }
+
     private fun write(markdown: String) {
         File(folder.root, "notes.md").writeText(markdown.trimIndent() + "\n")
     }
@@ -212,8 +236,31 @@ class AgendaSourceTest {
 
         override val areas: List<NotesArea> = areas.toList()
 
-        override suspend fun <T> exclusive(block: suspend () -> T): T =
-            holdingAll(this.areas, block)
+        override suspend fun <T> exclusive(block: suspend (List<NotesArea>) -> T): T =
+            holdingAll(this.areas) { block(this.areas) }
+    }
+
+    /**
+     * The working copies, with one more of them appearing once the locks are
+     * taken.
+     *
+     * What the settings screen does to the set, without its timing: the second
+     * area is put in the list from inside the block, and its lock is never
+     * taken by anybody.
+     */
+    private class ShiftingAreas(first: NotesArea, private val appearing: NotesArea) : NotesAreas {
+
+        override var areas: List<NotesArea> = listOf(first)
+            private set
+
+        override suspend fun <T> exclusive(block: suspend (List<NotesArea>) -> T): T {
+            val held = areas
+
+            return holdingAll(held) {
+                areas = held + appearing
+                block(held)
+            }
+        }
     }
 
     /** Everything a day agenda puts on screen, however it is bucketed. */

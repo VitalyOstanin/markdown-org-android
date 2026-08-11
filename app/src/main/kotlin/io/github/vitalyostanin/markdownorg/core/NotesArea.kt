@@ -102,14 +102,20 @@ interface NotesAreas {
 
     /**
      * Runs [block] with sole access to every working copy, off the main
-     * thread.
+     * thread, and hands it the ones it holds.
+     *
+     * The set is handed over rather than read again inside, because it is
+     * replaced while a block is running — a collection added or removed in the
+     * settings — and the locks belong to the set as it was when they were
+     * taken. A block that read [areas] for itself would walk a directory
+     * nothing is holding, at the moment the code that added it is creating it.
      *
      * Not reentrant, and not to be called from inside a single area's
      * [NotesArea.exclusive]: the locks are taken in the order of [areas], and
      * a block that already holds one of them out of that order would deadlock
      * against a walk taking them from the start.
      */
-    suspend fun <T> exclusive(block: suspend () -> T): T
+    suspend fun <T> exclusive(block: suspend (List<NotesArea>) -> T): T
 }
 
 /**
