@@ -374,6 +374,20 @@ jobs:
           path: app/build/outputs/apk/${{ steps.variant.outputs.name }}/*.apk
           if-no-files-found: error
 
+      - name: Upload the mapping of the release build
+        # What turns a crash report back into names a person can read. The
+        # release variant is minified, so the trace the settings screen offers
+        # to copy is renamed throughout, and only the mapping of that very
+        # build undoes it. Kept here for the publishing job below, which
+        # attaches it to the release: a report can arrive long after an
+        # artifact has expired, and the build it names is then gone.
+        if: steps.variant.outputs.name == 'release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mapping-release
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+
       - name: Upload the core
         # For the instrumented job, so that it needs neither the NDK nor a
         # Rust toolchain: the libraries and the generated Kotlin are the whole
@@ -485,6 +499,12 @@ jobs:
           name: apk-release
           path: apk
 
+      - name: Download the mapping
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: mapping-release
+          path: mapping
+
       # A v-tag publishes under its own name as a release, with the notes
       # written for that version in CHANGELOG.md. Anything else is a
       # prerelease of the version being worked towards, tagged
@@ -523,6 +543,14 @@ jobs:
             prerelease=(--prerelease)
           fi
 
+          # Named after the release it belongs to, because that is the whole
+          # of its use: a trace can be read back only with the mapping of the
+          # very build it came from, and an asset called mapping.txt says
+          # nothing about which build that was once it has been downloaded.
+          mapping="mapping/mapping-${tag}.txt"
+          mv mapping/mapping.txt "$mapping"
+          assets=("${apks[@]}" "$mapping")
+
           # The notes of a release are the lines somebody wrote about that
           # version in CHANGELOG.md. A prerelease has no section of its own,
           # so it gets the list of commits GitHub generates instead, with the
@@ -543,7 +571,7 @@ jobs:
           fi
 
           if gh release view "$tag" > /dev/null 2>&1; then
-            gh release upload "$tag" "${apks[@]}" --clobber
+            gh release upload "$tag" "${assets[@]}" --clobber
           else
             if [ -z "$(git ls-remote origin "refs/tags/$tag")" ]; then
               git -c user.name='github-actions[bot]' \
@@ -555,6 +583,6 @@ jobs:
               --title "$tag" \
               "${notes[@]}" \
               "${prerelease[@]}" \
-              "${apks[@]}"
+              "${assets[@]}"
           fi
           echo "released as $tag" >> "$GITHUB_STEP_SUMMARY"
