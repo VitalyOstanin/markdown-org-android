@@ -72,64 +72,23 @@ import java.io.File
  */
 @Composable
 fun SyncSettingsScreen(
-    initialUrl: String,
-    initialBranch: String,
-    hasToken: Boolean,
+    initial: SettingsInitial,
     onSave: (SyncFormValues) -> Unit,
     onDismiss: () -> Unit,
-    onOpenLicences: () -> Unit,
     modifier: Modifier = Modifier,
-    initialNotesPath: String = "",
-    /** What the collection being edited is called, as it is stored. */
-    initialName: String = "",
-    /** Every collection there is, in the order the agenda keeps them. */
-    collections: List<NotesCollection> = emptyList(),
-    /** Which of [collections] the rest of this form is about. */
-    editingId: String = "",
-    onEditCollection: (String) -> Unit = {},
-    onAddCollection: (String) -> Unit = {},
-    onRemoveCollection: (String) -> Unit = {},
-    ownNotesPath: String = "",
-    storageGranted: Boolean = false,
-    onRequestStorage: () -> Unit = {},
-    /** A directory chosen in the system's picker, until it has been taken in. */
-    pickedNotesPath: String? = null,
-    onPickNotesDirectory: () -> Unit = {},
-    onPickedNotesTaken: () -> Unit = {},
-    crash: String? = null,
-    onForgetCrash: () -> Unit = {},
-    /** The notes are kept on this device on purpose, and no remote is wanted. */
-    storesLocally: Boolean = false,
+    collections: CollectionsUi = CollectionsUi(),
+    storage: StorageUi = StorageUi(),
+    diagnostics: DiagnosticsUi = DiagnosticsUi(),
     onKeepLocal: () -> Unit = {},
-    /** A private key for an `ssh://` remote is stored, whatever it is. */
-    hasKey: Boolean = false,
-    /** The public half of a key made here, for pasting into a server. */
-    publicKey: String = "",
-    /** The server key the remote is known by, empty until one is vouched for. */
-    knownHost: String = "",
     onCreateKey: () -> Unit = {},
 ) {
-    // Saved rather than merely remembered: the activity declares no
-    // configChanges, so a turn of the phone rebuilds it, and a URL typed by
-    // hand or a token pasted from a browser would be gone.
-    // Keyed on the collection being edited: every field below belongs to one
-    // of them, and switching from a work repository to a personal one has to
-    // bring that one's address rather than keep what was typed for the other.
-    var url by rememberSaveable(editingId) { mutableStateOf(initialUrl) }
-    var branch by rememberSaveable(editingId) { mutableStateOf(initialBranch) }
-    var name by rememberSaveable(editingId) { mutableStateOf(initialName) }
-    // The token included. It goes into the saved state of the activity, which
-    // lives in the process and in the private storage the process is killed
-    // to — the same storage the token is already stored in, and only a
-    // rotation away from being typed again by hand.
-    var token by rememberSaveable(editingId) { mutableStateOf("") }
-    var dropToken by rememberSaveable(editingId) { mutableStateOf(false) }
-    var notesPath by rememberSaveable(editingId) { mutableStateOf(initialNotesPath) }
-    // The same rule as the token, and the same reason for saving it: a key
-    // pasted from a password manager must not be lost to a rotation.
-    var sshKey by rememberSaveable(editingId) { mutableStateOf("") }
-    var sshPassphrase by rememberSaveable(editingId) { mutableStateOf("") }
-    var dropKey by rememberSaveable(editingId) { mutableStateOf(false) }
+    val form = rememberSyncForm(
+        editingId = collections.editingId,
+        url = initial.url,
+        branch = initial.branch,
+        name = initial.name,
+        notesPath = initial.notesPath,
+    )
     // Which collection the confirmation is about, and nothing while there is
     // no dialog up: removing one takes a directory off the agenda, and a
     // stray tap on a list of chips must not be enough to do it.
@@ -139,25 +98,25 @@ fun SyncSettingsScreen(
     // that cannot work says so where it was typed. An empty field is not an
     // error at all — it is the store on this device, and saving it is how a
     // directory of notes is taken in.
-    val problem = remember(url) { remoteUrlProblem(url) }
+    val problem = remember(form.url) { remoteUrlProblem(form.url) }
     val malformed = problem != null && problem != RemoteUrlProblem.EMPTY
 
     // The picker runs in another application, and its answer arrives after
     // this composition was rebuilt — so it lands in the field here rather than
     // being passed as an initial value, which is read once.
-    LaunchedEffect(pickedNotesPath) {
-        pickedNotesPath?.let {
-            notesPath = it
-            onPickedNotesTaken()
+    LaunchedEffect(storage.picked) {
+        storage.picked?.let {
+            form.notesPath = it
+            storage.onPickedTaken()
         }
     }
 
-    val own = remember(ownNotesPath) { File(ownNotesPath) }
+    val own = remember(storage.ownNotesPath) { File(storage.ownNotesPath) }
     // Keyed on the permission as well as on the path: the grant happens in
     // another application, and coming back has to clear the complaint about
     // it without the path being touched.
-    val pathProblem = remember(notesPath, storageGranted, own) {
-        notesPathProblem(notesPath, own, storageGranted)
+    val pathProblem = remember(form.notesPath, storage.granted, own) {
+        notesPathProblem(form.notesPath, own, storage.granted)
     }
     val pathRefused = pathProblem != null && pathProblem != NotesPathProblem.EMPTY
 
@@ -169,356 +128,421 @@ fun SyncSettingsScreen(
                 .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                text = stringResource(R.string.settings_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(
-                    if (storesLocally) R.string.settings_local_hint else R.string.settings_hint,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            // Above everything else on the screen: which collection the form
-            // is about decides what every field below it means.
-            CollectionsSection(
+            SettingsHeading(
+                form = form,
                 collections = collections,
-                editingId = editingId,
-                onEditCollection = onEditCollection,
-                onAddCollection = onAddCollection,
+                storesLocally = initial.storesLocally,
+                onKeepLocal = onKeepLocal,
             )
 
-            if (collections.isNotEmpty()) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.settings_collection_name)) },
-                    supportingText = {
-                        Text(stringResource(R.string.settings_collection_name_hint))
-                    },
-                    isError = name.isBlank(),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
-                )
-            }
-
-            // Offered while there is no remote and none has been declined:
-            // the answer to a first launch that would otherwise keep asking
-            // for an address the user has no intention of giving.
-            if (!storesLocally && url.isBlank()) {
-                HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
-                    TextButton(
-                        onClick = onKeepLocal,
-                        modifier = Modifier.testTag("settings-keep-local"),
-                    ) {
-                        Text(stringResource(R.string.settings_keep_local))
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it },
-                label = { Text(stringResource(R.string.settings_url)) },
-                placeholder = { Text("https://gitlab.com/user/notes.git") },
-                isError = malformed,
-                // What is wrong with the address, or — while nothing is — what
-                // an address here may be. A field that says nothing until it
-                // is wrong leaves the shape of the answer to be guessed at.
-                supportingText = {
-                    val line = problem?.takeIf { malformed }?.let { it.toMessage().text }
-                    Text(stringResource(line ?: R.string.settings_url_default))
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
-                modifier = Modifier.fillMaxWidth().testTag("settings-url"),
+            RemoteSection(
+                form = form,
+                problem = problem?.takeIf { malformed },
+                hasToken = initial.hasToken,
             )
 
-            OutlinedTextField(
-                value = branch,
-                onValueChange = { branch = it },
-                label = { Text(stringResource(R.string.settings_branch)) },
-                // Supporting text rather than a placeholder: a placeholder is
-                // only drawn while the field has focus, and what an empty
-                // field means has to be readable before touching it.
-                supportingText = { Text(stringResource(R.string.settings_branch_default)) },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
-                modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
+            KeySection(form = form, initial = initial, onCreateKey = onCreateKey)
+
+            NotesDirectorySection(
+                form = form,
+                problem = pathProblem,
+                refused = pathRefused,
+                onPickNotesDirectory = storage.onPick,
+                onRequestStorage = storage.onRequestPermission,
             )
-
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(stringResource(R.string.settings_token)) },
-                // The stored token is never read back into the field, so
-                // whether one is saved has to be said in text that is visible
-                // without focusing the field.
-                supportingText = {
-                    val kept = R.string.settings_token_kept
-                    Text(stringResource(if (hasToken) kept else R.string.settings_token_none))
-                },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth().testTag("settings-token"),
-            )
-
-            // Only way back to a remote that needs no credentials: an empty
-            // field means "keep what is stored", and the stored one is never
-            // shown to be deleted by hand.
-            if (hasToken) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Checkbox(
-                        checked = dropToken,
-                        onCheckedChange = { dropToken = it },
-                        modifier = Modifier.testTag("settings-token-drop"),
-                    )
-                    // On the label rather than on the box: a long press over a
-                    // checkbox is a press over the thing it toggles, and the
-                    // line is what the tick will do when the form is saved.
-                    HintTooltip(stringResource(R.string.hint_settings_token_drop)) {
-                        Text(
-                            text = stringResource(R.string.settings_token_drop),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-            }
-
-            SshSection(
-                hasKey = hasKey,
-                publicKey = publicKey.ifEmpty { null },
-                knownHost = knownHost.ifEmpty { null },
-                onCreateKey = onCreateKey,
-                key = sshKey,
-                onKeyChange = { sshKey = it },
-                passphrase = sshPassphrase,
-                onPassphraseChange = { sshPassphrase = it },
-                dropKey = dropKey,
-                onDropKeyChange = { dropKey = it },
-                // The address as it was stored, not as it is being typed: this
-                // decides the section's first state and nothing after it.
-                startsOpen = hasKey || reachedOverSsh(initialUrl),
-            )
-
-            OutlinedTextField(
-                value = notesPath,
-                onValueChange = { notesPath = it },
-                label = { Text(stringResource(R.string.settings_notes)) },
-                placeholder = { Text("/storage/emulated/0/Documents/notes") },
-                isError = pathRefused,
-                // What is wrong with the path, or — while the field is empty —
-                // where the notes go instead. A filled field that is fine says
-                // nothing: the path is the answer, and a line under it
-                // repeating the default would contradict what is above it.
-                supportingText = notesSupport(pathProblem, notesPath)?.let {
-                    { Text(stringResource(it)) }
-                },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
-                modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // A phone keyboard is a poor way to enter a path — it
-                // capitalises, autocorrects and turns `/sdcard` into
-                // `/SD card`. The picker only fills the field in; the notes
-                // are read by path all the same.
-                HintTooltip(stringResource(R.string.hint_settings_notes_pick)) {
-                    TextButton(
-                        onClick = onPickNotesDirectory,
-                        modifier = Modifier.testTag("settings-notes-pick"),
-                    ) {
-                        Text(stringResource(R.string.settings_notes_pick))
-                    }
-                }
-
-                // Only while it is the missing permission that stands in the
-                // way: a button offering what has already been granted, or
-                // what would not help, is a button that answers nothing.
-                if (pathProblem == NotesPathProblem.NEEDS_PERMISSION) {
-                    HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
-                        TextButton(
-                            onClick = onRequestStorage,
-                            modifier = Modifier.testTag("settings-notes-grant"),
-                        ) {
-                            Text(stringResource(R.string.settings_notes_grant))
-                        }
-                    }
-                }
-            }
 
             Spacer(Modifier.height(Spacing.xs))
 
             // Only while there is another collection to fall back to: an
             // agenda over nothing has no way back except a reinstall.
-            if (collections.size > 1) {
-                HintTooltip(stringResource(R.string.hint_settings_collection_remove)) {
-                    TextButton(
-                        onClick = { removing = editingId },
-                        modifier = Modifier.testTag("settings-collection-remove"),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_collection_remove),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
+            if (collections.all.size > 1) {
+                RemoveCollectionButton(onClick = { removing = collections.editingId })
             }
 
-            // The way to the notices of everything the APK carries. Here
-            // rather than on the agenda: it is read once, if ever, and the
-            // agenda's header is for what the reader came for.
-            HintTooltip(stringResource(R.string.hint_settings_licences)) {
-                TextButton(
-                    onClick = onOpenLicences,
-                    modifier = Modifier.testTag("settings-licences"),
-                ) {
-                    Text(stringResource(R.string.settings_licences))
-                }
-            }
+            DiagnosticsSection(
+                crash = diagnostics.crash,
+                onForgetCrash = diagnostics.onForgetCrash,
+                onOpenLicences = diagnostics.onOpenLicences,
+            )
 
-            // What is left of the run that ended in a crash. Here rather than
-            // on the agenda: it is read once, by whoever is about to report
-            // it, and the trace is the whole of what makes such a report
-            // worth anything.
-            crash?.let { trace ->
-                HintTooltip(
-                    stringResource(R.string.hint_settings_crash),
-                    // On the anchor rather than on the line inside it: see HintTooltip.
-                    modifier = Modifier.testTag("settings-crash"),
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_crash),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Text(
-                    text = trace,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = Sizes.traceHeight)
-                        .verticalScroll(rememberScrollState())
-                        .testTag("settings-crash-trace"),
-                )
-                TextButton(
-                    onClick = onForgetCrash,
-                    modifier = Modifier.testTag("settings-crash-forget"),
-                ) {
-                    Text(stringResource(R.string.settings_crash_forget))
-                }
-            }
-
-            // Which build is installed. Two APKs of the same version differ
-            // only by the run that produced them, so the code and the commit
-            // are here as well: a report about a build nobody can identify
-            // cannot be acted on.
-            HintTooltip(
-                stringResource(R.string.hint_settings_version),
-                modifier = Modifier.testTag("settings-version"),
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.settings_version,
-                        BuildConfig.VERSION_NAME,
-                        BuildConfig.VERSION_CODE,
-                        BuildConfig.COMMIT,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                HintTooltip(stringResource(R.string.hint_settings_cancel)) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("settings-cancel"),
-                    ) {
-                        Text(stringResource(R.string.settings_cancel))
-                    }
-                }
-                Spacer(Modifier.width(Spacing.sm))
-                HintTooltip(stringResource(R.string.hint_settings_save)) {
-                    Button(
-                        onClick = {
-                            onSave(
-                                SyncFormValues(
-                                    url = url,
-                                    branch = branch,
-                                    token = token,
-                                    dropToken = dropToken,
-                                    notesPath = notesPath,
-                                    name = name,
-                                    sshKey = sshKey,
-                                    sshPassphrase = sshPassphrase,
-                                    dropKey = dropKey,
-                                ),
-                            )
-                        },
-                        // An empty address is not an obstacle any more: the
-                        // form also carries where the notes are kept, and
-                        // notes already on the device need no remote at all. A
-                        // collection with no name is one the filter offers as
-                        // a blank chip.
-                        enabled = !malformed && !pathRefused &&
-                            (collections.isEmpty() || name.isNotBlank()),
-                        modifier = Modifier.testTag("settings-save"),
-                    ) {
-                        Text(stringResource(R.string.settings_save))
-                    }
-                }
-            }
+            FormButtons(
+                onSave = { onSave(form.values()) },
+                onDismiss = onDismiss,
+                // An empty address is not an obstacle any more: the form also
+                // carries where the notes are kept, and notes already on the
+                // device need no remote at all. A collection with no name is
+                // one the filter offers as a blank chip.
+                canSave = !malformed && !pathRefused &&
+                    (collections.all.isEmpty() || form.name.isNotBlank()),
+            )
         }
     }
 
     removing?.let { id ->
-        AlertDialog(
-            onDismissRequest = { removing = null },
-            title = { Text(stringResource(R.string.settings_collection_remove)) },
-            text = { Text(stringResource(R.string.settings_collection_remove_explain)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        removing = null
-                        onRemoveCollection(id)
-                    },
-                    modifier = Modifier.testTag("settings-collection-remove-confirm"),
-                ) {
-                    Text(stringResource(R.string.settings_collection_remove_confirm))
-                }
+        RemoveCollectionDialog(
+            onConfirm = {
+                removing = null
+                collections.onRemove(id)
             },
-            dismissButton = {
-                TextButton(onClick = { removing = null }) {
-                    Text(stringResource(R.string.settings_collection_remove_cancel))
-                }
-            },
+            onDismiss = { removing = null },
         )
+    }
+}
+
+/**
+ * Which collection the form is about, and what it is called.
+ *
+ * Above everything else on the screen, because the answer decides what every
+ * field below it means: an address, a token and a directory belong to one
+ * collection, and the same form shows another one's on the next tap.
+ */
+@Composable
+private fun SettingsHeading(
+    form: SyncFormState,
+    collections: CollectionsUi,
+    storesLocally: Boolean,
+    onKeepLocal: () -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.settings_title),
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+        text = stringResource(
+            if (storesLocally) R.string.settings_local_hint else R.string.settings_hint,
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    CollectionsSection(
+        collections = collections.all,
+        editingId = collections.editingId,
+        onEditCollection = collections.onEdit,
+        onAddCollection = collections.onAdd,
+    )
+
+    if (collections.all.isNotEmpty()) {
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = { form.name = it },
+            label = { Text(stringResource(R.string.settings_collection_name)) },
+            supportingText = { Text(stringResource(R.string.settings_collection_name_hint)) },
+            isError = form.name.isBlank(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
+        )
+    }
+
+    // Offered while there is no remote and none has been declined: the answer
+    // to a first launch that would otherwise keep asking for an address the
+    // user has no intention of giving.
+    if (!storesLocally && form.url.isBlank()) {
+        HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
+            TextButton(onClick = onKeepLocal, modifier = Modifier.testTag("settings-keep-local")) {
+                Text(stringResource(R.string.settings_keep_local))
+            }
+        }
+    }
+}
+
+/** The way to take a collection off the agenda, asked about before it happens. */
+@Composable
+private fun RemoveCollectionButton(onClick: () -> Unit) {
+    HintTooltip(stringResource(R.string.hint_settings_collection_remove)) {
+        TextButton(onClick = onClick, modifier = Modifier.testTag("settings-collection-remove")) {
+            Text(
+                text = stringResource(R.string.settings_collection_remove),
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+/**
+ * The question a removal is answered by.
+ *
+ * Removing a collection takes a directory off the agenda, and a stray tap on a
+ * row of chips must not be enough to do it. The notes themselves stay where
+ * they are — this is about the set, not about the files.
+ */
+@Composable
+private fun RemoveCollectionDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_collection_remove)) },
+        text = { Text(stringResource(R.string.settings_collection_remove_explain)) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag("settings-collection-remove-confirm"),
+            ) {
+                Text(stringResource(R.string.settings_collection_remove_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_collection_remove_cancel))
+            }
+        },
+    )
+}
+
+/** The key half of the form, over what the settings already hold. */
+@Composable
+private fun KeySection(form: SyncFormState, initial: SettingsInitial, onCreateKey: () -> Unit) {
+    SshSection(
+        hasKey = initial.hasKey,
+        publicKey = initial.publicKey.ifEmpty { null },
+        knownHost = initial.knownHost.ifEmpty { null },
+        onCreateKey = onCreateKey,
+        key = form.sshKey,
+        onKeyChange = { form.sshKey = it },
+        passphrase = form.sshPassphrase,
+        onPassphraseChange = { form.sshPassphrase = it },
+        dropKey = form.dropKey,
+        onDropKeyChange = { form.dropKey = it },
+        // The address as it was stored, not as it is being typed: this decides
+        // the section's first state and nothing after it.
+        startsOpen = initial.hasKey || reachedOverSsh(initial.url),
+    )
+}
+
+/**
+ * Where the notes are fetched from, and what reaches the server over https.
+ *
+ * The address, the branch and the token stand together because they are one
+ * answer: a token is issued by the host in the address above it, and dropping
+ * one is about that host and no other.
+ */
+@Composable
+private fun RemoteSection(form: SyncFormState, problem: RemoteUrlProblem?, hasToken: Boolean) {
+    OutlinedTextField(
+        value = form.url,
+        onValueChange = { form.url = it },
+        label = { Text(stringResource(R.string.settings_url)) },
+        placeholder = { Text("https://gitlab.com/user/notes.git") },
+        isError = problem != null,
+        // What is wrong with the address, or — while nothing is — what an
+        // address here may be. A field that says nothing until it is wrong
+        // leaves the shape of the answer to be guessed at.
+        supportingText = {
+            Text(stringResource(problem?.toMessage()?.text ?: R.string.settings_url_default))
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-url"),
+    )
+
+    OutlinedTextField(
+        value = form.branch,
+        onValueChange = { form.branch = it },
+        label = { Text(stringResource(R.string.settings_branch)) },
+        // Supporting text rather than a placeholder: a placeholder is only
+        // drawn while the field has focus, and what an empty field means has
+        // to be readable before touching it.
+        supportingText = { Text(stringResource(R.string.settings_branch_default)) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
+    )
+
+    OutlinedTextField(
+        value = form.token,
+        onValueChange = { form.token = it },
+        label = { Text(stringResource(R.string.settings_token)) },
+        // The stored token is never read back into the field, so whether one
+        // is saved has to be said in text that is visible without focusing the
+        // field.
+        supportingText = {
+            val kept = R.string.settings_token_kept
+            Text(stringResource(if (hasToken) kept else R.string.settings_token_none))
+        },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().testTag("settings-token"),
+    )
+
+    // Only way back to a remote that needs no credentials: an empty field
+    // means "keep what is stored", and the stored one is never shown to be
+    // deleted by hand.
+    if (hasToken) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Checkbox(
+                checked = form.dropToken,
+                onCheckedChange = { form.dropToken = it },
+                modifier = Modifier.testTag("settings-token-drop"),
+            )
+            // On the label rather than on the box: a long press over a
+            // checkbox is a press over the thing it toggles, and the line is
+            // what the tick will do when the form is saved.
+            HintTooltip(stringResource(R.string.hint_settings_token_drop)) {
+                Text(
+                    text = stringResource(R.string.settings_token_drop),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Which directory the notes live in, and the two ways of reaching one.
+ *
+ * The picker only fills the field in — what is stored is a path, because the
+ * core opens the directory with libgit2 and walks it with `std::fs`, and
+ * neither can do anything with the URI a picker hands back.
+ */
+@Composable
+private fun NotesDirectorySection(
+    form: SyncFormState,
+    problem: NotesPathProblem?,
+    refused: Boolean,
+    onPickNotesDirectory: () -> Unit,
+    onRequestStorage: () -> Unit,
+) {
+    OutlinedTextField(
+        value = form.notesPath,
+        onValueChange = { form.notesPath = it },
+        label = { Text(stringResource(R.string.settings_notes)) },
+        placeholder = { Text("/storage/emulated/0/Documents/notes") },
+        isError = refused,
+        // What is wrong with the path, or — while the field is empty — where
+        // the notes go instead. A filled field that is fine says nothing: the
+        // path is the answer, and a line under it repeating the default would
+        // contradict what is above it.
+        supportingText = notesSupport(problem, form.notesPath)?.let {
+            { Text(stringResource(it)) }
+        },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
+    )
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // A phone keyboard is a poor way to enter a path — it capitalises,
+        // autocorrects and turns `/sdcard` into `/SD card`.
+        HintTooltip(stringResource(R.string.hint_settings_notes_pick)) {
+            TextButton(
+                onClick = onPickNotesDirectory,
+                modifier = Modifier.testTag("settings-notes-pick"),
+            ) {
+                Text(stringResource(R.string.settings_notes_pick))
+            }
+        }
+
+        // Only while it is the missing permission that stands in the way: a
+        // button offering what has already been granted, or what would not
+        // help, is a button that answers nothing.
+        if (problem == NotesPathProblem.NEEDS_PERMISSION) {
+            HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
+                TextButton(
+                    onClick = onRequestStorage,
+                    modifier = Modifier.testTag("settings-notes-grant"),
+                ) {
+                    Text(stringResource(R.string.settings_notes_grant))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What a report about this build would have to carry.
+ *
+ * Here rather than on the agenda: all of it is read once, if ever, by whoever
+ * is about to write that report, while the agenda's header is for what the
+ * reader came for.
+ */
+@Composable
+private fun DiagnosticsSection(
+    crash: String?,
+    onForgetCrash: () -> Unit,
+    onOpenLicences: () -> Unit,
+) {
+    HintTooltip(stringResource(R.string.hint_settings_licences)) {
+        TextButton(onClick = onOpenLicences, modifier = Modifier.testTag("settings-licences")) {
+            Text(stringResource(R.string.settings_licences))
+        }
+    }
+
+    // What is left of the run that ended in a crash: the trace is the whole of
+    // what makes such a report worth anything.
+    crash?.let { trace ->
+        HintTooltip(
+            stringResource(R.string.hint_settings_crash),
+            // On the anchor rather than on the line inside it: see HintTooltip.
+            modifier = Modifier.testTag("settings-crash"),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_crash),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Text(
+            text = trace,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = Sizes.traceHeight)
+                .verticalScroll(rememberScrollState())
+                .testTag("settings-crash-trace"),
+        )
+        TextButton(onClick = onForgetCrash, modifier = Modifier.testTag("settings-crash-forget")) {
+            Text(stringResource(R.string.settings_crash_forget))
+        }
+    }
+
+    // Which build is installed. Two APKs of the same version differ only by
+    // the run that produced them, so the code and the commit are here as
+    // well: a report about a build nobody can identify cannot be acted on.
+    HintTooltip(
+        stringResource(R.string.hint_settings_version),
+        modifier = Modifier.testTag("settings-version"),
+    ) {
+        Text(
+            text = stringResource(
+                R.string.settings_version,
+                BuildConfig.VERSION_NAME,
+                BuildConfig.VERSION_CODE,
+                BuildConfig.COMMIT,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** The two ways out of the form, at its foot. */
+@Composable
+private fun FormButtons(onSave: () -> Unit, onDismiss: () -> Unit, canSave: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HintTooltip(stringResource(R.string.hint_settings_cancel)) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("settings-cancel")) {
+                Text(stringResource(R.string.settings_cancel))
+            }
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        HintTooltip(stringResource(R.string.hint_settings_save)) {
+            Button(
+                onClick = onSave,
+                enabled = canSave,
+                modifier = Modifier.testTag("settings-save"),
+            ) {
+                Text(stringResource(R.string.settings_save))
+            }
+        }
     }
 }
 

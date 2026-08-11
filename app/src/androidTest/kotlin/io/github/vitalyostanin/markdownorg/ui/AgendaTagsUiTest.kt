@@ -87,9 +87,11 @@ class AgendaTagsUiTest {
                     layout = AgendaLayout.LIST,
                     onLayoutChange = {},
                     now = MOMENT,
-                    tags = tags,
-                    currentTag = current,
-                    onTagChange = { current = it },
+                    filters = AgendaFilters(
+                        tags = tags,
+                        currentTag = current,
+                        onTagChange = { current = it },
+                    ),
                 )
             }
         }
@@ -157,8 +159,7 @@ class AgendaTagsUiTest {
                     layout = AgendaLayout.LIST,
                     onLayoutChange = {},
                     now = MOMENT,
-                    tags = tags,
-                    onTagChange = {},
+                    filters = AgendaFilters(tags = tags),
                 )
             }
         }

@@ -122,12 +122,14 @@ class CollectionMarksTest {
                     layout = AgendaLayout.LIST,
                     onLayoutChange = {},
                     now = MOMENT,
-                    collections = labels.values.map { label ->
-                        CollectionChoice(label = label, shown = label.id in shown)
-                    },
-                    onCollectionShown = { id, on ->
-                        shown = if (on) shown + id else shown - id
-                    },
+                    filters = AgendaFilters(
+                        collections = labels.values.map { label ->
+                            CollectionChoice(label = label, shown = label.id in shown)
+                        },
+                        onCollectionShown = { id, on ->
+                            shown = if (on) shown + id else shown - id
+                        },
+                    ),
                 )
             }
         }
@@ -194,7 +196,11 @@ class CollectionMarksTest {
                     layout = AgendaLayout.LIST,
                     onLayoutChange = {},
                     now = MOMENT,
-                    collections = labels.values.map { CollectionChoice(label = it, shown = true) },
+                    filters = AgendaFilters(
+                        collections = labels.values.map {
+                            CollectionChoice(label = it, shown = true)
+                        },
+                    ),
                 )
             }
         }

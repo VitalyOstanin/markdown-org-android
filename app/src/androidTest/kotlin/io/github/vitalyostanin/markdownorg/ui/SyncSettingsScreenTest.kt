@@ -143,14 +143,13 @@ class SyncSettingsScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 SyncSettingsScreen(
-                    initialUrl = "",
-                    initialBranch = "",
-                    hasToken = false,
+                    initial = SettingsInitial(),
                     onSave = { },
                     onDismiss = {},
-                    onOpenLicences = {},
-                    crash = "java.lang.IllegalStateException: the list was empty",
-                    onForgetCrash = { forgotten = true },
+                    diagnostics = DiagnosticsUi(
+                        crash = "java.lang.IllegalStateException: the list was empty",
+                        onForgetCrash = { forgotten = true },
+                    ),
                 )
             }
         }
@@ -452,9 +451,16 @@ class SyncSettingsScreenTest {
         compose.setContent {
             MarkdownOrgTheme {
                 SyncSettingsScreen(
-                    initialUrl = url,
-                    initialBranch = branch,
-                    hasToken = hasToken,
+                    initial = SettingsInitial(
+                        url = url,
+                        branch = branch,
+                        notesPath = notesPath,
+                        hasToken = hasToken,
+                        hasKey = hasKey,
+                        publicKey = publicKey,
+                        knownHost = knownHost,
+                        storesLocally = storesLocally,
+                    ),
                     onSave = { values ->
                         saved = Triple(values.url, values.branch, values.token)
                         droppedToken = values.dropToken
@@ -464,19 +470,16 @@ class SyncSettingsScreenTest {
                         droppedKey = values.dropKey
                     },
                     onDismiss = { dismissed = true },
-                    onOpenLicences = { licencesOpened = true },
-                    initialNotesPath = notesPath,
-                    ownNotesPath = ownNotes.absolutePath,
-                    storageGranted = granted,
-                    onRequestStorage = { accessRequested = true },
-                    pickedNotesPath = picked,
-                    onPickNotesDirectory = { pickerOpened = true },
-                    onPickedNotesTaken = { picked = null },
-                    storesLocally = storesLocally,
+                    storage = StorageUi(
+                        ownNotesPath = ownNotes.absolutePath,
+                        granted = granted,
+                        onRequestPermission = { accessRequested = true },
+                        picked = picked,
+                        onPick = { pickerOpened = true },
+                        onPickedTaken = { picked = null },
+                    ),
+                    diagnostics = DiagnosticsUi(onOpenLicences = { licencesOpened = true }),
                     onKeepLocal = { keptLocal = true },
-                    hasKey = hasKey,
-                    publicKey = publicKey,
-                    knownHost = knownHost,
                     onCreateKey = { keyMade = true },
                 )
             }

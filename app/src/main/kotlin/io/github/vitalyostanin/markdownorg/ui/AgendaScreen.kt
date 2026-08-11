@@ -81,29 +81,10 @@ fun AgendaScreen(
     now: LocalDateTime = LocalDateTime.now(),
     sync: SyncUiState = SyncUiState(),
     editIssue: SyncMessage? = null,
-    onEditIssueShown: () -> Unit = {},
-    /** The collections to filter by; empty while there is one of them. */
-    collections: List<CollectionChoice> = emptyList(),
-    onCollectionShown: (String, Boolean) -> Unit = { _, _ -> },
-    /** The tags the notes declare; empty while none of them declares any. */
-    tags: List<MergedTag> = emptyList(),
-    /** The tag in force, or null while the agenda is not narrowed. */
-    currentTag: String? = null,
-    onTagChange: (String?) -> Unit = {},
     /** What acting on a whole band did, and what it takes to undo it. */
     groupResult: GroupResult? = null,
-    onGroupResultShown: () -> Unit = {},
-    onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
-    onUndoGroup: () -> Unit = {},
-    onSync: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
-    onTaskClick: (Task) -> Unit = {},
-    /** Answer to unrelated histories: take what the server holds. */
-    onTakeRemote: () -> Unit = {},
-    /** Answer to a directory holding somebody else's checkout: empty it. */
-    onReplaceNotes: () -> Unit = {},
-    /** Answer to a server key nobody has vouched for yet: it is the right one. */
-    onTrustHost: () -> Unit = {},
+    filters: AgendaFilters = AgendaFilters(),
+    actions: AgendaActions = AgendaActions(),
 ) {
     // What an edit answered with, if it could not be made. A snackbar rather
     // than the banner: it is about the tap that was just made, it goes away on
@@ -113,7 +94,7 @@ fun AgendaScreen(
     LaunchedEffect(editIssue) {
         if (issue != null) {
             snackbar.showSnackbar(issue)
-            onEditIssueShown()
+            actions.onEditIssueShown()
         }
     }
 
@@ -131,9 +112,9 @@ fun AgendaScreen(
                 withDismissAction = true,
             )
             if (answered == SnackbarResult.ActionPerformed) {
-                onUndoGroup()
+                actions.onUndoGroup()
             } else {
-                onGroupResultShown()
+                actions.onGroupResultShown()
             }
         }
     }
@@ -141,25 +122,15 @@ fun AgendaScreen(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             AgendaBody(
-                state,
-                layout,
-                onLayoutChange,
-                span,
-                onSpanChange,
-                now,
-                sync,
-                onSync,
-                onOpenSettings,
-                onTaskClick,
-                onTakeRemote,
-                onReplaceNotes,
-                onTrustHost,
-                onGroupAction,
-                collections,
-                onCollectionShown,
-                tags,
-                currentTag,
-                onTagChange,
+                state = state,
+                layout = layout,
+                onLayoutChange = onLayoutChange,
+                span = span,
+                onSpanChange = onSpanChange,
+                now = now,
+                sync = sync,
+                filters = filters,
+                actions = actions,
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
@@ -197,18 +168,8 @@ private fun AgendaBody(
     onSpanChange: (AgendaSpan) -> Unit,
     now: LocalDateTime,
     sync: SyncUiState,
-    onSync: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onTaskClick: (Task) -> Unit,
-    onTakeRemote: () -> Unit,
-    onReplaceNotes: () -> Unit,
-    onTrustHost: () -> Unit,
-    onGroupAction: (OverdueGroup, BulkAction) -> Unit,
-    collections: List<CollectionChoice>,
-    onCollectionShown: (String, Boolean) -> Unit,
-    tags: List<MergedTag>,
-    currentTag: String?,
-    onTagChange: (String?) -> Unit,
+    filters: AgendaFilters,
+    actions: AgendaActions,
 ) {
     // Held above the state, so a rebuild of the agenda comes back to the same
     // place in the list; one per layout, since the two scroll independently.
@@ -232,21 +193,18 @@ private fun AgendaBody(
             // Outside the scrolling area: the switch is how the user gets
             // back to the other layout, and it must not scroll away.
             AgendaHeader(
-                state,
-                layout,
-                onLayoutChange,
-                span,
-                onSpanChange,
-                sync,
-                onSync,
-                onOpenSettings,
-                tags,
-                currentTag,
-                onTagChange,
+                state = state,
+                layout = layout,
+                onLayoutChange = onLayoutChange,
+                span = span,
+                onSpanChange = onSpanChange,
+                sync = sync,
+                filters = filters,
+                actions = actions,
             )
-            CollectionFilter(collections, onCollectionShown)
+            CollectionFilter(filters.collections, filters.onCollectionShown)
             RefreshingLine(state.refreshing)
-            SyncBanner(sync, onTakeRemote, onReplaceNotes, onTrustHost)
+            SyncBanner(sync, actions.onTakeRemote, actions.onTrustHost)
             ScanNotices(state.notices)
             // The axis covers one day; every wider span is read as the list,
             // whatever the layout switch was left on last time it was shown.
@@ -260,8 +218,8 @@ private fun AgendaBody(
                     },
                     scroll = timeScroll,
                     collapse = collapse,
-                    onTaskClick = onTaskClick,
-                    onGroupAction = onGroupAction,
+                    onTaskClick = actions.onTaskClick,
+                    onGroupAction = actions.onGroupAction,
                 )
             } else {
                 ListLayout(
@@ -270,8 +228,8 @@ private fun AgendaBody(
                     today = state.date,
                     scroll = listScroll,
                     collapse = collapse,
-                    onTaskClick = onTaskClick,
-                    onGroupAction = onGroupAction,
+                    onTaskClick = actions.onTaskClick,
+                    onGroupAction = actions.onGroupAction,
                 )
             }
         }
@@ -372,11 +330,8 @@ private fun AgendaHeader(
     span: AgendaSpan,
     onSpanChange: (AgendaSpan) -> Unit,
     sync: SyncUiState,
-    onSync: () -> Unit,
-    onOpenSettings: () -> Unit,
-    tags: List<MergedTag>,
-    currentTag: String?,
-    onTagChange: (String?) -> Unit,
+    filters: AgendaFilters,
+    actions: AgendaActions,
 ) {
     // The device locale, not the application's: the interface is English, but
     // a date is read in whatever language the user reads dates in. Read from
@@ -445,17 +400,17 @@ private fun AgendaHeader(
                 },
                 tag = "sync-now",
                 enabled = sync.configured && !sync.running,
-                onClick = onSync,
+                onClick = actions.onSync,
             )
             HeaderAction(
                 icon = R.drawable.ic_settings,
                 label = stringResource(R.string.settings_title),
                 hint = stringResource(R.string.hint_open_settings),
                 tag = "open-settings",
-                onClick = onOpenSettings,
+                onClick = actions.onOpenSettings,
             )
             Spacer(Modifier.weight(1f))
-            TagMenu(tags, currentTag, onTagChange)
+            TagMenu(filters.tags, filters.currentTag, filters.onTagChange)
             SpanMenu(span, onSpanChange)
             // Left out rather than left there doing nothing: the axis draws
             // one day, and a switch that changes nothing is a control the user
@@ -600,12 +555,7 @@ private fun HeaderAction(
  * "not configured" on every launch would be noise.
  */
 @Composable
-private fun SyncBanner(
-    sync: SyncUiState,
-    onTakeRemote: () -> Unit,
-    onReplaceNotes: () -> Unit,
-    onTrustHost: () -> Unit,
-) {
+private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost: () -> Unit) {
     val colors = LocalAgendaColors.current
     val text = when {
         sync.running -> stringResource(R.string.sync_running)
@@ -650,7 +600,7 @@ private fun SyncBanner(
             )
         }
         CollectionRuns(sync)
-        Answer(sync, onTakeRemote, onReplaceNotes, onTrustHost)
+        Answer(sync, onTakeRemote, onTrustHost)
         Unpushed(sync)
         LastSynced(sync)
     }
@@ -695,24 +645,22 @@ private fun CollectionRuns(sync: SyncUiState) {
 /**
  * The button for a state that is waiting on the user rather than on a server.
  *
- * Three of those exist, and none can be resolved by trying again: an SSH
- * server nobody has vouched for, notes on the device and on the remote that
- * share no history, or a directory holding a checkout of somewhere else. Each
- * takes a decision only the user can make, so each is a press rather than
- * something saving a form does.
+ * Two of those exist, and neither can be resolved by trying again: an SSH
+ * server nobody has vouched for, and notes on the device and on the remote
+ * that share no history. Each takes a decision only the user can make, so each
+ * is a press rather than something saving a form does.
+ *
+ * A directory holding somebody else's checkout is a third such state and has
+ * no button, because the only move from it is over files this application did
+ * not write. It is answered outside the application, and the message says so.
  */
 @Composable
-private fun Answer(
-    sync: SyncUiState,
-    onTakeRemote: () -> Unit,
-    onReplaceNotes: () -> Unit,
-    onTrustHost: () -> Unit,
-) {
+private fun Answer(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost: () -> Unit) {
     val (label, act, tag) = when {
         sync.running -> return
 
         // First, because it stops everything else: nothing was fetched, and
-        // the two questions below are about notes that never arrived.
+        // the question below is about notes that never arrived.
         sync.pendingHost != null -> Triple(
             if (sync.pendingHostReplaces != null) {
                 R.string.sync_host_accept_new
@@ -727,12 +675,6 @@ private fun Answer(
             R.string.sync_take_remote,
             onTakeRemote,
             "sync-take-remote",
-        )
-
-        sync.message?.text == R.string.settings_other_checkout -> Triple(
-            R.string.settings_replace_notes,
-            onReplaceNotes,
-            "sync-replace-notes",
         )
 
         else -> return

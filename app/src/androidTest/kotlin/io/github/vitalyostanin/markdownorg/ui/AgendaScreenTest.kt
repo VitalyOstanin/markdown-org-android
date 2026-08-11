@@ -694,10 +694,12 @@ class AgendaScreenTest {
                         onLayoutChange = {},
                         now = now,
                         sync = sync,
-                        onTaskClick = onTaskClick,
                         groupResult = groupResult,
-                        onGroupAction = onGroupAction,
-                        onUndoGroup = onUndoGroup,
+                        actions = AgendaActions(
+                            onTaskClick = onTaskClick,
+                            onGroupAction = onGroupAction,
+                            onUndoGroup = onUndoGroup,
+                        ),
                     )
                 }
 

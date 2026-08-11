@@ -195,9 +195,7 @@ class SyncBannerTest {
         )
 
         compose.onNodeWithText(string(R.string.settings_other_checkout)).assertIsDisplayed()
-        compose.onNodeWithTag("sync-replace-notes").performClick()
-
-        assertEquals(1, notesReplaced)
+        compose.onNodeWithTag("sync-replace-notes").assertDoesNotExist()
     }
 
     /**
@@ -400,12 +398,13 @@ class SyncBannerTest {
                     now = LocalDate.of(2026, 7, 28).atTime(10, 0),
                     sync = sync.value,
                     editIssue = editIssue,
-                    onEditIssueShown = { issuesShown++ },
-                    onSync = { synced++ },
-                    onOpenSettings = { settingsOpened = true },
-                    onTakeRemote = { remotesTaken++ },
-                    onReplaceNotes = { notesReplaced++ },
-                    onTrustHost = { hostsTrusted++ },
+                    actions = AgendaActions(
+                        onSync = { synced++ },
+                        onOpenSettings = { settingsOpened = true },
+                        onTakeRemote = { remotesTaken++ },
+                        onTrustHost = { hostsTrusted++ },
+                        onEditIssueShown = { issuesShown++ },
+                    ),
                 )
             }
         }
