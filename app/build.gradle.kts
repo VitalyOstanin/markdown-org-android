@@ -23,6 +23,7 @@ val toolVersions: Map<String, String> = rootProject.file("tools/versions.env")
 // guarding nothing.
 val guardedFiles: List<String> = listOf(
     "README.md",
+    "CLAUDE.md",
     "CHANGELOG.md",
     "LICENSE",
     "NOTICE",

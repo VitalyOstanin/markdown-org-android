@@ -27,8 +27,8 @@ reasoning.
 - libgit2 and OpenSSL are vendored, and the CA bundle crosses as PEM text
   because the vendored OpenSSL has no file IO. See
   [ADR-0005](docs/adr/0005-vendored-tls-and-libgit2.md).
-- Syncing fast-forwards or refuses with a named error; it never merges and
-  never pushes. See [ADR-0006](docs/adr/0006-fast-forward-only-sync.md).
+- A sync fast-forwards or refuses with a named error; it never merges. See
+  [ADR-0006](docs/adr/0006-fast-forward-only-sync.md).
 - The access token lives in ordinary private preferences with
   `allowBackup="false"`; `EncryptedSharedPreferences` is deprecated and is not
   to be reintroduced. See [ADR-0007](docs/adr/0007-token-in-plain-preferences.md).
@@ -68,6 +68,33 @@ reasoning.
   lives. The setting is applied once per process in `sync.rs`, and every entry
   point that opens a repository goes through `open`. See
   [ADR-0017](docs/adr/0017-open-a-repository-the-platform-owns.md).
+- Edits go back to the remote the way they come in: a push that fast-forwards
+  or is refused, with the commits left on the device and the fetch reported
+  apart from the push. See
+  [ADR-0018](docs/adr/0018-edits-go-back-as-a-fast-forward-push.md).
+- The directory is where the notes live, and git is added to it: `git init`
+  over what is there, one commit of it, then the remote. A directory that is
+  already a working copy of another address is refused. See
+  [ADR-0019](docs/adr/0019-the-directory-holds-the-notes-and-git-is-added-to-it.md),
+  amended by ADR-0024 below.
+- `ssh://` is a supported address in both spellings, its key travels in the
+  request and is offered to the configured endpoint alone, and the server is
+  pinned by its host key. See
+  [ADR-0020](docs/adr/0020-ssh-remotes-with-a-pinned-host-key.md).
+- A group action is one call into the core and one rewrite per file, and it
+  hands back what undoing it takes. A task it cannot edit is refused on its own
+  while the rest of the group goes through. See
+  [ADR-0021](docs/adr/0021-a-group-is-one-rewrite-and-can-be-put-back.md).
+- The application works with a set of collections rather than one directory,
+  and the merge of their agendas belongs to the core, not to the client. See
+  [ADR-0022](docs/adr/0022-several-collections-one-agenda.md).
+- A row says which collection it came from with a dot in that collection's
+  colour at its head; a device with one collection sees the screen it always
+  had. See [ADR-0023](docs/adr/0023-a-collection-is-a-dot-at-the-head-of-the-row.md).
+- The application removes no file it did not write itself, and there is no
+  operation anywhere in it that empties the notes directory. The rule is
+  guarded by a test over the Kotlin sources rather than left to documentation.
+  See [ADR-0024](docs/adr/0024-the-application-removes-no-file-it-did-not-write.md).
 
 ## Working on the core
 

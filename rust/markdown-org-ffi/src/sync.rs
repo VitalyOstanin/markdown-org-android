@@ -962,11 +962,16 @@ fn open(path: &Path) -> Result<Repository, git2::Error> {
 /// shared machine, whose `.git/config` git would read and run a command out of
 /// — `core.pager`, `core.sshCommand`. Neither half of that holds here. libgit2
 /// runs nothing from a configuration file: it creates `hooks/` but never
-/// executes anything in it, has no external clean/smudge filters, and the one
-/// place in the library that starts a process is the ssh transport, which this
-/// build does not compile in (`git2` is taken with `https` alone). And an
-/// Android application has the device to itself as far as uids go: it reaches
-/// the shared storage only through a permission granted by hand, and the
+/// executes anything in it, has no external clean/smudge filters, and reads
+/// neither of those two settings at all — the names appear nowhere in its
+/// sources. The one place in the library that starts a process is the
+/// `ssh_exec` transport, which is compiled only under `GIT_SSH_EXEC` and takes
+/// the command to run from the environment (`GIT_SSH_COMMAND`, `GIT_SSH`)
+/// rather than from a repository. This build takes the other transport:
+/// `libgit2-sys` defines `GIT_SSH_LIBSSH2` for the `ssh` feature and never
+/// `GIT_SSH_EXEC`, so ssh here is libssh2 speaking the protocol in-process.
+/// And an Android application has the device to itself as far as uids go: it
+/// reaches the shared storage only through a permission granted by hand, and the
 /// directory is the one the user pointed at.
 ///
 /// What is left is a `.git` somebody else put in the notes directory, naming

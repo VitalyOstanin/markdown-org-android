@@ -383,10 +383,10 @@ the situations that are not a plain fast-forward:
 | 5 | A temporary from an interrupted write is left over | Ignored by the check above: nothing else would ever clean it up, and it would block every sync from then on. |
 | 6 | The network fails                                  | Retried up to three times, waiting 0.5 s then 1 s. Rejected credentials, a divergence and a dirty checkout are not retried — they need someone to act first. |
 | 7 | The connection hangs                               | Bounded: 15 s to connect, 60 s per request. Without them the wait is whatever the operating system decides. |
-| 8 | The remote URL changes                             | The directory is emptied and cloned again, and the stored token is dropped with it — it was issued by the host that is being left. |
+| 8 | The remote URL changes                             | The stored token is dropped with it — it was issued by the host that is being left. The directory itself is not touched: what it holds decides the rest, rows 10 and 11. |
 | 9 | The server refuses the push                        | `Rejected`, after the fetch has already gone through. The commits stay on the device and are counted in the header until a later sync gets them across; the fetch itself is not reported as failed. |
 | 10 | The directory holds notes and no git, and a remote is named | Adopted: the notes become the first commit and the remote is added around them. A remote with nothing on the branch is then given them; a remote that holds notes of its own leaves both sides untouched and the user is asked. |
-| 11 | The directory holds a checkout of another remote    | Saving says so and changes nothing. Emptying it is a separate press — commits made on the device may exist nowhere else. |
+| 11 | The directory holds a checkout of another remote    | Saving says so and changes nothing, and nothing here can empty it: the files are not this application's, and commits in them may exist nowhere else. The way on is another directory, or emptying this one outside the application. |
 
 ## The certificate bundle a sync trusts
 
@@ -416,17 +416,19 @@ commands above.
 
 ## Where the token may travel
 
-The access token is sent as the HTTP password, so what the address says decides
-where it goes. Both rules below are in the core rather than only on the settings
-screen: `SyncRequest` is the FFI surface, and whoever calls it gets the same
-answer the screen does.
+The access token is sent as the HTTP password, so over `https://` what the
+address says decides where it goes. An `ssh://` remote is reached with the key
+the settings hold instead — no token is offered to it at all — and rules 2 and 3
+are about the token, so they have nothing to say there. The rules below are in
+the core rather than only on the settings screen: `SyncRequest` is the FFI
+surface, and whoever calls it gets the same answer the screen does.
 
-| № | Rule                                                                    | Why                                                                                              |
-|---|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| 1 | Only `https://`, `file://` and an absolute path are accepted            | `http://` and `git://` carry the token in the clear, and Android's ban on cleartext traffic does not reach libgit2 over a vendored OpenSSL. Refused before a connection is opened, so nothing leaves the device. |
-| 2 | The token is offered to the configured host and to no other             | libgit2 asks per request, and a redirect asks for somewhere else. git itself does not follow credentials across hosts either. |
-| 3 | Credentials written into the address are moved into the token           | `https://x:<token>@host/repo.git` is what a copied clone command looks like; the address field is shown in the clear, the token field is not. |
-| 4 | Whatever the core quotes back is masked before it reaches the screen    | libgit2's messages carry the address it was given, credentials included.                          |
+| № | Rule                                                                          | Why                                                                                              |
+|---|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| 1 | `https://`, `ssh://` (also written `user@host:path`), `file://` and an absolute path are accepted, and nothing else | `http://` and `git://` carry the token in the clear, and Android's ban on cleartext traffic does not reach libgit2 over a vendored OpenSSL. `ssh://` encrypts, and its server is pinned by a host key rather than trusted for answering. Refused before a connection is opened, so nothing leaves the device. |
+| 2 | The token is offered to the configured host and to no other                   | libgit2 asks per request, and a redirect asks for somewhere else. git itself does not follow credentials across hosts either. |
+| 3 | Credentials written into the address are moved into the token                 | `https://x:<token>@host/repo.git` is what a copied clone command looks like; the address field is shown in the clear, the token field is not. What stands before the `@` of an ssh address is a login name, not a secret, and is left in place. |
+| 4 | Whatever the core quotes back is masked before it reaches the screen          | libgit2's messages carry the address it was given, credentials included.                          |
 
 The token is stored in the application's private `SharedPreferences` with
 `allowBackup="false"`; it is never read back into the form, and a "forget the
@@ -596,8 +598,9 @@ adb install -r -d path/to/older.apk    # -d allows the downgrade
 ```
 
 The settings, the token and the working copy of the notes survive it. What
-does not survive is uninstalling: the token lives in the Android keystore and
-the notes are cloned again from the remote, so a reinstall asks for both. A
+does not survive is uninstalling: the token lives in the application's private
+`SharedPreferences`, which go with the application, and the notes are cloned
+again from the remote, so a reinstall asks for both. A
 sync that misbehaves is switched off in the settings — clearing the address
 stops it without touching anything already committed.
 
@@ -760,8 +763,8 @@ line would not see it.
 The application has two suites of its own. The JVM ones
 (`tools/gradle.sh testDebugUnitTest`) cover the projections onto the screen
 and the order the view model puts work in — the notes directory is a git
-working copy, so a scan, a clone, an edit and the wipe before a change of
-remote must not overlap, and stand-ins for the core make that assertable
+working copy, so a scan, a clone and an edit must not overlap, and stand-ins
+for the core make that assertable
 without a device. The instrumented ones
 (`tools/gradle.sh connectedDebugAndroidTest`) need an emulator and are the
 only ones that load the native library.

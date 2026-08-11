@@ -39,6 +39,21 @@ class AdrIndexTest {
     }
 
     /**
+     * The rules file is where work on this repository starts, and it lists the
+     * decisions that bear on it. A decision left out of that list is one the
+     * reader is never told about, and the file then contradicts the code
+     * outright: the list stopped at ADR-0017 while six accepted records stood
+     * after it, one of them the push the file said the application never does.
+     */
+    @Test
+    fun everyRecordIsNamedInTheProjectRules() {
+        val rules = root.resolve("CLAUDE.md").readText()
+        val missing = records().filter { !rules.contains(it) }
+
+        assertTrue("decisions the rules leave unmentioned: $missing", missing.isEmpty())
+    }
+
+    /**
      * Numbers are what the records refer to each other by, so two files
      * sharing one — or a gap where a number was skipped — makes a reference
      * ambiguous or dead.

@@ -14,6 +14,13 @@ Accepted (2026-07-31). Amends
 [ADR-0013](0013-notes-directory-by-path.md), which made the notes directory a
 path that may lie outside the application's storage.
 
+One step of the reasoning below has been overtaken by
+[ADR-0020](0020-ssh-remotes-with-a-pinned-host-key.md): the build no longer
+takes `git2` with `https` alone, so the ssh transport is compiled in. The
+decision stands — libgit2 builds that transport on libssh2, which speaks the
+protocol in-process, and the transport that starts an external `ssh` is a
+different one, compiled only under `GIT_SSH_EXEC`.
+
 ## Context
 
 A notes directory on the shared storage is read and written without trouble,
