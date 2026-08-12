@@ -60,8 +60,16 @@ internal fun rowTimeLabel(row: AgendaRow): String {
 
     return when (val time = row.time) {
         is RowTime.Clock -> timeLabel(time.at, locale, use24Hour)
-        is RowTime.Since -> dayMonthLabel(time.date, locale)
+
+        // The date the row slipped from is read against the date of the agenda
+        // it stands on, which the row states as the distance to it. Taken from
+        // the row rather than from the clock of the device so that what the
+        // column says is decided by the screen and not by the moment it is
+        // drawn — a test that fixes both is then a test of the label.
+        is RowTime.Since -> slippedDateLabel(time.date, time.date.minusDays(row.daysOffset), locale)
+
         is RowTime.Verbatim -> time.text
+
         RowTime.None -> ""
     }
 }
@@ -116,6 +124,23 @@ private fun dateFormatter(locale: Locale): DateTimeFormatter =
 internal fun statedTimeLabel(stated: String, locale: Locale, use24Hour: Boolean): String =
     runCatching { LocalTime.parse(stated) }
         .fold({ timeLabel(it, locale, use24Hour) }, { stated })
+
+/**
+ * The date an overdue row slipped from, read against the date it slipped
+ * towards.
+ *
+ * Within the year the year is left out: it is the year of the agenda around
+ * it, the column is narrow, and repeating it on every slipped row would take
+ * the width from the heading. Outside it the year is the whole of what the
+ * date says — `01.05` in a band that holds everything older than a year reads
+ * as the first of May just gone, when it is the first of May of 2021.
+ */
+internal fun slippedDateLabel(date: LocalDate, against: LocalDate, locale: Locale): String =
+    if (date.year == against.year) {
+        dayMonthLabel(date, locale)
+    } else {
+        dateFormatter(locale).format(date)
+    }
 
 /**
  * A day and a month, in the order and with the separator of the locale.

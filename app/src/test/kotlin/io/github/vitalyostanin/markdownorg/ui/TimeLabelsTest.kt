@@ -55,6 +55,37 @@ class TimeLabelsTest {
     }
 
     @Test
+    fun `a row that slipped within the year states no year`() {
+        val slipped = LocalDate.of(2026, 7, 3)
+        val agenda = LocalDate.of(2026, 8, 12)
+
+        assertEquals("03.07", slippedDateLabel(slipped, agenda, RU))
+        assertEquals("7/3", slippedDateLabel(slipped, agenda, Locale.US))
+    }
+
+    @Test
+    fun `a row that slipped from another year states which one`() {
+        // The band below a year holds dates whose year is the whole of what
+        // they say: without it the first of May of 2021 reads as the first of
+        // May just gone, and the row asks to be redone rather than closed.
+        val slipped = LocalDate.of(2021, 5, 1)
+        val agenda = LocalDate.of(2026, 8, 12)
+
+        assertEquals("01.05.2021", slippedDateLabel(slipped, agenda, RU))
+        assertEquals(true, slippedDateLabel(slipped, agenda, Locale.US).contains("21"))
+    }
+
+    @Test
+    fun `the year of a row is read against its agenda, not against the last of December`() {
+        // A day of January is looked at, and the entry slipped in December: one
+        // month apart, two years apart, and the year is what says so.
+        val slipped = LocalDate.of(2025, 12, 30)
+        val agenda = LocalDate.of(2026, 1, 3)
+
+        assertEquals("30.12.2025", slippedDateLabel(slipped, agenda, RU))
+    }
+
+    @Test
     fun `the moment of the last sync carries its date as well as its time`() {
         // A date and not only a clock: the app is left open across a night,
         // and "14:05" alone would be read as this afternoon.

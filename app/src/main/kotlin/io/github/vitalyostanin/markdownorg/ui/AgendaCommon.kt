@@ -476,6 +476,12 @@ internal fun TimeCell(text: String, modifier: Modifier = Modifier) {
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.outline,
         maxLines = 1,
-        modifier = modifier.widthIn(min = TimeColumnWidth),
+        modifier = modifier
+            .widthIn(min = TimeColumnWidth)
+            // Kept clear of whatever follows the column. The width is a
+            // minimum, so a short label leaves room of its own after it while
+            // a date stating its year fills the column and, without this, ran
+            // straight into the collection dot beside it ("02.04.2021•").
+            .padding(end = Spacing.xs),
     )
 }

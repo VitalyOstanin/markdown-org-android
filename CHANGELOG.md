@@ -82,6 +82,14 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   which reads and writes each file once and commits once; a missed repeat is
   caught up rather than dragged to today, and the move can be put back from a
   snapshot of the files it touched.
+- An overdue row states the year when the date it slipped from is not of the
+  year on screen. Within the year it stays a day and a month, as the column is
+  narrow and the year would be the same on every row; outside it the year is
+  the whole of what the date says — `01.05` in the band that holds everything
+  older than a year reads as the first of May just gone, when it is the first
+  of May of 2021. The time column keeps a gap after itself whatever it holds:
+  its width is a minimum, and a date long enough to fill it used to run into
+  the collection dot beside it.
 - A long press on a row spells the heading out in full, with the legend for
   the glyph and the priority badge under it, and names the collection the dot
   at its head stands for — worded as the extension words it.
