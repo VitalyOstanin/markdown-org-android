@@ -137,6 +137,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   day turning over is what triggers a new scan.
 - Notes written with a byte-order mark are read and edited like any other,
   including the first task of such a file.
+- A priority cookie written away from the front of a heading is read as a
+  priority and left where the author put it, so `## TODO Buy [#A] filter`
+  shows its whole title instead of an empty row — the reading the editor
+  extension gives and the one `org-agenda` prints. The rule comes from the
+  extractor, which the application now reads through at 0.15.
 - English and Russian throughout, including the dates and the hours, which
   follow the locale of the device rather than the language of the build, and
   the sample notes a fresh install is seeded with. Only the wording of the

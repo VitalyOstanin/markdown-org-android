@@ -85,7 +85,14 @@ fn the_cancelled_spelling_already_in_the_file_is_kept() {
 fn text_between_the_keyword_and_the_cookie_survives() {
     let vault = vault("# TODO leftover [#B] Title\n");
 
-    let outcome = set_status(target(vault.path(), 1, "Title"), Some(TaskType::Done)).expect("edit");
+    // The whole of it is the heading: a cookie away from its canonical place
+    // is read as a priority and left in the text (extractor 0.15, ADR-0027),
+    // so what the caller believes is on the line is what it says.
+    let outcome = set_status(
+        target(vault.path(), 1, "leftover [#B] Title"),
+        Some(TaskType::Done),
+    )
+    .expect("edit");
 
     assert_eq!(outcome.line, "# DONE leftover [#B] Title");
 }

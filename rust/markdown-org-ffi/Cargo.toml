@@ -42,10 +42,11 @@ foreign-types = "0.3"
 # The library API used here (scan_directory, filter_agenda, parse_heading_line)
 # is taken from a released version rather than a git revision: advisories are
 # checked against it, and the VS Code extension pins the same number, so the
-# three clients read one set of notes the same way. The floor is 0.14 because
-# that release fixed the order of the tasks scope, and a phone listing them in
-# another order than the editor is the difference this pin exists to prevent.
-markdown-org-extract = "0.14"
+# three clients read one set of notes the same way. The floor is 0.15 because
+# that release stopped a priority cookie away from its canonical place from
+# taking the heading with it, and a phone drawing a row with no text where the
+# editor draws its title is the difference this pin exists to prevent.
+markdown-org-extract = "0.15"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor
