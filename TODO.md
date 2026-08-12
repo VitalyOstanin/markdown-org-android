@@ -4,11 +4,35 @@ Work that is understood but deliberately not done yet.
 
 ## Table of contents
 
+- [How long ago is "long ago"](#how-long-ago-is-long-ago)
 - [One set of notes on more than one remote](#one-set-of-notes-on-more-than-one-remote)
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
 - [Tooltips beyond the agenda screen](#tooltips-beyond-the-agenda-screen)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
 - [Publishing to the app stores](#publishing-to-the-app-stores)
+
+## How long ago is "long ago"
+
+The overdue backlog is cut at two fixed distances. A week tells this week's
+slippage from the rest, and a year tells the rest from what is long gone
+(`LONG_AGO_DAYS = 365L` in `ui/AgendaUiState.kt`, and the band the collapse
+state folds first). Neither distance is a setting, and neither answer suits
+everyone: a plan gone over every week wants the last band to start at a month,
+while a backlog carried for years wants it later than a year.
+
+Deciding the number is the small part. What the setting has to settle first:
+whether both boundaries move or only the far one, whether a band can be turned
+off rather than only folded, and what a band is called once its name stops
+describing its span — "Overdue earlier this year" is wrong the moment the
+boundary is three months.
+
+The same split is drawn by the editor extension, and the bands are what a whole
+backlog is answered through, so a boundary that differs between the two clients
+would put one task in different bands depending on where it is read. The shape
+is worth agreeing on across both before either implements it; a stored setting
+is per device and does not travel with the notes, which is another thing to
+decide — a threshold could equally live in `.markdown-org/` beside the tags and
+be shared the way they are.
 
 ## One set of notes on more than one remote
 
