@@ -220,6 +220,9 @@ class FakeAgendaLoader : AgendaLoader {
     /** Which span each agenda was asked for, in the order the calls came. */
     val scopes = mutableListOf<Scope>()
 
+    /** Which date each of them was asked around, in the same order. */
+    val dates = mutableListOf<LocalDate>()
+
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
@@ -227,6 +230,7 @@ class FakeAgendaLoader : AgendaLoader {
         includeDone: Boolean,
     ): Result<AgendaResult> {
         scopes += scope
+        dates += today
         val answer = CompletableDeferred<Result<AgendaResult>>()
         pending += answer
         return answer.await()
@@ -328,6 +332,7 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
 class FakeUiPreferences(
     override var layout: AgendaLayout = AgendaLayout.TIME,
     override var span: AgendaSpan = AgendaSpan.DAY,
+    override var grouped: Boolean = true,
 ) : UiPreferences
 
 /** Where the notes are kept, in memory. */

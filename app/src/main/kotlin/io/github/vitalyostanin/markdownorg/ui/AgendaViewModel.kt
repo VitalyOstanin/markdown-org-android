@@ -184,6 +184,27 @@ class AgendaViewModel(
     private val _span = MutableStateFlow(ui.span)
     val span: StateFlow<AgendaSpan> = _span.asStateFlow()
 
+    /**
+     * Whether the day is drawn under its section headings.
+     *
+     * Costs no scan, like the layout: the sections are already in hand and the
+     * setting decides whether they announce themselves.
+     */
+    private val _grouped = MutableStateFlow(ui.grouped)
+    val grouped: StateFlow<Boolean> = _grouped.asStateFlow()
+
+    /**
+     * Which date the plan is asked around, or `null` for whatever day it is.
+     *
+     * `null` rather than today's date written down at launch: a phone is left
+     * running over midnight, and a date taken once would keep showing yesterday
+     * until something reset it. Not stored either — a step away from today is
+     * an act of looking something up, and an application reopened tomorrow
+     * opens on tomorrow.
+     */
+    private val _anchor = MutableStateFlow<LocalDate?>(null)
+    val anchor: StateFlow<LocalDate?> = _anchor.asStateFlow()
+
     private val _syncState = MutableStateFlow(SyncUiState())
     val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
 
@@ -227,6 +248,16 @@ class AgendaViewModel(
      */
     private var refreshJob: Job? = null
     private var syncJob: Job? = null
+
+    /**
+     * The date the agenda on screen was grouped against — what "overdue" was
+     * decided by, whichever day is being looked at.
+     *
+     * The shown date cannot answer that once it can be stepped away from: an
+     * agenda for next Friday differs from today's date every minute, and the
+     * check for the day turning over would then fire on every tick.
+     */
+    private var groupedAgainst: LocalDate = clock().toLocalDate()
 
     /**
      * The wall clock, ticked once a minute while the screen is watching.
@@ -275,6 +306,12 @@ class AgendaViewModel(
         ui.layout = layout
     }
 
+    /** Draw the day under its section headings, or as one list. */
+    fun setGrouped(grouped: Boolean) {
+        _grouped.value = grouped
+        ui.grouped = grouped
+    }
+
     /**
      * Ask the core for another span of the plan.
      *
@@ -290,6 +327,46 @@ class AgendaViewModel(
 
         _span.value = span
         ui.span = span
+        refresh()
+    }
+
+    /**
+     * Move the plan [steps] spans away from where it stands: a day at a time
+     * under the day span, a week under the week, a month under the month.
+     *
+     * The step follows the span rather than always being a day, because the
+     * span is what is on screen: stepping a week agenda by one day would answer
+     * with six of the same seven days and read as nothing having happened. The
+     * flat list of tasks has no dates to step through and stays where it is.
+     *
+     * Costs a scan, like [setSpan]: the grouping into overdue, timed and
+     * untimed is the core's, and it is made against the date asked for.
+     */
+    fun stepBy(steps: Int) {
+        if (steps == 0 || !_span.value.hasDays) {
+            return
+        }
+
+        val from = _anchor.value ?: clock().toLocalDate()
+        val moved = when (_span.value) {
+            AgendaSpan.WEEK -> from.plusWeeks(steps.toLong())
+            AgendaSpan.MONTH -> from.plusMonths(steps.toLong())
+            else -> from.plusDays(steps.toLong())
+        }
+        // Back to following the clock rather than pinned to today's date: a
+        // step back to today should leave the screen as it was before the first
+        // step forward, midnight included.
+        _anchor.value = moved.takeIf { it != clock().toLocalDate() }
+        refresh()
+    }
+
+    /** Back to the day being lived through, from wherever the plan was moved to. */
+    fun showToday() {
+        if (_anchor.value == null) {
+            return
+        }
+
+        _anchor.value = null
         refresh()
     }
 
@@ -685,6 +762,11 @@ class AgendaViewModel(
                 }
             }
             val today = clock().toLocalDate()
+            // Which date the plan is asked around: today unless the user has
+            // stepped away from it. Held apart from `today`, which the seeding
+            // below and the day-turned-over check still mean literally.
+            val shown = _anchor.value ?: today
+            groupedAgainst = today
             // What the walk cost, for the one question the screen cannot
             // answer: whether a directory of this size is still usable. The
             // scan is the only part of a refresh that grows with the notes,
@@ -714,7 +796,7 @@ class AgendaViewModel(
             // flight, and the answer of that scan describes the span it was
             // asked for.
             val span = _span.value
-            val built = seeded.mapCatching { agenda.load(span.scope, today).getOrThrow() }
+            val built = seeded.mapCatching { agenda.load(span.scope, shown).getOrThrow() }
             // `mapCatching` catches every throwable, and the cancellation this
             // scan is dropped by is one of them: folded like any other failure
             // it put "the agenda could not be built" on screen, over a scan
@@ -739,7 +821,7 @@ class AgendaViewModel(
                             "the agenda was built in ${millisSince(started)} ms, $rows rows",
                         )
                         AgendaUiState.Ready(
-                            date = today,
+                            date = shown,
                             days = days.showing(hidden).tagged(_currentTag.value, _tags.value),
                             span = span,
                             notices = result.notices(),
@@ -1521,8 +1603,10 @@ class AgendaViewModel(
      * is every minute but one.
      */
     private fun refreshOnNewDay(moment: LocalDateTime) {
-        val shown = (_state.value as? AgendaUiState.Ready)?.date ?: return
-        if (shown != moment.toLocalDate()) {
+        if (_state.value !is AgendaUiState.Ready) {
+            return
+        }
+        if (groupedAgainst != moment.toLocalDate()) {
             // The notes themselves have not changed, so what is held for them
             // stands; it is the date they were grouped against that has moved,
             // and a scan against the new one is the whole of the fix.

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
@@ -53,7 +51,8 @@ private val TileHeight = Sizes.tile
  * and long empty stretches collapsed to a line.
  *
  * What has slipped and what has no hour of its own cannot go on the axis, so
- * they ride above it as bands — in the same order the list layout shows them.
+ * they ride above it — the overdue in their foldable bands, everything else as
+ * the rows the list layout draws, in the order that layout shows them in.
  */
 @Composable
 internal fun TimeLayout(
@@ -61,13 +60,14 @@ internal fun TimeLayout(
     modifier: Modifier = Modifier,
     scroll: LazyListState = rememberLazyListState(),
     collapse: OverdueCollapse = rememberOverdueCollapse(),
+    /** False drops the headings above the axis; the axis itself is unaffected. */
+    grouped: Boolean = true,
     onTaskClick: (Task) -> Unit = {},
     onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
 ) {
-    // Paired here rather than in the list body below. That body is a lambda
+    // Split here rather than in the list body below. That body is a lambda
     // the list runs again on every recomposition — on each frame of a scroll
-    // among others — and the pairing depends on nothing but the band itself.
-    val bands = remember(timeline.allDay) { timeline.allDay.chunked(2) }
+    // among others — and the split depends on nothing but the rows themselves.
     val overdue = remember(timeline.overdue) { timeline.overdue.intoBands() }
 
     LazyColumn(
@@ -79,36 +79,25 @@ internal fun TimeLayout(
             item { EmptyAgenda() }
         }
 
-        overdueBands(overdue, collapse, onGroupAction) { row -> OverdueRow(row, onTaskClick) }
+        overdueBands(overdue, collapse, onGroupAction, grouped = grouped) { row ->
+            OverdueRow(row, onTaskClick)
+        }
 
         if (timeline.allDay.isNotEmpty()) {
-            item {
-                SectionLabel(
-                    stringResource(R.string.agenda_section_untimed),
-                    timeline.allDay.size,
-                )
-            }
-            // Two to a row: a band has to fit a heading, and a single column
-            // of them would push the axis off the screen.
-            items(bands, key = { pair -> pair.first().key }) { pair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    // The weight sits on a box of ours rather than on the card
-                    // itself. The card is wrapped in the tooltip, and what a
-                    // modifier handed to that wrapper reaches is not the node
-                    // this row measures — the weight was lost on the way, and
-                    // the second card of a row came out with no width at all.
-                    pair.forEach { row ->
-                        Box(Modifier.weight(1f)) {
-                            Band(row, onTaskClick, Modifier.fillMaxWidth())
-                        }
-                    }
-                    if (pair.size == 1) {
-                        Spacer(Modifier.weight(1f))
-                    }
+            if (grouped) {
+                item {
+                    SectionLabel(
+                        stringResource(R.string.agenda_section_untimed),
+                        timeline.allDay.size,
+                    )
                 }
+            }
+            // The same rows the list layout draws, one task apiece. They were
+            // cards two to a row, each spelling its date out on a second line:
+            // a second way of setting out the same thing, in twice the height,
+            // on the screen that has the least of it to spare.
+            items(timeline.allDay, key = { row -> row.key }) { row ->
+                TaskRow(row, onTaskClick)
             }
         }
 
@@ -261,41 +250,6 @@ private fun OverdueRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
                     spoken = daysSpoken(row.daysOffset),
                 )
             }
-        }
-    }
-}
-
-/** An all-day task or a deadline still ahead, as a light container. */
-@Composable
-private fun Band(row: AgendaRow, onTaskClick: (Task) -> Unit, modifier: Modifier = Modifier) {
-    val role = LocalAgendaColors.current.role(row.task.kind())
-    val trailing = daysLabel(row.daysOffset)
-    val date = row.task.timestampDate.orEmpty()
-    val actionsLabel = stringResource(R.string.agenda_task_actions)
-
-    TaskTooltip(row.task, row.collection) {
-        Column(
-            modifier = modifier
-                .clip(MaterialTheme.shapes.medium)
-                .background(role.container)
-                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) }
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TaskRowHead(
-                    row.task,
-                    glyph = role.onContainer,
-                    bold = true,
-                    collection = row.collection,
-                )
-            }
-            Text(
-                text = listOf(date, trailing).filter(String::isNotEmpty).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = role.onContainer,
-            )
         }
     }
 }

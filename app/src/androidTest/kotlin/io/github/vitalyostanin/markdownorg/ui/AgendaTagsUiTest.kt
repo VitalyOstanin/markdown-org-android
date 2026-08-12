@@ -84,8 +84,7 @@ class AgendaTagsUiTest {
                         date = SHOWN_DAY,
                         sections = mixed.tagged(current, tags),
                     ),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                     filters = AgendaFilters(
                         tags = tags,
@@ -140,8 +139,7 @@ class AgendaTagsUiTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = AgendaUiState.Ready(date = SHOWN_DAY, sections = mixed),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                 )
             }
@@ -156,8 +154,7 @@ class AgendaTagsUiTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = AgendaUiState.Ready(date = SHOWN_DAY, sections = mixed),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                     filters = AgendaFilters(tags = tags),
                 )

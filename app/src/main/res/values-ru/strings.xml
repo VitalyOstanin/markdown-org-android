@@ -39,6 +39,9 @@
     <string name="agenda_section_timed">Назначено на сегодня</string>
     <string name="agenda_section_untimed">Без времени и впереди</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>
+    <string name="agenda_step_back">Назад</string>
+    <string name="agenda_step_forward">Вперёд</string>
+    <string name="agenda_show_today">Сегодня</string>
 
     <string name="sync_now">Синхронизировать</string>
     <string name="sync_running">Синхронизация…</string>
@@ -107,6 +110,9 @@
     <string name="settings_url_incomplete">Адрес не указывает на репозиторий</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
+    <string name="settings_agenda">Агенда</string>
+    <string name="settings_agenda_grouped">Разбивать день на группы</string>
+    <string name="settings_agenda_grouped_hint">Без разбивки те же строки идут в том же порядке — без заголовков, счётчиков и меню группы.</string>
     <string name="settings_licences">Лицензии</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
     <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
@@ -134,6 +140,9 @@
     <string name="hint_sync_now">Получить с сервера, затем отдать ему сделанные здесь коммиты. Слияние не выполняется: расхождение с сервером показывается, а не разрешается.</string>
     <string name="hint_sync_unavailable">Ни у одной коллекции нет сервера. Заметки хранятся на устройстве, пока адрес не задан в настройках.</string>
     <string name="hint_open_settings">Коллекции, каталог заметок каждой из них и сервер, с которым она синхронизируется.</string>
+    <string name="hint_step_back">На один охват назад: день, неделю или месяц — смотря что на экране. План можно листать и смахиванием по заголовку.</string>
+    <string name="hint_step_forward">На один охват вперёд: день, неделю или месяц — смотря что на экране. План можно листать и смахиванием по заголовку.</string>
+    <string name="hint_show_today">Вернуться к текущему дню.</string>
     <string name="hint_layout_switch">Два способа читать один и тот же день: ось часов, где каждая запись стоит на своём времени, либо все записи строками по порядку дат.</string>
     <string name="hint_span_menu">Сколько плана показывать сразу: сегодняшний день, неделю вокруг него, весь месяц или все открытые задачи — с датами и без них. Ось часов рисует один день, поэтому более широкие диапазоны показываются списком.</string>
     <string name="hint_tag_menu">Сужает агенду до заметок, которые берёт тег, по имени файла каждой записи. Теги объявляют сами заметки, в .markdown-org/tags.json, и ездят вместе с ними — расширение редактора читает те же самые. Какие коллекции читать, выбирается отдельно, фишками ниже.</string>
@@ -166,6 +175,7 @@
     <string name="hint_settings_notes_pick">Заполняет поле выше из системного выбора каталога. Хранится всё равно путь — заметки читаются по пути, а не через выбор каталога.</string>
     <string name="hint_settings_notes_grant">Открывает экран системы, где выдаётся доступ ко всем файлам. Без него каталог вне собственного хранилища приложения не прочитать.</string>
     <string name="hint_settings_collection_remove">Убирает коллекцию из повестки и забывает её адрес, ветку и токен. Каталог и все заметки в нём остаются на устройстве.</string>
+    <string name="hint_settings_agenda_grouped">Заголовки говорят, что за строка перед вами — назначенная на день, без времени или просроченная и насколько давно, — и несут действия над всей группой. Без них эта высота уходит строкам.</string>
     <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
     <string name="hint_settings_crash">То, что осталось от аварийно завершившегося запуска. Это стоит приложить к сообщению об ошибке; само никуда не отправляется.</string>
     <string name="hint_settings_version">Какая сборка установлена. Две сборки одной версии различаются только коммитом — поэтому он здесь.</string>

@@ -3,17 +3,24 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,15 +54,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
@@ -67,16 +76,14 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 fun AgendaScreen(
     state: AgendaUiState,
-    layout: AgendaLayout,
-    onLayoutChange: (AgendaLayout) -> Unit,
+    /** Which view of the plan is on screen, and what changing it asks for. */
+    view: AgendaView = AgendaView(),
     modifier: Modifier = Modifier,
-    /** Which span the header offers; what is on screen is the state's own. */
-    span: AgendaSpan = AgendaSpan.DAY,
-    onSpanChange: (AgendaSpan) -> Unit = {},
     /** The wall clock the marker line follows; see [AgendaViewModel.now]. */
     now: LocalDateTime = LocalDateTime.now(),
     sync: SyncUiState = SyncUiState(),
@@ -123,10 +130,7 @@ fun AgendaScreen(
         Box(Modifier.fillMaxSize()) {
             AgendaBody(
                 state = state,
-                layout = layout,
-                onLayoutChange = onLayoutChange,
-                span = span,
-                onSpanChange = onSpanChange,
+                view = view,
                 now = now,
                 sync = sync,
                 filters = filters,
@@ -162,10 +166,7 @@ private fun groupReport(result: GroupResult): String {
 @Composable
 private fun AgendaBody(
     state: AgendaUiState,
-    layout: AgendaLayout,
-    onLayoutChange: (AgendaLayout) -> Unit,
-    span: AgendaSpan,
-    onSpanChange: (AgendaSpan) -> Unit,
+    view: AgendaView,
     now: LocalDateTime,
     sync: SyncUiState,
     filters: AgendaFilters,
@@ -186,51 +187,70 @@ private fun AgendaBody(
 
         is AgendaUiState.Failed -> FailureMessage(state)
 
-        is AgendaUiState.Ready -> Column(Modifier.fillMaxSize()) {
-            // The marker line belongs to today; on an agenda for another day
-            // there is no current moment to draw, and `null` leaves it out.
-            val marker = now.toLocalTime().takeIf { state.date == now.toLocalDate() }
-            // Outside the scrolling area: the switch is how the user gets
-            // back to the other layout, and it must not scroll away.
-            AgendaHeader(
-                state = state,
-                layout = layout,
-                onLayoutChange = onLayoutChange,
-                span = span,
-                onSpanChange = onSpanChange,
-                sync = sync,
-                filters = filters,
-                actions = actions,
-            )
-            CollectionFilter(filters.collections, filters.onCollectionShown)
-            RefreshingLine(state.refreshing)
-            SyncBanner(sync, actions.onTakeRemote, actions.onTrustHost)
-            ScanNotices(state.notices)
-            // The axis covers one day; every wider span is read as the list,
-            // whatever the layout switch was left on last time it was shown.
-            if (layout == AgendaLayout.TIME && state.span.fitsTimeLayout) {
-                TimeLayout(
-                    // Rebuilt when the hour turns over, not every minute: the
-                    // marker sits on an hour boundary, so that is how often
-                    // the axis it belongs to can differ.
-                    remember(state.sections, state.date, marker?.hour) {
-                        state.sections.toTimeline(marker)
-                    },
-                    scroll = timeScroll,
-                    collapse = collapse,
-                    onTaskClick = actions.onTaskClick,
-                    onGroupAction = actions.onGroupAction,
-                )
-            } else {
-                ListLayout(
-                    days = state.days,
-                    span = state.span,
-                    today = state.date,
-                    scroll = listScroll,
-                    collapse = collapse,
-                    onTaskClick = actions.onTaskClick,
-                    onGroupAction = actions.onGroupAction,
-                )
+        is AgendaUiState.Ready -> BoxWithConstraints(Modifier.fillMaxSize()) {
+            // How much room there is above the plan decides how the header is
+            // set out. Measured rather than read off the orientation: what
+            // matters is the height the agenda was given, and a window shared
+            // with another application is short while the device is upright.
+            val short = maxHeight < Sizes.shortWindow
+
+            Column(Modifier.fillMaxSize()) {
+                // The marker line belongs to today; on an agenda for another
+                // day there is no current moment to draw, and `null` leaves it
+                // out.
+                val marker = now.toLocalTime().takeIf { state.date == now.toLocalDate() }
+                // Outside the scrolling area: the switch is how the user gets
+                // back to the other layout, and it must not scroll away.
+                // Everything standing between the top of the screen and the
+                // plan, under one tag: how much of the screen it takes is what
+                // the short layout is measured by, and each of the five parts
+                // is worth little on its own.
+                Column(Modifier.testTag("agenda-header-area")) {
+                    AgendaHeader(
+                        state = state,
+                        view = view,
+                        sync = sync,
+                        filters = filters,
+                        actions = actions,
+                        short = short,
+                    )
+                    CollectionFilter(filters.collections, filters.onCollectionShown, short)
+                    RefreshingLine(state.refreshing)
+                    SyncBanner(sync, actions.onTakeRemote, actions.onTrustHost, short)
+                    ScanNotices(state.notices)
+                }
+                // The axis covers one day; every wider span is read as the
+                // list, whatever the layout switch was left on last time.
+                if (view.layout == AgendaLayout.TIME && state.span.fitsTimeLayout) {
+                    TimeLayout(
+                        // Rebuilt when the hour turns over, not every minute:
+                        // the marker sits on an hour boundary, so that is how
+                        // often the axis it belongs to can differ.
+                        remember(state.sections, state.date, marker?.hour) {
+                            state.sections.toTimeline(marker)
+                        },
+                        scroll = timeScroll,
+                        collapse = collapse,
+                        grouped = view.grouped,
+                        onTaskClick = actions.onTaskClick,
+                        onGroupAction = actions.onGroupAction,
+                    )
+                } else {
+                    ListLayout(
+                        days = state.days,
+                        span = state.span,
+                        // The day being lived through, not the day on screen:
+                        // once the plan can be stepped away from today, the two
+                        // differ, and it is today that the headings stand out
+                        // against.
+                        today = now.toLocalDate(),
+                        scroll = listScroll,
+                        collapse = collapse,
+                        grouped = view.grouped,
+                        onTaskClick = actions.onTaskClick,
+                        onGroupAction = actions.onGroupAction,
+                    )
+                }
             }
         }
     }
@@ -252,6 +272,8 @@ private fun AgendaBody(
 private fun CollectionFilter(
     collections: List<CollectionChoice>,
     onCollectionShown: (String, Boolean) -> Unit,
+    /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
+    short: Boolean = false,
 ) {
     if (collections.isEmpty()) {
         return
@@ -262,7 +284,12 @@ private fun CollectionFilter(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.gutter, vertical = Spacing.xs)
+            .padding(
+                horizontal = Spacing.gutter,
+                // The chips carry their own padding, and on a short screen
+                // what this adds around them is a row of the plan.
+                vertical = if (short) Spacing.none else Spacing.xs,
+            )
             .testTag("collection-filter"),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -325,13 +352,12 @@ private fun RefreshingLine(refreshing: Boolean) {
 @Composable
 private fun AgendaHeader(
     state: AgendaUiState.Ready,
-    layout: AgendaLayout,
-    onLayoutChange: (AgendaLayout) -> Unit,
-    span: AgendaSpan,
-    onSpanChange: (AgendaSpan) -> Unit,
+    view: AgendaView,
     sync: SyncUiState,
     filters: AgendaFilters,
     actions: AgendaActions,
+    /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
+    short: Boolean = false,
 ) {
     // The device locale, not the application's: the interface is English, but
     // a date is read in whatever language the user reads dates in. Read from
@@ -346,78 +372,264 @@ private fun AgendaHeader(
     val weekday = headingOf(state, locale)
     val full = captionOf(state, locale)
 
+    val padding = Modifier
+        .fillMaxWidth()
+        .padding(
+            start = Spacing.gutter,
+            end = Spacing.sm,
+            top = if (short) Spacing.xs else Spacing.sm,
+            // Nothing below on a short screen: the controls carry a touch
+            // target's worth of padding of their own, and what this would add
+            // under them is another row taken off the plan.
+            bottom = if (short) Spacing.none else Spacing.sm,
+        )
+
+    if (short) {
+        // Everything on one row: on a screen this short the rows the header
+        // takes come straight off the plan, which is what the screen is for.
+        // The day and its date share the space the controls leave, and it is
+        // the date that gives way — the name of the day is what the header is
+        // read for, and a control pushed off the edge cannot be pressed.
+        Row(modifier = padding, verticalAlignment = Alignment.CenterVertically) {
+            Steps(
+                span = view.span,
+                onStep = actions.onStep,
+                onShowToday = actions.onShowToday,
+                modifier = Modifier.weight(1f),
+            ) {
+                Heading(weekday, MaterialTheme.typography.titleMedium)
+                if (full.isNotEmpty()) {
+                    Spacer(Modifier.width(Spacing.sm))
+                    Caption(full, Modifier.weight(1f, fill = false))
+                }
+            }
+            HeaderControls(view, sync, filters, actions)
+        }
+        return
+    }
+
     // The day gets a line of its own, the controls another one. Sharing a
     // single row left the day about a quarter of the width -- less than a
     // long name of a day needs, and a word with nowhere to wrap breaks
     // mid-letter ("Воскрес / енье"). The date under it fared no better,
     // falling onto three lines. Neither depends on the language or on how
     // large the system font is set once the width is the whole screen.
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                start = Spacing.gutter,
-                end = Spacing.sm,
-                top = Spacing.sm,
-                bottom = Spacing.sm,
-            ),
-    ) {
-        Text(
-            text = weekday,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.testTag("agenda-heading"),
-        )
-        // The flat list of tasks has no dates to state, and an empty line
-        // where the date was would leave a gap under the heading.
-        if (full.isNotEmpty()) {
-            Text(
-                text = full,
-                style = MaterialTheme.typography.labelMedium,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.testTag("agenda-caption"),
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Sync and settings sit next to the layout switch rather than in
-            // a menu: with three controls on the screen a menu would hide two
-            // of them behind a tap for no gain.
-            HeaderAction(
-                icon = R.drawable.ic_sync,
-                label = stringResource(R.string.sync_now),
-                // A disabled control says why it is disabled rather than what
-                // it would do: "fetch, then push" reads as an offer, and this
-                // one cannot be taken up until a collection has an address.
-                hint = if (sync.configured) {
-                    stringResource(R.string.hint_sync_now)
-                } else {
-                    stringResource(R.string.hint_sync_unavailable)
-                },
-                tag = "sync-now",
-                enabled = sync.configured && !sync.running,
-                onClick = actions.onSync,
-            )
-            HeaderAction(
-                icon = R.drawable.ic_settings,
-                label = stringResource(R.string.settings_title),
-                hint = stringResource(R.string.hint_open_settings),
-                tag = "open-settings",
-                onClick = actions.onOpenSettings,
-            )
-            Spacer(Modifier.weight(1f))
-            TagMenu(filters.tags, filters.currentTag, filters.onTagChange)
-            SpanMenu(span, onSpanChange)
-            // Left out rather than left there doing nothing: the axis draws
-            // one day, and a switch that changes nothing is a control the user
-            // presses twice before deciding it is broken.
-            if (span.fitsTimeLayout) {
-                LayoutSwitch(layout, onLayoutChange)
+    Column(modifier = padding) {
+        Steps(span = view.span, onStep = actions.onStep, onShowToday = actions.onShowToday) {
+            Column(modifier = Modifier.weight(1f)) {
+                Heading(weekday, MaterialTheme.typography.headlineSmall)
+                // The flat list of tasks has no dates to state, and an empty
+                // line where the date was would leave a gap under the heading.
+                if (full.isNotEmpty()) {
+                    Caption(full)
+                }
             }
+        }
+        HeaderControls(
+            view,
+            sync,
+            filters,
+            actions,
+            modifier = Modifier.fillMaxWidth(),
+            // The width is the whole screen, and controls bunched at the left
+            // edge of it read as one group with the day above them.
+            apart = true,
+        )
+    }
+}
+
+/**
+ * The heading, with the two ways of moving the plan off today around it: a
+ * button on either side, and a sideways drag of the heading itself.
+ *
+ * Both on purpose, and for now: the buttons say the plan can be moved at all,
+ * where a drag has to be found; the drag is at hand where the buttons are two
+ * small targets among five others. Which of them earns its place is a question
+ * for the phone rather than for the reading of the code.
+ *
+ * The flat list of tasks has no dates to step through, and gets neither.
+ */
+@Composable
+private fun Steps(
+    span: AgendaSpan,
+    onStep: (Int) -> Unit,
+    onShowToday: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    if (!span.hasDays) {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically, content = content)
+        return
+    }
+
+    // The drag is answered when it ends rather than while it runs: a step
+    // costs a scan of the notes, and one per frame of a swipe would be a scan
+    // the finger outruns. What the swipe carries is a direction, not a
+    // distance — two days at once is not a thing the heading can say.
+    var travelled by remember { mutableFloatStateOf(0f) }
+    val threshold = with(LocalDensity.current) { Sizes.stepSwipe.toPx() }
+
+    Row(
+        modifier = modifier.draggable(
+            state = rememberDraggableState { delta -> travelled += delta },
+            orientation = Orientation.Horizontal,
+            onDragStopped = {
+                // Dragged the way a page turns: pulling the plan to the left
+                // brings what comes after it into view.
+                if (abs(travelled) >= threshold) {
+                    onStep(if (travelled < 0) 1 else -1)
+                }
+                travelled = 0f
+            },
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StepButton(
+            icon = R.drawable.ic_step_back,
+            label = R.string.agenda_step_back,
+            hint = R.string.hint_step_back,
+            tag = "agenda-step-back",
+        ) {
+            onStep(-1)
+        }
+        // The press that undoes any number of steps, on the thing they moved.
+        // A button of its own would sit there doing nothing on the day the
+        // agenda opens on, which is most of the time.
+        // The weight is spent on a box of this row's own rather than handed to
+        // the tooltip: a weight given to HintTooltip reaches the box inside it
+        // and not the one this row measures, so the strip took the whole width
+        // and the arrow after it was measured to nothing — present, tappable
+        // by name, and reachable by no finger.
+        Box(Modifier.weight(1f)) {
+            HintTooltip(stringResource(R.string.hint_show_today)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClickLabel = stringResource(R.string.agenda_show_today),
+                            onClick = onShowToday,
+                        )
+                        // The press merges the day and its date into one node,
+                        // so the strip needs a handle of its own: the tag on
+                        // the heading inside it is no longer reachable from
+                        // the tree the tests read.
+                        .testTag("agenda-date-strip"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+        }
+        StepButton(
+            icon = R.drawable.ic_step_forward,
+            label = R.string.agenda_step_forward,
+            hint = R.string.hint_step_forward,
+            tag = "agenda-step-forward",
+        ) {
+            onStep(1)
+        }
+    }
+}
+
+/** One of the two arrows, narrower than the controls of the header proper. */
+@Composable
+private fun StepButton(
+    @DrawableRes icon: Int,
+    @StringRes label: Int,
+    @StringRes hint: Int,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    HintTooltip(stringResource(hint)) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.width(Sizes.stepButton).testTag(tag),
+        ) {
+            Icon(painter = painterResource(icon), contentDescription = stringResource(label))
+        }
+    }
+}
+
+/** What the span on screen is called, in the size the header has room for. */
+@Composable
+private fun Heading(text: String, style: TextStyle) {
+    Text(
+        text = text,
+        style = style,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        modifier = Modifier.testTag("agenda-heading"),
+    )
+}
+
+/** Which dates the span covers, cut short rather than wrapped when it must be. */
+@Composable
+private fun Caption(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.outline,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.testTag("agenda-caption"),
+    )
+}
+
+/**
+ * The controls of the header, in the order they are reached in.
+ *
+ * One row whichever way the header is set out: what they are and how they are
+ * ordered does not depend on the room there is, only on where the row sits.
+ * [apart] pushes the two icon buttons away from the menus, which is what the
+ * full-width row wants and what the short one, sharing its row with the day,
+ * must not do.
+ */
+@Composable
+private fun HeaderControls(
+    view: AgendaView,
+    sync: SyncUiState,
+    filters: AgendaFilters,
+    actions: AgendaActions,
+    modifier: Modifier = Modifier,
+    apart: Boolean = false,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        // Sync and settings sit next to the layout switch rather than in
+        // a menu: with three controls on the screen a menu would hide two
+        // of them behind a tap for no gain.
+        HeaderAction(
+            icon = R.drawable.ic_sync,
+            label = stringResource(R.string.sync_now),
+            // A disabled control says why it is disabled rather than what
+            // it would do: "fetch, then push" reads as an offer, and this
+            // one cannot be taken up until a collection has an address.
+            hint = if (sync.configured) {
+                stringResource(R.string.hint_sync_now)
+            } else {
+                stringResource(R.string.hint_sync_unavailable)
+            },
+            tag = "sync-now",
+            enabled = sync.configured && !sync.running,
+            onClick = actions.onSync,
+        )
+        HeaderAction(
+            icon = R.drawable.ic_settings,
+            label = stringResource(R.string.settings_title),
+            hint = stringResource(R.string.hint_open_settings),
+            tag = "open-settings",
+            onClick = actions.onOpenSettings,
+        )
+        if (apart) {
+            Spacer(Modifier.weight(1f))
+        }
+        TagMenu(filters.tags, filters.currentTag, filters.onTagChange)
+        SpanMenu(view.span, view.onSpanChange)
+        // Left out rather than left there doing nothing: the axis draws
+        // one day, and a switch that changes nothing is a control the user
+        // presses twice before deciding it is broken.
+        if (view.span.fitsTimeLayout) {
+            LayoutSwitch(view.layout, view.onLayoutChange)
         }
     }
 }
@@ -555,7 +767,13 @@ private fun HeaderAction(
  * "not configured" on every launch would be noise.
  */
 @Composable
-private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost: () -> Unit) {
+private fun SyncBanner(
+    sync: SyncUiState,
+    onTakeRemote: () -> Unit,
+    onTrustHost: () -> Unit,
+    /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
+    short: Boolean = false,
+) {
     val colors = LocalAgendaColors.current
     val text = when {
         sync.running -> stringResource(R.string.sync_running)
@@ -571,22 +789,34 @@ private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost:
         else -> return
     }
 
+    val tone = if (sync.message?.failed == true) {
+        colors.deadline.tone
+    } else {
+        MaterialTheme.colorScheme.outline
+    }
+
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter)) {
-        HintTooltip(
-            stringResource(R.string.hint_sync_banner),
-            // On the anchor rather than on the line inside it: see HintTooltip.
-            modifier = Modifier.testTag("sync-banner"),
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (sync.message?.failed == true) {
-                    colors.deadline.tone
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-            )
+        // On a short screen the three short lines join the first one rather
+        // than being dropped: what is still unsent and when the last run got
+        // through are stated nowhere else in the application, and a checkout
+        // the user cannot see the state of is what the banner exists against.
+        // The line that gives way is the wordiest one, which is also the one
+        // the two beside it are read against.
+        if (short) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                BannerLine(text, tone, Modifier.weight(1f, fill = false), maxLines = 1)
+                Spacer(Modifier.width(Spacing.sm))
+                Unpushed(sync)
+                Spacer(Modifier.width(Spacing.sm))
+                LastSynced(sync)
+            }
+            // Kept whatever the room: it is a decision only the user can make,
+            // and nothing else on the screen offers it.
+            Answer(sync, onTakeRemote, onTrustHost)
+            return@Column
         }
+
+        BannerLine(text, tone)
         sync.message?.detail?.let { detail ->
             Text(
                 text = detailText(detail),
@@ -603,6 +833,35 @@ private fun SyncBanner(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost:
         Answer(sync, onTakeRemote, onTrustHost)
         Unpushed(sync)
         LastSynced(sync)
+    }
+}
+
+/**
+ * What the last sync did, as the line the banner is read by.
+ *
+ * [maxLines] is what the room decides: given a screen to wrap onto, a failure
+ * is worth reading in full, and a screen with no such room shows as much of it
+ * as fits rather than eating the rows the plan is drawn in.
+ */
+@Composable
+private fun BannerLine(
+    text: String,
+    tone: Color,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    HintTooltip(
+        stringResource(R.string.hint_sync_banner),
+        // On the anchor rather than on the line inside it: see HintTooltip.
+        modifier = modifier.testTag("sync-banner"),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = tone,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

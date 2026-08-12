@@ -81,6 +81,9 @@ fun SyncSettingsScreen(
     diagnostics: DiagnosticsUi = DiagnosticsUi(),
     onKeepLocal: () -> Unit = {},
     onCreateKey: () -> Unit = {},
+    /** Whether the agenda draws its section headings; see [AgendaSection]. */
+    grouped: Boolean = true,
+    onGroupedChange: (Boolean) -> Unit = {},
 ) {
     val form = rememberSyncForm(
         editingId = collections.editingId,
@@ -94,12 +97,7 @@ fun SyncSettingsScreen(
     // stray tap on a list of chips must not be enough to do it.
     var removing by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Caught in the field rather than after a clone failed over it: an address
-    // that cannot work says so where it was typed. An empty field is not an
-    // error at all — it is the store on this device, and saving it is how a
-    // directory of notes is taken in.
-    val problem = remember(form.url) { remoteUrlProblem(form.url) }
-    val malformed = problem != null && problem != RemoteUrlProblem.EMPTY
+    val issues = rememberFormIssues(form, storage)
 
     // The picker runs in another application, and its answer arrives after
     // this composition was rebuilt — so it lands in the field here rather than
@@ -110,15 +108,6 @@ fun SyncSettingsScreen(
             storage.onPickedTaken()
         }
     }
-
-    val own = remember(storage.ownNotesPath) { File(storage.ownNotesPath) }
-    // Keyed on the permission as well as on the path: the grant happens in
-    // another application, and coming back has to clear the complaint about
-    // it without the path being touched.
-    val pathProblem = remember(form.notesPath, storage.granted, own) {
-        notesPathProblem(form.notesPath, own, storage.granted)
-    }
-    val pathRefused = pathProblem != null && pathProblem != NotesPathProblem.EMPTY
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -137,7 +126,7 @@ fun SyncSettingsScreen(
 
             RemoteSection(
                 form = form,
-                problem = problem?.takeIf { malformed },
+                problem = issues.remote?.takeIf { issues.remoteRefused },
                 hasToken = initial.hasToken,
             )
 
@@ -145,8 +134,8 @@ fun SyncSettingsScreen(
 
             NotesDirectorySection(
                 form = form,
-                problem = pathProblem,
-                refused = pathRefused,
+                problem = issues.path,
+                refused = issues.pathRefused,
                 onPickNotesDirectory = storage.onPick,
                 onRequestStorage = storage.onRequestPermission,
             )
@@ -158,6 +147,8 @@ fun SyncSettingsScreen(
             if (collections.all.size > 1) {
                 RemoveCollectionButton(onClick = { removing = collections.editingId })
             }
+
+            AgendaSection(grouped = grouped, onGroupedChange = onGroupedChange)
 
             DiagnosticsSection(
                 crash = diagnostics.crash,
@@ -172,7 +163,7 @@ fun SyncSettingsScreen(
                 // carries where the notes are kept, and notes already on the
                 // device need no remote at all. A collection with no name is
                 // one the filter offers as a blank chip.
-                canSave = !malformed && !pathRefused &&
+                canSave = !issues.remoteRefused && !issues.pathRefused &&
                     (collections.all.isEmpty() || form.name.isNotBlank()),
             )
         }
@@ -187,6 +178,41 @@ fun SyncSettingsScreen(
             onDismiss = { removing = null },
         )
     }
+}
+
+/**
+ * What is wrong with the two fields that can be filled in wrongly.
+ *
+ * An empty field is not an error in either of them, and the difference matters
+ * twice over: an empty address is the store on this device, and an empty
+ * directory is the one the application owns. Hence the pair of `Refused` flags
+ * next to the problems themselves — the field states what it was given, while
+ * Save asks only whether it may be pressed.
+ */
+private data class FormIssues(val remote: RemoteUrlProblem?, val path: NotesPathProblem?) {
+    val remoteRefused: Boolean get() = remote != null && remote != RemoteUrlProblem.EMPTY
+
+    val pathRefused: Boolean get() = path != null && path != NotesPathProblem.EMPTY
+}
+
+/**
+ * Both fields checked as they are typed in, rather than after a clone failed.
+ *
+ * An address that cannot work says so where it was typed, and a directory that
+ * cannot be walked says so before the form is saved over it.
+ */
+@Composable
+private fun rememberFormIssues(form: SyncFormState, storage: StorageUi): FormIssues {
+    val remote = remember(form.url) { remoteUrlProblem(form.url) }
+    val own = remember(storage.ownNotesPath) { File(storage.ownNotesPath) }
+    // Keyed on the permission as well as on the path: the grant happens in
+    // another application, and coming back has to clear the complaint about
+    // it without the path being touched.
+    val path = remember(form.notesPath, storage.granted, own) {
+        notesPathProblem(form.notesPath, own, storage.granted)
+    }
+
+    return remember(remote, path) { FormIssues(remote, path) }
 }
 
 /**
@@ -450,6 +476,45 @@ private fun NotesDirectorySection(
             }
         }
     }
+}
+
+/**
+ * How the agenda draws a day: under its section headings, or as one list.
+ *
+ * Takes effect on the tick rather than on Save, unlike everything above it:
+ * the fields above describe a checkout, and half a checkout is not a state
+ * worth applying, while this one is about what is drawn and nothing is left
+ * half-changed by it. It also has to be seen to be judged — the reader ticks
+ * it, goes back and looks.
+ */
+@Composable
+private fun AgendaSection(grouped: Boolean, onGroupedChange: (Boolean) -> Unit) {
+    Text(
+        text = stringResource(R.string.settings_agenda),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Checkbox(
+            checked = grouped,
+            onCheckedChange = onGroupedChange,
+            modifier = Modifier.testTag("settings-agenda-grouped"),
+        )
+        // On the label rather than on the box, as with the other ticks here.
+        HintTooltip(stringResource(R.string.hint_settings_agenda_grouped)) {
+            Text(
+                text = stringResource(R.string.settings_agenda_grouped),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+    Text(
+        text = stringResource(R.string.settings_agenda_grouped_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /**

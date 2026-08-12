@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,7 +18,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -383,22 +386,29 @@ internal fun LazyListScope.overdueBands(
     onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
     /** Which day these bands belong to, in a list showing several — see [keyIn]. */
     prefix: String = "",
+    /** False draws the rows of every band in order, under no heading at all. */
+    grouped: Boolean = true,
     row: @Composable (AgendaRow) -> Unit,
 ) {
     for (group in groups) {
-        val folded = collapse.isCollapsed(group.band)
+        // A band cannot be folded away while nothing says it is there: without
+        // its heading there is nothing to unfold it by, so an ungrouped day
+        // shows every row it has.
+        val folded = grouped && collapse.isCollapsed(group.band)
 
-        item(key = "$prefix|band:${group.band.name}") {
-            SectionLabel(
-                text = stringResource(group.band.label),
-                count = group.rows.size,
-                warn = group.band != OverdueBand.LONG_AGO,
-                folded = folded,
-                onFold = { collapse.toggle(group.band) },
-                // On the heading whether the band is folded or not: a band
-                // folded away is exactly the one answered without reading.
-                trailing = { GroupMenu(group.band) { action -> onGroupAction(group, action) } },
-            )
+        if (grouped) {
+            item(key = "$prefix|band:${group.band.name}") {
+                SectionLabel(
+                    text = stringResource(group.band.label),
+                    count = group.rows.size,
+                    warn = group.band != OverdueBand.LONG_AGO,
+                    folded = folded,
+                    onFold = { collapse.toggle(group.band) },
+                    // On the heading whether the band is folded or not: a band
+                    // folded away is exactly the one answered without reading.
+                    trailing = { GroupMenu(group.band) { action -> onGroupAction(group, action) } },
+                )
+            }
         }
         if (!folded) {
             items(group.rows, key = { entry -> entry.keyIn(prefix) }) { entry -> row(entry) }
@@ -484,4 +494,88 @@ internal fun TimeCell(text: String, modifier: Modifier = Modifier) {
             // straight into the collection dot beside it ("02.04.2021•").
             .padding(end = Spacing.xs),
     )
+}
+
+/**
+ * One task, as both layouts draw it.
+ *
+ * Shared rather than written twice: a task that carries no time is a row of
+ * the same list wherever it is read, and the axis showed its own as tiles two
+ * to a row — a second way of setting out the same thing, in twice the height.
+ */
+@Composable
+internal fun TaskRow(row: AgendaRow, onTaskClick: (Task) -> Unit) {
+    val role = LocalAgendaColors.current.role(row.task.kind())
+    val overdue = row.daysOffset < 0
+    // Past the recent band the age is not spelled out: see `statesAge`. The
+    // date stays in the time column, and the band heading says the rest.
+    val trailing = if (row.statesAge()) daysLabel(row.daysOffset) else ""
+
+    val actionsLabel = stringResource(R.string.agenda_task_actions)
+
+    TaskTooltip(row.task, row.collection) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = actionsLabel) { onTaskClick(row.task) },
+        ) {
+            Row(
+                modifier = Modifier.padding(end = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The rail carries the kind of entry without spending width on
+                // a label; it clears the 3.0 contrast a non-text carrier needs.
+                Box(
+                    Modifier
+                        .width(Sizes.rail)
+                        .height(Sizes.railHeight)
+                        .clip(
+                            MaterialTheme.shapes.medium.copy(
+                                topEnd = ZeroCornerSize,
+                                bottomEnd = ZeroCornerSize,
+                            ),
+                        )
+                        .background(role.tone),
+                )
+                Spacer(Modifier.width(Spacing.md))
+                TimeCell(rowTimeLabel(row))
+                // The glyph repeats what the rail says in a form that survives
+                // without colour, which is what WCAG 1.4.1 asks for. The
+                // priority badge leads the line after it: the eye reads left to
+                // right, and a column of badges is what a scrolled list is
+                // scanned by.
+                TaskRowHead(
+                    row.task,
+                    glyph = role.tone,
+                    heading = MaterialTheme.colorScheme.onSurface,
+                    collection = row.collection,
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                if (trailing.isEmpty()) {
+                    Text(
+                        text = EMPTY_CELL,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                } else {
+                    // Overdue is the same red at full strength: the date has
+                    // passed, while a deadline still ahead stays plain text.
+                    TrailingTag(
+                        text = trailing,
+                        background = if (overdue) role.tone else Color.Transparent,
+                        foreground = if (overdue) {
+                            LocalAgendaColors.current.onSolid
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                        bold = overdue,
+                        spoken = daysSpoken(row.daysOffset),
+                    )
+                }
+            }
+        }
+    }
 }

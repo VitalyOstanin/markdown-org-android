@@ -138,13 +138,14 @@ class AgendaSpanTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = AgendaUiState.Ready(date = TODAY, days = days, span = span),
-                    // Left on the axis on purpose: what decides the layout is
-                    // the span, and a week must be drawn as the list whatever
-                    // the switch was last set to.
-                    layout = AgendaLayout.TIME,
-                    onLayoutChange = {},
-                    span = span,
-                    onSpanChange = onSpanChange,
+                    view = AgendaView(
+                        // Left on the axis on purpose: what decides the layout
+                        // is the span, and a week must be drawn as the list
+                        // whatever the switch was last set to.
+                        layout = AgendaLayout.TIME,
+                        span = span,
+                        onSpanChange = onSpanChange,
+                    ),
                     now = TODAY.atTime(9, 0),
                 )
             }

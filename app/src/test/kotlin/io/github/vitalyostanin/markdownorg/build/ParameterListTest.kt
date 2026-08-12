@@ -50,7 +50,8 @@ class ParameterListTest {
         val lines = readLines()
 
         return lines.indices.mapNotNull { start ->
-            val indent = declaration.find(lines[start])?.groupValues?.get(1) ?: return@mapNotNull null
+            val indent = declaration.find(lines[start])?.groupValues?.get(1)
+                ?: return@mapNotNull null
             val body = (start + 1..lines.lastIndex).takeWhile { !lines[it].startsWith("$indent)") }
             val count = body.count { line ->
                 val text = lines[line]

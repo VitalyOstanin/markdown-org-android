@@ -19,6 +19,15 @@ interface UiPreferences {
 
     /** How much of the plan the agenda opens on: a day, a week, a month, the tasks. */
     var span: AgendaSpan
+
+    /**
+     * Whether a day is split into named sections, or drawn as one list.
+     *
+     * The headings name what a row is and carry the group menu; a screen this
+     * narrow is also where they cost the most, which is why the choice is the
+     * reader's rather than the layout's.
+     */
+    var grouped: Boolean
 }
 
 /**
@@ -42,6 +51,13 @@ class UiSettings(context: Context) : UiPreferences {
         get() = stored(KEY_SPAN, AgendaSpan.entries, AgendaSpan.DAY)
         set(value) = store(KEY_SPAN, value.name)
 
+    override var grouped: Boolean
+        // Grouped, because that is what the agenda has always drawn and what
+        // names the overdue bands apart; a reader who wants the height back
+        // asks for it.
+        get() = preferences.getBoolean(KEY_GROUPED, true)
+        set(value) = preferences.edit().putBoolean(KEY_GROUPED, value).apply()
+
     /**
      * The stored choice among [options], or [fallback].
      *
@@ -59,5 +75,6 @@ class UiSettings(context: Context) : UiPreferences {
         const val FILE = "ui"
         const val KEY_LAYOUT = "agenda_layout"
         const val KEY_SPAN = "agenda_span"
+        const val KEY_GROUPED = "agenda_grouped"
     }
 }

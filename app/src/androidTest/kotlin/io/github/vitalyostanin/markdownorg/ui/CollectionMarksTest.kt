@@ -10,6 +10,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
@@ -69,22 +70,25 @@ class CollectionMarksTest {
     }
 
     /**
-     * The time layout puts two untimed cards to a row, and each is asked for
-     * half of it.
+     * What has no hour of its own is a row of the list, at the width the list
+     * gives it, in the time layout as well.
      *
-     * Asserted by width rather than left to `assertIsDisplayed`: a card that
-     * ends up with no width at all is still in the tree, still carries its
-     * heading and still answers every query about its contents — the one thing
-     * it does not do is appear on screen.
+     * Asserted by width rather than left to `assertIsDisplayed`: these were
+     * cards two to a row, and a card holds its heading, answers every query
+     * about its contents and is displayed all the same on half the width. The
+     * width is the one thing that tells the two ways of setting it out apart.
      */
     @Test
-    fun theTwoCardsOfARowShareItsWidth() {
+    fun anUntimedTaskIsARowAtFullWidth() {
         showAgenda(AgendaLayout.TIME)
 
+        val screen = compose.onRoot().fetchSemanticsNode().size.width
         val first = compose.onNodeWithText("Pay the tax").fetchSemanticsNode().size.width
         val second = compose.onNodeWithText("Write the report").fetchSemanticsNode().size.width
 
-        assertTrue("first=$first second=$second", second > 0)
+        // Short of the whole width by the gutter the list is inset by, and far
+        // past the half a card was given.
+        assertTrue("first=$first of a screen $screen wide", first > screen * 0.8)
         assertTrue("first=$first second=$second", abs(first - second) <= 1)
     }
 
@@ -100,8 +104,7 @@ class CollectionMarksTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(alone),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                 )
             }
@@ -119,8 +122,7 @@ class CollectionMarksTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(mixed.showing(labels.values.map { it.id }.toSet() - shown)),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                     filters = AgendaFilters(
                         collections = labels.values.map { label ->
@@ -179,8 +181,7 @@ class CollectionMarksTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(mixed),
-                    layout = layout,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = layout),
                     now = MOMENT,
                 )
             }
@@ -193,8 +194,7 @@ class CollectionMarksTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(mixed),
-                    layout = AgendaLayout.LIST,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.LIST),
                     now = MOMENT,
                     filters = AgendaFilters(
                         collections = labels.values.map {

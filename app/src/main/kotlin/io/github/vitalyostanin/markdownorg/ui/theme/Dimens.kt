@@ -12,6 +12,9 @@ import androidx.compose.ui.unit.dp
  * different left edges. Anything the layouts share is [gutter].
  */
 object Spacing {
+    /** No space at all, where a layout has to state that it wants none. */
+    val none = 0.dp
+
     /** Between a glyph and the word next to it. */
     val xs = 4.dp
 
@@ -96,4 +99,34 @@ object Sizes {
 
     /** As much of a stack trace as is shown before it scrolls on its own. */
     val traceHeight = 200.dp
+
+    /**
+     * The window height below which the header stops spending a row per thing.
+     *
+     * A phone on its side leaves the agenda about 330 dp, and a header that
+     * takes one row for the day, another for the date, a third for the
+     * controls, a fourth for the collections and a fifth for the sync line
+     * takes two thirds of that — the plan itself is left with a row and a
+     * half. The value is Material's own boundary between a compact window
+     * height and a medium one, so a tablet on its side, which has the height
+     * for it, keeps the roomy header.
+     */
+    val shortWindow = 480.dp
+
+    /**
+     * How far the heading has to be dragged sideways before the plan steps.
+     *
+     * Short enough for a thumb resting on the header, long enough not to fire
+     * on the sideways part of a press that was meant as a press.
+     */
+    val stepSwipe = 40.dp
+
+    /**
+     * The width of an arrow beside the heading.
+     *
+     * Narrower than the 48 dp of a header control: two of these sit on the row
+     * the day, the date and five controls already share, and the height of the
+     * touch target — which is what a thumb misses on — is left alone.
+     */
+    val stepButton = 36.dp
 }

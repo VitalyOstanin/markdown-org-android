@@ -476,6 +476,93 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun steppingMovesThePlanBySpansRatherThanByDays() = runTest(dispatcher) {
+        // A week stepped by a day answers with six of the same seven days,
+        // which reads on screen as the step having done nothing.
+        ui.span = AgendaSpan.WEEK
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.stepBy(1)
+        advanceUntilIdle()
+
+        assertEquals(listOf(NOON.toLocalDate(), NOON.toLocalDate().plusWeeks(1)), loader.dates)
+    }
+
+    @Test
+    fun steppingBackAndForthLandsOnTheDayItStartedFrom() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.stepBy(1)
+        advanceUntilIdle()
+        model.stepBy(-1)
+        advanceUntilIdle()
+
+        val today = NOON.toLocalDate()
+        assertEquals(listOf(today, today.plusDays(1), today), loader.dates)
+        // Back to following the clock rather than pinned to a date that
+        // happens to be today's: the phone is left running over midnight.
+        assertNull(model.anchor.value)
+    }
+
+    @Test
+    fun theFlatListOfTasksHasNoDatesToStepThrough() = runTest(dispatcher) {
+        ui.span = AgendaSpan.TASKS
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.stepBy(1)
+        advanceUntilIdle()
+
+        assertEquals(1, loader.dates.size)
+        assertNull(model.anchor.value)
+    }
+
+    @Test
+    fun todayBringsThePlanBackFromWhereverItWasStepped() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.stepBy(4)
+        advanceUntilIdle()
+        model.showToday()
+        advanceUntilIdle()
+
+        val today = NOON.toLocalDate()
+        assertEquals(listOf(today, today.plusDays(4), today), loader.dates)
+    }
+
+    /**
+     * The check for the day turning over used to compare the date on screen
+     * with the clock. Once the plan can be stepped away from today, those two
+     * differ every minute, and the check fired a scan on every tick of the
+     * clock — one directory walk a minute, over an agenda nobody was changing.
+     */
+    @Test
+    fun aPlanSteppedAwayFromTodayIsNotRescannedEveryMinute() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.stepBy(1)
+        advanceUntilIdle()
+        loader.pending[1].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        val watching = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            model.now.collect { }
+        }
+        moment = NOON.plusMinutes(2)
+        advanceTimeBy(2 * MINUTE_MS)
+        runCurrent()
+        watching.cancel()
+
+        assertEquals(2, loader.dates.size)
+    }
+
+    @Test
     fun switchingTheLayoutIsRemembered() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
@@ -483,6 +570,22 @@ class AgendaViewModelTest {
         model.setLayout(AgendaLayout.LIST)
 
         assertEquals(AgendaLayout.LIST, ui.layout)
+    }
+
+    @Test
+    fun droppingTheSectionHeadingsIsRememberedAndCostsNoScan() = runTest(dispatcher) {
+        // No scan on purpose, unlike the span: the sections are already in
+        // hand, and the setting only decides whether they announce themselves.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val scansBefore = loader.pending.size
+
+        model.setGrouped(false)
+        advanceUntilIdle()
+
+        assertEquals(false, ui.grouped)
+        assertEquals(false, model.grouped.value)
+        assertEquals("the agenda was rebuilt for nothing", scansBefore, loader.pending.size)
     }
 
     @Test

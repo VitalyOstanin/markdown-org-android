@@ -62,6 +62,9 @@
     <string name="agenda_section_untimed">Untimed and ahead</string>
     <!-- Start and end of a collapsed empty stretch on the hour axis. -->
     <string name="agenda_free_between">free %1$s — %2$s</string>
+    <string name="agenda_step_back">Previous</string>
+    <string name="agenda_step_forward">Next</string>
+    <string name="agenda_show_today">Today</string>
 
     <string name="sync_now">Sync now</string>
     <string name="sync_running">Syncing…</string>
@@ -142,6 +145,10 @@
     <string name="settings_url_incomplete">The address names no repository</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
+    <!-- How the agenda is drawn, as opposed to where the notes come from. -->
+    <string name="settings_agenda">Agenda</string>
+    <string name="settings_agenda_grouped">Group a day into sections</string>
+    <string name="settings_agenda_grouped_hint">Off draws the same rows in the same order, without the headings, their counts and their group menus.</string>
     <string name="settings_licences">Licences</string>
     <!-- Which build this is: the version, the number that orders the builds
          for Android, and the commit it was made from. -->
@@ -190,6 +197,9 @@
     <string name="hint_sync_now">Fetch from the server, then hand it what was committed here. Nothing is merged: notes that moved on both sides are reported rather than resolved.</string>
     <string name="hint_sync_unavailable">No collection has a server yet. The notes are kept on this device until one is given an address in the settings.</string>
     <string name="hint_open_settings">The collections, the directory each of them reads and the server it syncs with.</string>
+    <string name="hint_step_back">One span back: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
+    <string name="hint_step_forward">One span forward: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
+    <string name="hint_show_today">Back to the day being lived through.</string>
     <string name="hint_layout_switch">Two ways to read the same day: the hours it spans, with each entry against its own time, or every entry as a line ordered by date.</string>
     <string name="hint_span_menu">How much of the plan to read at once: today, the week around it, the whole month, or every task still open — dated or not. The hour axis draws a day, so the wider spans are shown as the list.</string>
     <string name="hint_tag_menu">Narrows the agenda to the notes a tag takes, by the name of the file each entry came from. The tags are declared by the notes themselves, in .markdown-org/tags.json, and travel with them — the editor extension reads the same ones. Which collections are read is a separate choice, made by the chips below.</string>
@@ -234,6 +244,7 @@
     <string name="hint_settings_notes_pick">Fills the field above from the system picker. What is stored is a path either way — the notes are read by path, not through the picker.</string>
     <string name="hint_settings_notes_grant">Opens the screen of the platform where access to all files is granted. A directory outside the application\'s own storage cannot be read without it.</string>
     <string name="hint_settings_collection_remove">Takes this collection off the agenda and forgets its address, branch and token. The directory and every note in it stay on the device.</string>
+    <string name="hint_settings_agenda_grouped">The headings say what a row is — scheduled for the day, without an hour, or how long ago it slipped — and carry the actions over a whole band. Turning them off gives their height to the rows.</string>
     <string name="hint_settings_licences">What the application carries besides its own sources, and under what terms.</string>
     <string name="hint_settings_crash">What was left by the run that stopped unexpectedly. It is worth attaching to a report; nothing is sent anywhere by itself.</string>
     <string name="hint_settings_version">Which build is installed. Two builds of the same version differ only by the commit, which is why it is here.</string>

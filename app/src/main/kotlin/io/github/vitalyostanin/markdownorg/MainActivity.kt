@@ -31,6 +31,7 @@ import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.ui.AgendaActions
 import io.github.vitalyostanin.markdownorg.ui.AgendaFilters
 import io.github.vitalyostanin.markdownorg.ui.AgendaScreen
+import io.github.vitalyostanin.markdownorg.ui.AgendaView
 import io.github.vitalyostanin.markdownorg.ui.AgendaViewModel
 import io.github.vitalyostanin.markdownorg.ui.CollectionsUi
 import io.github.vitalyostanin.markdownorg.ui.DiagnosticsUi
@@ -127,6 +128,7 @@ private fun SettingsRoute(
     val sync by model.syncState.collectAsStateWithLifecycle()
     val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
     val editingId by model.editingId.collectAsStateWithLifecycle()
+    val grouped by model.grouped.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
 
@@ -196,6 +198,8 @@ private fun SettingsRoute(
             onDismiss()
         },
         onCreateKey = model::createSshKey,
+        grouped = grouped,
+        onGroupedChange = model::setGrouped,
     )
 }
 
@@ -267,6 +271,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val state by model.state.collectAsStateWithLifecycle()
     val layout by model.layout.collectAsStateWithLifecycle()
     val span by model.span.collectAsStateWithLifecycle()
+    val grouped by model.grouped.collectAsStateWithLifecycle()
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
     val editIssue by model.editIssue.collectAsStateWithLifecycle()
@@ -280,11 +285,14 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
 
     AgendaScreen(
         state = state,
-        layout = layout,
-        onLayoutChange = model::setLayout,
+        view = AgendaView(
+            layout = layout,
+            onLayoutChange = model::setLayout,
+            span = span,
+            onSpanChange = model::setSpan,
+            grouped = grouped,
+        ),
         modifier = modifier,
-        span = span,
-        onSpanChange = model::setSpan,
         now = now,
         sync = sync,
         editIssue = editIssue,
@@ -302,6 +310,8 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             onTaskClick = model::select,
             onTakeRemote = model::takeRemoteNotes,
             onTrustHost = model::trustHost,
+            onStep = model::stepBy,
+            onShowToday = model::showToday,
             onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
             onUndoGroup = model::undoGroup,
             onEditIssueShown = model::editIssueShown,

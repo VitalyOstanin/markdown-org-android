@@ -10,12 +10,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalProvidableLocaleList
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
@@ -116,6 +118,39 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun anUngroupedDayKeepsEveryRowAndNamesNoSection() {
+        showAgenda(AgendaLayout.TIME, grouped = false)
+
+        // Gone: the headings, in both kinds — the overdue bands and the
+        // section above the rows that have no hour of their own.
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_recent), ignoreCase = true)
+            .assertDoesNotExist()
+        compose.onNodeWithText(string(R.string.agenda_section_untimed), ignoreCase = true)
+            .assertDoesNotExist()
+        // Still there: every row the grouped day showed, the overdue ones
+        // included. Dropping a heading must not drop what stood under it.
+        compose.onNodeWithText("Renew the certificate").assertIsDisplayed()
+        compose.onNodeWithText("Update the pins").assertIsDisplayed()
+        compose.onNodeWithText("Daily standup").assertIsDisplayed()
+    }
+
+    @Test
+    fun anUngroupedListShowsTheBandsThatWouldHaveBeenFoldedAway() {
+        // The band below a year opens folded, and the heading is what unfolds
+        // it. Without headings there is no way back, so an ungrouped day has
+        // to draw what it holds.
+        showAgenda(AgendaLayout.LIST, sections = aged, grouped = false)
+
+        compose.onNodeWithText(string(R.string.agenda_section_overdue_long), ignoreCase = true)
+            .assertDoesNotExist()
+        // Scrolled to rather than asserted where it stands: with every band
+        // open the oldest row is the last of a dozen, which is past the bottom
+        // of the screen — a folded band, by contrast, has nothing to scroll to.
+        compose.onNodeWithTag("agenda-list").performScrollToNode(hasText("Eye clinic"))
+        compose.onNodeWithText("Eye clinic").assertIsDisplayed()
+    }
+
+    @Test
     fun timeLayoutDrawsTheHourAxisAndCollapsesTheEmptyStretch() {
         showAgenda(AgendaLayout.TIME)
 
@@ -150,8 +185,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(sample),
-                    layout = AgendaLayout.TIME,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.TIME),
                     now = now,
                 )
             }
@@ -208,8 +242,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(aged),
-                    layout = layout,
-                    onLayoutChange = { layout = it },
+                    view = AgendaView(layout = layout, onLayoutChange = { layout = it }),
                     now = MID_MORNING,
                 )
             }
@@ -247,8 +280,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(sample),
-                    layout = layout,
-                    onLayoutChange = { layout = it },
+                    view = AgendaView(layout = layout, onLayoutChange = { layout = it }),
                     now = MID_MORNING,
                 )
             }
@@ -274,8 +306,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(sample).copy(refreshing = true),
-                    layout = AgendaLayout.TIME,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.TIME),
                     now = MID_MORNING,
                 )
             }
@@ -317,8 +348,7 @@ class AgendaScreenTest {
             MarkdownOrgTheme {
                 AgendaScreen(
                     state = readyState(sections),
-                    layout = layout,
-                    onLayoutChange = { layout = it },
+                    view = AgendaView(layout = layout, onLayoutChange = { layout = it }),
                     now = MID_MORNING,
                 )
             }
@@ -367,8 +397,7 @@ class AgendaScreenTest {
                     state = AgendaUiState.Failed(
                         IllegalStateException("invalid directory: /nowhere").toAgendaMessage(),
                     ),
-                    layout = AgendaLayout.TIME,
-                    onLayoutChange = {},
+                    view = AgendaView(layout = AgendaLayout.TIME),
                 )
             }
         }
@@ -682,6 +711,7 @@ class AgendaScreenTest {
         sync: SyncUiState = SyncUiState(),
         onTaskClick: (Task) -> Unit = {},
         groupResult: GroupResult? = null,
+        grouped: Boolean = true,
         onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
         onUndoGroup: () -> Unit = {},
     ) {
@@ -690,8 +720,7 @@ class AgendaScreenTest {
                 val screen = @Composable {
                     AgendaScreen(
                         state = readyState(sections, date),
-                        layout = layout,
-                        onLayoutChange = {},
+                        view = AgendaView(layout = layout, grouped = grouped),
                         now = now,
                         sync = sync,
                         groupResult = groupResult,

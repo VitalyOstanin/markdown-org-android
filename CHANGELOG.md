@@ -19,7 +19,9 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
 
 - An agenda over a directory of markdown notes, read through the same Rust
   core the editor extension uses. Two layouts: a list ordered by date, and a
-  day laid out on a timeline against the hours it spans.
+  day laid out on a timeline against the hours it spans. What has no hour of
+  its own rides above the axis as the same rows the list draws, one task
+  apiece, so a task is set out one way wherever it is read.
 - Four spans of the same agenda, chosen from the header: the day, the week
   around it, the month, and every task still open — the last one dated or not,
   which is the only place on the phone a task carrying no timestamp can be
@@ -29,6 +31,12 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   something on them. The hour axis draws one day, so the wider spans are read
   as the list and the layout switch steps aside while they are shown. The
   chosen span is remembered like the layout is.
+- Moving the agenda off the day it opens on, a span at a time: an arrow on
+  either side of the heading, and a sideways drag of the heading itself, which
+  turns the plan the way a page is turned. A press on the heading comes back
+  to today, however many steps were taken. The flat list of tasks covers no
+  dates and gets neither. What is shown moves; what is overdue is still
+  overdue against the day being lived through, not against the day on screen.
 - Editing from the agenda: the keyword of a task, its priority, and moving a
   deadline to another day. Every edit is written to the note it came from and
   committed straight away, so a working copy is never left half-changed.
@@ -90,6 +98,24 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   of May of 2021. The time column keeps a gap after itself whatever it holds:
   its width is a minimum, and a date long enough to fill it used to run into
   the collection dot beside it.
+- The grouping itself is a setting: "Group a day into sections" in the
+  settings screen, on by default. Off, the same rows are drawn in the same
+  order with no headings, no counts and no group menus, and the height those
+  headings took goes to the rows — which is what a phone has least of. A band
+  that opens folded when the headings are on is drawn in full when they are
+  off: without a heading there would be nothing to unfold it by. The tick
+  takes effect where it stands, without waiting for the form to be saved.
+- The header gives way on a screen with no height to spare. Set out one thing
+  per row — the day, the date under it, the controls, the collections, the
+  state of the checkout — it took two thirds of a phone held on its side and
+  left the plan a row and a half. Below a window height of 480 dp the day and
+  its date join the controls on one row, the sync line states the checkout,
+  what is unsent and when the last run got through on another, and the header
+  is left taking about a third of the screen. What the room is measured on is
+  the window rather than the orientation, so a window shared with another
+  application is set out the same way. Nothing is dropped: everything the
+  roomy header states is still on screen, and the button a sync waiting on an
+  answer offers stays whatever the height.
 - A long press on a row spells the heading out in full, with the legend for
   the glyph and the priority badge under it, and names the collection the dot
   at its head stands for — worded as the extension words it.

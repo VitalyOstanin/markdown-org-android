@@ -88,9 +88,10 @@ data class AgendaRow(
  * The agenda split the way both layouts read it.
  *
  * One projection feeds both: the list draws the three groups as sections, the
- * time layout draws [overdue] and [untimed] as bands and lays [timed] out on
- * the hour axis. Splitting once is what keeps the promise that the layouts
- * differ in visual language and not in how much they show.
+ * time layout draws [overdue] in its foldable bands, [untimed] as the rows the
+ * list draws, and lays [timed] out on the hour axis. Splitting once is what
+ * keeps the promise that the layouts differ in visual language and not in how
+ * much they show.
  */
 data class AgendaSections(
     /** Tasks whose date has passed. */

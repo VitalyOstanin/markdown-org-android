@@ -7,8 +7,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.ForcedSize
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
@@ -16,13 +18,17 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.times
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
+import uniffi.markdown_org_ffi.RepoStatus
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -75,7 +81,49 @@ class AgendaHeaderSizeTest(private val screen: Screen) {
         }
     }
 
-    private fun showAgenda() {
+    @Test
+    fun mostOfTheScreenIsTheAgendaItself() {
+        // Everything above the plan — the day, its date, the controls, the
+        // collections, the state of the checkout — is worth a screen only in
+        // as much as it leaves the plan on it. Set out one thing per row, the
+        // five of them took two thirds of a phone on its side and left the
+        // agenda a row and a half.
+        //
+        // Filled rather than left at its defaults: with no collections and no
+        // checkout two of the five rows are not drawn at all, and the header
+        // would pass this at any height.
+        showAgenda(
+            filters = AgendaFilters(
+                collections = listOf("personal", "work", "projects").mapIndexed { tone, name ->
+                    CollectionChoice(CollectionLabel(name, name, tone), shown = true)
+                },
+            ),
+            sync = SyncUiState(
+                configured = true,
+                repository = CHECKOUT,
+                lastSyncedAt = LAST_SYNCED,
+            ),
+        )
+
+        val header = compose.onNodeWithTag("agenda-header-area")
+            .getUnclippedBoundsInRoot()
+            .height
+
+        // Two fifths: the roomy header takes about a quarter of a phone held
+        // upright, and the short one about a third of the same phone on its
+        // side. A header past this is one that has stopped giving way.
+        val allowed = screen.size.height * 0.4f
+        assertTrue(
+            "the header takes $header of a ${screen.size.height} screen, leaving " +
+                "the agenda less than it needs; at most $allowed was expected",
+            header < allowed,
+        )
+    }
+
+    private fun showAgenda(
+        filters: AgendaFilters = AgendaFilters(),
+        sync: SyncUiState = SyncUiState(),
+    ) {
         compose.setContent {
             DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(screen.size)) {
                 CompositionLocalProvider(
@@ -84,8 +132,9 @@ class AgendaHeaderSizeTest(private val screen: Screen) {
                     MarkdownOrgTheme {
                         AgendaScreen(
                             state = AgendaUiState.Ready(date = SUNDAY, sections = EMPTY),
-                            layout = AgendaLayout.LIST,
-                            onLayoutChange = {},
+                            view = AgendaView(layout = AgendaLayout.LIST),
+                            sync = sync,
+                            filters = filters,
                         )
                     }
                 }
@@ -114,6 +163,20 @@ class AgendaHeaderSizeTest(private val screen: Screen) {
                 timed = emptyList(),
                 untimed = emptyList(),
             )
+
+        /** A checkout that has something to say about itself, unsent edits and all. */
+        val CHECKOUT = RepoStatus(
+            url = "https://example.org/notes.git",
+            branch = "main",
+            headId = "0123456789abcdef",
+            headSummary = "Add the quarterly report",
+            headTime = 1_753_700_000,
+            dirty = false,
+            unpushed = 2u,
+        )
+
+        /** Long enough ago that the banner words it rather than leaving it out. */
+        const val LAST_SYNCED = 1_753_700_000_000
 
         val controls = listOf(
             R.string.sync_now,
