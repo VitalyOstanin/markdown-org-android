@@ -59,7 +59,7 @@
     <!-- Part of the group went back and part of it had moved on since. -->
     <string name="agenda_group_undo_partial">Some notes had changed and were left as they are</string>
     <string name="agenda_section_timed">Scheduled today</string>
-    <string name="agenda_section_untimed">Untimed and ahead</string>
+    <string name="agenda_section_untimed">All-day &amp; upcoming</string>
     <!-- Start and end of a collapsed empty stretch on the hour axis. -->
     <string name="agenda_free_between">free %1$s — %2$s</string>
     <string name="agenda_step_back">Previous</string>
