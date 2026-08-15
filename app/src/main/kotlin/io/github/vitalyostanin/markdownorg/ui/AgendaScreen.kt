@@ -216,7 +216,13 @@ private fun AgendaBody(
                     )
                     CollectionFilter(filters.collections, filters.onCollectionShown, short)
                     RefreshingLine(state.refreshing)
-                    SyncBanner(sync, actions.onTakeRemote, actions.onTrustHost, short)
+                    SyncBanner(
+                        sync = sync,
+                        onTakeRemote = actions.onTakeRemote,
+                        onTrustHost = actions.onTrustHost,
+                        onOpenSettings = actions.onOpenSettings,
+                        short = short,
+                    )
                     ScanNotices(state.notices)
                 }
                 // The axis covers one day; every wider span is read as the
@@ -763,14 +769,19 @@ private fun HeaderAction(
  * One line under the header: what the last sync did, or where the checkout
  * stands when nothing has been attempted yet.
  *
- * Nothing is shown before a remote is configured — an empty state that says
- * "not configured" on every launch would be noise.
+ * On a first launch it says instead where the notes are and what the settings
+ * are for. That line is not the "not configured" notice this banner used to be
+ * kept clear of: it is shown while nobody has said anything at all — no
+ * address, and no decision to keep the notes here — and it goes for good as
+ * soon as either is given. Without it the first screen offers a sync button
+ * that is disabled and says why only under a long press.
  */
 @Composable
 private fun SyncBanner(
     sync: SyncUiState,
     onTakeRemote: () -> Unit,
     onTrustHost: () -> Unit,
+    onOpenSettings: () -> Unit,
     /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
     short: Boolean = false,
 ) {
@@ -785,6 +796,8 @@ private fun SyncBanner(
             sync.repository.branch,
             sync.repository.headSummary,
         )
+
+        sync.unsettled -> stringResource(R.string.sync_unconfigured)
 
         else -> return
     }
@@ -812,7 +825,7 @@ private fun SyncBanner(
             }
             // Kept whatever the room: it is a decision only the user can make,
             // and nothing else on the screen offers it.
-            Answer(sync, onTakeRemote, onTrustHost)
+            Answer(sync, onTakeRemote, onTrustHost, onOpenSettings)
             return@Column
         }
 
@@ -830,7 +843,7 @@ private fun SyncBanner(
             )
         }
         CollectionRuns(sync)
-        Answer(sync, onTakeRemote, onTrustHost)
+        Answer(sync, onTakeRemote, onTrustHost, onOpenSettings)
         Unpushed(sync)
         LastSynced(sync)
     }
@@ -912,9 +925,18 @@ private fun CollectionRuns(sync: SyncUiState) {
  * A directory holding somebody else's checkout is a third such state and has
  * no button, because the only move from it is over files this application did
  * not write. It is answered outside the application, and the message says so.
+ *
+ * The first launch is offered the settings by the same button rather than by a
+ * screen of its own: what it needs is the form the two above lead to anyway,
+ * and it is the only thing on this screen that is not reached by a glyph.
  */
 @Composable
-private fun Answer(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost: () -> Unit) {
+private fun Answer(
+    sync: SyncUiState,
+    onTakeRemote: () -> Unit,
+    onTrustHost: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val (label, act, tag) = when {
         sync.running -> return
 
@@ -934,6 +956,14 @@ private fun Answer(sync: SyncUiState, onTakeRemote: () -> Unit, onTrustHost: () 
             R.string.sync_take_remote,
             onTakeRemote,
             "sync-take-remote",
+        )
+
+        // Last, because the two above are questions about a server that was
+        // already given, and this one is the state of having given none.
+        sync.unsettled -> Triple(
+            R.string.sync_unconfigured_open,
+            onOpenSettings,
+            "sync-open-settings",
         )
 
         else -> return

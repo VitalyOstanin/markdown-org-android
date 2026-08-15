@@ -1,6 +1,12 @@
 package io.github.vitalyostanin.markdownorg
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -198,9 +204,27 @@ private fun SettingsRoute(
             onDismiss()
         },
         onCreateKey = model::createSshKey,
+        onOpenPage = { page -> openPage(context, page) },
         grouped = grouped,
         onGroupedChange = model::setGrouped,
     )
+}
+
+/**
+ * Hands a page of the server to whatever opens pages on this device.
+ *
+ * Wrapped rather than thrown: a device with no browser at all answers with
+ * [ActivityNotFoundException], and there is nothing to say about it beyond the
+ * log — the page is an offer, and the settings form works without it. The flag
+ * is what a launch from outside an activity's own task needs.
+ */
+private fun openPage(context: Context, page: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(page)).addFlags(FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(intent)
+    } catch (absent: ActivityNotFoundException) {
+        Log.w("MainActivity", "no application opens $page", absent)
+    }
 }
 
 /**

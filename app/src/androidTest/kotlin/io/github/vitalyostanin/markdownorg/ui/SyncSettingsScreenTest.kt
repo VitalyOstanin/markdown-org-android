@@ -367,6 +367,60 @@ class SyncSettingsScreenTest {
     }
 
     /**
+     * A token is issued on the server, and until now the form said only that
+     * one was needed — leaving the reader to find the page on a phone, from
+     * memory. The button carries the address the field above already names.
+     */
+    @Test
+    fun theFormLeadsToThePageWhereTheHostIssuesTokens() {
+        showForm(url = "https://github.com/user/notes.git")
+
+        compose.onNodeWithTag("settings-token-page").performScrollTo().performClick()
+
+        assertEquals("https://github.com/settings/tokens", opened)
+    }
+
+    @Test
+    fun aHostWithNoPagesOfItsOwnIsOpenedAtItsFrontPage() {
+        showForm(url = "https://git.example.org/user/notes.git")
+
+        compose.onNodeWithTag("settings-token-page").performScrollTo().performClick()
+
+        assertEquals("https://git.example.org/", opened)
+    }
+
+    @Test
+    fun notesKeptOnTheDeviceAreOfferedNoPageAtAll() {
+        // No address, and a directory on the device: there is no server to
+        // issue anything, and a button leading nowhere is worse than none.
+        showForm()
+
+        compose.onNodeWithTag("settings-token-page").assertDoesNotExist()
+    }
+
+    /**
+     * The other half of the same journey: the key is copied here and pasted
+     * there, so the page it is pasted into stands beside the copy.
+     */
+    @Test
+    fun theKeyIsOfferedThePageItIsPastedInto() {
+        showForm(url = "ssh://git@github.com/user/notes.git", publicKey = PUBLIC_KEY)
+
+        compose.onNodeWithTag("settings-ssh-copy").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-ssh-key-page").performScrollTo().performClick()
+
+        assertEquals("https://github.com/settings/keys", opened)
+    }
+
+    @Test
+    fun withNoKeyToCarryThereIsNoPageToCarryItTo() {
+        showForm(url = "ssh://git@github.com/user/notes.git")
+
+        compose.onNodeWithTag("settings-ssh-toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-ssh-key-page").assertDoesNotExist()
+    }
+
+    /**
      * The server is pinned by its key and by nothing else, so the one it is
      * pinned by has to be readable — that is what it gets compared against.
      */
@@ -429,6 +483,9 @@ class SyncSettingsScreenTest {
     private var droppedKey: Boolean? = null
     private var keyMade = false
 
+    /** The page the form asked the device to open, and nothing until it does. */
+    private var opened: String? = null
+
     /**
      * What the picker answered, as state: the form takes it in on the
      * recomposition that follows, the way it does on a device when the picker
@@ -481,6 +538,7 @@ class SyncSettingsScreenTest {
                     diagnostics = DiagnosticsUi(onOpenLicences = { licencesOpened = true }),
                     onKeepLocal = { keptLocal = true },
                     onCreateKey = { keyMade = true },
+                    onOpenPage = { page -> opened = page },
                 )
             }
         }

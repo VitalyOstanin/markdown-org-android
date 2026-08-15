@@ -59,6 +59,8 @@
     <string name="sync_host_accept">Это мой сервер</string>
     <string name="sync_host_accept_new">Принять новый ключ сервера</string>
     <string name="sync_checkout">%1$s · %2$s</string>
+    <string name="sync_unconfigured">Заметки хранятся на этом устройстве. Сервер задаётся в настройках.</string>
+    <string name="sync_unconfigured_open">Открыть настройки</string>
     <string name="sync_collection_line">%1$s: %2$s</string>
     <string name="sync_last_synced">синхронизировано %1$s</string>
     <string name="sync_failed_auth">Сервер отклонил токен</string>
@@ -82,6 +84,8 @@
     <string name="settings_token_kept">сохранён; оставьте пустым, чтобы не менять</string>
     <string name="settings_token_none">нужен для приватного репозитория</string>
     <string name="settings_token_drop">Забыть сохранённый токен</string>
+    <string name="settings_token_page">Где выпустить токен</string>
+    <string name="settings_ssh_key_page">Куда вставить ключ</string>
     <string name="settings_notes">Каталог заметок</string>
     <string name="settings_notes_default">пусто — собственное хранилище приложения</string>
     <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
@@ -172,6 +176,8 @@
     <string name="hint_settings_ssh_key_drop">При сохранении формы удаляет сохранённый приватный ключ.</string>
     <string name="hint_settings_ssh_create">Создаёт на устройстве ключ ed25519 и оставляет приватную половину здесь. Публичная появится ниже — её нужно вставить на сервере.</string>
     <string name="hint_settings_ssh_copy">Кладёт публичный ключ в буфер обмена. На телефоне он не нужен: его место — на сервере.</string>
+    <string name="hint_settings_token_page">Открывает в браузере устройства страницу выпуска токенов того хоста, что указан выше. Хост, страницы которого приложению неизвестны, открывается на главной.</string>
+    <string name="hint_settings_ssh_key_page">Открывает в браузере устройства страницу добавления публичных ключей того хоста, что указан выше. Сначала скопируйте ключ: страница нужна именно для того, чтобы его вставить.</string>
     <string name="hint_settings_notes_pick">Заполняет поле выше из системного выбора каталога. Хранится всё равно путь — заметки читаются по пути, а не через выбор каталога.</string>
     <string name="hint_settings_notes_grant">Открывает экран системы, где выдаётся доступ ко всем файлам. Без него каталог вне собственного хранилища приложения не прочитать.</string>
     <string name="hint_settings_collection_remove">Убирает коллекцию из повестки и забывает её адрес, ветку и токен. Каталог и все заметки в нём остаются на устройстве.</string>

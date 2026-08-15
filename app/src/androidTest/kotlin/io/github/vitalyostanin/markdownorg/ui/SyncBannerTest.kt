@@ -33,13 +33,40 @@ class SyncBannerTest {
     private var remotesTaken = 0
     private var hostsTrusted = 0
 
+    /**
+     * The first launch: an address has not been entered and nobody has said
+     * the notes belong here. Everything else on the screen is about a checkout
+     * that does not exist, and the sync button is disabled with its reason
+     * under a long press — so the line says where the notes are and the button
+     * beside it leads to the form that settles it.
+     */
     @Test
-    fun beforeARemoteIsConfiguredNothingIsSaid() {
+    fun aFreshInstallIsToldWhereTheNotesAreAndHowToGiveThemAServer() {
         showAgenda(SyncUiState())
 
-        // An empty state repeating "not configured" on every launch would be
-        // noise, so the line is absent until there is something to report.
+        compose.onNodeWithText(string(R.string.sync_unconfigured)).assertIsDisplayed()
+        compose.onNodeWithTag("sync-open-settings").performClick()
+
+        assertTrue(settingsOpened)
+    }
+
+    @Test
+    fun notesKeptHereOnPurposeAreNotAskedAboutAgain() {
+        // The other half of the same decision: said once in the settings, and
+        // the banner stops raising it. A line repeating it on every launch is
+        // what this screen is kept clear of.
+        showAgenda(SyncUiState(local = true))
+
         compose.onNodeWithTag("sync-banner").assertDoesNotExist()
+        compose.onNodeWithTag("sync-open-settings").assertDoesNotExist()
+    }
+
+    @Test
+    fun aCollectionWithAnAddressIsNotOfferedTheSettingsAgain() {
+        showAgenda(SyncUiState(configured = true, repository = status()))
+
+        compose.onNodeWithTag("sync-open-settings").assertDoesNotExist()
+        compose.onNodeWithText(string(R.string.sync_unconfigured)).assertDoesNotExist()
     }
 
     @Test

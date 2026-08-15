@@ -29,6 +29,7 @@ the emulator.
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [Where the notes live](#where-the-notes-live)
+- [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
 - [Collections](#collections)
 - [Tags](#tags)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
@@ -297,6 +298,29 @@ who owns a repository's directory: the shared storage reports an owner of its
 own for every file in it, so the check refuses those directories wholesale.
 What it defends against and why none of it applies here is
 [ADR-0017](docs/adr/0017-open-a-repository-the-platform-owns.md).
+
+## Setting it up from the phone alone
+
+The whole path from a fresh install to notes syncing is walked on the device.
+Nothing here needs a desktop: the account and the repository are made on the
+server, in the browser of the phone or elsewhere, and everything after that
+happens in the settings form.
+
+| № | Step                        | On the device                                                                                     |
+|---|-----------------------------|-----------------------------------------------------------------------------------------------------|
+| 1 | Install and open            | A sample note is written so the agenda has something to show, and the line under the header says the notes are kept here and where a server is given |
+| 2 | Choose the directory        | Left empty it is the application's own storage; another one is picked in the system's picker, and the button beside the field grants access to all files when it is needed |
+| 3 | Choose how the server is reached | An `https://` address takes a token, an `ssh://` one takes a key. Both are entered in the same form |
+| 4 | Get a token                 | "Where to issue a token" opens, in the browser of the phone, the page of the host the address names — the exact page for GitHub and GitLab, the front page for anything else |
+| 5 | Or make a key               | "Make a key on this device" writes an ed25519 pair and keeps the private half here; a key made elsewhere is pasted into the field above instead |
+| 6 | Hand the public half over   | "Copy the public key" puts it on the clipboard, and "Where to paste the key" opens the page it goes into                                     |
+| 7 | Vouch for the server        | The first sync with an `ssh://` remote stops on the host key, which the banner shows for comparison with what the server says about itself   |
+| 8 | First sync                  | Saving an address starts it: an empty directory is cloned into, a directory with notes is taken into git as it stands                        |
+
+What the phone cannot do is make the account and the repository — that is the
+server's own sign-up, and it is a browser page like any other. The pages the
+form links to are opened as the user, in whatever browser the device has; the
+application sends nothing to them and reads nothing back.
 
 ## Collections
 

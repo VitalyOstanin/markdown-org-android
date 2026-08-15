@@ -136,6 +136,71 @@ fun splitCredentials(url: String): SplitRemoteUrl {
 }
 
 /**
+ * Where the server the notes come from issues a token and takes a public key.
+ *
+ * Both are pages of a browser, and the phone has one: the settings screen asks
+ * for a token and shows half a key, and until now said nothing about where
+ * either is answered. What is needed is not a login — the pages are opened as
+ * the user, in their own browser, already signed in there or not.
+ */
+data class CredentialPages(val token: String, val key: String)
+
+/**
+ * The pages of the host in [url], or `null` when the address names none.
+ *
+ * Only the two hosts the ecosystem is used with have their paths spelled out
+ * here. For anything else the answer is the host itself: a self-hosted GitLab
+ * lives under a different prefix per version, a Gitea puts the pages somewhere
+ * else again, and a link to a page that is not there is worse than a link to
+ * the front door of a server whose menu the user knows.
+ *
+ * A path on the device and a `file://` URL name no host and get nothing.
+ */
+fun credentialPages(url: String): CredentialPages? = when (val host = remoteHost(url)) {
+    null -> null
+
+    "github.com" -> CredentialPages(
+        token = "https://github.com/settings/tokens",
+        key = "https://github.com/settings/keys",
+    )
+
+    "gitlab.com" -> CredentialPages(
+        token = "https://gitlab.com/-/user_settings/personal_access_tokens",
+        key = "https://gitlab.com/-/user_settings/ssh_keys",
+    )
+
+    else -> CredentialPages(token = "https://$host/", key = "https://$host/")
+}
+
+/**
+ * The host an address is fetched from, lowercased, or `null` for a local one.
+ *
+ * The port is left out on purpose: an `ssh://host:2222/` remote is served over
+ * ssh on that port, and the pages are on the web server, which is on its own.
+ */
+private fun remoteHost(url: String): String? {
+    val value = url.trim()
+    val authority = when {
+        value.isEmpty() || value.startsWith("/") || value.startsWith(FILE) -> return null
+
+        value.startsWith(HTTPS) -> value.removePrefix(HTTPS).substringBefore('/')
+
+        value.startsWith(SSH) -> value.removePrefix(SSH).substringBefore('/')
+
+        // `git@host:path`, the scp spelling; anything else with a scheme is an
+        // address this application refuses anyway.
+        !value.contains(SEPARATOR) && value.contains('@') ->
+            value.substringAfter('@').substringBefore(':')
+
+        else -> return null
+    }
+
+    return authority.substringAfterLast('@').substringBefore(':')
+        .lowercase()
+        .ifEmpty { null }
+}
+
+/**
  * Hides credentials in text on its way to the screen.
  *
  * The core passes libgit2's own words through, and those quote the address the

@@ -49,6 +49,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.credentialPages
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
@@ -59,9 +60,10 @@ import java.io.File
  * Where the notes are fetched from, and where they are kept.
  *
  * Four fields: the repository, the branch, a token, and the directory the
- * notes live in. The device-flow sign-in will fill the token in without
- * typing, but a token pasted by hand is the only path that works for a server
- * other than GitHub, so the field stays either way.
+ * notes live in. The token is typed or pasted, and the button under it opens
+ * the page of the host that issues one — a sign-in flow of the host's own
+ * would fill the field without typing, but only for the hosts that offer one,
+ * so the field is the path that works everywhere.
  *
  * What the directory field holds is a path, and it stays a path even when the
  * system's picker filled it in: the core opens the directory with libgit2 and
@@ -81,6 +83,12 @@ fun SyncSettingsScreen(
     diagnostics: DiagnosticsUi = DiagnosticsUi(),
     onKeepLocal: () -> Unit = {},
     onCreateKey: () -> Unit = {},
+    /**
+     * Opens a page of the server in the browser of the device: the half of the
+     * setup that happens there rather than here — issuing a token, pasting a
+     * public key — and the half a phone has no other way to reach.
+     */
+    onOpenPage: (String) -> Unit = {},
     /** Whether the agenda draws its section headings; see [AgendaSection]. */
     grouped: Boolean = true,
     onGroupedChange: (Boolean) -> Unit = {},
@@ -128,9 +136,15 @@ fun SyncSettingsScreen(
                 form = form,
                 problem = issues.remote?.takeIf { issues.remoteRefused },
                 hasToken = initial.hasToken,
+                onOpenPage = onOpenPage,
             )
 
-            KeySection(form = form, initial = initial, onCreateKey = onCreateKey)
+            KeySection(
+                form = form,
+                initial = initial,
+                onCreateKey = onCreateKey,
+                onOpenPage = onOpenPage,
+            )
 
             NotesDirectorySection(
                 form = form,
@@ -318,12 +332,20 @@ private fun RemoveCollectionDialog(onConfirm: () -> Unit, onDismiss: () -> Unit)
 
 /** The key half of the form, over what the settings already hold. */
 @Composable
-private fun KeySection(form: SyncFormState, initial: SettingsInitial, onCreateKey: () -> Unit) {
+private fun KeySection(
+    form: SyncFormState,
+    initial: SettingsInitial,
+    onCreateKey: () -> Unit,
+    onOpenPage: (String) -> Unit,
+) {
     SshSection(
         hasKey = initial.hasKey,
         publicKey = initial.publicKey.ifEmpty { null },
         knownHost = initial.knownHost.ifEmpty { null },
         onCreateKey = onCreateKey,
+        // The page of the host as it is being typed, not as it was stored: the
+        // key is pasted into the server the address names now.
+        onOpenKeyPage = credentialPages(form.url)?.key?.let { page -> { onOpenPage(page) } },
         key = form.sshKey,
         onKeyChange = { form.sshKey = it },
         passphrase = form.sshPassphrase,
@@ -344,7 +366,12 @@ private fun KeySection(form: SyncFormState, initial: SettingsInitial, onCreateKe
  * one is about that host and no other.
  */
 @Composable
-private fun RemoteSection(form: SyncFormState, problem: RemoteUrlProblem?, hasToken: Boolean) {
+private fun RemoteSection(
+    form: SyncFormState,
+    problem: RemoteUrlProblem?,
+    hasToken: Boolean,
+    onOpenPage: (String) -> Unit,
+) {
     OutlinedTextField(
         value = form.url,
         onValueChange = { form.url = it },
@@ -392,6 +419,20 @@ private fun RemoteSection(form: SyncFormState, problem: RemoteUrlProblem?, hasTo
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         modifier = Modifier.fillMaxWidth().testTag("settings-token"),
     )
+
+    // Where the host above issues one. Only while the address names a host:
+    // a directory on the device issues nothing, and a button leading to a
+    // page that cannot exist is worse than no button.
+    credentialPages(form.url)?.let { pages ->
+        HintTooltip(stringResource(R.string.hint_settings_token_page)) {
+            TextButton(
+                onClick = { onOpenPage(pages.token) },
+                modifier = Modifier.testTag("settings-token-page"),
+            ) {
+                Text(stringResource(R.string.settings_token_page))
+            }
+        }
+    }
 
     // Only way back to a remote that needs no credentials: an empty field
     // means "keep what is stored", and the stored one is never shown to be
@@ -698,6 +739,16 @@ private fun SshSection(
     publicKey: String?,
     knownHost: String?,
     onCreateKey: () -> Unit,
+    /**
+     * Opens the page the server takes public keys on, or null while the
+     * address names no host to have one.
+     *
+     * The page and the way of opening it arrive as one lambda rather than as
+     * two parameters: which of the two is missing is not a difference this
+     * section acts on — either there is somewhere to send the reader, or the
+     * button is not drawn.
+     */
+    onOpenKeyPage: (() -> Unit)?,
     key: String,
     onKeyChange: (String) -> Unit,
     passphrase: String,
@@ -706,7 +757,6 @@ private fun SshSection(
     onDropKeyChange: (Boolean) -> Unit,
     startsOpen: Boolean,
 ) {
-    val clipboard = LocalClipboardManager.current
     var open by rememberSaveable { mutableStateOf(startsOpen) }
 
     HintTooltip(stringResource(R.string.hint_settings_ssh)) {
@@ -776,6 +826,21 @@ private fun SshSection(
         }
     }
 
+    PublicHalf(publicKey = publicKey, knownHost = knownHost, onOpenKeyPage = onOpenKeyPage)
+}
+
+/**
+ * The half of the key that leaves the phone, and the server it is taken to.
+ *
+ * Together because they are the same journey read in both directions: the key
+ * goes from here to the server, and the fingerprint comes back from the server
+ * to be compared here. Neither is typed and neither is stored by this form —
+ * one is copied out, the other is read.
+ */
+@Composable
+private fun PublicHalf(publicKey: String?, knownHost: String?, onOpenKeyPage: (() -> Unit)?) {
+    val clipboard = LocalClipboardManager.current
+
     // The public half is of no use on the phone: it is taken to a server, and
     // the way it gets there from here is the clipboard.
     publicKey?.let { line ->
@@ -786,12 +851,28 @@ private fun SshSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().testTag("settings-ssh-public"),
         )
-        HintTooltip(stringResource(R.string.hint_settings_ssh_copy)) {
-            TextButton(
-                onClick = { clipboard.setText(AnnotatedString(line)) },
-                modifier = Modifier.testTag("settings-ssh-copy"),
-            ) {
-                Text(stringResource(R.string.settings_ssh_copy))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            HintTooltip(stringResource(R.string.hint_settings_ssh_copy)) {
+                TextButton(
+                    onClick = { clipboard.setText(AnnotatedString(line)) },
+                    modifier = Modifier.testTag("settings-ssh-copy"),
+                ) {
+                    Text(stringResource(R.string.settings_ssh_copy))
+                }
+            }
+
+            // Beside the copy rather than under it: the two are one move —
+            // take the key, open the page it goes into — and the page is of
+            // no use until the key is on the clipboard.
+            onOpenKeyPage?.let { open ->
+                HintTooltip(stringResource(R.string.hint_settings_ssh_key_page)) {
+                    TextButton(
+                        onClick = open,
+                        modifier = Modifier.testTag("settings-ssh-key-page"),
+                    ) {
+                        Text(stringResource(R.string.settings_ssh_key_page))
+                    }
+                }
             }
         }
     }

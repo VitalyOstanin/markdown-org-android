@@ -66,7 +66,19 @@ data class SyncUiState(
      * without being reopened.
      */
     val publicKey: String = "",
-)
+) {
+
+    /**
+     * Nothing has been said about where the notes belong yet.
+     *
+     * Neither an address nor the answer that this device is where they stay —
+     * which is the state a fresh install is in, and the one thing the screen
+     * has to lead out of. Distinct from both halves it is made of: `configured`
+     * alone would call a deliberately local collection unfinished, and `local`
+     * alone says nothing about a collection that has a server.
+     */
+    val unsettled: Boolean get() = !configured && !local
+}
 
 /** What one collection's turn in a sync run ended with. */
 data class CollectionRun(val id: String, val name: String, val message: SyncMessage)

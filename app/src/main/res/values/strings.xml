@@ -85,6 +85,11 @@
     <string name="sync_host_accept_new">Accept the new server key</string>
     <!-- Branch, then the summary of the commit at its tip. -->
     <string name="sync_checkout">%1$s · %2$s</string>
+    <!-- The first launch, before an address has been entered and before the
+         notes have been declared local: where the notes are, and what the
+         settings are for. -->
+    <string name="sync_unconfigured">The notes are kept on this device. A server is set up in the settings.</string>
+    <string name="sync_unconfigured_open">Open the settings</string>
     <!-- One collection's line in the summary of a run over several: its name,
          then what its own sync answered. -->
     <string name="sync_collection_line">%1$s: %2$s</string>
@@ -114,6 +119,11 @@
     <string name="settings_token_kept">saved; leave blank to keep it</string>
     <string name="settings_token_none">needed for a private repository</string>
     <string name="settings_token_drop">Forget the saved token</string>
+    <!-- Opens, in the browser of the device, the page where the host in the
+         address above issues tokens. -->
+    <string name="settings_token_page">Where to issue a token</string>
+    <!-- The same for the page a public key is pasted into. -->
+    <string name="settings_ssh_key_page">Where to paste the key</string>
     <string name="settings_notes">Notes directory</string>
     <string name="settings_notes_default">empty: the application\'s own storage</string>
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
@@ -241,6 +251,11 @@
     <string name="hint_settings_ssh_key_drop">Deletes the stored private key when the form is saved.</string>
     <string name="hint_settings_ssh_create">Makes an ed25519 key on this device and keeps the private half here. The public half appears below, for pasting into the server.</string>
     <string name="hint_settings_ssh_copy">Puts the public key on the clipboard. It is of no use on the phone: the server is where it goes.</string>
+    <!-- The two links out of the form. Both open the browser of the device at
+         the host the address names, which is the half of the setup that
+         happens on the server rather than here. -->
+    <string name="hint_settings_token_page">Opens, in the browser of this device, the page of the host above where tokens are issued. A host this application does not know the pages of opens at its front page.</string>
+    <string name="hint_settings_ssh_key_page">Opens, in the browser of this device, the page of the host above where public keys are added. Copy the key first: pasting it is what the page is for.</string>
     <string name="hint_settings_notes_pick">Fills the field above from the system picker. What is stored is a path either way — the notes are read by path, not through the picker.</string>
     <string name="hint_settings_notes_grant">Opens the screen of the platform where access to all files is granted. A directory outside the application\'s own storage cannot be read without it.</string>
     <string name="hint_settings_collection_remove">Takes this collection off the agenda and forgets its address, branch and token. The directory and every note in it stay on the device.</string>

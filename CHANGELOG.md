@@ -61,6 +61,15 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   recognised by its name rather than by the spelling of it: capitals, lower
   case and punycode name one host, so a domain written outside ASCII is
   answered the same way an ASCII one is.
+- The whole of the first setup from the phone. On a fresh install — before an
+  address is entered and before the notes are declared local — the line under
+  the header says the notes are kept on this device and offers the settings
+  where a server is given; it goes for good as soon as either is answered.
+  Inside the form, "where to issue a token" and "where to paste the key" open,
+  in the browser of the device, the page of the host the address names: the
+  exact page for GitHub and GitLab, the front page for a host whose paths this
+  application does not know. Nothing is sent to those pages and nothing is read
+  back — they are opened as the user, in the browser they already use.
 - Notes kept on the device alone, with git added to them later rather than
   the directory being a working copy from the start. Saving an address no
   longer empties what is already there: the directory is taken into git as it
