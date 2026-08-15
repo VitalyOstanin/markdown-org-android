@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -13,7 +14,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
@@ -73,6 +78,8 @@ internal fun ListLayout(
     collapse: OverdueCollapse = rememberOverdueCollapse(),
     /** False drops the section headings; the rows and their order are the same. */
     grouped: Boolean = true,
+    /** Filled in as the list is built, so a jump to a day can reach its heading. */
+    positions: DayPositions? = null,
     onTaskClick: (Task) -> Unit = {},
     onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
 ) {
@@ -93,10 +100,16 @@ internal fun ListLayout(
         contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.xs),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // Everything below goes in through the counter rather than straight
+        // into the list: where a heading ends up is the sum of every row, band
+        // and label before it, and that sum is this same code — see [Counting].
+        val counted = Counting(this)
+        val heads = mutableMapOf<LocalDate, Int>()
+
         // An empty week still draws its seven days — that emptiness is the
         // answer it was asked for. Anywhere else a single line says it.
         if (days.all { it.sections.isEmpty } && !span.showsEmptyDays) {
-            item { EmptyAgenda() }
+            counted.item { EmptyAgenda() }
         }
 
         days.forEachIndexed { index, day ->
@@ -109,24 +122,25 @@ internal fun ListLayout(
             // on several days of a week under the same file and line.
             val prefix = if (headed) day.date?.toString() ?: TASKS_PREFIX else ""
             if (headed) {
-                item(key = "head:$prefix") { DayHeading(day.date, today) }
+                day.date?.let { date -> heads[date] = counted.count }
+                counted.item(key = "head:$prefix") { DayHeading(day.date, today) }
             }
             if (empty) {
-                item(key = "empty:$prefix") { DayEmpty() }
+                counted.item(key = "empty:$prefix") { DayEmpty() }
                 return@forEachIndexed
             }
 
-            overdueBands(bands[index], collapse, onGroupAction, prefix, grouped) { row ->
+            counted.overdueBands(bands[index], collapse, onGroupAction, prefix, grouped) { row ->
                 TaskRow(row, onTaskClick)
             }
-            section(
+            counted.section(
                 R.string.agenda_section_timed,
                 day.sections.timed,
                 prefix,
                 onTaskClick,
                 grouped = grouped,
             )
-            section(
+            counted.section(
                 R.string.agenda_section_untimed,
                 day.sections.untimed,
                 prefix,
@@ -134,6 +148,58 @@ internal fun ListLayout(
                 grouped = grouped,
             )
         }
+
+        positions?.of = heads
+    }
+}
+
+/**
+ * Where the heading of each day sits in the list.
+ *
+ * What a jump to a day needs and what a lazy list does not offer: it scrolls to
+ * an index, while what is known here is a date. The map is filled while the
+ * list is built rather than worked out beside it, so a band, a section label or
+ * a row added later is counted without anything else being told about it.
+ *
+ * Written from the phase that measures the list rather than from a composition,
+ * and read from an effect. Nothing in a composition reads it, so the write
+ * starts no redraw of its own.
+ */
+@Stable
+internal class DayPositions {
+    var of: Map<LocalDate, Int> by mutableStateOf(emptyMap())
+}
+
+@Composable
+internal fun rememberDayPositions(): DayPositions = remember { DayPositions() }
+
+/**
+ * A [LazyListScope] that counts what goes into it.
+ *
+ * Delegation rather than a tally kept beside the list: every item added lands
+ * here whichever helper added it — the overdue bands, a section, a row — and a
+ * count kept by hand would have to be updated at each of those places and would
+ * be wrong the first time one of them was missed.
+ */
+private class Counting(private val scope: LazyListScope) : LazyListScope by scope {
+
+    /** How many items have been added so far, which is the index of the next one. */
+    var count = 0
+        private set
+
+    override fun item(key: Any?, contentType: Any?, content: @Composable LazyItemScope.() -> Unit) {
+        count += 1
+        scope.item(key, contentType, content)
+    }
+
+    override fun items(
+        count: Int,
+        key: ((index: Int) -> Any)?,
+        contentType: (index: Int) -> Any?,
+        itemContent: @Composable LazyItemScope.(index: Int) -> Unit,
+    ) {
+        this.count += count
+        scope.items(count, key, contentType, itemContent)
     }
 }
 

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -47,9 +48,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,8 +73,11 @@ import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import io.github.vitalyostanin.markdownorg.ui.theme.collectionTone
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -179,6 +185,13 @@ private fun AgendaBody(
     // Shared by both layouts, unlike the scroll positions: a band answered in
     // one of them is answered in the other, and the two show the same agenda.
     val collapse = rememberOverdueCollapse()
+    // Where the days of the span sit in the list, and how many times the user
+    // has asked to be taken back to today. A counter rather than a flag: two
+    // presses in a row are two requests, and the second of them must not be
+    // swallowed because the first left the same value behind.
+    val positions = rememberDayPositions()
+    var asked by remember { mutableIntStateOf(0) }
+    JumpToToday(asked, now.toLocalDate(), positions, listScroll)
 
     when (state) {
         AgendaUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -199,32 +212,26 @@ private fun AgendaBody(
                 // day there is no current moment to draw, and `null` leaves it
                 // out.
                 val marker = now.toLocalTime().takeIf { state.date == now.toLocalDate() }
-                // Outside the scrolling area: the switch is how the user gets
-                // back to the other layout, and it must not scroll away.
-                // Everything standing between the top of the screen and the
-                // plan, under one tag: how much of the screen it takes is what
-                // the short layout is measured by, and each of the five parts
-                // is worth little on its own.
-                Column(Modifier.testTag("agenda-header-area")) {
-                    AgendaHeader(
-                        state = state,
-                        view = view,
-                        sync = sync,
-                        filters = filters,
-                        actions = actions,
-                        short = short,
-                    )
-                    CollectionFilter(filters.collections, filters.onCollectionShown, short)
-                    RefreshingLine(state.refreshing)
-                    SyncBanner(
-                        sync = sync,
-                        onTakeRemote = actions.onTakeRemote,
-                        onTrustHost = actions.onTrustHost,
-                        onOpenSettings = actions.onOpenSettings,
-                        short = short,
-                    )
-                    ScanNotices(state.notices)
-                }
+                HeaderArea(
+                    state = state,
+                    view = view,
+                    sync = sync,
+                    filters = filters,
+                    actions = actions,
+                    short = short,
+                    today = now.toLocalDate(),
+                    // The plan goes back to the span holding today, and the
+                    // list to the day itself. The scroll is asked for only
+                    // where there is a list of days to scroll: a single day
+                    // draws no headings, and nothing there has a place to jump
+                    // to.
+                    onShowToday = {
+                        actions.onShowToday()
+                        if (state.days.size > 1) {
+                            asked += 1
+                        }
+                    },
+                )
                 // The axis covers one day; every wider span is read as the
                 // list, whatever the layout switch was left on last time.
                 if (view.layout == AgendaLayout.TIME && state.span.fitsTimeLayout) {
@@ -253,6 +260,7 @@ private fun AgendaBody(
                         scroll = listScroll,
                         collapse = collapse,
                         grouped = view.grouped,
+                        positions = positions,
                         onTaskClick = actions.onTaskClick,
                         onGroupAction = actions.onGroupAction,
                     )
@@ -355,6 +363,82 @@ private fun RefreshingLine(refreshing: Boolean) {
     )
 }
 
+/**
+ * Everything standing between the top of the screen and the plan.
+ *
+ * Outside the scrolling area: the layout switch is how the user gets back to
+ * the other layout, and it must not scroll away. Under one tag, because how
+ * much of the screen it takes is what the short layout is measured by, and each
+ * of the five parts is worth little on its own.
+ */
+@Composable
+private fun HeaderArea(
+    state: AgendaUiState.Ready,
+    view: AgendaView,
+    sync: SyncUiState,
+    filters: AgendaFilters,
+    actions: AgendaActions,
+    /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
+    short: Boolean,
+    /** The day being lived through, which the way back to it is decided by. */
+    today: LocalDate,
+    onShowToday: () -> Unit,
+) {
+    Column(Modifier.testTag("agenda-header-area")) {
+        AgendaHeader(
+            state = state,
+            view = view,
+            sync = sync,
+            filters = filters,
+            actions = actions,
+            short = short,
+            // Read off the days that came back rather than off the date the
+            // header shows: what the button is for is the day being lived
+            // through not being among them, and a week is named by its first
+            // day rather than by today.
+            awayFromToday = state.days.none { it.date == today },
+            onShowToday = onShowToday,
+        )
+        CollectionFilter(filters.collections, filters.onCollectionShown, short)
+        RefreshingLine(state.refreshing)
+        SyncBanner(
+            sync = sync,
+            onTakeRemote = actions.onTakeRemote,
+            onTrustHost = actions.onTrustHost,
+            onOpenSettings = actions.onOpenSettings,
+            short = short,
+        )
+        ScanNotices(state.notices)
+    }
+}
+
+/**
+ * Takes the list to the day being lived through, once it is drawn.
+ *
+ * The press that asks for it moves the plan first, and the list of the new span
+ * does not exist until it has been measured — a scroll issued in the same frame
+ * would be aimed at where the days of the old span stood. So the effect waits
+ * for the day to have a place of its own and scrolls to it then.
+ *
+ * [asked] is what starts it: a press raises the count, the effect runs again,
+ * and nothing happens on the launch that has never been asked for anything.
+ */
+@Composable
+private fun JumpToToday(
+    asked: Int,
+    today: LocalDate,
+    positions: DayPositions,
+    scroll: LazyListState,
+) {
+    LaunchedEffect(asked) {
+        if (asked == 0) {
+            return@LaunchedEffect
+        }
+        val at = snapshotFlow { positions.of[today] }.filterNotNull().first()
+        scroll.scrollToItem(at)
+    }
+}
+
 @Composable
 private fun AgendaHeader(
     state: AgendaUiState.Ready,
@@ -364,6 +448,10 @@ private fun AgendaHeader(
     actions: AgendaActions,
     /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
     short: Boolean = false,
+    /** Whether the span on screen has been moved off the day being lived through. */
+    awayFromToday: Boolean = false,
+    /** What the press on the date and on the button beside it asks for. */
+    onShowToday: () -> Unit = actions.onShowToday,
 ) {
     // The device locale, not the application's: the interface is English, but
     // a date is read in whatever language the user reads dates in. Read from
@@ -400,7 +488,8 @@ private fun AgendaHeader(
             Steps(
                 span = view.span,
                 onStep = actions.onStep,
-                onShowToday = actions.onShowToday,
+                onShowToday = onShowToday,
+                awayFromToday = awayFromToday,
                 modifier = Modifier.weight(1f),
             ) {
                 Heading(weekday, MaterialTheme.typography.titleMedium)
@@ -421,7 +510,12 @@ private fun AgendaHeader(
     // falling onto three lines. Neither depends on the language or on how
     // large the system font is set once the width is the whole screen.
     Column(modifier = padding) {
-        Steps(span = view.span, onStep = actions.onStep, onShowToday = actions.onShowToday) {
+        Steps(
+            span = view.span,
+            onStep = actions.onStep,
+            onShowToday = onShowToday,
+            awayFromToday = awayFromToday,
+        ) {
             Column(modifier = Modifier.weight(1f)) {
                 Heading(weekday, MaterialTheme.typography.headlineSmall)
                 // The flat list of tasks has no dates to state, and an empty
@@ -454,6 +548,11 @@ private fun AgendaHeader(
  * for the phone rather than for the reading of the code.
  *
  * The flat list of tasks has no dates to step through, and gets neither.
+ *
+ * [awayFromToday] puts the way back on screen as a button of its own. The press
+ * on the date does the same thing and is the older of the two, but nothing says
+ * it is there: a week stepped forward twice leaves the reader looking for a
+ * control, and the one that exists is a strip of text nobody presses.
  */
 @Composable
 private fun Steps(
@@ -461,6 +560,8 @@ private fun Steps(
     onStep: (Int) -> Unit,
     onShowToday: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the span on screen holds the day being lived through. */
+    awayFromToday: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     if (!span.hasDays) {
@@ -523,6 +624,23 @@ private fun Steps(
                     verticalAlignment = Alignment.CenterVertically,
                     content = content,
                 )
+            }
+        }
+        // Only while there is somewhere to go back from: on the span holding
+        // today the button would do nothing, and the header has four other
+        // controls competing for the same row.
+        if (awayFromToday) {
+            HintTooltip(stringResource(R.string.hint_show_today)) {
+                TextButton(
+                    onClick = onShowToday,
+                    modifier = Modifier.testTag("agenda-today"),
+                ) {
+                    Text(
+                        text = stringResource(R.string.agenda_show_today),
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                    )
+                }
             }
         }
         StepButton(

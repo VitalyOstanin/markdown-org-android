@@ -34,9 +34,13 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
 - Moving the agenda off the day it opens on, a span at a time: an arrow on
   either side of the heading, and a sideways drag of the heading itself, which
   turns the plan the way a page is turned. A press on the heading comes back
-  to today, however many steps were taken. The flat list of tasks covers no
-  dates and gets neither. What is shown moves; what is overdue is still
-  overdue against the day being lived through, not against the day on screen.
+  to today, however many steps were taken, and a button beside it says so:
+  once the span on screen no longer holds the day being lived through, "Today"
+  appears next to the arrows, brings the plan back and takes the list to the
+  day itself rather than to the first of the seven. The flat list of tasks
+  covers no dates and gets neither. What is shown moves; what is overdue is
+  still overdue against the day being lived through, not against the day on
+  screen.
 - Editing from the agenda: the keyword of a task, its priority, and moving a
   deadline to another day. Every edit is written to the note it came from and
   committed straight away, so a working copy is never left half-changed.
