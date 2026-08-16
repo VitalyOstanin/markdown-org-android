@@ -87,6 +87,17 @@ object Sizes {
     val hourRow = 48.dp
     val tile = 40.dp
 
+    /**
+     * The least a week of the month grid may be squeezed to.
+     *
+     * The rows share whatever height is left below the header, so the whole
+     * month is on screen without a scroll; this is the floor under that
+     * sharing — enough for the day number and the count chip under it. A
+     * window shorter than six of these is where the grid starts to be cut,
+     * and that is a window the list reads better in anyway.
+     */
+    val monthCell = 56.dp
+
     /** Width of the `09:00` label on the axis; the tiles start after it. */
     val hourLabel = 40.dp
 

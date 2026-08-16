@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import io.github.vitalyostanin.markdownorg.core.MergedTag
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
+import java.time.LocalDate
 
 /**
  * What a tap on the agenda can ask for.
@@ -30,6 +31,13 @@ data class AgendaActions(
     val onStep: (Int) -> Unit = {},
     /** Back to the day being lived through, from wherever the plan was moved to. */
     val onShowToday: () -> Unit = {},
+    /**
+     * Open one day of the plan, whatever span is on screen.
+     *
+     * What a cell of the month calendar answers with: the grid says how much a
+     * day carries, and what that is made of is the day span's to show.
+     */
+    val onShowDay: (LocalDate) -> Unit = {},
     val onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
     val onUndoGroup: () -> Unit = {},
     val onEditIssueShown: () -> Unit = {},
@@ -55,6 +63,12 @@ data class AgendaView(
     val onSpanChange: (AgendaSpan) -> Unit = {},
     /** Whether the day is drawn under its section headings — a stored setting. */
     val grouped: Boolean = true,
+    /**
+     * Whether the month is drawn as a calendar rather than as the list — a
+     * stored setting, and the way back to the reading the month had before the
+     * grid existed.
+     */
+    val monthAsGrid: Boolean = true,
 )
 
 /** What narrows the agenda: which collections are shown, and the tag in force. */

@@ -54,6 +54,24 @@ data class StorageUi(
     val onPickedTaken: () -> Unit = {},
 )
 
+/**
+ * How the agenda is drawn, as the form offers it.
+ *
+ * Together for the reason the objects above are: these are choices about the
+ * screen rather than about the checkout, they take effect on the tick, and a
+ * fifth loose boolean beside four loose lambdas is what the grouping was
+ * introduced to stop.
+ */
+@Immutable
+data class AgendaUi(
+    /** Whether a day keeps its section headings. */
+    val grouped: Boolean = true,
+    val onGroupedChange: (Boolean) -> Unit = {},
+    /** Whether a month is a calendar rather than the list of its days. */
+    val monthAsGrid: Boolean = true,
+    val onMonthAsGridChange: (Boolean) -> Unit = {},
+)
+
 /** What is left of the last run, and the notices of what the APK carries. */
 @Immutable
 data class DiagnosticsUi(

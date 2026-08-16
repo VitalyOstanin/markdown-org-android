@@ -31,6 +31,16 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   something on them. The hour axis draws one day, so the wider spans are read
   as the list and the layout switch steps aside while they are shown. The
   chosen span is remembered like the layout is.
+- The month is drawn as a calendar, the way the editor extension draws it: one
+  cell per day, filled out to whole weeks with the days its first and last
+  weeks borrow from the months beside it. A cell says how much the day carries
+  and takes the overdue colour as soon as any of that has slipped; what the
+  count is made of is behind a long press, and the rows themselves are one tap
+  away — a cell opens its day. That is what a month is read for and what a
+  list of thirty-one days cannot show. The list stays available for the month
+  behind a setting, `Draw the month as a calendar`, because the two answer
+  different questions: the calendar says where the month is full, the list
+  says what is in it.
 - Moving the agenda off the day it opens on, a span at a time: an arrow on
   either side of the heading, and a sideways drag of the heading itself, which
   turns the plan the way a page is turned. A press on the heading comes back

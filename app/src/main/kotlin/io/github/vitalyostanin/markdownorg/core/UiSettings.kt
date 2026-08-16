@@ -28,6 +28,15 @@ interface UiPreferences {
      * reader's rather than the layout's.
      */
     var grouped: Boolean
+
+    /**
+     * Whether the month is drawn as a calendar, or as the list the week uses.
+     *
+     * The two answer different questions — the grid says how the month is
+     * shaped and where the arrears sit, the list says what is in it — and which
+     * one a reader wants is not something the screen can tell.
+     */
+    var monthAsGrid: Boolean
 }
 
 /**
@@ -58,6 +67,13 @@ class UiSettings(context: Context) : UiPreferences {
         get() = preferences.getBoolean(KEY_GROUPED, true)
         set(value) = preferences.edit().putBoolean(KEY_GROUPED, value).apply()
 
+    override var monthAsGrid: Boolean
+        // The calendar, because that is what a month is asked for: thirty-one
+        // days of rows is the week's reading stretched past what a screen can
+        // hold, and the shape of the month is what the list cannot show at all.
+        get() = preferences.getBoolean(KEY_MONTH_GRID, true)
+        set(value) = preferences.edit().putBoolean(KEY_MONTH_GRID, value).apply()
+
     /**
      * The stored choice among [options], or [fallback].
      *
@@ -76,5 +92,6 @@ class UiSettings(context: Context) : UiPreferences {
         const val KEY_LAYOUT = "agenda_layout"
         const val KEY_SPAN = "agenda_span"
         const val KEY_GROUPED = "agenda_grouped"
+        const val KEY_MONTH_GRID = "agenda_month_grid"
     }
 }

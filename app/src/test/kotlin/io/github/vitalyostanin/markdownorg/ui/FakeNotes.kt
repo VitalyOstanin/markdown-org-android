@@ -333,6 +333,7 @@ class FakeUiPreferences(
     override var layout: AgendaLayout = AgendaLayout.TIME,
     override var span: AgendaSpan = AgendaSpan.DAY,
     override var grouped: Boolean = true,
+    override var monthAsGrid: Boolean = true,
 ) : UiPreferences
 
 /** Where the notes are kept, in memory. */

@@ -19,6 +19,12 @@
     <string name="agenda_span_tasks">Tasks</string>
     <!-- A day of a week that has nothing on it. -->
     <string name="agenda_day_empty">Nothing on this day</string>
+    <!--
+      The month calendar. A cell says how much a day carries; what that is
+      made of is read by opening the day, which is what a tap on it does.
+    -->
+    <string name="month_cell_open">Open this day in Day view</string>
+    <string name="month_cell_overdue">%1$d overdue</string>
 
     <!--
       Tags: the second of the two filters over the agenda. Which collections
@@ -160,6 +166,8 @@
     <string name="settings_agenda">Agenda</string>
     <string name="settings_agenda_grouped">Group a day into sections</string>
     <string name="settings_agenda_grouped_hint">Off draws the same rows in the same order, without the headings, their counts and their group menus.</string>
+    <string name="settings_agenda_month_grid">Draw the month as a calendar</string>
+    <string name="settings_agenda_month_grid_hint">Off reads the month as the week does — a heading per day that has anything on it, and the rows under it.</string>
     <string name="settings_licences">Licences</string>
     <!-- Which build this is: the version, the number that orders the builds
          for Android, and the commit it was made from. -->
@@ -261,6 +269,7 @@
     <string name="hint_settings_notes_grant">Opens the screen of the platform where access to all files is granted. A directory outside the application\'s own storage cannot be read without it.</string>
     <string name="hint_settings_collection_remove">Takes this collection off the agenda and forgets its address, branch and token. The directory and every note in it stay on the device.</string>
     <string name="hint_settings_agenda_grouped">The headings say what a row is — scheduled for the day, without an hour, or how long ago it slipped — and carry the actions over a whole band. Turning them off gives their height to the rows.</string>
+    <string name="hint_settings_agenda_month_grid">A calendar says how the month is shaped: which weeks are full, where the arrears sit, which stretch is free. A day is opened to read what is actually on it. The list says what is in the month and takes a scroll to say it.</string>
     <string name="hint_settings_licences">What the application carries besides its own sources, and under what terms.</string>
     <string name="hint_settings_crash">What was left by the run that stopped unexpectedly. It is worth attaching to a report; nothing is sent anywhere by itself.</string>
     <string name="hint_settings_version">Which build is installed. Two builds of the same version differ only by the commit, which is why it is here.</string>
@@ -352,6 +361,11 @@
         <item quantity="other">%d commits not sent</item>
     </plurals>
 
+    <!-- What a cell of the month calendar carries, said in full on a press. -->
+    <plurals name="month_cell_tasks">
+        <item quantity="one">%d task</item>
+        <item quantity="other">%d tasks</item>
+    </plurals>
     <!--
       Read under a heading that already says the entry is overdue, so the row
       counts the days and no more: the sentence took the width the heading

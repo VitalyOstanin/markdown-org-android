@@ -89,9 +89,8 @@ fun SyncSettingsScreen(
      * public key — and the half a phone has no other way to reach.
      */
     onOpenPage: (String) -> Unit = {},
-    /** Whether the agenda draws its section headings; see [AgendaSection]. */
-    grouped: Boolean = true,
-    onGroupedChange: (Boolean) -> Unit = {},
+    /** How the agenda is drawn; see [AgendaSection]. */
+    agenda: AgendaUi = AgendaUi(),
 ) {
     val form = rememberSyncForm(
         editingId = collections.editingId,
@@ -162,7 +161,7 @@ fun SyncSettingsScreen(
                 RemoveCollectionButton(onClick = { removing = collections.editingId })
             }
 
-            AgendaSection(grouped = grouped, onGroupedChange = onGroupedChange)
+            AgendaSection(agenda)
 
             DiagnosticsSection(
                 crash = diagnostics.crash,
@@ -520,39 +519,68 @@ private fun NotesDirectorySection(
 }
 
 /**
- * How the agenda draws a day: under its section headings, or as one list.
+ * How the agenda draws what it was asked for: whether a day keeps its section
+ * headings, and whether a month is a calendar or the list of its days.
  *
  * Takes effect on the tick rather than on Save, unlike everything above it:
  * the fields above describe a checkout, and half a checkout is not a state
- * worth applying, while this one is about what is drawn and nothing is left
- * half-changed by it. It also has to be seen to be judged — the reader ticks
- * it, goes back and looks.
+ * worth applying, while these are about what is drawn and nothing is left
+ * half-changed by them. They also have to be seen to be judged — the reader
+ * ticks one, goes back and looks.
  */
 @Composable
-private fun AgendaSection(grouped: Boolean, onGroupedChange: (Boolean) -> Unit) {
+private fun AgendaSection(agenda: AgendaUi) {
     Text(
         text = stringResource(R.string.settings_agenda),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
     )
+    AgendaChoice(
+        checked = agenda.grouped,
+        onCheckedChange = agenda.onGroupedChange,
+        tag = "settings-agenda-grouped",
+        label = R.string.settings_agenda_grouped,
+        hint = R.string.hint_settings_agenda_grouped,
+        explanation = R.string.settings_agenda_grouped_hint,
+    )
+    AgendaChoice(
+        checked = agenda.monthAsGrid,
+        onCheckedChange = agenda.onMonthAsGridChange,
+        tag = "settings-agenda-month-grid",
+        label = R.string.settings_agenda_month_grid,
+        hint = R.string.hint_settings_agenda_month_grid,
+        explanation = R.string.settings_agenda_month_grid_hint,
+    )
+}
+
+/** One tick of [AgendaSection]: the box, its label and the line under it. */
+@Composable
+private fun AgendaChoice(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    tag: String,
+    @StringRes label: Int,
+    @StringRes hint: Int,
+    @StringRes explanation: Int,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Checkbox(
-            checked = grouped,
-            onCheckedChange = onGroupedChange,
-            modifier = Modifier.testTag("settings-agenda-grouped"),
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag(tag),
         )
         // On the label rather than on the box, as with the other ticks here.
-        HintTooltip(stringResource(R.string.hint_settings_agenda_grouped)) {
+        HintTooltip(stringResource(hint)) {
             Text(
-                text = stringResource(R.string.settings_agenda_grouped),
+                text = stringResource(label),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
     Text(
-        text = stringResource(R.string.settings_agenda_grouped_hint),
+        text = stringResource(explanation),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

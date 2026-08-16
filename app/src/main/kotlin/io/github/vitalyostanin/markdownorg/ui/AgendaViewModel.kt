@@ -194,6 +194,15 @@ class AgendaViewModel(
     val grouped: StateFlow<Boolean> = _grouped.asStateFlow()
 
     /**
+     * Whether the month is read as a calendar or as the list of its days.
+     *
+     * Costs no scan either: the same month is in hand, and this decides which
+     * of the two readings of it is drawn.
+     */
+    private val _monthAsGrid = MutableStateFlow(ui.monthAsGrid)
+    val monthAsGrid: StateFlow<Boolean> = _monthAsGrid.asStateFlow()
+
+    /**
      * Which date the plan is asked around, or `null` for whatever day it is.
      *
      * `null` rather than today's date written down at launch: a phone is left
@@ -313,6 +322,18 @@ class AgendaViewModel(
     }
 
     /**
+     * Draw the month as a calendar, or as the list the week uses.
+     *
+     * No scan follows, unlike [setSpan]: both readings are of the same month
+     * the core has already answered with, and which of them is drawn is the
+     * screen's decision alone.
+     */
+    fun setMonthAsGrid(asGrid: Boolean) {
+        _monthAsGrid.value = asGrid
+        ui.monthAsGrid = asGrid
+    }
+
+    /**
      * Ask the core for another span of the plan.
      *
      * A scan follows, because the grouping is the core's: a week is the same
@@ -357,6 +378,24 @@ class AgendaViewModel(
         // step back to today should leave the screen as it was before the first
         // step forward, midnight included.
         _anchor.value = moved.takeIf { it != clock().toLocalDate() }
+        refresh()
+    }
+
+    /**
+     * Show one day, whatever span was on screen.
+     *
+     * What a cell of the month calendar asks for. Both the anchor and the span
+     * move, and a scan follows for the reason [setSpan] takes one: a day is a
+     * different grouping of the notes, not a slice of the month already in
+     * hand. The anchor is cleared when the day asked for is today, so the plan
+     * goes back to following the clock — the same rule [stepBy] keeps.
+     */
+    fun showDay(date: LocalDate) {
+        _anchor.value = date.takeIf { it != clock().toLocalDate() }
+        if (_span.value != AgendaSpan.DAY) {
+            _span.value = AgendaSpan.DAY
+            ui.span = AgendaSpan.DAY
+        }
         refresh()
     }
 

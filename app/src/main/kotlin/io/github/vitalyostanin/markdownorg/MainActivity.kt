@@ -37,6 +37,7 @@ import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.ui.AgendaActions
 import io.github.vitalyostanin.markdownorg.ui.AgendaFilters
 import io.github.vitalyostanin.markdownorg.ui.AgendaScreen
+import io.github.vitalyostanin.markdownorg.ui.AgendaUi
 import io.github.vitalyostanin.markdownorg.ui.AgendaView
 import io.github.vitalyostanin.markdownorg.ui.AgendaViewModel
 import io.github.vitalyostanin.markdownorg.ui.CollectionsUi
@@ -135,6 +136,7 @@ private fun SettingsRoute(
     val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
     val editingId by model.editingId.collectAsStateWithLifecycle()
     val grouped by model.grouped.collectAsStateWithLifecycle()
+    val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
 
@@ -205,8 +207,12 @@ private fun SettingsRoute(
         },
         onCreateKey = model::createSshKey,
         onOpenPage = { page -> openPage(context, page) },
-        grouped = grouped,
-        onGroupedChange = model::setGrouped,
+        agenda = AgendaUi(
+            grouped = grouped,
+            onGroupedChange = model::setGrouped,
+            monthAsGrid = monthAsGrid,
+            onMonthAsGridChange = model::setMonthAsGrid,
+        ),
     )
 }
 
@@ -296,6 +302,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val layout by model.layout.collectAsStateWithLifecycle()
     val span by model.span.collectAsStateWithLifecycle()
     val grouped by model.grouped.collectAsStateWithLifecycle()
+    val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
     val editIssue by model.editIssue.collectAsStateWithLifecycle()
@@ -315,6 +322,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             span = span,
             onSpanChange = model::setSpan,
             grouped = grouped,
+            monthAsGrid = monthAsGrid,
         ),
         modifier = modifier,
         now = now,
@@ -336,6 +344,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             onTrustHost = model::trustHost,
             onStep = model::stepBy,
             onShowToday = model::showToday,
+            onShowDay = model::showDay,
             onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
             onUndoGroup = model::undoGroup,
             onEditIssueShown = model::editIssueShown,

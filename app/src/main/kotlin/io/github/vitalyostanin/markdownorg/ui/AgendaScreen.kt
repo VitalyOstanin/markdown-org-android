@@ -248,6 +248,22 @@ private fun AgendaBody(
                         onTaskClick = actions.onTaskClick,
                         onGroupAction = actions.onGroupAction,
                     )
+                } else if (state.span == AgendaSpan.MONTH && view.monthAsGrid) {
+                    // A month of headings is a scroll; the grid is what says
+                    // where the month is full and where it is not. The rows
+                    // themselves stay one tap away, in the day the cell opens.
+                    MonthLayout(
+                        cells = remember(state.date, now.toLocalDate()) {
+                            buildMonthGrid(state.date, now.toLocalDate())
+                        },
+                        load = remember(state.days) { state.days.monthLoad() },
+                        // What the header leaves, and not a line more: the
+                        // grid divides the height it is given between its
+                        // weeks, and a grid that took the whole column would
+                        // hang its last weeks below the screen.
+                        modifier = Modifier.weight(1f),
+                        onDayClick = actions.onShowDay,
+                    )
                 } else {
                     ListLayout(
                         days = state.days,

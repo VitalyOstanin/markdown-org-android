@@ -12,6 +12,8 @@
     <string name="agenda_span_month">Месяц</string>
     <string name="agenda_span_tasks">Задачи</string>
     <string name="agenda_day_empty">В этот день ничего нет</string>
+    <string name="month_cell_open">Открыть этот день в режиме дня</string>
+    <string name="month_cell_overdue">из них просрочено: %1$d</string>
 
     <string name="agenda_tag_none">Все заметки</string>
     <string name="agenda_tags_explain">Что значат теги</string>
@@ -117,6 +119,8 @@
     <string name="settings_agenda">Агенда</string>
     <string name="settings_agenda_grouped">Разбивать день на группы</string>
     <string name="settings_agenda_grouped_hint">Без разбивки те же строки идут в том же порядке — без заголовков, счётчиков и меню группы.</string>
+    <string name="settings_agenda_month_grid">Показывать месяц календарём</string>
+    <string name="settings_agenda_month_grid_hint">Без календаря месяц читается как неделя: заголовок у каждого дня, где что-то есть, и строки под ним.</string>
     <string name="settings_licences">Лицензии</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
     <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
@@ -182,6 +186,7 @@
     <string name="hint_settings_notes_grant">Открывает экран системы, где выдаётся доступ ко всем файлам. Без него каталог вне собственного хранилища приложения не прочитать.</string>
     <string name="hint_settings_collection_remove">Убирает коллекцию из повестки и забывает её адрес, ветку и токен. Каталог и все заметки в нём остаются на устройстве.</string>
     <string name="hint_settings_agenda_grouped">Заголовки говорят, что за строка перед вами — назначенная на день, без времени или просроченная и насколько давно, — и несут действия над всей группой. Без них эта высота уходит строкам.</string>
+    <string name="hint_settings_agenda_month_grid">Календарь показывает форму месяца: где недели заполнены, где скопились просрочки, где свободно. Что именно стоит в дне, читается открытием дня. Список говорит, что в месяце есть, но за это приходится его прокрутить.</string>
     <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
     <string name="hint_settings_crash">То, что осталось от аварийно завершившегося запуска. Это стоит приложить к сообщению об ошибке; само никуда не отправляется.</string>
     <string name="hint_settings_version">Какая сборка установлена. Две сборки одной версии различаются только коммитом — поэтому он здесь.</string>
@@ -257,6 +262,12 @@
         <item quantity="other">%d коммита не отправлено</item>
     </plurals>
 
+    <plurals name="month_cell_tasks">
+        <item quantity="one">%d задача</item>
+        <item quantity="few">%d задачи</item>
+        <item quantity="many">%d задач</item>
+        <item quantity="other">%d задачи</item>
+    </plurals>
     <plurals name="agenda_days_overdue">
         <item quantity="one">%d день</item>
         <item quantity="few">%d дня</item>
