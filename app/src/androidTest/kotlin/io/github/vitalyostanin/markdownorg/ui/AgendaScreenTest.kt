@@ -218,6 +218,21 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun theDayComesBeforeWhatSlippedIntoIt() {
+        showAgenda(AgendaLayout.LIST)
+
+        // The order the VS Code client draws in as well: the plan for the day
+        // first, the overdue bands under it. A day carrying a year of arrears
+        // otherwise answers "what is on today" only after a scroll past them.
+        val timed = headingY(R.string.agenda_section_timed)
+        val untimed = headingY(R.string.agenda_section_untimed)
+        val overdue = headingY(R.string.agenda_section_overdue_recent)
+
+        assertTrue("timed at $timed, untimed at $untimed", timed < untimed)
+        assertTrue("untimed at $untimed, overdue at $overdue", untimed < overdue)
+    }
+
+    @Test
     fun theOldestBandOpensFoldedAndUnfoldsWhenItsHeadingIsTapped() {
         showAgenda(AgendaLayout.LIST, sections = aged)
 
@@ -808,6 +823,13 @@ class AgendaScreenTest {
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
         return laid.first().layoutInput.style.textDecoration
     }
+
+    /** Where a section heading sits down the list, headings being read in order. */
+    private fun headingY(heading: Int): Float = compose
+        .onNodeWithText(string(heading), ignoreCase = true)
+        .fetchSemanticsNode()
+        .positionInRoot
+        .y
 
     // Where the marker line sits down the axis, and where the 13:00 entry does.
     private fun markerY(): Float = compose

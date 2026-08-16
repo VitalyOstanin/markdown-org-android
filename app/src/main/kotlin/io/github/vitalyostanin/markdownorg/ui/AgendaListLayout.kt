@@ -130,9 +130,10 @@ internal fun ListLayout(
                 return@forEachIndexed
             }
 
-            counted.overdueBands(bands[index], collapse, onGroupAction, prefix, grouped) { row ->
-                TaskRow(row, onTaskClick)
-            }
+            // The plan for the day first, what slipped into it last: a day
+            // carrying a year of overdue entries otherwise answers "what is on
+            // today" only after a scroll past all of them. The same order the
+            // VS Code client draws.
             counted.section(
                 R.string.agenda_section_timed,
                 day.sections.timed,
@@ -147,6 +148,9 @@ internal fun ListLayout(
                 onTaskClick,
                 grouped = grouped,
             )
+            counted.overdueBands(bands[index], collapse, onGroupAction, prefix, grouped) { row ->
+                TaskRow(row, onTaskClick)
+            }
         }
 
         positions?.of = heads

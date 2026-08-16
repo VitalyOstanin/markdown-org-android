@@ -99,7 +99,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   merge nobody can see is a filter nobody can explain.
 - Overdue entries grouped by how long ago they slipped — missed repeats, the
   past week, this year, older than a year — each band foldable and counted,
-  with the oldest folded to start with. A whole band is answered in one move,
+  with the oldest folded to start with. The bands sit under the day they are
+  read against, below what is set for an hour and what has no hour of its own:
+  a day carrying a year of arrears otherwise answers what is on today only
+  after a scroll past all of them. The editor extension draws them in the same
+  order. A whole band is answered in one move,
   which reads and writes each file once and commits once; a missed repeat is
   caught up rather than dragged to today, and the move can be put back from a
   snapshot of the files it touched.
