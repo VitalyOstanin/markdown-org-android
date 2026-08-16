@@ -107,6 +107,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   which reads and writes each file once and commits once; a missed repeat is
   caught up rather than dragged to today, and the move can be put back from a
   snapshot of the files it touched.
+- Only a date given as `SCHEDULED:` or `DEADLINE:` can be overdue. A timestamp
+  written without a keyword is an event -- it is shown on its day and never
+  carried into a later one -- so a class held every Monday since last autumn is
+  on Mondays rather than standing as a year of arrears. This is what upstream
+  Org-mode does, and it arrived with the 0.16.0 core.
 - An overdue row states the year when the date it slipped from is not of the
   year on screen. Within the year it stays a day and a month, as the column is
   narrow and the year would be the same on every row; outside it the year is
