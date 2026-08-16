@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
@@ -7,9 +8,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 
 // A long press says what a control is for. The icons of the header, the chips
 // of the filter, the lines of the sync banner and the notices above the agenda
@@ -18,11 +21,30 @@ import androidx.compose.ui.Modifier
 // wording follows the VS Code extension where the two show the same thing.
 
 /**
+ * The tap that takes a shown tooltip away, for the tooltip's own area.
+ *
+ * A persistent tooltip leaves on a touch beside it or on Back, and a touch on
+ * the tooltip itself did nothing: the popup holds the text in a plain box with
+ * no handler of its own. Reaching for the text that is in the way and having it
+ * stay is the one thing a reader tries first, so the area answers the tap.
+ *
+ * A gesture rather than `clickable`: the latter would give the tooltip the role
+ * of a button and a press ripple, and a screen reader would announce a line of
+ * explanation as something to activate. `dismiss` is not a suspending call, so
+ * no scope is needed to reach it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun Modifier.dismissOnTap(state: TooltipState): Modifier =
+    pointerInput(state) { detectTapGestures { state.dismiss() } }
+
+/**
  * Anything on the screen, with a line behind a long press.
  *
  * The plain sibling of [TaskTooltip], which words a task; this one takes the
  * text already worded. Persistent for the same reason: the line is read, not
  * glanced at, and a tooltip that leaves on its own takes the answer with it.
+ * It goes on a touch beside it, on Back, and on a tap of its own area — see
+ * [dismissOnTap].
  *
  * [modifier] goes on the anchor, and a `testTag` belongs on it rather than on
  * the content inside. The box merges the semantics of what it wraps, and a tag
@@ -39,15 +61,19 @@ internal fun HintTooltip(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val state = rememberTooltipState(isPersistent = true)
+
     TooltipBox(
         modifier = modifier,
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
             TooltipAnchorPosition.Below,
         ),
         tooltip = {
-            PlainTooltip { Text(text, style = MaterialTheme.typography.bodySmall) }
+            PlainTooltip(modifier = Modifier.dismissOnTap(state)) {
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
         },
-        state = rememberTooltipState(isPersistent = true),
+        state = state,
         content = content,
     )
 }

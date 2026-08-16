@@ -496,6 +496,22 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun aTapOnTheTooltipItselfTakesItAway() {
+        showAgenda(AgendaLayout.LIST)
+
+        compose.onNodeWithText("Renew the certificate").performTouchInput { longClick() }
+        val legend = string(R.string.tooltip_priority_highest, "A")
+        compose.onNodeWithText(legend, substring = true).assertIsDisplayed()
+
+        // The text in the way is what a reader reaches for first, so it is
+        // what answers: the tooltip goes on a tap of its own area, and not
+        // only beside it.
+        compose.onNodeWithText(legend, substring = true).performClick()
+
+        compose.onNodeWithText(legend, substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun aTileAnswersTheSamePressAsAListRow() {
         showAgenda(AgendaLayout.TIME)
 

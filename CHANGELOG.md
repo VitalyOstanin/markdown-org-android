@@ -154,6 +154,9 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   what a removed collection leaves on the device, what saving reads again —
   while the fields answer with a line under them instead, readable without a
   press. On the licence screen it says that the full text is behind the card.
+- A tooltip goes away on a tap of its own area, beside the touch outside it
+  and the Back key it already answered. What is read is also what is in the
+  way, and reaching for it is the first thing tried.
 - The agenda follows the wall clock rather than the moment it was built: the
   marker line carries the passing minute while the screen is watched, and a
   day turning over is what triggers a new scan.

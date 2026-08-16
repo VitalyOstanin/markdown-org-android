@@ -10,6 +10,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import io.github.vitalyostanin.markdownorg.R
@@ -150,6 +151,8 @@ internal fun taskTooltipText(task: Task, collection: CollectionLabel? = null): S
  * still opens the sheet of actions. Wrapped around the row rather than around
  * the heading alone so the press lands anywhere on it — the heading is what is
  * cut off, and aiming at it is exactly what a reader cannot do when it is.
+ * A tap on the shown tooltip takes it away rather than reaching the row under
+ * it, so the sheet of actions is not opened by putting the text aside.
  *
  * No modifier is taken. What is given to the box here does not reach the node
  * the caller's own layout measures — a weight passed through it was dropped,
@@ -164,15 +167,18 @@ internal fun TaskTooltip(
     content: @Composable () -> Unit,
 ) {
     val text = taskTooltipText(task, collection)
+    val state = rememberTooltipState(isPersistent = true)
 
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
             TooltipAnchorPosition.Above,
         ),
         tooltip = {
-            PlainTooltip { Text(text, style = MaterialTheme.typography.bodySmall) }
+            PlainTooltip(modifier = Modifier.dismissOnTap(state)) {
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
         },
-        state = rememberTooltipState(isPersistent = true),
+        state = state,
         content = content,
     )
 }
