@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import uniffi.markdown_org_ffi.TimestampType
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -12,11 +13,17 @@ import java.time.YearMonth
 /**
  * How much work a day carries, as a cell says it.
  *
- * Two numbers rather than the rows themselves: a cell has room for a count and
- * for the mark that some of that count has slipped, and the rows behind it are
- * what the day view is for.
+ * A count and whether it has slipped, rather than the rows themselves: a cell
+ * has room for one number, and the rows behind it are what the day view is
+ * for.
+ *
+ * [total] counts what is dated to that day and nothing else. The overdue and
+ * the upcoming buckets are deliberately left out of it: the core files a task
+ * under the day it is dated to *and* repeats it under today as arrears or as a
+ * deadline coming up, so counting those buckets counted the same task twice —
+ * once in its own cell and once in whichever cell today happened to be.
  */
-data class MonthLoad(val total: Int, val overdue: Int)
+data class MonthLoad(val total: Int, val overdue: Boolean)
 
 /**
  * One cell of the month grid, in the order the grid lays them out.
@@ -67,19 +74,40 @@ internal fun buildMonthGrid(
 }
 
 /**
- * What each day of the payload carries, by date.
+ * What each day of the payload carries, by date, as of [today].
  *
  * Days with nothing on them are left out, so a cell that finds no entry is an
  * empty day and draws no chip. The span whose entries have no date at all
  * ([AgendaSpan.TASKS]) has no place on a calendar and contributes nothing.
+ *
+ * A day is marked as overdue from its own rows rather than from the arrears
+ * bucket: the date has gone by and something planned still sits on it. Read
+ * off the bucket instead, the whole month's arrears landed in one cell — the
+ * core gathers them under today and nowhere else — and moved from cell to cell
+ * as the reader paged the calendar.
  */
-internal fun List<AgendaDay>.monthLoad(): Map<LocalDate, MonthLoad> = buildMap {
+internal fun List<AgendaDay>.monthLoad(today: LocalDate): Map<LocalDate, MonthLoad> = buildMap {
     for (day in this@monthLoad) {
         val date = day.date ?: continue
         val sections = day.sections
-        val total = sections.overdue.size + sections.timed.size + sections.untimed.size
-        if (total > 0) {
-            put(date, MonthLoad(total = total, overdue = sections.overdue.size))
+        // Dated to this day: the rows of the day itself. What the core adds
+        // relative to today — arrears and deadlines coming up — is already
+        // counted in the cells those tasks belong to.
+        val rows = (sections.timed + sections.untimed).filter { it.daysOffset <= 0L }
+        if (rows.isNotEmpty()) {
+            val owed = date < today && rows.any { it.owes() }
+
+            put(date, MonthLoad(total = rows.size, overdue = owed))
         }
     }
 }
+
+/**
+ * Whether a row left something behind once its date went by.
+ *
+ * Only the planning keywords do, as the core has it (`keeps_a_missed_date`): a
+ * meeting that has been and gone is not a debt, a SCHEDULED or DEADLINE that
+ * has not been closed is.
+ */
+private fun AgendaRow.owes(): Boolean =
+    task.timestampType == TimestampType.SCHEDULED || task.timestampType == TimestampType.DEADLINE

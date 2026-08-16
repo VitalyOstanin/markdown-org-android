@@ -1,12 +1,17 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -25,14 +30,22 @@ class AgendaMonthTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    /** A month with work on two of its days, one of them overdue. */
+    /**
+     * A month with work on two of its days, the earlier one slipped.
+     *
+     * The slipped task appears twice, as the core reports it: on the day it
+     * was dated to, and again under today as arrears. The calendar has to
+     * count it once.
+     */
     private val month = listOf(
         AgendaDay(
             LocalDate.of(2026, 8, 3),
             agenda(
                 day(
                     date = "2026-08-03",
-                    scheduledNoTime = listOf(task(heading = "Order the parts")),
+                    scheduledNoTime = listOf(
+                        task(heading = "Order the parts", date = "2026-08-03"),
+                    ),
                 ),
             ).toSections(),
         ),
@@ -44,7 +57,14 @@ class AgendaMonthTest {
                     // Lines of their own: a row is keyed by where it stands in
                     // its file, and two rows of one day sharing a line is a
                     // duplicate key the list refuses to draw.
-                    overdue = listOf(task(heading = "Renew the certificate", line = 3u)),
+                    overdue = listOf(
+                        task(
+                            heading = "Order the parts",
+                            date = "2026-08-03",
+                            daysOffset = -13,
+                            line = 3u,
+                        ),
+                    ),
                     scheduledTimed = listOf(
                         task(heading = "Daily standup", time = "09:30", line = 7u),
                     ),
@@ -69,14 +89,44 @@ class AgendaMonthTest {
     fun aCellSaysHowMuchItsDayCarriesRatherThanWhat() {
         showMonth()
 
-        // Two rows on today, and the headings themselves are the day's to
-        // show: the cell has room for the count and nothing else. Read by the
-        // tag of that cell — the count of a day and the number of another day
-        // are the same text. Unmerged, because the tooltip around the cell
-        // merges the semantics of everything it wraps.
+        // One row each, and the headings themselves are the day's to show: the
+        // cell has room for the count and nothing else. Read by the tag of the
+        // cell — the count of a day and the number of another day are the same
+        // text. Unmerged, because the tooltip around the cell merges the
+        // semantics of everything it wraps.
         compose.onNodeWithTag("month-load-2026-08-16", useUnmergedTree = true)
-            .assertTextEquals("2")
-        compose.onNodeWithText("Renew the certificate").assertDoesNotExist()
+            .assertTextEquals("1")
+        compose.onNodeWithText("Daily standup").assertDoesNotExist()
+    }
+
+    @Test
+    fun aTaskThatSlippedIsCountedInItsOwnDayAndNotTwice() {
+        showMonth()
+
+        // The core reports it in both places; the calendar counts it where it
+        // was dated to. Counted from the arrears bucket as well, today read 2
+        // — and read 2 in whichever cell the reader had paged to, since that
+        // is where the core gathers arrears.
+        compose.onNodeWithTag("month-load-2026-08-03", useUnmergedTree = true)
+            .assertTextEquals("1")
+        compose.onNodeWithTag("month-load-2026-08-16", useUnmergedTree = true)
+            .assertTextEquals("1")
+    }
+
+    @Test
+    fun aShortWeekLaysTheCellOutFlatRatherThanSlicingTheChip() {
+        // Landscape gives a week about a third of the height portrait does.
+        // Stacked regardless, the chip was sliced into a stripe and the count
+        // could not be read at all.
+        compose.setContent {
+            MarkdownOrgTheme {
+                Box(Modifier.height(360.dp)) { MonthScreen() }
+            }
+        }
+
+        compose.onNodeWithTag("month-load-2026-08-16", useUnmergedTree = true)
+            .assertTextEquals("1")
+        compose.onNodeWithTag("month-cell-2026-09-06").assertIsDisplayed()
     }
 
     @Test
@@ -96,31 +146,36 @@ class AgendaMonthTest {
         // The reading the month had before the calendar: a heading per day
         // that has anything on it, and the rows under it.
         compose.onNodeWithTag("agenda-list").assertIsDisplayed()
-        compose.onNodeWithText("Renew the certificate").assertIsDisplayed()
+        compose.onNodeWithText("Daily standup").assertIsDisplayed()
     }
 
     private fun showMonth(asGrid: Boolean = true, onShowDay: (LocalDate) -> Unit = {}) {
         compose.setContent {
             MarkdownOrgTheme {
-                AgendaScreen(
-                    state = AgendaUiState.Ready(
-                        date = TODAY,
-                        days = month,
-                        span = AgendaSpan.MONTH,
-                    ),
-                    view = AgendaView(
-                        // Left on the axis on purpose, as in the week: what
-                        // decides the layout of a month is the span and the
-                        // setting, not the switch.
-                        layout = AgendaLayout.TIME,
-                        span = AgendaSpan.MONTH,
-                        monthAsGrid = asGrid,
-                    ),
-                    actions = AgendaActions(onShowDay = onShowDay),
-                    now = TODAY.atTime(9, 0),
-                )
+                MonthScreen(asGrid, onShowDay)
             }
         }
+    }
+
+    @Composable
+    private fun MonthScreen(asGrid: Boolean = true, onShowDay: (LocalDate) -> Unit = {}) {
+        AgendaScreen(
+            state = AgendaUiState.Ready(
+                date = TODAY,
+                days = month,
+                span = AgendaSpan.MONTH,
+            ),
+            view = AgendaView(
+                // Left on the axis on purpose, as in the week: what decides
+                // the layout of a month is the span and the setting, not the
+                // switch.
+                layout = AgendaLayout.TIME,
+                span = AgendaSpan.MONTH,
+                monthAsGrid = asGrid,
+            ),
+            actions = AgendaActions(onShowDay = onShowDay),
+            now = TODAY.atTime(9, 0),
+        )
     }
 
     private companion object {

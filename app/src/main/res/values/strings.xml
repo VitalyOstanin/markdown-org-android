@@ -24,7 +24,7 @@
       made of is read by opening the day, which is what a tap on it does.
     -->
     <string name="month_cell_open">Open this day in Day view</string>
-    <string name="month_cell_overdue">%1$d overdue</string>
+    <string name="month_cell_overdue">Overdue</string>
 
     <!--
       Tags: the second of the two filters over the agenda. Which collections

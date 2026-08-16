@@ -33,14 +33,17 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen span is remembered like the layout is.
 - The month is drawn as a calendar, the way the editor extension draws it: one
   cell per day, filled out to whole weeks with the days its first and last
-  weeks borrow from the months beside it. A cell says how much the day carries
-  and takes the overdue colour as soon as any of that has slipped; what the
-  count is made of is behind a long press, and the rows themselves are one tap
-  away — a cell opens its day. That is what a month is read for and what a
-  list of thirty-one days cannot show. The list stays available for the month
-  behind a setting, `Draw the month as a calendar`, because the two answer
-  different questions: the calendar says where the month is full, the list
-  says what is in it.
+  weeks borrow from the months beside it. A cell counts what is dated to that
+  day and nothing else, and takes the overdue colour from the date itself: it
+  has gone by with planning still sitting on it. A meeting that has been and
+  gone leaves no debt behind and no colour. What the count is made of is
+  behind a long press, and the rows themselves are one tap away — a cell opens
+  its day. Where a row is too short for a number above a chip — a phone held
+  sideways — the two stand side by side rather than being sliced. That is what
+  a month is read for and what a list of thirty-one days cannot show. The list
+  stays available for the month behind a setting, `Draw the month as a
+  calendar`, because the two answer different questions: the calendar says
+  where the month is full, the list says what is in it.
 - Moving the agenda off the day it opens on, a span at a time: an arrow on
   either side of the heading, and a sideways drag of the heading itself, which
   turns the plan the way a page is turned. A press on the heading comes back

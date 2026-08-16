@@ -256,7 +256,9 @@ private fun AgendaBody(
                         cells = remember(state.date, now.toLocalDate()) {
                             buildMonthGrid(state.date, now.toLocalDate())
                         },
-                        load = remember(state.days) { state.days.monthLoad() },
+                        load = remember(state.days, now.toLocalDate()) {
+                            state.days.monthLoad(now.toLocalDate())
+                        },
                         // What the header leaves, and not a line more: the
                         // grid divides the height it is given between its
                         // weeks, and a grid that took the whole column would

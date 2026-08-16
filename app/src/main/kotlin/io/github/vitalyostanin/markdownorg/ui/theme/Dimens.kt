@@ -88,15 +88,16 @@ object Sizes {
     val tile = 40.dp
 
     /**
-     * The least a week of the month grid may be squeezed to.
+     * The height a cell of the month grid needs to stack what it holds.
      *
      * The rows share whatever height is left below the header, so the whole
-     * month is on screen without a scroll; this is the floor under that
-     * sharing — enough for the day number and the count chip under it. A
-     * window shorter than six of these is where the grid starts to be cut,
-     * and that is a window the list reads better in anyway.
+     * month is on screen without a scroll — which means a landscape window
+     * gives each of them a third of what a portrait one does. Above this the
+     * cell puts the count under the day number; below it the two go side by
+     * side, because a stack that does not fit is a chip sliced into a stripe,
+     * and that is what landscape drew.
      */
-    val monthCell = 56.dp
+    val monthCellRoomy = 56.dp
 
     /** Width of the `09:00` label on the axis; the tiles start after it. */
     val hourLabel = 40.dp

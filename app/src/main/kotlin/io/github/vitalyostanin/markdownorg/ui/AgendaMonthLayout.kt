@@ -5,11 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -94,7 +94,11 @@ internal fun MonthLayout(
 
         cells.chunked(columns).forEach { week ->
             Row(
-                modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = Sizes.monthCell),
+                // No floor under the sharing: a row that insisted on a height
+                // the window does not have pushed the last weeks off the
+                // bottom of the screen. What a short row does instead is lay
+                // its cells out flat — see [MonthCellTile].
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 week.forEach { cell ->
@@ -114,9 +118,15 @@ internal fun MonthLayout(
  * One day of the grid: the number it is, and how much it carries.
  *
  * The count is a chip rather than a dot, and it takes the overdue colour as
- * soon as any of that day's work has slipped — the same reading the rows of the
- * list are given, so a red 3 means the same thing in both. What that 3 is made
- * of is behind a long press, because a cell this size has room for one number.
+ * soon as that day's date has gone by with something planned still on it — the
+ * same reading the rows of the list are given, so a red 3 means the same thing
+ * in both. What that 3 is made of is behind a long press, because a cell this
+ * size has room for one number.
+ *
+ * Which way the two are laid out is decided by the height the cell was given
+ * rather than by the orientation of the device: the grid divides what is left
+ * below the header, and a landscape window leaves each week about a third of
+ * what a portrait one does.
  */
 @Composable
 private fun MonthCellTile(
@@ -125,17 +135,13 @@ private fun MonthCellTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LocalAgendaColors.current
     val open = stringResource(R.string.month_cell_open)
     val hint = if (load == null) {
         open
     } else {
         val tasks = pluralStringResource(R.plurals.month_cell_tasks, load.total, load.total)
-        val overdue = if (load.overdue > 0) {
-            stringResource(R.string.month_cell_overdue, load.overdue)
-        } else {
-            ""
-        }
+        val overdue = if (load.overdue) stringResource(R.string.month_cell_overdue) else ""
+
         listOf(tasks, overdue, open).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
@@ -144,7 +150,7 @@ private fun MonthCellTile(
     // the tooltip box rather than the node this row measures, and a cell that
     // is measured as nothing leaves its week without a height — which is how
     // half the month ended up off the bottom of the screen.
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .clip(RoundedCornerShape(Spacing.sm))
             .background(
@@ -163,28 +169,60 @@ private fun MonthCellTile(
             .testTag(cell.testTag),
         contentAlignment = Alignment.Center,
     ) {
+        val stacked = maxHeight >= Sizes.monthCellRoomy
+
         HintTooltip(hint) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(Spacing.xs),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-            ) {
-                Text(
-                    text = cell.date.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (cell.today) FontWeight.Bold else FontWeight.Normal,
-                    // A borrowed day is dimmed rather than left out: it opens
-                    // like any other, and a hole in the first week would read
-                    // as a day that cannot be looked at.
-                    color = when {
-                        cell.otherMonth -> MaterialTheme.colorScheme.onSurfaceVariant
-                        else -> MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                if (load != null) {
-                    MonthLoadChip(load, colors.deadline.tone, cell.loadTag)
-                }
-            }
+            MonthCellContent(cell, load, stacked)
+        }
+    }
+}
+
+/**
+ * The number and the count, stacked where there is room and side by side where
+ * there is not.
+ *
+ * Flat rather than smaller: shrinking the two to fit a short row costs the
+ * legibility of both, and a row of the calendar is read at arm's length. Side
+ * by side they keep their size and ask for one line instead of two.
+ */
+@Composable
+private fun MonthCellContent(cell: MonthCell, load: MonthLoad?, stacked: Boolean) {
+    val colors = LocalAgendaColors.current
+    val number = @Composable {
+        Text(
+            text = cell.date.dayOfMonth.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (cell.today) FontWeight.Bold else FontWeight.Normal,
+            // A borrowed day is dimmed rather than left out: it opens like any
+            // other, and a hole in the first week would read as a day that
+            // cannot be looked at.
+            color = when {
+                cell.otherMonth -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+        )
+    }
+    val chip = @Composable {
+        load?.let { MonthLoadChip(it, colors.deadline.tone, cell.loadTag) }
+    }
+
+    if (stacked) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(Spacing.xs),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            number()
+            chip()
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            number()
+            chip()
         }
     }
 }
@@ -192,7 +230,7 @@ private fun MonthCellTile(
 /** The count of a day, tinted when part of it has slipped. */
 @Composable
 private fun MonthLoadChip(load: MonthLoad, overdueTone: Color, tag: String) {
-    val overdue = load.overdue > 0
+    val overdue = load.overdue
     Box(
         modifier = Modifier
             .background(
