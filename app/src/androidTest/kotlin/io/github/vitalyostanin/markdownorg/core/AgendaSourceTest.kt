@@ -42,7 +42,7 @@ class AgendaSourceTest {
         )
 
         val result = AgendaSource(areasOf(NotesStore(folder.root)))
-            .load(Scope.DAY, today, zone)
+            .load(Scope.DAY, today, zone = zone)
             .getOrThrow()
         val day = result.days.single()
 
@@ -70,7 +70,7 @@ class AgendaSourceTest {
         )
 
         val result = AgendaSource(areasOf(NotesStore(folder.root)))
-            .load(Scope.TASKS, today, zone)
+            .load(Scope.TASKS, today, zone = zone)
             .getOrThrow()
         val task = result.tasks.single()
 
@@ -86,12 +86,12 @@ class AgendaSourceTest {
         // follows costs that file rather than the collection.
         write(SCHEDULED_TODAY)
         val source = AgendaSource(areasOf(NotesStore(folder.root)))
-        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+        assertEquals(1, source.oneDay().days.single().count())
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
         source.reread(folder.root.canonicalPath, "notes.md").getOrThrow()
 
-        assertEquals(0, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+        assertEquals(0, source.oneDay().days.single().count())
     }
 
     @Test
@@ -101,11 +101,11 @@ class AgendaSourceTest {
         // would be surprised by a stale agenda later, in a case harder to see.
         write(SCHEDULED_TODAY)
         val source = AgendaSource(areasOf(NotesStore(folder.root)))
-        source.load(Scope.DAY, today, zone).getOrThrow()
+        source.oneDay()
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
 
-        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+        assertEquals(1, source.oneDay().days.single().count())
     }
 
     @Test
@@ -113,12 +113,12 @@ class AgendaSourceTest {
         // What follows a fetch: files changed, and which ones is not known.
         write(SCHEDULED_TODAY)
         val source = AgendaSource(areasOf(NotesStore(folder.root)))
-        source.load(Scope.DAY, today, zone).getOrThrow()
+        source.oneDay()
 
         write(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28"))
         source.invalidate()
 
-        assertEquals(0, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+        assertEquals(0, source.oneDay().days.single().count())
     }
 
     @Test
@@ -128,22 +128,42 @@ class AgendaSourceTest {
         write(SCHEDULED_TODAY)
         val store = NotesStore(folder.root)
         val source = AgendaSource(areasOf(store))
-        assertEquals(1, source.load(Scope.DAY, today, zone).getOrThrow().days.single().count())
+        assertEquals(1, source.oneDay().days.single().count())
 
         val other = folder.newFolder("elsewhere")
         File(other, "other.md")
             .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
         store.useDirectory(other).getOrThrow()
 
-        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+        val day = source.oneDay().days.single()
         assertEquals(listOf("Daily review"), day.scheduledTimed.map { it.heading })
+    }
+
+    @Test
+    fun aWindowElsewhereIsStillDatedFromToday() = runBlocking {
+        // Two dates, and only one of them moves. Asked around the day being
+        // read instead, the core dated everything from there: a task a month
+        // ahead of today read as scheduled for the day it falls on, and
+        // everything behind today piled into whichever day was on screen.
+        write(SCHEDULED_TODAY)
+        val source = AgendaSource(areasOf(NotesStore(folder.root)))
+
+        val ahead = source
+            .load(Scope.DAY, today, shown = today.plusMonths(1), zone = zone)
+            .getOrThrow()
+            .days
+            .single()
+
+        assertEquals("the window moved", "2026-08-28", ahead.date)
+        assertEquals("and carries nothing of another month", 0, ahead.count())
+        assertEquals("today is where it was", 1, source.oneDay().days.single().count())
     }
 
     @Test
     fun aMissingDirectoryFails() = runBlocking {
         val missing = File(folder.root, "nowhere")
 
-        val result = AgendaSource(areasOf(NotesStore(missing))).load(Scope.DAY, today, zone)
+        val result = AgendaSource(areasOf(NotesStore(missing))).load(Scope.DAY, today, zone = zone)
 
         assertTrue(result.isFailure)
     }
@@ -165,7 +185,7 @@ class AgendaSourceTest {
             .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
 
         val source = AgendaSource(areasOf(NotesStore(work), NotesStore(home)))
-        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+        val day = source.oneDay().days.single()
 
         assertEquals(
             listOf("Daily review", "Daily standup"),
@@ -185,7 +205,7 @@ class AgendaSourceTest {
         File(home, "notes.md")
             .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
         val source = AgendaSource(areasOf(NotesStore(work), NotesStore(home)))
-        source.load(Scope.DAY, today, zone).getOrThrow()
+        source.oneDay()
 
         // The note in `work` moves out of today; the one in `home`, which has
         // the same relative path, must stay where it is.
@@ -193,7 +213,7 @@ class AgendaSourceTest {
             .writeText(SCHEDULED_TODAY.replace("2026-07-28", "2026-08-28").trimIndent() + "\n")
         source.reread(work.canonicalPath, "notes.md").getOrThrow()
 
-        val day = source.load(Scope.DAY, today, zone).getOrThrow().days.single()
+        val day = source.oneDay().days.single()
         assertEquals(listOf("Daily review"), day.scheduledTimed.map { it.heading })
     }
 
@@ -216,7 +236,7 @@ class AgendaSourceTest {
             .writeText(SCHEDULED_TODAY.replace("standup", "review").trimIndent() + "\n")
 
         val areas = ShiftingAreas(NotesStore(work), NotesStore(appearing))
-        val day = AgendaSource(areas).load(Scope.DAY, today, zone).getOrThrow().days.single()
+        val day = AgendaSource(areas).oneDay().days.single()
 
         assertEquals(listOf("Daily standup"), day.scheduledTimed.map { it.heading })
     }
@@ -266,6 +286,16 @@ class AgendaSourceTest {
     /** Everything a day agenda puts on screen, however it is bucketed. */
     private fun uniffi.markdown_org_ffi.Day.count(): Int =
         overdue.size + scheduledTimed.size + scheduledNoTime.size + upcoming.size
+
+    /**
+     * The agenda of the day these tests call today, in their own zone.
+     *
+     * The window is left to follow today rather than named: what this file
+     * checks is what a walk reads, and the day the window is drawn around is
+     * the screen's business.
+     */
+    private suspend fun AgendaSource.oneDay() =
+        load(Scope.DAY, today, zone = zone).getOrThrow()
 
     private companion object {
         /** One task, on the day these tests call today. */

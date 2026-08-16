@@ -533,6 +533,24 @@ class AgendaViewModelTest {
         assertEquals(listOf(today, today.plusDays(4), today), loader.dates)
     }
 
+    @Test
+    fun steppingMovesTheWindowAndLeavesTodayWhereItIs() = runTest(dispatcher) {
+        // The two used to be one date, and the buckets that only exist
+        // relative to today went with the reader: paged a month forward, the
+        // arrears of the whole collection were reported under the day being
+        // looked at — and counted a second time in the days they belong to.
+        ui.span = AgendaSpan.MONTH
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.stepBy(1)
+        advanceUntilIdle()
+
+        val today = NOON.toLocalDate()
+        assertEquals(listOf(today, today.plusMonths(1)), loader.dates)
+        assertEquals(listOf(today, today), loader.todays)
+    }
+
     /**
      * The check for the day turning over used to compare the date on screen
      * with the clock. Once the plan can be stepped away from today, those two

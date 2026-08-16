@@ -63,6 +63,7 @@ fn day_of(index: &NotesIndex) -> markdown_org_ffi::AgendaResult {
         .agenda(
             Scope::Day,
             "2026-03-02".to_string(),
+            None,
             "Europe/Moscow".to_string(),
             false,
         )
@@ -83,6 +84,7 @@ fn the_index_answers_what_a_fresh_walk_would_have() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),

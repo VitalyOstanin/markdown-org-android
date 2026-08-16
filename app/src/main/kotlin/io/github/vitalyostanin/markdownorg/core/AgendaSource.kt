@@ -11,9 +11,20 @@ import java.time.ZoneId
 /** Reads the agenda out of the notes directory. */
 interface AgendaLoader {
 
+    /**
+     * The agenda for [scope], drawn around [shown] and dated from [today].
+     *
+     * Two dates rather than one: [today] is what the plan is late or early
+     * against, and [shown] is what is on screen. They part as soon as the
+     * reader steps off today — and passed as one value the arrears of the
+     * whole collection followed the reader from month to month, landing in
+     * whichever day was being looked at. `null` draws the window around
+     * [today], which is where a reader who has not stepped away is.
+     */
     suspend fun load(
         scope: Scope,
         today: LocalDate,
+        shown: LocalDate? = null,
         zone: ZoneId = ZoneId.systemDefault(),
         includeDone: Boolean = false,
     ): Result<AgendaResult>
@@ -70,6 +81,7 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
+        shown: LocalDate?,
         zone: ZoneId,
         includeDone: Boolean,
     ): Result<AgendaResult> = notes.exclusive { areas ->
@@ -83,6 +95,9 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
                 // The core never reads the clock; the caller decides what
                 // "today" is, so the same files always render the same agenda.
                 currentDate = today.toString(),
+                // And separately, which day the window is drawn around. Left
+                // out, it is drawn around today.
+                date = shown?.toString(),
                 timezone = zone.id,
                 includeDone = includeDone,
             )

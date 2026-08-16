@@ -130,6 +130,7 @@ fn both_walks_read_the_same_defaults() {
         vault.path().display().to_string(),
         Scope::Tasks,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -192,6 +193,7 @@ fn a_day_agenda_splits_tasks_into_buckets() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -221,6 +223,7 @@ fn the_tasks_scope_fills_the_flat_list_instead_of_days() {
         vault.path().display().to_string(),
         Scope::Tasks,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -241,6 +244,7 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -250,6 +254,7 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-03".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -264,6 +269,35 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         "yesterday's task is overdue, and the offset says by how much"
     );
     assert_eq!(a_day_later.days[0].overdue[0].days_offset, Some(-1));
+}
+
+#[test]
+fn the_window_moves_without_taking_today_with_it() {
+    // Stepping a month forward moves what is drawn, not what "now" means.
+    // Passed as one date the two are the same thing, and the buckets that
+    // exist only relative to today — overdue, upcoming — follow the reader
+    // around the calendar: a task a week late is reported as a day late on
+    // the day after it slipped, and a month late once the reader has paged
+    // there.
+    let vault = write_vault(&[("notes.md", TIMED)]);
+
+    let paged = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::Month,
+        "2026-03-03".to_string(),
+        Some("2026-04-15".to_string()),
+        "Europe/Moscow".to_string(),
+        false,
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(paged.days[0].date, "2026-04-01", "the window is April");
+    assert_eq!(paged.days.last().expect("a last day").date, "2026-04-30");
+    assert!(
+        paged.days.iter().all(|day| day.overdue.is_empty()),
+        "today is March, so April carries nobody's arrears"
+    );
 }
 
 /// `# TODO Отчёт` plus a timestamp, with the title in CP1251 — a note saved
@@ -287,6 +321,7 @@ fn an_agenda_says_a_file_was_skipped_for_its_encoding_rather_than_hiding_it() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-02".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),
@@ -351,6 +386,7 @@ fn a_bad_timezone_arrives_as_its_own_variant() {
         vault.path().display().to_string(),
         Scope::Day,
         "2026-03-02".to_string(),
+        None,
         "Nowhere/Nothing".to_string(),
         false,
         options(),
@@ -371,6 +407,7 @@ fn a_bad_date_arrives_as_its_own_variant() {
         vault.path().display().to_string(),
         Scope::Day,
         "not-a-date".to_string(),
+        None,
         "Europe/Moscow".to_string(),
         false,
         options(),

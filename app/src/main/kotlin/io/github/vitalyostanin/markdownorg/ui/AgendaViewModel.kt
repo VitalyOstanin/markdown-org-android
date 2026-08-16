@@ -835,7 +835,15 @@ class AgendaViewModel(
             // flight, and the answer of that scan describes the span it was
             // asked for.
             val span = _span.value
-            val built = seeded.mapCatching { agenda.load(span.scope, shown).getOrThrow() }
+            // Both dates, and they are not the same one: `today` is what the
+            // plan is late against, `shown` is what is drawn. Asked around
+            // `shown` alone, the arrears of the whole collection moved with
+            // the reader — a month paged forward reported them under the day
+            // being looked at, and the same task was counted both there and
+            // in its own day.
+            val built = seeded.mapCatching {
+                agenda.load(span.scope, today = today, shown = shown).getOrThrow()
+            }
             // `mapCatching` catches every throwable, and the cancellation this
             // scan is dropped by is one of them: folded like any other failure
             // it put "the agenda could not be built" on screen, over a scan

@@ -223,14 +223,19 @@ class FakeAgendaLoader : AgendaLoader {
     /** Which date each of them was asked around, in the same order. */
     val dates = mutableListOf<LocalDate>()
 
+    /** And what each was dated from — today, wherever the window sits. */
+    val todays = mutableListOf<LocalDate>()
+
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
+        shown: LocalDate?,
         zone: ZoneId,
         includeDone: Boolean,
     ): Result<AgendaResult> {
         scopes += scope
-        dates += today
+        dates += shown ?: today
+        todays += today
         val answer = CompletableDeferred<Result<AgendaResult>>()
         pending += answer
         return answer.await()

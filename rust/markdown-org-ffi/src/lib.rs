@@ -390,6 +390,13 @@ pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
 /// `--current-date`. Under [`Scope::Tasks`] it is ignored: that scope has no
 /// date window at all.
 ///
+/// `date` is the day the window is drawn around, as the CLI's `--date`: the
+/// day itself under [`Scope::Day`], the week or month containing it under the
+/// wider scopes. `None` draws the window around `current_date`. The two are
+/// separate on purpose — a reader stepping a month forward moves the window
+/// and not today, and the buckets that only exist relative to today (overdue,
+/// upcoming) have to stay where today is.
+///
 /// Scanning and filtering are one call here because nothing keeps an index
 /// between calls yet; splitting them would mean walking the directory twice.
 #[uniffi::export]
@@ -397,6 +404,7 @@ pub fn scan_agenda(
     dir: String,
     scope: Scope,
     current_date: String,
+    date: Option<String>,
     timezone: String,
     include_done: bool,
     options: Options,
@@ -409,6 +417,7 @@ pub fn scan_agenda(
         stats,
         scope,
         &current_date,
+        date.as_deref(),
         &timezone,
         include_done,
     )
@@ -425,11 +434,12 @@ pub(crate) fn build_agenda(
     stats: ScanStats,
     scope: Scope,
     current_date: &str,
+    date: Option<&str>,
     timezone: &str,
     include_done: bool,
 ) -> Result<AgendaResult, ExtractError> {
     // `Tasks` is the date-less scope, and the extractor rejects any date
-    // argument under it rather than quietly ignoring one. `current_date` is
+    // argument under it rather than quietly ignoring one. Both dates are
     // therefore dropped here instead of being forwarded — the caller passes
     // one argument set regardless of scope, and only the scopes that have a
     // window use it.
@@ -437,6 +447,7 @@ pub(crate) fn build_agenda(
         Scope::Tasks => AgendaDates::default(),
         _ => AgendaDates {
             current_date: Some(current_date),
+            date,
             ..AgendaDates::default()
         },
     };

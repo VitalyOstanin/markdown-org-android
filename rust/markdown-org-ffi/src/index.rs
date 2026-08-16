@@ -198,6 +198,7 @@ impl NotesIndex {
         &self,
         scope: Scope,
         current_date: String,
+        date: Option<String>,
         timezone: String,
         include_done: bool,
     ) -> Result<AgendaResult, ExtractError> {
@@ -210,6 +211,7 @@ impl NotesIndex {
             state.stats.clone(),
             scope,
             &current_date,
+            date.as_deref(),
             &timezone,
             include_done,
         )
