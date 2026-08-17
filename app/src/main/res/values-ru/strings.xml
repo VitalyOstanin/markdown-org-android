@@ -14,6 +14,7 @@
     <string name="agenda_day_empty">В этот день ничего нет</string>
     <string name="month_cell_open">Открыть этот день в режиме дня</string>
     <string name="month_cell_overdue">Просрочено</string>
+    <string name="month_cell_due">Крайний срок</string>
 
     <string name="agenda_tag_none">Все заметки</string>
     <string name="agenda_tags_explain">Что значат теги</string>

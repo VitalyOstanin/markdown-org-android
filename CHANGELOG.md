@@ -36,7 +36,10 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   weeks borrow from the months beside it. A cell counts what is dated to that
   day and nothing else, and takes the overdue colour from the date itself: it
   has gone by with planning still sitting on it. A meeting that has been and
-  gone leaves no debt behind and no colour. What the count is made of is
+  gone leaves no debt behind and no colour. A date still ahead that a deadline
+  is coming due on is ringed rather than filled — a fill is what arrears take,
+  and the day the reader is warned about is the day the deadline falls on,
+  which a calendar is already showing. What the count is made of is
   behind a long press, and the rows themselves are one tap away — a cell opens
   its day. Where a row is too short for a number above a chip — a phone held
   sideways — the two stand side by side rather than being sliced. That is what

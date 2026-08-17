@@ -141,8 +141,9 @@ private fun MonthCellTile(
     } else {
         val tasks = pluralStringResource(R.plurals.month_cell_tasks, load.total, load.total)
         val overdue = if (load.overdue) stringResource(R.string.month_cell_overdue) else ""
+        val due = if (!load.overdue && load.dueSoon) stringResource(R.string.month_cell_due) else ""
 
-        listOf(tasks, overdue, open).filter { it.isNotEmpty() }.joinToString("\n")
+        listOf(tasks, overdue, due, open).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     // The cell is a box of its own, and the tooltip wraps what is inside it.
@@ -227,15 +228,31 @@ private fun MonthCellContent(cell: MonthCell, load: MonthLoad?, stacked: Boolean
     }
 }
 
-/** The count of a day, tinted when part of it has slipped. */
+/**
+ * The count of a day, tinted when part of it has slipped and ringed when a
+ * deadline on it is close enough for the core to be warning about.
+ *
+ * A ring rather than a second fill: the fill is what a date in arrears takes,
+ * and two dense tones side by side in a grid read as one state in two shades.
+ * A date that has gone by takes the fill alone — what it owes now matters more
+ * than what it was due.
+ */
 @Composable
 private fun MonthLoadChip(load: MonthLoad, overdueTone: Color, tag: String) {
     val overdue = load.overdue
+    val shape = RoundedCornerShape(Spacing.sm)
     Box(
         modifier = Modifier
             .background(
                 color = if (overdue) overdueTone else MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(Spacing.sm),
+                shape = shape,
+            )
+            .then(
+                if (!overdue && load.dueSoon) {
+                    Modifier.border(width = Sizes.hairline, color = overdueTone, shape = shape)
+                } else {
+                    Modifier
+                },
             )
             .padding(horizontal = Spacing.xs),
     ) {

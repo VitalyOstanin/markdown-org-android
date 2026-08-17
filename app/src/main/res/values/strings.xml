@@ -25,6 +25,12 @@
     -->
     <string name="month_cell_open">Open this day in Day view</string>
     <string name="month_cell_overdue">Overdue</string>
+    <!--
+      A date still ahead that a deadline's warning window has reached. The
+      window is the core's, which applies the same rule Org does when it
+      warns about a deadline in today's agenda.
+    -->
+    <string name="month_cell_due">Deadline</string>
 
     <!--
       Tags: the second of the two filters over the agenda. Which collections

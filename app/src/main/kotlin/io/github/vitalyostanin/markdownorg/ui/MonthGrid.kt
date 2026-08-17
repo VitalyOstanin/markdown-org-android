@@ -22,8 +22,14 @@ import java.time.YearMonth
  * under the day it is dated to *and* repeats it under today as arrears or as a
  * deadline coming up, so counting those buckets counted the same task twice —
  * once in its own cell and once in whichever cell today happened to be.
+ *
+ * [dueSoon] marks a date still ahead that a deadline's warning window has
+ * reached. The window is the core's to decide — it applies Org's
+ * `org-deadline-warning-days`, and the `-Xd` a timestamp may carry, when it
+ * repeats the deadline under today — so the client reads the answer rather
+ * than the rule.
  */
-data class MonthLoad(val total: Int, val overdue: Boolean)
+data class MonthLoad(val total: Int, val overdue: Boolean, val dueSoon: Boolean = false)
 
 /**
  * One cell of the month grid, in the order the grid lays them out.
@@ -87,6 +93,8 @@ internal fun buildMonthGrid(
  * as the reader paged the calendar.
  */
 internal fun List<AgendaDay>.monthLoad(today: LocalDate): Map<LocalDate, MonthLoad> = buildMap {
+    val warned = warnedDeadlines(today)
+
     for (day in this@monthLoad) {
         val date = day.date ?: continue
         val sections = day.sections
@@ -96,11 +104,29 @@ internal fun List<AgendaDay>.monthLoad(today: LocalDate): Map<LocalDate, MonthLo
         val rows = (sections.timed + sections.untimed).filter { it.daysOffset <= 0L }
         if (rows.isNotEmpty()) {
             val owed = date < today && rows.any { it.owes() }
+            val due = date >= today && rows.any { it.key in warned }
 
-            put(date, MonthLoad(total = rows.size, overdue = owed))
+            put(date, MonthLoad(total = rows.size, overdue = owed, dueSoon = due))
         }
     }
 }
+
+/**
+ * The deadlines the core is already warning about, by row key.
+ *
+ * They are the copies it files under today: a deadline enters that bucket once
+ * its warning window opens, which is the same rule Org applies in the agenda of
+ * the day being lived through. The mark itself goes on the date the deadline
+ * falls on — the grid already shows the reader where that date is.
+ */
+private fun List<AgendaDay>.warnedDeadlines(today: LocalDate): Set<String> =
+    firstOrNull { it.date == today }
+        ?.sections
+        ?.untimed
+        .orEmpty()
+        .filter { it.daysOffset > 0L && it.task.timestampType == TimestampType.DEADLINE }
+        .map { it.key }
+        .toSet()
 
 /**
  * Whether a row left something behind once its date went by.

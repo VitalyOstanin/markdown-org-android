@@ -132,8 +132,15 @@ class MonthGridTest {
     fun `a deadline still ahead is counted in its own day and not in today`() {
         // The upcoming bucket is the same repetition the other way round: a
         // deadline within the warning window is reported under today as well
-        // as on the day it falls.
-        val ahead = task(heading = "File the return", date = "2026-08-20", daysOffset = 4)
+        // as on the day it falls. Counted once, in its own cell — and that
+        // cell is the one the warning marks.
+        val ahead = task(
+            heading = "File the return",
+            line = 12u,
+            timestampType = TimestampType.DEADLINE,
+            date = "2026-08-20",
+            daysOffset = 4,
+        )
         val load = listOf(
             AgendaDay(
                 TODAY,
@@ -144,16 +151,78 @@ class MonthGridTest {
                 agenda(
                     day(
                         date = "2026-08-20",
-                        scheduledNoTime = listOf(
-                            task(heading = "File the return", date = "2026-08-20"),
-                        ),
+                        scheduledNoTime = listOf(ahead.copy(daysOffset = 0)),
                     ),
                 ).toSections(),
             ),
         ).monthLoad(TODAY)
 
         assertNull(load[TODAY])
-        assertEquals(MonthLoad(total = 1, overdue = false), load[LocalDate.of(2026, 8, 20)])
+        assertEquals(
+            MonthLoad(total = 1, overdue = false, dueSoon = true),
+            load[LocalDate.of(2026, 8, 20)],
+        )
+    }
+
+    @Test
+    fun `a deadline the core is not warning about yet is left unmarked`() {
+        // The window belongs to the core: it applies Org's rule, including the
+        // `-Xd` a timestamp may carry. What reaches the client is the answer —
+        // a copy under today — and a date without one is simply a date ahead.
+        val load = listOf(
+            AgendaDay(TODAY, agenda(day(date = "2026-08-16")).toSections()),
+            AgendaDay(
+                LocalDate.of(2026, 9, 30),
+                agenda(
+                    day(
+                        date = "2026-09-30",
+                        scheduledNoTime = listOf(
+                            task(
+                                heading = "Renew the licence",
+                                line = 12u,
+                                timestampType = TimestampType.DEADLINE,
+                                date = "2026-09-30",
+                            ),
+                        ),
+                    ),
+                ).toSections(),
+            ),
+        ).monthLoad(TODAY)
+
+        assertEquals(
+            MonthLoad(total = 1, overdue = false, dueSoon = false),
+            load[LocalDate.of(2026, 9, 30)],
+        )
+    }
+
+    @Test
+    fun `a deadline already missed reads as owed rather than as due`() {
+        // One chip, one state: once the date has gone by, what it owes is what
+        // the reader needs, not that it was due.
+        val missed = task(
+            heading = "Send the report",
+            line = 12u,
+            timestampType = TimestampType.DEADLINE,
+            date = "2026-08-10",
+            daysOffset = -6,
+        )
+        val load = listOf(
+            AgendaDay(
+                LocalDate.of(2026, 8, 10),
+                agenda(day(date = "2026-08-10", scheduledNoTime = listOf(missed))).toSections(),
+            ),
+            AgendaDay(
+                TODAY,
+                agenda(
+                    day(date = "2026-08-16", upcoming = listOf(missed.copy(daysOffset = 6))),
+                ).toSections(),
+            ),
+        ).monthLoad(TODAY)
+
+        assertEquals(
+            MonthLoad(total = 1, overdue = true, dueSoon = false),
+            load[LocalDate.of(2026, 8, 10)],
+        )
     }
 
     @Test

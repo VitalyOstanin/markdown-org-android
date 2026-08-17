@@ -294,8 +294,7 @@ class AgendaSourceTest {
      * checks is what a walk reads, and the day the window is drawn around is
      * the screen's business.
      */
-    private suspend fun AgendaSource.oneDay() =
-        load(Scope.DAY, today, zone = zone).getOrThrow()
+    private suspend fun AgendaSource.oneDay() = load(Scope.DAY, today, zone = zone).getOrThrow()
 
     private companion object {
         /** One task, on the day these tests call today. */
