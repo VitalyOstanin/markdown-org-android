@@ -133,6 +133,7 @@ fn both_walks_read_the_same_defaults() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -196,6 +197,7 @@ fn a_day_agenda_splits_tasks_into_buckets() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -226,6 +228,7 @@ fn the_tasks_scope_fills_the_flat_list_instead_of_days() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -247,6 +250,7 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -257,6 +261,7 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -288,6 +293,7 @@ fn the_window_moves_without_taking_today_with_it() {
         Some("2026-04-15".to_string()),
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -324,6 +330,7 @@ fn an_agenda_says_a_file_was_skipped_for_its_encoding_rather_than_hiding_it() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("agenda");
@@ -389,6 +396,7 @@ fn a_bad_timezone_arrives_as_its_own_variant() {
         None,
         "Nowhere/Nothing".to_string(),
         false,
+        None,
         options(),
     )
     .expect_err("must fail");
@@ -410,6 +418,7 @@ fn a_bad_date_arrives_as_its_own_variant() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect_err("must fail");
@@ -434,4 +443,118 @@ fn a_malformed_glob_arrives_as_its_own_variant() {
         matches!(error, ExtractError::InvalidGlob { .. }),
         "got {error:?}"
     );
+}
+
+#[test]
+fn the_grid_scope_answers_with_the_whole_weeks_a_month_touches() {
+    // What the calendar draws: March 2026 begins on a Sunday and ends on a
+    // Tuesday, so a Monday-first grid borrows one day from February and six
+    // from April. The borrowed days carry their own tasks, which is why the
+    // client asks for this rather than padding a month out itself.
+    let vault = write_vault(&[("notes.md", TIMED)]);
+
+    let grid = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::MonthGrid,
+        "2026-03-02".to_string(),
+        None,
+        "Europe/Moscow".to_string(),
+        false,
+        Some("monday".to_string()),
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(grid.days.len() % 7, 0, "a grid is whole weeks");
+    assert_eq!(grid.days[0].date, "2026-02-23");
+    assert_eq!(grid.days.last().unwrap().date, "2026-04-05");
+}
+
+#[test]
+fn the_grid_scope_begins_the_week_where_it_is_told_to() {
+    let vault = write_vault(&[("notes.md", TIMED)]);
+
+    let grid = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::MonthGrid,
+        "2026-03-02".to_string(),
+        None,
+        "Europe/Moscow".to_string(),
+        false,
+        Some("sunday".to_string()),
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(grid.days[0].date, "2026-03-01");
+}
+
+#[test]
+fn the_grid_scope_falls_back_to_monday_and_refuses_an_anchored_week() {
+    // Told nothing, the core takes its fixed Monday -- the default that keeps
+    // one input rendering one agenda wherever it is read. What it will not do
+    // is draw a grid on a week with no fixed first day: `today` anchors a week
+    // on the day being rendered, which leaves the columns undefined.
+    let vault = write_vault(&[("notes.md", TIMED)]);
+
+    let defaulted = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::MonthGrid,
+        "2026-03-02".to_string(),
+        None,
+        "Europe/Moscow".to_string(),
+        false,
+        None,
+        options(),
+    )
+    .expect("agenda");
+
+    assert_eq!(defaulted.days[0].date, "2026-02-23");
+
+    let error = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::MonthGrid,
+        "2026-03-02".to_string(),
+        None,
+        "Europe/Moscow".to_string(),
+        false,
+        Some("today".to_string()),
+        options(),
+    )
+    .expect_err("must fail");
+
+    assert!(
+        matches!(error, ExtractError::InvalidDate { .. }),
+        "got {error:?}"
+    );
+}
+
+#[test]
+fn a_dated_row_carries_the_occurrence_after_its_own_day() {
+    // The repeat hint under a day names the occurrence after *that* day, so
+    // the field the client reads has to cross the boundary. It is filled in
+    // the scheduled buckets alone: the copies borrowed into today answer
+    // from today and carry `timestamp_next` instead.
+    let vault = write_vault(&[("notes.md", REPEATING)]);
+
+    let week = scan_agenda(
+        vault.path().display().to_string(),
+        Scope::Week,
+        "2026-03-02".to_string(),
+        None,
+        "Europe/Moscow".to_string(),
+        false,
+        Some("monday".to_string()),
+        options(),
+    )
+    .expect("agenda");
+
+    let first = week
+        .days
+        .iter()
+        .find(|day| !day.scheduled_no_time.is_empty())
+        .expect("a day the task falls on");
+    let row = &first.scheduled_no_time[0];
+
+    assert_eq!(row.timestamp_next_after.as_deref(), Some("2026-03-09"));
 }

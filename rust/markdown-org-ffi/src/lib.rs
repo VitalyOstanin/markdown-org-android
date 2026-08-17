@@ -155,6 +155,9 @@ pub enum Scope {
     Week,
     /// The calendar month containing the anchor date.
     Month,
+    /// The grid that month is drawn on: whole weeks, so the days at either
+    /// end belong to the neighbouring months.
+    MonthGrid,
     /// No window: every task, as a flat list.
     Tasks,
 }
@@ -165,6 +168,7 @@ impl From<Scope> for AgendaScope {
             Scope::Day => AgendaScope::Day,
             Scope::Week => AgendaScope::Week,
             Scope::Month => AgendaScope::Month,
+            Scope::MonthGrid => AgendaScope::MonthGrid,
             Scope::Tasks => AgendaScope::Tasks,
         }
     }
@@ -201,6 +205,14 @@ pub struct Task {
     pub timestamp_repeater: Option<String>,
     /// Next occurrence of a repeating task as `YYYY-MM-DD`.
     pub timestamp_next: Option<String>,
+    /// The occurrence after the day this row is drawn on, as `YYYY-MM-DD`.
+    ///
+    /// Set only in the scheduled buckets, where the task has a day of its own;
+    /// the copies borrowed into the reference day (overdue, upcoming) carry
+    /// [`timestamp_next`](Self::timestamp_next) alone. A repeat hint under a
+    /// day reads this, so it names the occurrence after *that* day rather
+    /// than repeating the one after today on every row.
+    pub timestamp_next_after: Option<String>,
     /// Days from the agenda date: negative is overdue. Only set on tasks
     /// returned by [`scan_agenda`], never by [`scan`].
     pub days_offset: Option<i64>,
@@ -229,6 +241,7 @@ impl From<markdown_org_extract::Task> for Task {
             timestamp_time: task.timestamp_time,
             timestamp_repeater: task.timestamp_repeater,
             timestamp_next: task.timestamp_next,
+            timestamp_next_after: task.timestamp_next_after,
             days_offset: None,
         }
     }
@@ -407,6 +420,7 @@ pub fn scan_agenda(
     date: Option<String>,
     timezone: String,
     include_done: bool,
+    week_start: Option<String>,
     options: Options,
 ) -> Result<AgendaResult, ExtractError> {
     let outcome = walk(&dir, options)?;
@@ -420,6 +434,7 @@ pub fn scan_agenda(
         date.as_deref(),
         &timezone,
         include_done,
+        week_start.as_deref(),
     )
 }
 
@@ -437,17 +452,27 @@ pub(crate) fn build_agenda(
     date: Option<&str>,
     timezone: &str,
     include_done: bool,
+    week_start: Option<&str>,
 ) -> Result<AgendaResult, ExtractError> {
     // `Tasks` is the date-less scope, and the extractor rejects any date
     // argument under it rather than quietly ignoring one. Both dates are
     // therefore dropped here instead of being forwarded — the caller passes
     // one argument set regardless of scope, and only the scopes that have a
     // window use it.
+    // The week start reaches only the scopes drawn in weeks. `Tasks` rejects
+    // every date argument, and `Day`/`Month` ignore this one -- the extractor
+    // logs it as inert rather than refusing, and passing it there would be a
+    // line in the log per agenda. Left out, the extractor takes its fixed
+    // Monday.
     let dates = match scope {
         Scope::Tasks => AgendaDates::default(),
         _ => AgendaDates {
             current_date: Some(current_date),
             date,
+            week_start: match scope {
+                Scope::Week | Scope::MonthGrid => week_start,
+                _ => None,
+            },
             ..AgendaDates::default()
         },
     };

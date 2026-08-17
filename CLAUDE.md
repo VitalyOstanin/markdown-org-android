@@ -95,6 +95,11 @@ reasoning.
   operation anywhere in it that empties the notes directory. The rule is
   guarded by a test over the Kotlin sources rather than left to documentation.
   See [ADR-0024](docs/adr/0024-the-application-removes-no-file-it-did-not-write.md).
+- The month calendar is laid out from the days the core answered with, not
+  from a month the client fills out to whole weeks itself, and the weekday a
+  week begins on is the phone's answer passed to the core rather than the
+  core's fixed Monday. See
+  [ADR-0025](docs/adr/0025-the-month-grid-is-the-core-s-answer.md).
 
 ## Working on the core
 

@@ -66,6 +66,7 @@ fn day_of(index: &NotesIndex) -> markdown_org_ffi::AgendaResult {
             None,
             "Europe/Moscow".to_string(),
             false,
+            None,
         )
         .expect("agenda")
 }
@@ -87,6 +88,7 @@ fn the_index_answers_what_a_fresh_walk_would_have() {
         None,
         "Europe/Moscow".to_string(),
         false,
+        None,
         options(),
     )
     .expect("scan");

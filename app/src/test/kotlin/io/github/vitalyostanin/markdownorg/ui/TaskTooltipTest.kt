@@ -47,6 +47,31 @@ class TaskTooltipTest {
     }
 
     @Test
+    fun `a row drawn under a day names the occurrence after that day`() {
+        // The reader is looking at one day, so "next" has to mean "after this
+        // one". The core resolves that per rendered day and fills it in the
+        // scheduled buckets alone (its ADR-0029); the copies it borrows into
+        // today keep answering from today, which is what a row of arrears is
+        // there to say.
+        val dated = task(
+            date = "2026-07-01",
+            repeater = "+1d",
+            next = "2026-08-05",
+            nextAfter = "2026-08-13",
+        ).line()
+        val borrowed = task(date = "2026-07-01", repeater = "+1d", next = "2026-08-05").line()
+
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_next, listOf(" (+1d)", "<2026-08-13>")),
+            dated,
+        )
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_next, listOf(" (+1d)", "<2026-08-05>")),
+            borrowed,
+        )
+    }
+
+    @Test
     fun `an hour repeater drops the time its next occurrence does not keep`() {
         // The next occurrence of an hour repeater is projected onto a whole-day
         // grid with the interval ignored, so the stated clock time is not its

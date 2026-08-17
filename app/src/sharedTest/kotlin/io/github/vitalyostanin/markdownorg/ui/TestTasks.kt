@@ -25,6 +25,8 @@ internal fun task(
     time: String? = null,
     repeater: String? = null,
     next: String? = null,
+    /** The occurrence after this row's own day; only a dated row carries one. */
+    nextAfter: String? = null,
     daysOffset: Long? = 0,
 ): Task = Task(
     file = file,
@@ -38,6 +40,7 @@ internal fun task(
     timestampTime = time,
     timestampRepeater = repeater,
     timestampNext = next,
+    timestampNextAfter = nextAfter,
     daysOffset = daysOffset,
 )
 

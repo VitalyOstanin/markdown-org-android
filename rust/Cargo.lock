@@ -856,9 +856,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "markdown-org-extract"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99e0265d1d6b3bb18ce58b9f63e31eee605e066b7b729ad920ae485e2a6eb8c8"
+checksum = "91f1ba1256a3e48e86ea315ca580b35e63b3285bd613f1a52a4e358c8880662c"
 dependencies = [
  "aho-corasick",
  "chrono",

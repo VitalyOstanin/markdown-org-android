@@ -59,7 +59,16 @@ internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String
 
         AgendaKind.DONE -> TooltipLine(R.string.tooltip_done)
 
-        AgendaKind.REPEAT -> repeatLine(repeater.orEmpty(), timestampNext, stated, moment)
+        // A row drawn under a day of its own names the occurrence after that
+        // day; the copies the core borrows into today -- arrears, and
+        // deadlines coming due -- carry only the one after today, which is
+        // what they are there to say.
+        AgendaKind.REPEAT -> repeatLine(
+            repeater.orEmpty(),
+            timestampNextAfter ?: timestampNext,
+            stated,
+            moment,
+        )
 
         AgendaKind.DEADLINE -> if (stated.isEmpty()) {
             TooltipLine(R.string.tooltip_deadline)
@@ -79,8 +88,8 @@ internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String
 }
 
 /**
- * The repeating line, which names the next occurrence when the core resolved
- * one and the task's own date when it did not.
+ * The repeating line, which names the occurrence the core resolved for this
+ * row and the task's own date when it resolved none.
  *
  * An hour repeater is projected onto a whole-day grid with its interval
  * ignored (extract ADR-0023), so the stated clock time is not the time of that

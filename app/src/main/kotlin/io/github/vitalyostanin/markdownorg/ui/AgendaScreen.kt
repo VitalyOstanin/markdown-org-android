@@ -253,8 +253,8 @@ private fun AgendaBody(
                     // where the month is full and where it is not. The rows
                     // themselves stay one tap away, in the day the cell opens.
                     MonthLayout(
-                        cells = remember(state.date, now.toLocalDate()) {
-                            buildMonthGrid(state.date, now.toLocalDate())
+                        cells = remember(state.days, state.date, now.toLocalDate()) {
+                            buildMonthGrid(state.days, state.date, now.toLocalDate())
                         },
                         load = remember(state.days, now.toLocalDate()) {
                             state.days.monthLoad(now.toLocalDate())

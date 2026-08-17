@@ -70,6 +70,9 @@ data class AgendaUi(
     /** Whether a month is a calendar rather than the list of its days. */
     val monthAsGrid: Boolean = true,
     val onMonthAsGridChange: (Boolean) -> Unit = {},
+    /** Which weekday a week is read as beginning on; costs a scan to change. */
+    val weekStart: WeekStart = WeekStart.AUTO,
+    val onWeekStartChange: (WeekStart) -> Unit = {},
 )
 
 /** What is left of the last run, and the notices of what the APK carries. */

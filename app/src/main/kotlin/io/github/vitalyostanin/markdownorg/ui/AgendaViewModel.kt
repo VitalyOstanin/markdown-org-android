@@ -58,14 +58,18 @@ import kotlinx.coroutines.launch
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.generateSshKey
 import java.io.File
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 class AgendaViewModel(
     /** The collections in use, each with the working copy that belongs to it. */
@@ -203,6 +207,17 @@ class AgendaViewModel(
     val monthAsGrid: StateFlow<Boolean> = _monthAsGrid.asStateFlow()
 
     /**
+     * Which weekday a week is read as beginning on.
+     *
+     * Unlike the two above it, this one costs a scan: where a week starts is
+     * the core's to apply — it groups the week span and cuts the calendar into
+     * rows — so a changed answer is a different agenda, not a different
+     * drawing of the same one.
+     */
+    private val _weekStart = MutableStateFlow(ui.weekStart)
+    val weekStart: StateFlow<WeekStart> = _weekStart.asStateFlow()
+
+    /**
      * Which date the plan is asked around, or `null` for whatever day it is.
      *
      * `null` rather than today's date written down at launch: a phone is left
@@ -329,9 +344,48 @@ class AgendaViewModel(
      * screen's decision alone.
      */
     fun setMonthAsGrid(asGrid: Boolean) {
+        if (asGrid == _monthAsGrid.value) return
+
         _monthAsGrid.value = asGrid
         ui.monthAsGrid = asGrid
+        // The two readings of a month are no longer the same answer read two
+        // ways: the calendar is asked for the whole weeks it draws, the list
+        // for the month alone. Only the month is affected, and only while it
+        // is the span on screen -- switching this from the day view changes
+        // what the next month will ask for and nothing that is drawn now.
+        if (_span.value == AgendaSpan.MONTH) {
+            refresh()
+        }
     }
+
+    /**
+     * Read a week as beginning on another weekday.
+     *
+     * A scan follows wherever the choice is visible: the calendar is cut into
+     * weeks by the core, and so is the week span itself, so neither can be
+     * redrawn from the answer already in hand.
+     */
+    fun setWeekStart(start: WeekStart) {
+        if (start == _weekStart.value) return
+
+        _weekStart.value = start
+        ui.weekStart = start
+        if (_span.value == AgendaSpan.WEEK ||
+            (_span.value == AgendaSpan.MONTH && _monthAsGrid.value)
+        ) {
+            refresh()
+        }
+    }
+
+    /**
+     * The weekday a week begins on, for the spans drawn in weeks.
+     *
+     * The core takes a fixed Monday when it is told nothing, and reads no
+     * locale to do better: it is a library with one answer per input, and the
+     * phone is what knows how its owner reads a calendar. The setting answers,
+     * and its own default is the system locale.
+     */
+    private fun weekStart(): DayOfWeek = _weekStart.value.resolve()
 
     /**
      * Ask the core for another span of the plan.
@@ -841,8 +895,22 @@ class AgendaViewModel(
             // the reader — a month paged forward reported them under the day
             // being looked at, and the same task was counted both there and
             // in its own day.
+            // Which reading of the month is on screen decides what is asked
+            // for: the calendar needs the whole weeks it draws, borrowed days
+            // and all, while the list of a month is that month and nothing
+            // either side of it.
+            val scope = if (span == AgendaSpan.MONTH && _monthAsGrid.value) {
+                Scope.MONTH_GRID
+            } else {
+                span.scope
+            }
             val built = seeded.mapCatching {
-                agenda.load(span.scope, today = today, shown = shown).getOrThrow()
+                agenda.load(
+                    scope,
+                    today = today,
+                    shown = shown,
+                    weekStart = weekStart(),
+                ).getOrThrow()
             }
             // `mapCatching` catches every throwable, and the cancellation this
             // scan is dropped by is one of them: folded like any other failure

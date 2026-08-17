@@ -47,29 +47,30 @@ data class MonthCell(
 )
 
 /**
- * The month [anchor] falls in: the days its first week borrows from the month
- * before, the month itself, then enough of the next one to finish the last
- * week. That is what gives the grid its 4, 5 or 6 rows.
+ * The days of [days] laid out as cells, in the order they arrived.
  *
- * [firstDay] is the weekday a week starts on. The core groups a week from
- * Monday (`num_days_from_monday` in its agenda), so a grid that started on
- * Sunday would cut the month into different weeks than the week span shows,
- * and stepping between the two spans would not line up.
+ * Which dates those are is the core's answer, not this function's: asked for
+ * [uniffi.markdown_org_ffi.Scope.MONTH_GRID] it returns the whole weeks the
+ * anchor month touches, beginning on the weekday it was given (its ADR-0028
+ * and ADR-0030). Cutting the month into weeks a second time here would be a
+ * second implementation of that rule, free to disagree with the one that
+ * produced the rows — and it did: the borrowed days at either end stood for
+ * dates the answer said nothing about, so a task on the 30th of the previous
+ * month was missing from the cell that shows it.
+ *
+ * What is still read off the date is what a day does not carry: whether it
+ * falls outside the month [anchor] names, whether it is a weekend, and whether
+ * it is [today].
  */
 internal fun buildMonthGrid(
+    days: List<AgendaDay>,
     anchor: LocalDate,
     today: LocalDate,
-    firstDay: DayOfWeek = DayOfWeek.MONDAY,
 ): List<MonthCell> {
-    val columns = DayOfWeek.entries.size
     val month = YearMonth.from(anchor)
-    val first = month.atDay(1)
-    val leading = (first.dayOfWeek.value - firstDay.value + columns) % columns
-    val cells = leading + month.lengthOfMonth()
-    val trailing = (columns - cells % columns) % columns
 
-    return (0 until cells + trailing).map { index ->
-        val date = first.plusDays((index - leading).toLong())
+    return days.mapNotNull { day ->
+        val date = day.date ?: return@mapNotNull null
         MonthCell(
             date = date,
             otherMonth = YearMonth.from(date) != month,

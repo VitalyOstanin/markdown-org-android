@@ -552,6 +552,47 @@ private fun AgendaSection(agenda: AgendaUi) {
         hint = R.string.hint_settings_agenda_month_grid,
         explanation = R.string.settings_agenda_month_grid_hint,
     )
+    WeekStartChoice(agenda.weekStart, agenda.onWeekStartChange)
+}
+
+/**
+ * Which weekday a week is read as beginning on: three chips rather than a
+ * tick, because the answer has three values and the middle one — whatever the
+ * phone says — is not the absence of the other two.
+ *
+ * Unlike the ticks above it this one costs a scan: where a week starts is
+ * applied by the core, so the agenda is asked again rather than redrawn.
+ */
+@Composable
+private fun WeekStartChoice(current: WeekStart, onChange: (WeekStart) -> Unit) {
+    HintTooltip(stringResource(R.string.hint_settings_week_start)) {
+        Text(
+            text = stringResource(R.string.settings_week_start),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("settings-week-start"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        WeekStart.entries.forEach { option ->
+            FilterChip(
+                selected = option == current,
+                onClick = { onChange(option) },
+                label = { Text(stringResource(option.labelRes)) },
+                modifier = Modifier.testTag(option.testTag),
+            )
+        }
+    }
+    Text(
+        text = stringResource(R.string.settings_week_start_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** One tick of [AgendaSection]: the box, its label and the line under it. */

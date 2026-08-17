@@ -201,6 +201,7 @@ impl NotesIndex {
         date: Option<String>,
         timezone: String,
         include_done: bool,
+        week_start: Option<String>,
     ) -> Result<AgendaResult, ExtractError> {
         let state = self.lock();
         // Cloned because the filter consumes what it is given and this index
@@ -214,6 +215,7 @@ impl NotesIndex {
             date.as_deref(),
             &timezone,
             include_done,
+            week_start.as_deref(),
         )
     }
 }

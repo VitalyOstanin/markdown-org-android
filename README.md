@@ -135,9 +135,11 @@ the extractor stays free to change its internals and only this crate has to
 follow. Reading the notes:
 
 - `scan(dir, options)` — walk a directory, return every task found;
-- `scanAgenda(dir, scope, currentDate, timezone, includeDone, options)` —
-  walk it and return the agenda for a day, week, month, or the flat task
-  list.
+- `scanAgenda(dir, scope, currentDate, date, timezone, includeDone, weekStart, options)` —
+  walk it and return the agenda for a day, week, month, the grid that month is
+  drawn on, or the flat task list. `weekStart` names the weekday a week begins
+  on: the core reads no locale of its own and takes Monday when told nothing,
+  so the application says what the phone's settings answer.
 
 Both walk the directory on every call, which is the right shape for the first
 agenda and the wrong one for the agendas after an edit. For those there is

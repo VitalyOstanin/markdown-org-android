@@ -38,8 +38,11 @@ import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import java.io.File
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 /**
  * How the view model orders work that lands on the same directory.
@@ -1332,8 +1335,107 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        assertEquals(listOf(Scope.MONTH), loader.scopes)
+        // The calendar is what a month opens as, and the calendar is drawn on
+        // whole weeks -- so that is the scope, not the month alone.
+        assertEquals(listOf(Scope.MONTH_GRID), loader.scopes)
         assertEquals(AgendaSpan.MONTH, model.span.value)
+    }
+
+    @Test
+    fun theMonthReadAsAListIsAskedForAsTheMonthAlone() = runTest(dispatcher) {
+        // The list of a month is that month: the days either side of it belong
+        // to the months before and after, and a list that stated them would be
+        // answering about a month nobody asked for.
+        ui.span = AgendaSpan.MONTH
+        ui.monthAsGrid = false
+
+        viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        assertEquals(listOf(Scope.MONTH), loader.scopes)
+    }
+
+    @Test
+    fun switchingBetweenTheTwoReadingsOfAMonthAsksAgain() = runTest(dispatcher) {
+        // The two are no longer one answer read two ways: the grid needs the
+        // weeks around the month, and the list does not carry them.
+        ui.span = AgendaSpan.MONTH
+
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.setMonthAsGrid(false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(Scope.MONTH_GRID, Scope.MONTH), loader.scopes)
+    }
+
+    @Test
+    fun theWeekdayAWeekBeginsOnIsPassedToTheCore() = runTest(dispatcher) {
+        // The core reads no locale and defaults to Monday; the phone knows how
+        // its owner reads a calendar, so it says. The grid scope is refused
+        // without it.
+        ui.span = AgendaSpan.MONTH
+
+        viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(WeekFields.of(Locale.getDefault()).firstDayOfWeek),
+            loader.weekStarts,
+        )
+    }
+
+    @Test
+    fun theStoredWeekStartWinsOverTheOneThePhoneWouldGive() = runTest(dispatcher) {
+        // The reader whose habit and whose phone disagree: a stated Sunday is
+        // what the core is told, whatever the locale says.
+        ui.span = AgendaSpan.MONTH
+        ui.weekStart = WeekStart.SUNDAY
+
+        viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        assertEquals(listOf(DayOfWeek.SUNDAY), loader.weekStarts)
+    }
+
+    @Test
+    fun changingWhereAWeekStartsAsksForTheAgendaAgain() = runTest(dispatcher) {
+        // The cut into weeks is the core's, so the calendar on screen cannot
+        // be redrawn from the answer already in hand.
+        ui.span = AgendaSpan.MONTH
+
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.setWeekStart(WeekStart.SUNDAY)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(WeekFields.of(Locale.getDefault()).firstDayOfWeek, DayOfWeek.SUNDAY),
+            loader.weekStarts,
+        )
+        assertEquals(WeekStart.SUNDAY, ui.weekStart)
+    }
+
+    @Test
+    fun changingWhereAWeekStartsFromTheDayViewCostsNoScan() = runTest(dispatcher) {
+        // Nothing on screen is cut into weeks, so there is nothing to ask
+        // again for; the choice is stored and the next week or month uses it.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        loader.pending[0].complete(Result.success(agenda(day())))
+        advanceUntilIdle()
+
+        model.setWeekStart(WeekStart.SUNDAY)
+        advanceUntilIdle()
+
+        assertEquals(1, loader.scopes.size)
+        assertEquals(WeekStart.SUNDAY, ui.weekStart)
     }
 
     @Test

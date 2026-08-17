@@ -5,8 +5,10 @@ import uniffi.markdown_org_ffi.NotesIndex
 import uniffi.markdown_org_ffi.Options
 import uniffi.markdown_org_ffi.Scope
 import java.io.File
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 /** Reads the agenda out of the notes directory. */
 interface AgendaLoader {
@@ -20,6 +22,11 @@ interface AgendaLoader {
      * whole collection followed the reader from month to month, landing in
      * whichever day was being looked at. `null` draws the window around
      * [today], which is where a reader who has not stepped away is.
+     *
+     * [weekStart] is the weekday a week begins on, for the spans drawn in
+     * weeks. The core reads no locale of its own and falls back to Monday, so
+     * a client that knows better — the phone does, from its own settings —
+     * says so.
      */
     suspend fun load(
         scope: Scope,
@@ -27,6 +34,7 @@ interface AgendaLoader {
         shown: LocalDate? = null,
         zone: ZoneId = ZoneId.systemDefault(),
         includeDone: Boolean = false,
+        weekStart: DayOfWeek? = null,
     ): Result<AgendaResult>
 
     /**
@@ -84,6 +92,7 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
         shown: LocalDate?,
         zone: ZoneId,
         includeDone: Boolean,
+        weekStart: DayOfWeek?,
     ): Result<AgendaResult> = notes.exclusive { areas ->
         // Failures arrive as ExtractException from the core and as
         // UnsatisfiedLinkError when the native library is missing for the
@@ -100,6 +109,9 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
                 date = shown?.toString(),
                 timezone = zone.id,
                 includeDone = includeDone,
+                // Named as the core names its weekdays -- lower case, in
+                // English, whatever the phone's own language is.
+                weekStart = weekStart?.name?.lowercase(Locale.ROOT),
             )
         }
     }

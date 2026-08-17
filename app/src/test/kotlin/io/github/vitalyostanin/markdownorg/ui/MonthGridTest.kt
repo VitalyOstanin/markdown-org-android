@@ -16,21 +16,28 @@ import java.time.LocalDate
 class MonthGridTest {
 
     @Test
-    fun `a month is filled out to whole weeks`() {
-        // August 2026 starts on a Saturday and ends on a Monday: five days are
-        // borrowed at the front and six at the back, which is what makes the
-        // grid rectangular.
-        val cells = buildMonthGrid(anchor = LocalDate.of(2026, 8, 16), today = TODAY)
+    fun `the cells are the days the core answered with, in that order`() {
+        // What Scope.MONTH_GRID returns for August 2026 read from a Monday:
+        // the month starts on a Saturday and ends on a Monday, so five days
+        // are borrowed at the front and six at the back.
+        val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 7, 27), 42),
+            anchor = LocalDate.of(2026, 8, 16),
+            today = TODAY,
+        )
 
-        assertEquals(0, cells.size % DayOfWeek.entries.size)
+        assertEquals(42, cells.size)
         assertEquals(LocalDate.of(2026, 7, 27), cells.first().date)
         assertEquals(LocalDate.of(2026, 9, 6), cells.last().date)
-        assertEquals(DayOfWeek.MONDAY, cells.first().date.dayOfWeek)
     }
 
     @Test
     fun `the borrowed days are marked as another month and carry their own dates`() {
-        val cells = buildMonthGrid(anchor = LocalDate.of(2026, 8, 16), today = TODAY)
+        val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 7, 27), 42),
+            anchor = LocalDate.of(2026, 8, 16),
+            today = TODAY,
+        )
         val borrowed = cells.filter { it.otherMonth }
 
         // Real dates rather than blanks: a cell of the previous month opens
@@ -42,18 +49,12 @@ class MonthGridTest {
     }
 
     @Test
-    fun `a month that starts on the first day of a week borrows nothing`() {
-        // June 2026 starts on a Monday and has thirty days, which is four
-        // weeks and two days: nothing at the front, five borrowed at the back.
-        val cells = buildMonthGrid(anchor = LocalDate.of(2026, 6, 10), today = TODAY)
-
-        assertEquals(LocalDate.of(2026, 6, 1), cells.first().date)
-        assertEquals(35, cells.size)
-    }
-
-    @Test
     fun `today and the weekend are marked wherever the anchor sits`() {
-        val cells = buildMonthGrid(anchor = LocalDate.of(2026, 8, 1), today = TODAY)
+        val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 7, 27), 42),
+            anchor = LocalDate.of(2026, 8, 1),
+            today = TODAY,
+        )
 
         assertEquals(TODAY, cells.single { it.today }.date)
         assertTrue(
@@ -64,21 +65,50 @@ class MonthGridTest {
 
     @Test
     fun `a month the reader has stepped away from marks no day as today`() {
-        val cells = buildMonthGrid(anchor = LocalDate.of(2026, 11, 3), today = TODAY)
+        val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 10, 26), 42),
+            anchor = LocalDate.of(2026, 11, 3),
+            today = TODAY,
+        )
 
         assertTrue(cells.none { it.today })
     }
 
     @Test
-    fun `a week starting on Sunday shifts the grid without changing the month`() {
+    fun `a week starting on Sunday is laid out as the core sent it`() {
+        // The same month asked for with `--week-start sunday`: the core moves
+        // the boundary, and the layout follows without a rule of its own.
         val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 7, 26), 42),
             anchor = LocalDate.of(2026, 8, 16),
             today = TODAY,
-            firstDay = DayOfWeek.SUNDAY,
         )
 
         assertEquals(DayOfWeek.SUNDAY, cells.first().date.dayOfWeek)
         assertEquals(LocalDate.of(2026, 8, 1), cells.first { !it.otherMonth }.date)
+    }
+
+    @Test
+    fun `a day the core sent without a date is skipped rather than drawn blank`() {
+        val cells = buildMonthGrid(
+            days = gridDays(LocalDate.of(2026, 8, 3), 2) +
+                AgendaDay(null, flatAgenda(task(heading = "No date at all")).toSections()),
+            anchor = LocalDate.of(2026, 8, 16),
+            today = TODAY,
+        )
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 4)),
+            cells.map { it.date },
+        )
+    }
+
+    @Test
+    fun `an answer with no days lays out no cells`() {
+        assertTrue(
+            buildMonthGrid(days = emptyList(), anchor = LocalDate.of(2026, 8, 16), today = TODAY)
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -263,6 +293,17 @@ class MonthGridTest {
         assertTrue(load.isEmpty())
         assertNull(load[TODAY])
     }
+
+    /**
+     * The days a grid answer is made of: consecutive dates, empty of rows.
+     * Which dates those are is the core's decision, so a layout test states
+     * them rather than deriving them.
+     */
+    private fun gridDays(first: LocalDate, count: Int): List<AgendaDay> =
+        (0 until count).map { offset ->
+            val date = first.plusDays(offset.toLong())
+            AgendaDay(date, agenda(day(date = date.toString())).toSections())
+        }
 
     private companion object {
         val TODAY: LocalDate = LocalDate.of(2026, 8, 16)

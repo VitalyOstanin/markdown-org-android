@@ -33,8 +33,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen span is remembered like the layout is.
 - The month is drawn as a calendar, the way the editor extension draws it: one
   cell per day, filled out to whole weeks with the days its first and last
-  weeks borrow from the months beside it. A cell counts what is dated to that
-  day and nothing else, and takes the overdue colour from the date itself: it
+  weeks borrow from the months beside it. Those weeks are what the core is
+  asked for, so a borrowed day carries its own tasks like any other cell
+  rather than standing empty over a date the answer said nothing about; the
+  weekday they begin on is the phone's own, not the core's fixed Monday. A
+  cell counts what is dated to that day and nothing else, and takes the overdue colour from the date itself: it
   has gone by with planning still sitting on it. A meeting that has been and
   gone leaves no debt behind and no colour. A date still ahead that a deadline
   is coming due on is ringed rather than filled — a fill is what arrears take,

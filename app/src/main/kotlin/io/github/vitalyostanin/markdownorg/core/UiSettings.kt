@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.core
 import android.content.Context
 import io.github.vitalyostanin.markdownorg.ui.AgendaLayout
 import io.github.vitalyostanin.markdownorg.ui.AgendaSpan
+import io.github.vitalyostanin.markdownorg.ui.WeekStart
 
 /**
  * What the user chose about the interface itself, as everything above the
@@ -37,6 +38,16 @@ interface UiPreferences {
      * one a reader wants is not something the screen can tell.
      */
     var monthAsGrid: Boolean
+
+    /**
+     * Which weekday a week is read as beginning on.
+     *
+     * The phone's own locale answers it by default. Stated here as well
+     * because the two can disagree — a reader whose habit is not the one the
+     * locale carries — and because the answer decides both where the calendar
+     * is cut and how the week span is grouped.
+     */
+    var weekStart: WeekStart
 }
 
 /**
@@ -74,6 +85,13 @@ class UiSettings(context: Context) : UiPreferences {
         get() = preferences.getBoolean(KEY_MONTH_GRID, true)
         set(value) = preferences.edit().putBoolean(KEY_MONTH_GRID, value).apply()
 
+    override var weekStart: WeekStart
+        // The phone's own answer, because that is the one the reader already
+        // gets from every other calendar on the device. The two fixed values
+        // are for saying otherwise.
+        get() = stored(KEY_WEEK_START, WeekStart.entries, WeekStart.AUTO)
+        set(value) = store(KEY_WEEK_START, value.name)
+
     /**
      * The stored choice among [options], or [fallback].
      *
@@ -93,5 +111,6 @@ class UiSettings(context: Context) : UiPreferences {
         const val KEY_SPAN = "agenda_span"
         const val KEY_GROUPED = "agenda_grouped"
         const val KEY_MONTH_GRID = "agenda_month_grid"
+        const val KEY_WEEK_START = "agenda_week_start"
     }
 }

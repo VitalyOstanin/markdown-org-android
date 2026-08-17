@@ -60,6 +60,7 @@ so a decision can be followed across the three repositories.
 | 0022 | [Several collections, one agenda](0022-several-collections-one-agenda.md) | Accepted |
 | 0023 | [A collection is a dot at the head of the row](0023-a-collection-is-a-dot-at-the-head-of-the-row.md) | Accepted |
 | 0024 | [The application removes no file it did not write](0024-the-application-removes-no-file-it-did-not-write.md) | Accepted |
+| 0025 | [The month grid is the core's answer, and the phone says where a week starts](0025-the-month-grid-is-the-core-s-answer.md) | Accepted |
 
 ## Adding a new ADR
 

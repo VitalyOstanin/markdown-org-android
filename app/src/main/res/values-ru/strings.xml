@@ -122,6 +122,11 @@
     <string name="settings_agenda_grouped_hint">Без разбивки те же строки идут в том же порядке — без заголовков, счётчиков и меню группы.</string>
     <string name="settings_agenda_month_grid">Показывать месяц календарём</string>
     <string name="settings_agenda_month_grid_hint">Без календаря месяц читается как неделя: заголовок у каждого дня, где что-то есть, и строки под ним.</string>
+    <string name="settings_week_start">Неделя начинается с</string>
+    <string name="settings_week_start_auto">Как на телефоне</string>
+    <string name="settings_week_start_monday">Понедельника</string>
+    <string name="settings_week_start_sunday">Воскресенья</string>
+    <string name="settings_week_start_hint">Определяет, по каким дням режется календарь и как группируется неделя.</string>
     <string name="settings_licences">Лицензии</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
     <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
@@ -187,6 +192,7 @@
     <string name="hint_settings_notes_grant">Открывает экран системы, где выдаётся доступ ко всем файлам. Без него каталог вне собственного хранилища приложения не прочитать.</string>
     <string name="hint_settings_collection_remove">Убирает коллекцию из повестки и забывает её адрес, ветку и токен. Каталог и все заметки в нём остаются на устройстве.</string>
     <string name="hint_settings_agenda_grouped">Заголовки говорят, что за строка перед вами — назначенная на день, без времени или просроченная и насколько давно, — и несут действия над всей группой. Без них эта высота уходит строкам.</string>
+    <string name="hint_settings_week_start">По умолчанию отвечает сам телефон — по языку и региону. Задайте явно, если привычка и телефон расходятся: от ответа зависит, какой день стоит первым столбцом календаря и какие семь дней покрывает неделя. Смена запрашивает повестку заново.</string>
     <string name="hint_settings_agenda_month_grid">Календарь показывает форму месяца: где недели заполнены, где скопились просрочки, где свободно. Что именно стоит в дне, читается открытием дня. Список говорит, что в месяце есть, но за это приходится его прокрутить.</string>
     <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
     <string name="hint_settings_crash">То, что осталось от аварийно завершившегося запуска. Это стоит приложить к сообщению об ошибке; само никуда не отправляется.</string>

@@ -34,6 +34,7 @@ import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import java.io.File
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -226,16 +227,21 @@ class FakeAgendaLoader : AgendaLoader {
     /** And what each was dated from — today, wherever the window sits. */
     val todays = mutableListOf<LocalDate>()
 
+    /** The weekday each was asked to begin its weeks on, `null` for none. */
+    val weekStarts = mutableListOf<DayOfWeek?>()
+
     override suspend fun load(
         scope: Scope,
         today: LocalDate,
         shown: LocalDate?,
         zone: ZoneId,
         includeDone: Boolean,
+        weekStart: DayOfWeek?,
     ): Result<AgendaResult> {
         scopes += scope
         dates += shown ?: today
         todays += today
+        weekStarts += weekStart
         val answer = CompletableDeferred<Result<AgendaResult>>()
         pending += answer
         return answer.await()
@@ -339,6 +345,7 @@ class FakeUiPreferences(
     override var span: AgendaSpan = AgendaSpan.DAY,
     override var grouped: Boolean = true,
     override var monthAsGrid: Boolean = true,
+    override var weekStart: WeekStart = WeekStart.AUTO,
 ) : UiPreferences
 
 /** Where the notes are kept, in memory. */

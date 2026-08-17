@@ -174,6 +174,11 @@
     <string name="settings_agenda_grouped_hint">Off draws the same rows in the same order, without the headings, their counts and their group menus.</string>
     <string name="settings_agenda_month_grid">Draw the month as a calendar</string>
     <string name="settings_agenda_month_grid_hint">Off reads the month as the week does — a heading per day that has anything on it, and the rows under it.</string>
+    <string name="settings_week_start">A week begins on</string>
+    <string name="settings_week_start_auto">The phone\'s own</string>
+    <string name="settings_week_start_monday">Monday</string>
+    <string name="settings_week_start_sunday">Sunday</string>
+    <string name="settings_week_start_hint">Where the calendar is cut into rows, and how the week span is grouped.</string>
     <string name="settings_licences">Licences</string>
     <!-- Which build this is: the version, the number that orders the builds
          for Android, and the commit it was made from. -->
@@ -201,7 +206,8 @@
     <string name="tooltip_scheduled_at">Scheduled: %1$s</string>
     <!-- %1$s is the repeater in brackets, or nothing when it is not stated. -->
     <string name="tooltip_repeating">Repeating%1$s</string>
-    <!-- %2$s is the next occurrence the core resolved… -->
+    <!-- %2$s is the occurrence the core resolved for this row: the one after
+         the day it is drawn under, or after today for a row borrowed into it… -->
     <string name="tooltip_repeating_next">Repeating%1$s — next %2$s</string>
     <!-- …and here the date the task itself carries, which may be in the past. -->
     <string name="tooltip_repeating_on">Repeating%1$s — dated %2$s</string>
@@ -275,6 +281,7 @@
     <string name="hint_settings_notes_grant">Opens the screen of the platform where access to all files is granted. A directory outside the application\'s own storage cannot be read without it.</string>
     <string name="hint_settings_collection_remove">Takes this collection off the agenda and forgets its address, branch and token. The directory and every note in it stay on the device.</string>
     <string name="hint_settings_agenda_grouped">The headings say what a row is — scheduled for the day, without an hour, or how long ago it slipped — and carry the actions over a whole band. Turning them off gives their height to the rows.</string>
+    <string name="hint_settings_week_start">The phone answers this by default, from its own language and region. State it here when the habit and the phone disagree: the answer decides which day heads the calendar\'s first column and which seven days a week span covers. Changing it asks for the agenda again.</string>
     <string name="hint_settings_agenda_month_grid">A calendar says how the month is shaped: which weeks are full, where the arrears sit, which stretch is free. A day is opened to read what is actually on it. The list says what is in the month and takes a scroll to say it.</string>
     <string name="hint_settings_licences">What the application carries besides its own sources, and under what terms.</string>
     <string name="hint_settings_crash">What was left by the run that stopped unexpectedly. It is worth attaching to a report; nothing is sent anywhere by itself.</string>

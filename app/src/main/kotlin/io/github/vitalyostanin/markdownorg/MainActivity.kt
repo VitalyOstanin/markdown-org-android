@@ -137,6 +137,7 @@ private fun SettingsRoute(
     val editingId by model.editingId.collectAsStateWithLifecycle()
     val grouped by model.grouped.collectAsStateWithLifecycle()
     val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
+    val weekStart by model.weekStart.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
 
@@ -212,6 +213,8 @@ private fun SettingsRoute(
             onGroupedChange = model::setGrouped,
             monthAsGrid = monthAsGrid,
             onMonthAsGridChange = model::setMonthAsGrid,
+            weekStart = weekStart,
+            onWeekStartChange = model::setWeekStart,
         ),
     )
 }
