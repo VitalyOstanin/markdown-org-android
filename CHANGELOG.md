@@ -42,7 +42,10 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   gone leaves no debt behind and no colour. A date still ahead that a deadline
   is coming due on is ringed rather than filled — a fill is what arrears take,
   and the day the reader is warned about is the day the deadline falls on,
-  which a calendar is already showing. What the count is made of is
+  which a calendar is already showing. Of a deadline that repeats, the ring
+  goes on the one occurrence the warning is about: every occurrence is the
+  same line of the same note, so matched by the task alone the ring ran to the
+  end of the grid, and a weekly deadline marked the rest of the month. What the count is made of is
   behind a long press, and the rows themselves are one tap away — a cell opens
   its day. Where a row is too short for a number above a chip — a phone held
   sideways — the two stand side by side rather than being sliced. That is what

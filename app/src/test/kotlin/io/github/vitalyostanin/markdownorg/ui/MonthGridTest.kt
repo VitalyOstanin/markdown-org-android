@@ -195,6 +195,62 @@ class MonthGridTest {
     }
 
     @Test
+    fun `a repeat is marked on the occurrence warned about and on no other`() {
+        // Every occurrence of a repeating deadline is the same file and the
+        // same line, so matched by the row alone the mark ran from the
+        // occurrence the warning is about to every later one — a deadline
+        // repeating weekly ringed the rest of the month. The copy under today
+        // says which occurrence it means: the offset counts the days to it.
+        val repeating = task(
+            heading = "Send the report",
+            line = 12u,
+            timestampType = TimestampType.DEADLINE,
+            repeater = "+1w",
+            date = "2026-08-20",
+        )
+        val load = listOf(
+            AgendaDay(
+                TODAY,
+                agenda(
+                    day(
+                        date = "2026-08-16",
+                        upcoming = listOf(repeating.copy(daysOffset = 4)),
+                    ),
+                ).toSections(),
+            ),
+            AgendaDay(
+                LocalDate.of(2026, 8, 20),
+                agenda(
+                    day(
+                        date = "2026-08-20",
+                        scheduledNoTime = listOf(repeating.copy(daysOffset = 0)),
+                    ),
+                ).toSections(),
+            ),
+            AgendaDay(
+                LocalDate.of(2026, 8, 27),
+                agenda(
+                    day(
+                        date = "2026-08-27",
+                        scheduledNoTime = listOf(
+                            repeating.copy(timestampDate = "2026-08-27", daysOffset = 0),
+                        ),
+                    ),
+                ).toSections(),
+            ),
+        ).monthLoad(TODAY)
+
+        assertEquals(
+            MonthLoad(total = 1, overdue = false, dueSoon = true),
+            load[LocalDate.of(2026, 8, 20)],
+        )
+        assertEquals(
+            MonthLoad(total = 1, overdue = false, dueSoon = false),
+            load[LocalDate.of(2026, 8, 27)],
+        )
+    }
+
+    @Test
     fun `a deadline the core is not warning about yet is left unmarked`() {
         // The window belongs to the core: it applies Org's rule, including the
         // `-Xd` a timestamp may carry. What reaches the client is the answer —

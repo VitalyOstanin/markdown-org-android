@@ -27,7 +27,8 @@ import java.time.YearMonth
  * reached. The window is the core's to decide — it applies Org's
  * `org-deadline-warning-days`, and the `-Xd` a timestamp may carry, when it
  * repeats the deadline under today — so the client reads the answer rather
- * than the rule.
+ * than the rule. Which date the warning is about it also says, as the offset
+ * on that copy.
  */
 data class MonthLoad(val total: Int, val overdue: Boolean, val dueSoon: Boolean = false)
 
@@ -105,7 +106,7 @@ internal fun List<AgendaDay>.monthLoad(today: LocalDate): Map<LocalDate, MonthLo
         val rows = (sections.timed + sections.untimed).filter { it.daysOffset <= 0L }
         if (rows.isNotEmpty()) {
             val owed = date < today && rows.any { it.owes() }
-            val due = date >= today && rows.any { it.key in warned }
+            val due = date >= today && rows.any { (date to it.key) in warned }
 
             put(date, MonthLoad(total = rows.size, overdue = owed, dueSoon = due))
         }
@@ -113,20 +114,28 @@ internal fun List<AgendaDay>.monthLoad(today: LocalDate): Map<LocalDate, MonthLo
 }
 
 /**
- * The deadlines the core is already warning about, by row key.
+ * The occurrences the core is already warning about: the date each warning is
+ * about, paired with the row it belongs to.
  *
  * They are the copies it files under today: a deadline enters that bucket once
  * its warning window opens, which is the same rule Org applies in the agenda of
  * the day being lived through. The mark itself goes on the date the deadline
- * falls on — the grid already shows the reader where that date is.
+ * falls on — the grid already shows the reader where that date is — and the
+ * offset on the copy is what names that date.
+ *
+ * The date is part of the pair rather than the row key alone, because a
+ * repeating deadline is one file and one line on every one of its occurrences:
+ * keyed by the row, the mark spread from the occurrence being warned about to
+ * all the later ones, and a deadline repeating every two days ringed half the
+ * month.
  */
-private fun List<AgendaDay>.warnedDeadlines(today: LocalDate): Set<String> =
+private fun List<AgendaDay>.warnedDeadlines(today: LocalDate): Set<Pair<LocalDate, String>> =
     firstOrNull { it.date == today }
         ?.sections
         ?.untimed
         .orEmpty()
         .filter { it.daysOffset > 0L && it.task.timestampType == TimestampType.DEADLINE }
-        .map { it.key }
+        .map { today.plusDays(it.daysOffset) to it.key }
         .toSet()
 
 /**
