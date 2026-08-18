@@ -153,12 +153,18 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the coverage report
+        # Storage is a monthly allowance of gigabyte-hours, and an
+        # exhausted one refuses uploads until the month turns. A report
+        # that cannot be kept is a report read from the step log instead
+        # — it is not a reason to call a passing check failed.
+        continue-on-error: true
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-core
           path: rust/lcov.info
           if-no-files-found: ignore
+          retention-days: 3
 
   build:
     runs-on: ubuntu-24.04
@@ -279,6 +285,7 @@ jobs:
         run: ./gradlew testDebugUnitTest
 
       - name: Keep the test reports
+        continue-on-error: true
         # The step log carries the assertion and not the trace, and this is
         # the run whose report is wanted, so: always, not on success.
         if: always()
@@ -289,6 +296,7 @@ jobs:
             app/build/reports/tests/**
             app/build/test-results/**
           if-no-files-found: ignore
+          retention-days: 3
 
       - name: Decode the signing key
         if: steps.variant.outputs.name == 'release'
@@ -373,6 +381,7 @@ jobs:
           name: apk-${{ steps.variant.outputs.name }}
           path: app/build/outputs/apk/${{ steps.variant.outputs.name }}/*.apk
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload the mapping of the release build
         # What turns a crash report back into names a person can read. The
@@ -387,6 +396,7 @@ jobs:
           name: mapping-release
           path: app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload the core
         # For the instrumented job, so that it needs neither the NDK nor a
@@ -399,6 +409,7 @@ jobs:
             rust/jniLibs/**
             generated/**
           if-no-files-found: error
+          retention-days: 1
 
   # The tests that load the native library and the tests that see a screen,
   # which are the same 40 methods the unit tests cannot reach. On a push
@@ -464,6 +475,7 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest
 
       - name: Keep the test reports
+        continue-on-error: true
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -472,6 +484,7 @@ jobs:
             app/build/reports/androidTests/**
             app/build/outputs/androidTest-results/**
           if-no-files-found: ignore
+          retention-days: 3
 
   # Publishing is a job of its own so that the token able to write to the
   # repository never sits in the job that compiles the sources under review.
