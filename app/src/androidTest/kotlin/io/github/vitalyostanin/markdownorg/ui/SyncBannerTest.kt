@@ -3,12 +3,16 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontFamily
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
@@ -115,6 +119,78 @@ class SyncBannerTest {
 
         compose.onNodeWithText(string(R.string.sync_diverged_detail, "master"))
             .assertIsDisplayed()
+    }
+
+    /**
+     * The server said no, and the banner quotes it.
+     *
+     * Both refusals used to arrive as the sentence below this one — "sync
+     * again to take what the remote has" — which against a token that may not
+     * push to a protected branch is false in every clause and sends the reader
+     * to repeat the thing that cannot work. The device this was found on was
+     * synced three times over an hour on that advice.
+     */
+    @Test
+    fun aRefusalTheServerExplainedReachesTheScreenInItsOwnWords() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncException.Rejected("master", AS_GITLAB_WRITES_IT, stale = false)
+                    .toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_failed_rejected)).assertIsDisplayed()
+        compose.onNodeWithText(AS_GITLAB_WRITES_IT).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.sync_rejected_detail, "master")).assertDoesNotExist()
+    }
+
+    /**
+     * The other refusal, the one a fetch really does answer: the branch here
+     * is behind. That is worded in the reader's language over the branch name,
+     * and what the library called it ("fetch first") stays out of the banner.
+     */
+    @Test
+    fun aBranchThatFellBehindIsWordedOverItsNameRatherThanQuoted() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncException.Rejected("master", "fetch first", stale = true)
+                    .toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_rejected_detail, "master")).assertIsDisplayed()
+        compose.onNodeWithText("fetch first").assertDoesNotExist()
+    }
+
+    /**
+     * A talkative server is cut, and the cut is visible as one.
+     *
+     * Two lines is what a quotation gets; without an ellipsis the sentence
+     * ended mid-clause and read as the whole of what the server said. The
+     * monospace face is the other half of the same claim: this text is not
+     * ours, it arrived as it is.
+     */
+    @Test
+    fun aServerThatWentOnAtLengthIsCutWithAnEllipsis() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncException
+                    .Rejected("master", AS_A_HOOK_THAT_EXPLAINS_ITSELF, stale = false)
+                    .toSyncMessage(),
+            ),
+        )
+
+        val laid = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(AS_A_HOOK_THAT_EXPLAINS_ITSELF, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(laid) }
+        val drawn = laid.first()
+
+        assertEquals(2, drawn.lineCount)
+        assertTrue("a cut nobody can see reads as the whole sentence", drawn.hasVisualOverflow)
+        assertEquals(FontFamily.Monospace, drawn.layoutInput.style.fontFamily)
     }
 
     @Test
@@ -452,6 +528,24 @@ class SyncBannerTest {
          * TimeLabelsTest — so these check that the line is there at all.
          */
         const val SYNCED_AT = 1_753_700_000_000L
+
+        /**
+         * What GitLab sends back when a token may not push to a protected
+         * branch: the mechanism from the protocol and, after it, the sentence
+         * the server wrote on the side channel.
+         */
+        const val AS_GITLAB_WRITES_IT = "pre-receive hook declined: GitLab: You are not " +
+            "allowed to push code to protected branches on this project."
+
+        /**
+         * A hook that explains itself at length, which is the case the cut is
+         * for: GitLab's own sentence fits two lines on a phone, and a
+         * self-hosted hook adding its project's policy does not.
+         */
+        const val AS_A_HOOK_THAT_EXPLAINS_ITSELF = AS_GITLAB_WRITES_IT +
+            " Branches under refs/heads/release are written by the release job alone; " +
+            "ask a maintainer to open a merge request against master instead, and see " +
+            "the contributing guide for how this project takes changes."
 
         /** A server key, spelled the way OpenSSH spells one. */
         const val FINGERPRINT = "SHA256:2sJ8mQBz1TeQ5iTGH7t7zZ0hqRk3sB0Xk8v0FhK0aBc"

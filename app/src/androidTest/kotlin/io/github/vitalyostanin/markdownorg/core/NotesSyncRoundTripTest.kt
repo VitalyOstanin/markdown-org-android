@@ -271,6 +271,48 @@ class NotesSyncRoundTripTest {
         assertEquals(0u, repositoryStatus(store.root.absolutePath)!!.unpushed)
     }
 
+    /**
+     * The refusal another sync cannot answer: the remote itself would not take
+     * the update.
+     *
+     * On the device this was found on it was a token without the right to push
+     * to a protected branch; here it is a remote whose refs cannot be written,
+     * which is the same event as far as this side can tell — the branch here
+     * is level with the remote, so nothing a fetch brings would change the
+     * answer. What matters is that it arrives as its own case, with what the
+     * remote said, rather than as the branch having fallen behind.
+     */
+    @Test
+    fun aRefusalTheRemoteItselfMadeIsNotBlamedOnTheBranch() = runBlocking {
+        val settings = published()
+        note("mine.md").writeText("# Mine\n")
+        commitChanges(
+            dir = store.root.absolutePath,
+            message = "a note written here",
+            author = CommitAuthor(settings.authorName, settings.authorEmail),
+        )
+
+        // The pack still lands — objects are written before the reference is —
+        // and the update of the branch is what the remote refuses.
+        val heads = File(scratch, "origin.git/refs/heads")
+        assertTrue("could not make the remote's refs read-only", heads.setWritable(false))
+        val refusal = try {
+            runCatching {
+                pushChanges(SyncRequest(dir = store.root.absolutePath, url = settings.remoteUrl!!))
+            }.exceptionOrNull()
+        } finally {
+            // Restored whatever happened: a directory left read-only cannot be
+            // deleted, and the next test starts by deleting this one.
+            heads.setWritable(true)
+        }
+
+        val rejected = refusal as? SyncException.Rejected
+        assertNotNull("expected a refusal, got $refusal", rejected)
+        assertFalse("this device is level, so no fetch answers it", rejected!!.stale)
+        assertTrue("the remote's own words name the cause", rejected.detail.isNotEmpty())
+        assertEquals(1u, repositoryStatus(store.root.absolutePath)!!.unpushed)
+    }
+
     @Test
     fun aPushRefusedBecauseTheRemoteMovedSaysAnotherSyncCanHelp() = runBlocking {
         val settings = published()
