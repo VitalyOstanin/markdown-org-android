@@ -28,7 +28,7 @@ use markdown_org_extract::{
 };
 
 use crate::{
-    build_agenda, AgendaResult, ExtractError, Options, ScanStats, Scope, DEFAULT_GLOB,
+    build_agenda, AgendaQuery, AgendaResult, ExtractError, Options, ScanStats, DEFAULT_GLOB,
     DEFAULT_LOCALE,
 };
 
@@ -194,29 +194,12 @@ impl NotesIndex {
     /// The arguments are those of [`scan_agenda`](crate::scan_agenda), and so
     /// is the answer: the same tasks through the same filter produce the same
     /// agenda, whether they were just read or read a hundred edits ago.
-    pub fn agenda(
-        &self,
-        scope: Scope,
-        current_date: String,
-        date: Option<String>,
-        timezone: String,
-        include_done: bool,
-        week_start: Option<String>,
-    ) -> Result<AgendaResult, ExtractError> {
+    pub fn agenda(&self, query: AgendaQuery) -> Result<AgendaResult, ExtractError> {
         let state = self.lock();
         // Cloned because the filter consumes what it is given and this index
         // outlives the answer. It is the cost of holding the tasks rather than
         // re-reading them, and it is the whole of what an agenda now costs.
-        build_agenda(
-            state.tasks.clone(),
-            state.stats.clone(),
-            scope,
-            &current_date,
-            date.as_deref(),
-            &timezone,
-            include_done,
-            week_start.as_deref(),
-        )
+        build_agenda(state.tasks.clone(), state.stats.clone(), &query)
     }
 }
 

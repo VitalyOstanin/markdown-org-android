@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.core
 
+import uniffi.markdown_org_ffi.AgendaQuery
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.NotesIndex
 import uniffi.markdown_org_ffi.Options
@@ -100,18 +101,21 @@ class AgendaSource(private val notes: NotesAreas) : AgendaLoader {
         // an empty agenda.
         runCatching {
             held(roots(areas)).agenda(
-                scope = scope,
-                // The core never reads the clock; the caller decides what
-                // "today" is, so the same files always render the same agenda.
-                currentDate = today.toString(),
-                // And separately, which day the window is drawn around. Left
-                // out, it is drawn around today.
-                date = shown?.toString(),
-                timezone = zone.id,
-                includeDone = includeDone,
-                // Named as the core names its weekdays -- lower case, in
-                // English, whatever the phone's own language is.
-                weekStart = weekStart?.name?.lowercase(Locale.ROOT),
+                AgendaQuery(
+                    scope = scope,
+                    // The core never reads the clock; the caller decides what
+                    // "today" is, so the same files always render the same
+                    // agenda.
+                    currentDate = today.toString(),
+                    // And separately, which day the window is drawn around.
+                    // Left out, it is drawn around today.
+                    date = shown?.toString(),
+                    timezone = zone.id,
+                    includeDone = includeDone,
+                    // Named as the core names its weekdays -- lower case, in
+                    // English, whatever the phone's own language is.
+                    weekStart = weekStart?.name?.lowercase(Locale.ROOT),
+                ),
             )
         }
     }

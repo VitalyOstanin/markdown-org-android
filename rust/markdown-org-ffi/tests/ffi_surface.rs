@@ -7,7 +7,9 @@
 
 use std::fs;
 
-use markdown_org_ffi::{scan, scan_agenda, ExtractError, Options, Scope, TaskType, TimestampType};
+use markdown_org_ffi::{
+    scan, scan_agenda, AgendaQuery, ExtractError, Options, Scope, TaskType, TimestampType,
+};
 
 fn options() -> Options {
     Options {
@@ -128,12 +130,14 @@ fn both_walks_read_the_same_defaults() {
     let scanned = scan(vault.path().display().to_string(), options()).expect("scan");
     let agenda = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Tasks,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Tasks,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -192,12 +196,14 @@ fn a_day_agenda_splits_tasks_into_buckets() {
 
     let result = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -223,12 +229,14 @@ fn the_tasks_scope_fills_the_flat_list_instead_of_days() {
 
     let result = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Tasks,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Tasks,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -245,23 +253,27 @@ fn the_agenda_is_anchored_on_the_supplied_date_not_the_clock() {
 
     let on_the_day = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
     let a_day_later = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-03".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-03".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -288,12 +300,14 @@ fn the_window_moves_without_taking_today_with_it() {
 
     let paged = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Month,
-        "2026-03-03".to_string(),
-        Some("2026-04-15".to_string()),
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Month,
+            current_date: "2026-03-03".to_string(),
+            date: Some("2026-04-15".to_string()),
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -325,12 +339,14 @@ fn an_agenda_says_a_file_was_skipped_for_its_encoding_rather_than_hiding_it() {
 
     let result = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -391,12 +407,14 @@ fn a_bad_timezone_arrives_as_its_own_variant() {
 
     let error = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-02".to_string(),
-        None,
-        "Nowhere/Nothing".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Nowhere/Nothing".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect_err("must fail");
@@ -413,12 +431,14 @@ fn a_bad_date_arrives_as_its_own_variant() {
 
     let error = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "not-a-date".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "not-a-date".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect_err("must fail");
@@ -455,12 +475,14 @@ fn the_grid_scope_answers_with_the_whole_weeks_a_month_touches() {
 
     let grid = scan_agenda(
         vault.path().display().to_string(),
-        Scope::MonthGrid,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        Some("monday".to_string()),
+        AgendaQuery {
+            scope: Scope::MonthGrid,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: Some("monday".to_string()),
+        },
         options(),
     )
     .expect("agenda");
@@ -476,12 +498,14 @@ fn the_grid_scope_begins_the_week_where_it_is_told_to() {
 
     let grid = scan_agenda(
         vault.path().display().to_string(),
-        Scope::MonthGrid,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        Some("sunday".to_string()),
+        AgendaQuery {
+            scope: Scope::MonthGrid,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: Some("sunday".to_string()),
+        },
         options(),
     )
     .expect("agenda");
@@ -499,12 +523,14 @@ fn the_grid_scope_falls_back_to_monday_and_refuses_an_anchored_week() {
 
     let defaulted = scan_agenda(
         vault.path().display().to_string(),
-        Scope::MonthGrid,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::MonthGrid,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("agenda");
@@ -513,12 +539,14 @@ fn the_grid_scope_falls_back_to_monday_and_refuses_an_anchored_week() {
 
     let error = scan_agenda(
         vault.path().display().to_string(),
-        Scope::MonthGrid,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        Some("today".to_string()),
+        AgendaQuery {
+            scope: Scope::MonthGrid,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: Some("today".to_string()),
+        },
         options(),
     )
     .expect_err("must fail");
@@ -539,12 +567,14 @@ fn a_dated_row_carries_the_occurrence_after_its_own_day() {
 
     let week = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Week,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        Some("monday".to_string()),
+        AgendaQuery {
+            scope: Scope::Week,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: Some("monday".to_string()),
+        },
         options(),
     )
     .expect("agenda");

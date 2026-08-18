@@ -412,30 +412,42 @@ pub fn scan(dir: String, options: Options) -> Result<ScanResult, ExtractError> {
 ///
 /// Scanning and filtering are one call here because nothing keeps an index
 /// between calls yet; splitting them would mean walking the directory twice.
+/// The window an agenda is drawn in, and the rules it is drawn by.
+///
+/// One record rather than six arguments because the six travel together: the
+/// one-shot scan, the index and the filter between them all take the same set,
+/// and passing it as a group is what keeps a caller from lining up six
+/// positional values in the right order — three times over.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AgendaQuery {
+    /// Which agenda: a day, the week around it, a month, the grid a month is
+    /// drawn on, or every open task.
+    pub scope: Scope,
+    /// What the caller calls today. The core never reads the clock.
+    pub current_date: String,
+    /// Which day the window is drawn around. Today when absent.
+    #[uniffi(default = None)]
+    pub date: Option<String>,
+    /// The zone the timestamps are read in, as an IANA name.
+    pub timezone: String,
+    /// Whether what is already done is listed alongside what is not.
+    pub include_done: bool,
+    /// The weekday a week begins on, lower case and in English. The scopes
+    /// drawn in weeks are the only ones that read it.
+    #[uniffi(default = None)]
+    pub week_start: Option<String>,
+}
+
 #[uniffi::export]
 pub fn scan_agenda(
     dir: String,
-    scope: Scope,
-    current_date: String,
-    date: Option<String>,
-    timezone: String,
-    include_done: bool,
-    week_start: Option<String>,
+    query: AgendaQuery,
     options: Options,
 ) -> Result<AgendaResult, ExtractError> {
     let outcome = walk(&dir, options)?;
     let stats = ScanStats::from(outcome.stats);
 
-    build_agenda(
-        outcome.tasks,
-        stats,
-        scope,
-        &current_date,
-        date.as_deref(),
-        &timezone,
-        include_done,
-        week_start.as_deref(),
-    )
+    build_agenda(outcome.tasks, stats, &query)
 }
 
 /// Put tasks through the agenda filter and shape the answer for the boundary.
@@ -447,13 +459,16 @@ pub fn scan_agenda(
 pub(crate) fn build_agenda(
     tasks: Vec<markdown_org_extract::Task>,
     stats: ScanStats,
-    scope: Scope,
-    current_date: &str,
-    date: Option<&str>,
-    timezone: &str,
-    include_done: bool,
-    week_start: Option<&str>,
+    query: &AgendaQuery,
 ) -> Result<AgendaResult, ExtractError> {
+    let AgendaQuery {
+        scope,
+        current_date,
+        date,
+        timezone,
+        include_done,
+        week_start,
+    } = query;
     // `Tasks` is the date-less scope, and the extractor rejects any date
     // argument under it rather than quietly ignoring one. Both dates are
     // therefore dropped here instead of being forwarded — the caller passes
@@ -468,9 +483,9 @@ pub(crate) fn build_agenda(
         Scope::Tasks => AgendaDates::default(),
         _ => AgendaDates {
             current_date: Some(current_date),
-            date,
+            date: date.as_deref(),
             week_start: match scope {
-                Scope::Week | Scope::MonthGrid => week_start,
+                Scope::Week | Scope::MonthGrid => week_start.as_deref(),
                 _ => None,
             },
             ..AgendaDates::default()
@@ -479,10 +494,10 @@ pub(crate) fn build_agenda(
 
     let output = filter_agenda(
         tasks,
-        scope.into(),
+        (*scope).into(),
         dates,
         timezone,
-        include_done,
+        *include_done,
         false,
         true,
     )?;

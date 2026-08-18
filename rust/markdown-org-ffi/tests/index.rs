@@ -8,7 +8,7 @@
 
 use std::fs;
 
-use markdown_org_ffi::{scan_agenda, ExtractError, NotesIndex, Options, Scope};
+use markdown_org_ffi::{scan_agenda, AgendaQuery, ExtractError, NotesIndex, Options, Scope};
 
 fn options() -> Options {
     Options {
@@ -60,14 +60,14 @@ fn headings(result: &markdown_org_ffi::AgendaResult) -> Vec<String> {
 
 fn day_of(index: &NotesIndex) -> markdown_org_ffi::AgendaResult {
     index
-        .agenda(
-            Scope::Day,
-            "2026-03-02".to_string(),
-            None,
-            "Europe/Moscow".to_string(),
-            false,
-            None,
-        )
+        .agenda(AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        })
         .expect("agenda")
 }
 
@@ -83,12 +83,14 @@ fn the_index_answers_what_a_fresh_walk_would_have() {
     let held = day_of(&index(&vault));
     let walked = scan_agenda(
         vault.path().display().to_string(),
-        Scope::Day,
-        "2026-03-02".to_string(),
-        None,
-        "Europe/Moscow".to_string(),
-        false,
-        None,
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-03-02".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
         options(),
     )
     .expect("scan");
