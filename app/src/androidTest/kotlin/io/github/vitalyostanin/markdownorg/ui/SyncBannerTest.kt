@@ -36,6 +36,7 @@ class SyncBannerTest {
     private var issuesShown = 0
     private var remotesTaken = 0
     private var hostsTrusted = 0
+    private var settledAndSynced = 0
 
     /**
      * The first launch: an address has not been entered and nobody has said
@@ -283,6 +284,40 @@ class SyncBannerTest {
     }
 
     /**
+     * Every sync commits what the working copy holds before it fetches, so a
+     * checkout stopped by uncommitted changes is one where that commit failed.
+     * From there nothing else in the application moves it on — which is what
+     * the offer beside the message is for.
+     */
+    @Test
+    fun aSyncStoppedByUncommittedChangesIsOfferedBoth() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                blockedByUncommitted = true,
+                message = SyncException.Dirty(2u).toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.sync_failed_dirty)).assertIsDisplayed()
+        compose.onNodeWithTag("sync-commit-and-retry").performClick()
+
+        assertEquals(1, settledAndSynced)
+    }
+
+    @Test
+    fun aSyncThatWasNotStoppedByThemIsOfferedNothingOfTheKind() {
+        showAgenda(
+            SyncUiState(
+                configured = true,
+                message = SyncException.Dirty(2u).toSyncMessage(),
+            ),
+        )
+
+        compose.onNodeWithTag("sync-commit-and-retry").assertDoesNotExist()
+    }
+
+    /**
      * Saving an address over a directory that is a checkout of somewhere else
      * used to empty it, and then offered to empty it at a press. Neither
      * happens now: the files are the user's, and the banner says what to do
@@ -505,6 +540,7 @@ class SyncBannerTest {
                         onOpenSettings = { settingsOpened = true },
                         onTakeRemote = { remotesTaken++ },
                         onTrustHost = { hostsTrusted++ },
+                        onSettleAndSync = { settledAndSynced++ },
                         onEditIssueShown = { issuesShown++ },
                     ),
                 )

@@ -242,3 +242,10 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   editor the device has, as a `content://` URI granted read and write for the
   one launch, so the receiving application needs no storage permission over a
   directory this one was given by hand.
+- A sync commits what another application wrote, and says that it did. Every
+  sync already began by committing whatever the working copy held, so an edit
+  made elsewhere leaves with the next one under a message nobody chose; the
+  banner now names that rather than reporting an ordinary push. When the commit
+  itself cannot be made the sync stops on a dirty checkout, and the banner
+  offers to commit and go again — nothing else here moves a checkout out of
+  that state.

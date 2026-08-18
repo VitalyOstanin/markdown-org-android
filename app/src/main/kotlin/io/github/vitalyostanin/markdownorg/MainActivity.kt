@@ -346,6 +346,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             onOpenSettings = onOpenSettings,
             onTaskClick = model::select,
             onTakeRemote = model::takeRemoteNotes,
+            onSettleAndSync = model::settleAndSync,
             onTrustHost = model::trustHost,
             onStep = model::stepBy,
             onShowToday = model::showToday,

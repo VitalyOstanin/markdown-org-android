@@ -154,6 +154,26 @@ class SyncMessageTest {
     }
 
     /**
+     * A run that began by committing something the agenda did not write says
+     * so. The commit happens either way — a dirty checkout cannot be
+     * fast-forwarded — and it is the one commit in the history the user did
+     * not ask for, so the sentence about the run is where it gets accounted
+     * for.
+     */
+    @Test
+    fun aRunThatSettledAnOutsideEditSaysSoWhenItSendsIt() {
+        val run = FakeSyncer.run(cloned = false, commits = 0u, pushed = 1u)
+
+        val settled = run.toMessage(settledEdits = true)
+        assertEquals(R.string.sync_pushed_with_outside_edits, settled.text)
+        assertEquals(Detail.Counted(R.plurals.sync_pushed_detail, 1), settled.detail)
+        assertFalse(settled.failed)
+
+        // The same run without anything to settle reads as it always did.
+        assertEquals(R.string.sync_pushed, run.toMessage().text)
+    }
+
+    /**
      * The fetch went through and the push did not. What the user needs to know
      * is the half that still needs them — the notes are already up to date, and
      * saying "notes updated" would bury the refusal.

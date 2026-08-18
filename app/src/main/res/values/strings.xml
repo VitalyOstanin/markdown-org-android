@@ -87,6 +87,7 @@
     <string name="sync_updated">Notes updated</string>
     <string name="sync_already_current">Already up to date</string>
     <string name="sync_pushed">Edits sent to the server</string>
+    <string name="sync_pushed_with_outside_edits">Sent, including edits made in another app</string>
     <!-- The directory held notes and the remote held none: they became it. -->
     <string name="sync_published">The notes on this device are now on the server</string>
     <string name="sync_took_remote">The notes from the server are on this device</string>
@@ -311,6 +312,7 @@
          than the task: what opens is the whole file, at whatever place the
          editor decides. -->
     <string name="action_open_externally">Open the note in another app</string>
+    <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>
 

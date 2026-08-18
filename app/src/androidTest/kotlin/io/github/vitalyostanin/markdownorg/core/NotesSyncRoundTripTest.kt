@@ -338,4 +338,82 @@ class NotesSyncRoundTripTest {
         // Refused is not lost: the commit is still here and still owed.
         assertEquals(1u, repositoryStatus(store.root.absolutePath)!!.unpushed)
     }
+
+    // ---- edits this application did not make -------------------------------
+
+    /**
+     * The notes directory is shared. A markdown editor of the user's choosing
+     * opens the same files, and it knows nothing about the checkout they sit
+     * in: it writes and it is done. These three say what becomes of such a
+     * write, because the answer decides whether the pairing is safe to live
+     * with.
+     *
+     * The editor here is a plain write to the file, which is what any of them
+     * amounts to from the checkout's side.
+     */
+    @Test
+    fun anEditAnotherApplicationMadeIsNotHandedOverWhileTheRemoteStandsStill() = runBlocking {
+        val settings = published()
+        note("sample.md").appendText("\n- [ ] TODO bought outside this app\n")
+
+        val run = sync.sync(settings)
+
+        // The sync goes through -- there is nothing to fetch, so nothing the
+        // dirty tree could be overwritten by -- and hands over nothing,
+        // because a push carries commits and this edit is not one.
+        assertTrue("a sync with nothing to fetch: $run", run.isSuccess)
+        assertEquals(0u, run.getOrThrow().pushed)
+        val status = repositoryStatus(store.root.absolutePath)!!
+        assertTrue("the outside edit leaves the checkout dirty", status.dirty)
+        assertEquals(0u, status.unpushed)
+        // And it really is nowhere else: a fresh checkout of the remote does
+        // not have it.
+        val theirs = File(scratch, "reader")
+        syncRepository(SyncRequest(dir = theirs.absolutePath, url = settings.remoteUrl!!))
+        assertFalse(File(theirs, "sample.md").readText().contains("bought outside this app"))
+    }
+
+    @Test
+    fun anEditAnotherApplicationMadeSurvivesTheSyncThatRefusesToRunOverIt() = runBlocking {
+        val settings = published()
+        otherDevice(settings, "theirs.md", "# Theirs\n")
+        note("sample.md").appendText("\n- [ ] TODO written in another editor\n")
+
+        val result = sync.sync(settings)
+
+        // Now there is something to apply, and applying it would write over
+        // the tree: refused as Dirty, with the edit untouched and the commit
+        // from the other device not taken.
+        assertTrue(result.isFailure)
+        val refusal = result.exceptionOrNull()
+        assertTrue("expected Dirty, got $refusal", refusal is SyncException.Dirty)
+        assertTrue(note("sample.md").readText().contains("written in another editor"))
+        assertFalse("the fetch must not have landed", note("theirs.md").exists())
+    }
+
+    @Test
+    fun anEditAnotherApplicationMadeRidesAlongWithTheNextCommitThisOneMakes() = runBlocking {
+        val settings = published()
+        note("sample.md").appendText("\n- [ ] TODO written in another editor\n")
+
+        // The application's own edit, committed the way it commits every one:
+        // the whole working copy, not the file it touched.
+        note("mine.md").writeText("# Mine\n")
+        commitChanges(
+            dir = store.root.absolutePath,
+            message = "a note written here",
+            author = CommitAuthor(settings.authorName, settings.authorEmail),
+        )
+        val run = sync.sync(settings).getOrThrow()
+
+        assertEquals(1u, run.pushed)
+        val status = repositoryStatus(store.root.absolutePath)!!
+        assertFalse("the commit swept the tree clean", status.dirty)
+        // The outside edit went up under this application's message, which is
+        // the part worth knowing: nothing is lost, and nothing says whose
+        // edit it was.
+        val theirs = File(scratch, "reader")
+        syncRepository(SyncRequest(dir = theirs.absolutePath, url = settings.remoteUrl!!))
+        assertTrue(File(theirs, "sample.md").readText().contains("written in another editor"))
+    }
 }

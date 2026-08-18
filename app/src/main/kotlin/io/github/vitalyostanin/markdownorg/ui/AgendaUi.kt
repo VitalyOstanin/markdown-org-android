@@ -24,6 +24,11 @@ data class AgendaActions(
     /** Answer to a server key nobody has vouched for yet: it is the right one. */
     val onTrustHost: () -> Unit = {},
     /**
+     * Answer to a sync stopped by changes this application did not commit:
+     * commit them and go again.
+     */
+    val onSettleAndSync: () -> Unit = {},
+    /**
      * Move the plan by whole spans: negative back, positive forward. What a
      * span means is the model's to decide — a day agenda steps by a day, a week
      * by a week.

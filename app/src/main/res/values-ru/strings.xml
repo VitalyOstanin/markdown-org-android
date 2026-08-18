@@ -53,6 +53,7 @@
     <string name="sync_updated">Заметки обновлены</string>
     <string name="sync_already_current">Уже актуально</string>
     <string name="sync_pushed">Правки отправлены на сервер</string>
+    <string name="sync_pushed_with_outside_edits">Отправлено, включая правки из другого приложения</string>
     <string name="sync_published">Заметки с устройства теперь на сервере</string>
     <string name="sync_took_remote">Заметки с сервера теперь на устройстве</string>
     <string name="sync_unrelated">Заметки есть и на устройстве, и на сервере</string>
@@ -210,6 +211,7 @@
     <string name="action_cancel_task">Снять задачу</string>
     <string name="action_reopen">Вернуть в работу</string>
     <string name="action_open_externally">Открыть заметку в другом приложении</string>
+    <string name="sync_commit_and_retry">Зафиксировать и синхронизировать снова</string>
     <string name="open_externally_failed">На устройстве нет приложения, открывающего markdown.</string>
     <string name="action_priority">Приоритет</string>
     <string name="action_priority_none">Без</string>

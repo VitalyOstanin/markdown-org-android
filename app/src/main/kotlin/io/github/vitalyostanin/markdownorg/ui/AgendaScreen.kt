@@ -446,6 +446,7 @@ private fun HeaderArea(
             onTakeRemote = actions.onTakeRemote,
             onTrustHost = actions.onTrustHost,
             onOpenSettings = actions.onOpenSettings,
+            onSettleAndSync = actions.onSettleAndSync,
             short = short,
         )
         ScanNotices(state.notices)
@@ -940,6 +941,7 @@ private fun SyncBanner(
     onTakeRemote: () -> Unit,
     onTrustHost: () -> Unit,
     onOpenSettings: () -> Unit,
+    onSettleAndSync: () -> Unit,
     /** Whether the window is too short to spend a row per thing; see [Sizes.shortWindow]. */
     short: Boolean = false,
 ) {
@@ -983,7 +985,7 @@ private fun SyncBanner(
             }
             // Kept whatever the room: it is a decision only the user can make,
             // and nothing else on the screen offers it.
-            Answer(sync, onTakeRemote, onTrustHost, onOpenSettings)
+            Answer(sync, onTakeRemote, onTrustHost, onOpenSettings, onSettleAndSync)
             return@Column
         }
 
@@ -1011,7 +1013,7 @@ private fun SyncBanner(
             )
         }
         CollectionRuns(sync)
-        Answer(sync, onTakeRemote, onTrustHost, onOpenSettings)
+        Answer(sync, onTakeRemote, onTrustHost, onOpenSettings, onSettleAndSync)
         Unpushed(sync)
         LastSynced(sync)
     }
@@ -1104,6 +1106,7 @@ private fun Answer(
     onTakeRemote: () -> Unit,
     onTrustHost: () -> Unit,
     onOpenSettings: () -> Unit,
+    onSettleAndSync: () -> Unit,
 ) {
     val (label, act, tag) = when {
         sync.running -> return
@@ -1124,6 +1127,16 @@ private fun Answer(
             R.string.sync_take_remote,
             onTakeRemote,
             "sync-take-remote",
+        )
+
+        // Reached only when the commit this application makes before every
+        // sync could not be made: otherwise the tree is clean by the time the
+        // fetch runs. So the offer is to try that commit again, and the sync
+        // behind it.
+        sync.blockedByUncommitted -> Triple(
+            R.string.sync_commit_and_retry,
+            onSettleAndSync,
+            "sync-commit-and-retry",
         )
 
         // Last, because the two above are questions about a server that was

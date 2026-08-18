@@ -66,6 +66,16 @@ data class SyncUiState(
      * without being reopened.
      */
     val publicKey: String = "",
+    /**
+     * A sync stopped because the working copy holds changes it did not make.
+     *
+     * The application commits such changes itself before every sync, so this
+     * is what is left when that commit could not be made — a directory that
+     * cannot be written to, an index another process holds. The screen offers
+     * to try both again, because from here nothing else in the application
+     * moves the checkout on.
+     */
+    val blockedByUncommitted: Boolean = false,
 ) {
 
     /**
@@ -204,8 +214,16 @@ fun RemoteUrlProblem.toMessage(): SyncMessage = when (this) {
  * that still needs someone. Below that, the push is mentioned only when there
  * was one — a run that fetched and had nothing to send reads as it always did.
  */
-fun SyncRun.toMessage(): SyncMessage = when {
+fun SyncRun.toMessage(settledEdits: Boolean = false): SyncMessage = when {
     pushFailure != null -> pushFailure.toSyncMessage()
+
+    // Named apart when the run began by committing something the agenda did
+    // not write. A commit nobody asked for is a surprise worth one sentence,
+    // and without it the history holds an entry the user cannot account for.
+    pushed > 0u && settledEdits -> SyncMessage(
+        R.string.sync_pushed_with_outside_edits,
+        Detail.Counted(R.plurals.sync_pushed_detail, pushed.toInt()),
+    )
 
     pushed > 0u -> SyncMessage(
         R.string.sync_pushed,

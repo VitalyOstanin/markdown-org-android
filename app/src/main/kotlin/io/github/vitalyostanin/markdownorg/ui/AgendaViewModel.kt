@@ -1264,6 +1264,24 @@ class AgendaViewModel(
     }
 
     /**
+     * Answer a sync stopped by uncommitted changes: commit them and go again.
+     *
+     * The commit is the one every sync makes anyway; what the button adds is
+     * a second attempt at it, for the state where it failed the first time —
+     * a directory that momentarily could not be written to, an index another
+     * process held. Nothing here forces anything: a commit that fails again
+     * leaves the same message and the same offer.
+     */
+    fun settleAndSync() {
+        if (syncJob?.isActive == true) {
+            return
+        }
+
+        _syncState.update { it.copy(blockedByUncommitted = false) }
+        syncNow()
+    }
+
+    /**
      * Answer the unrelated-histories question with "take what the server has".
      *
      * What was in the directory is not deleted: the core leaves it as a commit
@@ -1555,13 +1573,22 @@ class AgendaViewModel(
 
         _syncState.update { it.copy(running = true, message = null) }
 
-        // An edit whose commit did not happen leaves the checkout dirty,
-        // and the core refuses to fast-forward a dirty checkout. The
-        // core's commit is idempotent, so this costs nothing when there
-        // is nothing to commit.
-        collection.editor.commitPending().onFailure { failure ->
-            Log.w(TAG, "the uncommitted edits could not be committed", failure)
-        }
+        // An edit whose commit did not happen leaves the checkout dirty, and
+        // the core refuses to fast-forward a dirty checkout. The core's commit
+        // is idempotent, so this costs nothing when there is nothing to
+        // commit.
+        //
+        // What it settles is not only this application's own unfinished
+        // business: a note written in another editor is an uncommitted change
+        // like any other, and without this it would sit here unsent while the
+        // sync reported success. Whether anything was committed is carried on
+        // to the message, because a commit the user did not ask for should not
+        // appear in the history unannounced.
+        val settled = collection.editor.commitPending()
+            .onFailure { failure ->
+                Log.w(TAG, "the uncommitted edits could not be committed", failure)
+            }
+            .getOrDefault(false)
 
         val outcome = theirSyncer.sync(theirSettings)
             // The path with the most ways to fail — the network, the
@@ -1588,7 +1615,7 @@ class AgendaViewModel(
                 .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
                 .getOrNull()
         val message = outcome.fold(
-            onSuccess = SyncRun::toMessage,
+            onSuccess = { run -> run.toMessage(settledEdits = settled) },
             onFailure = Throwable::toSyncMessage,
         )
 
@@ -1614,6 +1641,11 @@ class AgendaViewModel(
                     ),
                 pendingHost = host?.first,
                 pendingHostReplaces = host?.second,
+                // Reached only when the commit above could not be made:
+                // otherwise the tree is clean by the time the fetch runs. The
+                // screen offers to try both again, because nothing else in the
+                // application moves a checkout in this state.
+                blockedByUncommitted = outcome.exceptionOrNull() is SyncException.Dirty,
             )
         }
 
