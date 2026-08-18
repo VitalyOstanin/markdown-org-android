@@ -31,6 +31,9 @@ class TaskActionsSheetTest {
 
     private val actions = mutableListOf<TaskAction>()
 
+    /** How many times the sheet asked for the note to be opened elsewhere. */
+    private var opened = 0
+
     @Test
     fun theSheetNamesTheTaskAndWhereItIs() {
         show(task(heading = "Water the plants", file = "home.md", line = 12u))
@@ -213,6 +216,49 @@ class TaskActionsSheetTest {
             .assertIsDisplayed()
     }
 
+    // ---- handing the note to another application ---------------------------
+
+    @Test
+    fun theSheetOffersToOpenTheNoteElsewhere() {
+        show(task())
+
+        compose.onNodeWithText(string(R.string.action_open_externally)).assertIsDisplayed()
+    }
+
+    @Test
+    fun openingElsewhereSaysWhatItLeavesUncommitted() {
+        show(task())
+
+        compose.onNodeWithTag("action-open-externally").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_action_open_externally), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun openingElsewhereReachesTheCaller() {
+        show(task())
+
+        compose.onNodeWithTag("action-open-externally").performClick()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun aCallerWithNowhereToSendItIsOfferedNothing() {
+        compose.setContent {
+            MarkdownOrgTheme {
+                TaskActionsSheet(
+                    task = task(),
+                    onAction = { action -> actions += action },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag("action-open-externally").assertDoesNotExist()
+    }
+
     private fun show(task: Task) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -220,6 +266,7 @@ class TaskActionsSheetTest {
                     task = task,
                     onAction = { action -> actions += action },
                     onDismiss = {},
+                    onOpenExternally = { opened += 1 },
                 )
             }
         }

@@ -253,6 +253,7 @@
       into the note rather than what the button is called: the name is already
       on the button, and what a tap changes in the file is what is not.
     -->
+    <string name="hint_action_open_externally">Offers the whole note to a markdown editor of your choosing. What it writes is committed here by the next sync, under a message nobody chose; until then the edit is on this device alone.</string>
     <string name="hint_action_where">The file the task is written in and the line its heading is on, inside the directory of its collection.</string>
     <string name="hint_action_complete">Writes DONE into the heading and commits. The task leaves the agenda and stays in the note.</string>
     <string name="hint_action_complete_repeating">Moves every dated line that carries a repeater on to its next occurrence after today, and sets the keyword back to TODO. Nothing is closed: the task returns on its new date.</string>
@@ -306,6 +307,11 @@
     <!-- The option that leaves the task without a priority cookie. -->
     <string name="action_priority_none">None</string>
     <string name="action_shift_back">A day earlier</string>
+    <!-- Hands the note to another application. Worded as the note rather
+         than the task: what opens is the whole file, at whatever place the
+         editor decides. -->
+    <string name="action_open_externally">Open the note in another app</string>
+    <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>
 
     <string name="edit_failed">The task could not be changed</string>

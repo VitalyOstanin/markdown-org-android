@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What the provider is allowed to hand out.
+
+    The notes sit either inside the application's own storage or in a
+    directory of the user's choosing anywhere on the device, so the root is
+    the filesystem itself and the check that a path really is a note is made
+    in code before a URI is asked for. A narrower root here would cover the
+    default location and refuse every chosen one.
+-->
+<paths>
+    <root-path
+        name="notes"
+        path="/" />
+</paths>

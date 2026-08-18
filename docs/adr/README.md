@@ -63,6 +63,7 @@ so a decision can be followed across the three repositories.
 | 0025 | [The month grid is the core's answer, and the phone says where a week starts](0025-the-month-grid-is-the-core-s-answer.md) | Accepted |
 | 0026 | [The day picked out of the month stands under the grid](0026-the-day-picked-out-of-the-month-stands-under-it.md) | Accepted |
 | 0027 | [A refusal is reported in the words of whoever refused](0027-a-refusal-is-reported-in-the-words-of-whoever-refused.md) | Accepted |
+| 0028 | [A note is handed to an editor rather than opened here](0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md) | Accepted |
 
 ## Adding a new ADR
 

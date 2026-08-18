@@ -234,3 +234,11 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen to be read and a translation is longer than the English it was
   measured against; what a server or a library wrote keeps its two lines. Both
   end in an ellipsis when they are cut, so a cut says that it is one.
+- A task offers to open its note in another application. The agenda reads the
+  notes and edits the line a task sits on; reading a note as a document, or
+  reaching a section that carries no date at all — a shopping list, a page of
+  keys — was something no screen here could do, and the file had to be hunted
+  down through a file manager. The note now travels to whichever markdown
+  editor the device has, as a `content://` URI granted read and write for the
+  one launch, so the receiving application needs no storage permission over a
+  directory this one was given by hand.

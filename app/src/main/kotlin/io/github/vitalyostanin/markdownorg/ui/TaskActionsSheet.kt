@@ -55,6 +55,7 @@ fun TaskActionsSheet(
     onAction: (TaskAction) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenExternally: (() -> Unit)? = null,
 ) {
     val state = rememberModalBottomSheetState()
 
@@ -137,29 +138,50 @@ fun TaskActionsSheet(
                 TimestampType.CLOSED, TimestampType.PLAIN, null -> null
             }
             if (keyword != null) {
-                // The same line for both: what a day earlier and a day later
-                // write differs only in the sign, and the rest — the time, the
-                // repeater, the weekday — is what is worth saying.
-                // Around the row rather than around each button: a weight
-                // handed to the tooltip is not the weight the row measures,
-                // and the second button ended up off the screen. A long press
-                // on either of them reaches this box all the same — a button
-                // takes the tap and leaves the long press alone.
-                HintTooltip(stringResource(R.string.hint_action_shift)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                        ShiftButton(
-                            label = stringResource(R.string.action_shift_back),
-                            tag = "action-shift-back",
-                            modifier = Modifier.weight(1f),
-                        ) { onAction(TaskAction.Shift(keyword, -1)) }
-                        ShiftButton(
-                            label = stringResource(R.string.action_shift_forward),
-                            tag = "action-shift-forward",
-                            modifier = Modifier.weight(1f),
-                        ) { onAction(TaskAction.Shift(keyword, 1)) }
-                    }
-                }
+                ShiftRow(keyword, onAction)
             }
+
+            // Last, and on its own: every action above writes one line and
+            // stays here, while this one hands the whole note to another
+            // application and leaves. Absent when the caller has nowhere to
+            // send it -- a preview, or a test that drives the sheet alone.
+            if (onOpenExternally != null) {
+                SheetButton(
+                    label = stringResource(R.string.action_open_externally),
+                    tag = "action-open-externally",
+                    hint = stringResource(R.string.hint_action_open_externally),
+                    onClick = onOpenExternally,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Moving the planning date by a day, both ways.
+ *
+ * One line for both buttons: what a day earlier and a day later write differs
+ * only in the sign, and the rest — the time, the repeater, the weekday — is
+ * what is worth saying. The tooltip goes around the row rather than around
+ * each button: a weight handed to a tooltip is not the weight the row
+ * measures, and the second button ended up off the screen. A long press on
+ * either of them reaches the box all the same — a button takes the tap and
+ * leaves the long press alone.
+ */
+@Composable
+private fun ShiftRow(keyword: PlanningKeyword, onAction: (TaskAction) -> Unit) {
+    HintTooltip(stringResource(R.string.hint_action_shift)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            ShiftButton(
+                label = stringResource(R.string.action_shift_back),
+                tag = "action-shift-back",
+                modifier = Modifier.weight(1f),
+            ) { onAction(TaskAction.Shift(keyword, -1)) }
+            ShiftButton(
+                label = stringResource(R.string.action_shift_forward),
+                tag = "action-shift-forward",
+                modifier = Modifier.weight(1f),
+            ) { onAction(TaskAction.Shift(keyword, 1)) }
         }
     }
 }

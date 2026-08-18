@@ -108,6 +108,11 @@ reasoning.
   fell behind is worded here, and a server that declined is quoted as it wrote.
   See
   [ADR-0027](docs/adr/0027-a-refusal-is-reported-in-the-words-of-whoever-refused.md).
+- A note is read in full by handing it to another application, not by an editor
+  of this one: the task sheet offers it as a `content://` URI granted for the
+  one launch. What that application writes is committed by the next sync, which
+  says so, because the commit is one nobody asked for. See
+  [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md).
 
 ## Working on the core
 

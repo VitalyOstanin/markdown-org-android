@@ -28,6 +28,7 @@ the emulator.
 - [Layout](#layout)
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
+- [Reading a note in full](#reading-a-note-in-full)
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
 - [Collections](#collections)
@@ -265,6 +266,33 @@ The walk behind an agenda reports what it skipped — files not in UTF-8, files
 it could not read, files past the size cap, paths that are not UTF-8, and a
 truncated list — and the agenda shows that above the entries. Without it a
 note in CP1251 simply disappears: no tasks, no reason, no sign.
+
+## Reading a note in full
+
+The agenda shows tasks. A note is a document, and parts of one may carry no
+date at all — a shopping list, a page of keys — which no agenda can show,
+because nothing about them is dated.
+
+So the task sheet offers **Open the note in another app**: the file goes to
+whichever markdown editor the device has, as a `content://` URI granted read
+and write for that one launch. The receiving application needs no storage
+permission of its own, and which editor opens is the device's standing choice
+rather than a setting here. See
+[ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md).
+
+What the other application writes is committed by the next sync, not by the
+editor. Every sync begins by committing whatever the working copy holds, so an
+edit made elsewhere leaves with it — under a message nobody chose, which is why
+the banner says so when it happens:
+
+| № | State of the checkout                          | What follows                                                                    |
+|---|------------------------------------------------|----------------------------------------------------------------------------------|
+| 1 | Edited outside, then synced                    | The edit is committed and sent; the banner says the run included edits made elsewhere |
+| 2 | Edited outside, then edited in the agenda      | That edit's commit sweeps the whole working copy, so the outside edit goes up under its message |
+| 3 | Edited outside, and the commit could not be made | The sync stops on a dirty checkout, names how many files stand in the way, and offers to commit and go again |
+
+Left alone in between, an edit made elsewhere is only on the phone: a push
+carries commits, and until one is made there is nothing to carry.
 
 ## Where the notes live
 

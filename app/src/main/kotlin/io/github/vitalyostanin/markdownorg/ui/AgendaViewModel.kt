@@ -626,6 +626,16 @@ class AgendaViewModel(
     }
 
     /**
+     * Nothing on the device opened the note.
+     *
+     * Reported through the same channel as a failed edit, because to the
+     * reader it is the same kind of event: the tap did not do what it said.
+     */
+    fun reportOpenFailure() {
+        _editIssue.value = SyncMessage(R.string.open_externally_failed, failed = true)
+    }
+
+    /**
      * Apply an action to the selected task, then rebuild the agenda.
      *
      * The sheet closes first: every action writes to the file and commits,

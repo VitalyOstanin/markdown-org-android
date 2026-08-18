@@ -42,6 +42,7 @@ import io.github.vitalyostanin.markdownorg.ui.AgendaView
 import io.github.vitalyostanin.markdownorg.ui.AgendaViewModel
 import io.github.vitalyostanin.markdownorg.ui.CollectionsUi
 import io.github.vitalyostanin.markdownorg.ui.DiagnosticsUi
+import io.github.vitalyostanin.markdownorg.ui.ExternalNote
 import io.github.vitalyostanin.markdownorg.ui.LicensesScreen
 import io.github.vitalyostanin.markdownorg.ui.SettingsInitial
 import io.github.vitalyostanin.markdownorg.ui.StorageUi
@@ -50,6 +51,7 @@ import io.github.vitalyostanin.markdownorg.ui.TaskActionsSheet
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -358,10 +360,24 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     // Over the agenda rather than instead of it: the list is the context for
     // what was tapped.
     selected?.let { task ->
+        val context = LocalContext.current
+
         TaskActionsSheet(
             task = task,
             onAction = { action -> model.apply(task, action) },
             onDismiss = { model.select(null) },
+            // Handled here rather than in the view model: this leaves the
+            // application, and what it needs is an activity to launch from,
+            // not the notes. The sheet closes first, the way it does for
+            // every other action -- what comes back is another application's
+            // screen, and a sheet left standing behind it is what the user
+            // returns to.
+            onOpenExternally = {
+                model.select(null)
+                if (!ExternalNote.open(context, File(task.file))) {
+                    model.reportOpenFailure()
+                }
+            },
         )
     }
 }
