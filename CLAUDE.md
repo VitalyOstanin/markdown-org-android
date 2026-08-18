@@ -100,6 +100,10 @@ reasoning.
   week begins on is the phone's answer passed to the core rather than the
   core's fixed Monday. See
   [ADR-0025](docs/adr/0025-the-month-grid-is-the-core-s-answer.md).
+- The month grid takes the height its cells want rather than sharing the whole
+  window, and the day picked out of it stands under the grid with its rows. A
+  tap on a cell picks a day; the button under the date opens it. See
+  [ADR-0026](docs/adr/0026-the-day-picked-out-of-the-month-stands-under-it.md).
 
 ## Working on the core
 

@@ -249,22 +249,16 @@ private fun AgendaBody(
                         onGroupAction = actions.onGroupAction,
                     )
                 } else if (state.span == AgendaSpan.MONTH && view.monthAsGrid) {
-                    // A month of headings is a scroll; the grid is what says
-                    // where the month is full and where it is not. The rows
-                    // themselves stay one tap away, in the day the cell opens.
-                    MonthLayout(
-                        cells = remember(state.days, state.date, now.toLocalDate()) {
-                            buildMonthGrid(state.days, state.date, now.toLocalDate())
-                        },
-                        load = remember(state.days, now.toLocalDate()) {
-                            state.days.monthLoad(now.toLocalDate())
-                        },
+                    MonthCalendar(
+                        state = state,
+                        today = now.toLocalDate(),
+                        actions = actions,
                         // What the header leaves, and not a line more: the
-                        // grid divides the height it is given between its
-                        // weeks, and a grid that took the whole column would
-                        // hang its last weeks below the screen.
+                        // grid takes the height its cells want out of it and
+                        // the panel takes the rest, and a calendar that took
+                        // the whole column would hang its last weeks below the
+                        // screen.
                         modifier = Modifier.weight(1f),
-                        onDayClick = actions.onShowDay,
                     )
                 } else {
                     ListLayout(
@@ -286,6 +280,34 @@ private fun AgendaBody(
             }
         }
     }
+}
+
+/**
+ * The month as a calendar, with the day picked out of it underneath.
+ *
+ * A month of headings is a scroll; the grid is what says where the month is
+ * full and where it is not. What the picked day carries stands under the grid,
+ * and the day itself is a button away — see [MonthLayout].
+ */
+@Composable
+private fun MonthCalendar(
+    state: AgendaUiState.Ready,
+    today: LocalDate,
+    actions: AgendaActions,
+    modifier: Modifier = Modifier,
+) {
+    MonthLayout(
+        cells = remember(state.days, state.date, today) {
+            buildMonthGrid(state.days, state.date, today)
+        },
+        load = remember(state.days, today) { state.days.monthLoad(today) },
+        days = state.days,
+        anchor = state.date,
+        today = today,
+        modifier = modifier,
+        onDayClick = actions.onShowDay,
+        onTaskClick = actions.onTaskClick,
+    )
 }
 
 /**

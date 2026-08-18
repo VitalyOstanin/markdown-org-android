@@ -24,6 +24,8 @@
       made of is read by opening the day, which is what a tap on it does.
     -->
     <string name="month_cell_open">Open this day in Day view</string>
+    <!-- Under the month grid: takes the picked day to the Day view. -->
+    <string name="month_panel_open">Open the day</string>
     <string name="month_cell_overdue">Overdue</string>
     <!--
       A date still ahead that a deadline's warning window has reached. The

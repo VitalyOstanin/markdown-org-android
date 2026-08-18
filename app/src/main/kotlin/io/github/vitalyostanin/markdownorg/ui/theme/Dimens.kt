@@ -88,16 +88,50 @@ object Sizes {
     val tile = 40.dp
 
     /**
+     * The height a cell of the month grid takes where there is room for it.
+     *
+     * A cell is as wide as a seventh of the screen — about 45 dp on a phone —
+     * so this is what keeps it roughly square. Sharing the whole height
+     * between the weeks instead drew a cell twice as tall as it is wide, with
+     * the number and the count in a band across the middle and half the cell
+     * empty above and below them.
+     */
+    val monthCell = 56.dp
+
+    /**
      * The height a cell of the month grid needs to stack what it holds.
      *
-     * The rows share whatever height is left below the header, so the whole
-     * month is on screen without a scroll — which means a landscape window
-     * gives each of them a third of what a portrait one does. Above this the
-     * cell puts the count under the day number; below it the two go side by
-     * side, because a stack that does not fit is a chip sliced into a stripe,
-     * and that is what landscape drew.
+     * A window too short for [monthCell] rows and the panel under them gives
+     * the grid what is left, which a landscape phone measures in tens of dp.
+     * Above this the cell puts the count under the day number; below it the
+     * two go side by side, because a stack that does not fit is a chip sliced
+     * into a stripe, and that is what landscape drew.
      */
     val monthCellRoomy = 56.dp
+
+    /**
+     * The least the panel under the month grid is worth drawing in.
+     *
+     * A heading and two rows. Below that it is left out and the grid takes the
+     * window, which is what a landscape phone gets: a panel showing one row of
+     * a day is not the day.
+     */
+    val monthPanelMin = 132.dp
+
+    /** The row of weekday names above the grid, in the height arithmetic. */
+    val monthHeaderRow = 20.dp
+
+    /** The disc the day number sits in where the cell is today. */
+    val monthTodayDisc = 28.dp
+
+    /**
+     * Between the day number and the count under it.
+     *
+     * Off the spacing scale on purpose: the cell is 56 dp tall and the disc
+     * and the chip take 46 of them, so what is left to separate the two is
+     * what is left.
+     */
+    val monthCellGap = 2.dp
 
     /** Width of the `09:00` label on the axis; the tiles start after it. */
     val hourLabel = 40.dp

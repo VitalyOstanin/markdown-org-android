@@ -29,8 +29,6 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /**
  * One line per task, grouped the way the sections come.
@@ -222,13 +220,7 @@ private const val TASKS_PREFIX = "tasks"
 private fun DayHeading(date: LocalDate?, today: LocalDate?) {
     val locale = LocalLocale.current.platformLocale
     val text = date?.let {
-        remember(it, locale) {
-            val weekday = it.format(DateTimeFormatter.ofPattern("EEE", locale))
-            val written = it.format(
-                DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale),
-            )
-            "$weekday, $written"
-        }
+        remember(it, locale) { dayHeadingText(it, locale) }
     } ?: stringResource(R.string.agenda_span_tasks)
     val current = date != null && date == today
 

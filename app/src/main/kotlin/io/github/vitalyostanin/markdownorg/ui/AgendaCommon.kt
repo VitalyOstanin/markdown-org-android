@@ -48,6 +48,10 @@ import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 // Everything both layouts draw with, and nothing either of them draws alone.
 // The two of them promise to differ in visual language rather than in how much
@@ -467,6 +471,25 @@ internal fun EmptyAgenda(modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(vertical = Spacing.md),
     )
+}
+
+/**
+ * The weekday and the date, as everything that names a day writes it.
+ *
+ * The weekday is abbreviated and the date is written the way the reader's
+ * locale writes dates: a month of headings is read down the left edge, and a
+ * full weekday name in front of every one of them is a column of the longest
+ * word on the screen. Here rather than beside the list, because the panel
+ * under the month grid names its day the same way, and two spellings of one
+ * date on one screen is a difference the reader has to explain to themselves.
+ */
+internal fun dayHeadingText(date: LocalDate, locale: Locale): String {
+    val weekday = date.format(DateTimeFormatter.ofPattern("EEE", locale))
+    val written = date.format(
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale),
+    )
+
+    return "$weekday, $written"
 }
 
 /**

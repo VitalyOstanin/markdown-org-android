@@ -53,6 +53,21 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   stays available for the month behind a setting, `Draw the month as a
   calendar`, because the two answer different questions: the calendar says
   where the month is full, the list says what is in it.
+- Under the calendar stands the day picked out of it: its date, how much it
+  carries, and its rows, with a button that opens it in the day view. A tap on
+  a cell picks the day rather than opening it, and until one is picked the
+  panel shows today. The rows come from the answer the calendar itself was
+  drawn from, so picking a day costs no reading of the notes. The grid takes
+  the height its cells want instead of sharing the whole window between its
+  weeks — a cell was twice as tall as it is wide, with its number and its
+  count in a band across the middle — and a window with no room left for the
+  panel, a phone on its side, keeps the whole month and leaves the panel out.
+  The cell draws no outline of its own and takes a ground only where it has
+  something to say: today is a disc under the number, the picked day a tint of
+  the cell, a weekend a tint fainter still. A day in arrears counts in the
+  deadline colour at container weight rather than at full strength, because
+  half a month is usually behind the reader and twenty chips at full strength
+  are what the eye lands on first.
 - Moving the agenda off the day it opens on, a span at a time: an arrow on
   either side of the heading, and a sideways drag of the heading itself, which
   turns the plan the way a page is turned. A press on the heading comes back

@@ -13,6 +13,7 @@
     <string name="agenda_span_tasks">Задачи</string>
     <string name="agenda_day_empty">В этот день ничего нет</string>
     <string name="month_cell_open">Открыть этот день в режиме дня</string>
+    <string name="month_panel_open">Открыть день</string>
     <string name="month_cell_overdue">Просрочено</string>
     <string name="month_cell_due">Крайний срок</string>
 
