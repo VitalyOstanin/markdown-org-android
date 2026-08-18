@@ -24,7 +24,8 @@ class SyncMessageTest {
             SyncException.Dirty(1u) to R.string.sync_failed_dirty,
             SyncException.Repository("not a repository") to R.string.sync_failed_repository,
             SyncException.Address("http:// is not encrypted") to R.string.sync_failed_address,
-            SyncException.Rejected("master", "fetch first") to R.string.sync_failed_rejected,
+            SyncException.Rejected("master", "fetch first", stale = true) to
+                R.string.sync_failed_rejected,
         )
 
         for ((error, expected) in wordings) {
@@ -112,11 +113,34 @@ class SyncMessageTest {
         assertEquals(Detail.Worded(R.string.agenda_failed_unknown), message.detail)
     }
 
+    /**
+     * The branch here is behind, which the next sync fixes by itself: the
+     * fetch takes the remote's commits and these can then go up. That is
+     * advice worth wording, and worth wording over the branch name.
+     */
     @Test
-    fun theBranchTheServerRefusedIsWordedByTheApplication() {
+    fun aBranchThatFellBehindIsWordedByTheApplication() {
         assertEquals(
             Detail.Worded(R.string.sync_rejected_detail, "master"),
-            SyncException.Rejected("master", "fetch first").toSyncMessage().detail,
+            SyncException.Rejected("master", "fetch first", stale = true).toSyncMessage().detail,
+        )
+    }
+
+    /**
+     * The server said no, and no sentence written here knows why. Wording it
+     * as a branch that fell behind sent the user to sync again — which
+     * repeated the same refusal, because nothing about the branch was wrong.
+     * What the server said is the only text that names the cause, so it is
+     * what the banner shows.
+     */
+    @Test
+    fun aRefusalTheServerExplainedIsShownInTheServersOwnWords() {
+        val said = "pre-receive hook declined: GitLab: You are not allowed to push code " +
+            "to protected branches on this project."
+
+        assertEquals(
+            Detail.Verbatim(said),
+            SyncException.Rejected("master", said, stale = false).toSyncMessage().detail,
         )
     }
 
@@ -139,7 +163,7 @@ class SyncMessageTest {
         val message = FakeSyncer.run(
             cloned = false,
             commits = 1u,
-            pushFailure = SyncException.Rejected("master", "fetch first"),
+            pushFailure = SyncException.Rejected("master", "fetch first", stale = true),
         ).toMessage()
 
         assertEquals(R.string.sync_failed_rejected, message.text)

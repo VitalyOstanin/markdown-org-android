@@ -794,7 +794,7 @@ class AgendaViewModelTest {
                 FakeSyncer.run(
                     cloned = false,
                     commits = 1u,
-                    pushFailure = SyncException.Rejected("main", "fetch first"),
+                    pushFailure = SyncException.Rejected("main", "fetch first", stale = true),
                 ),
             )
         }

@@ -62,6 +62,7 @@ so a decision can be followed across the three repositories.
 | 0024 | [The application removes no file it did not write](0024-the-application-removes-no-file-it-did-not-write.md) | Accepted |
 | 0025 | [The month grid is the core's answer, and the phone says where a week starts](0025-the-month-grid-is-the-core-s-answer.md) | Accepted |
 | 0026 | [The day picked out of the month stands under the grid](0026-the-day-picked-out-of-the-month-stands-under-it.md) | Accepted |
+| 0027 | [A refusal is reported in the words of whoever refused](0027-a-refusal-is-reported-in-the-words-of-whoever-refused.md) | Accepted |
 
 ## Adding a new ADR
 

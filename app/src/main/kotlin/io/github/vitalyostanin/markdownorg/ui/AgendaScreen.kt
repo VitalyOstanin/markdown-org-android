@@ -989,15 +989,25 @@ private fun SyncBanner(
 
         BannerLine(text, tone)
         sync.message?.detail?.let { detail ->
+            val verbatim = detail as? Detail.Verbatim
+
             Text(
                 text = detailText(detail),
                 style = MaterialTheme.typography.labelSmall,
                 // Monospace for what a library wrote — a path, an id, a line
                 // of diagnostics reads better in it. What is worded here is
                 // prose and is set as prose.
-                fontFamily = (detail as? Detail.Verbatim)?.let { FontFamily.Monospace },
+                fontFamily = verbatim?.let { FontFamily.Monospace },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                // Prose written here is finite and every word of it was
+                // chosen to be read: a sentence cut off mid-advice reads as a
+                // broken string, and the two lines that fit an English one do
+                // not fit its translations. What a server or a library wrote
+                // has no length anyone here controls, so it keeps the two
+                // lines — and both are ellipsised, so a cut always says it is
+                // one.
+                maxLines = if (verbatim == null) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         CollectionRuns(sync)

@@ -274,13 +274,20 @@ fun Throwable.toSyncMessage(): SyncMessage = when (this) {
         failed = true,
     )
 
-    // The server's own refusal, as opposed to `Diverged` above, which is this
-    // application declining to merge what it fetched. The edits are still on
-    // the device; what is needed is another sync, which takes the remote's
-    // commits first and can then hand over these.
+    // Two refusals wear one name, and only one of them another sync can fix.
+    // Stale is the branch here being behind: the next sync takes the remote's
+    // commits and these can then go up, which is worth saying. Otherwise the
+    // server itself said no — a protected branch, a hook, a key without write
+    // — and the only text that helps is the server's own, so it is shown as it
+    // arrived rather than replaced by a sentence about commits that do not
+    // exist.
     is SyncException.Rejected -> SyncMessage(
         R.string.sync_failed_rejected,
-        Detail.Worded(R.string.sync_rejected_detail, branch),
+        if (stale) {
+            Detail.Worded(R.string.sync_rejected_detail, branch)
+        } else {
+            Detail.Verbatim(detail)
+        },
         failed = true,
     )
 

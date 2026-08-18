@@ -104,6 +104,10 @@ reasoning.
   window, and the day picked out of it stands under the grid with its rows. A
   tap on a cell picks a day; the button under the date opens it. See
   [ADR-0026](docs/adr/0026-the-day-picked-out-of-the-month-stands-under-it.md).
+- A push the remote refuses is reported by whoever refused it: the branch that
+  fell behind is worded here, and a server that declined is quoted as it wrote.
+  See
+  [ADR-0027](docs/adr/0027-a-refusal-is-reported-in-the-words-of-whoever-refused.md).
 
 ## Working on the core
 

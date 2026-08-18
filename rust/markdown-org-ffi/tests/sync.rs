@@ -952,7 +952,19 @@ fn a_remote_that_moved_on_refuses_the_push_and_keeps_the_commits_here() {
     let error = push_changes(request(&checkout, remote.path())).expect_err("must fail");
 
     match &error {
-        SyncError::Rejected { branch, .. } => assert_eq!("master", branch),
+        // Stale rather than refused: libgit2 saw the remote had moved and
+        // stopped before sending, and the answer to that is the fetch this
+        // application already does. A server saying no is the other case, and
+        // the caller words the two differently.
+        SyncError::Rejected {
+            branch,
+            stale,
+            detail,
+        } => {
+            assert_eq!("master", branch);
+            assert!(stale, "the remote moved on, so another sync can help");
+            assert!(!detail.is_empty(), "what happened is worth reading");
+        }
         other => panic!("got {other:?}"),
     }
     // A refused push is not a lost commit: it is still here, and still

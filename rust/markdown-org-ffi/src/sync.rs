@@ -145,10 +145,8 @@ pub enum SyncError {
     /// The remote refused the branch this checkout tried to hand it.
     ///
     /// Apart from [`SyncError::Diverged`], which is this checkout declining to
-    /// merge what it fetched: here the connection was made, the credentials
-    /// were accepted, and the server itself said no — most often because it
-    /// has commits this checkout has not fetched. The commits are still here
-    /// and nothing was lost; what is needed is a fetch and another attempt.
+    /// merge what it fetched: here the push was attempted and did not take.
+    /// The commits are still here and nothing was lost.
     ///
     /// `branch` is a field for the reason it is one on `Diverged`: the caller
     /// puts the name into a sentence of its own language.
@@ -156,8 +154,19 @@ pub enum SyncError {
     Rejected {
         /// The branch the remote refused.
         branch: String,
-        /// What the remote said, as it said it.
+        /// What the remote said, as it said it, together with whatever it
+        /// wrote alongside the refusal. Prose from a server, in the server's
+        /// own words: to be shown, not translated.
         detail: String,
+        /// Whether the branch here is behind the one on the remote.
+        ///
+        /// True is the refusal another sync answers: libgit2 compared what the
+        /// server advertised against what is here and stopped before sending
+        /// anything, so a fetch takes those commits first and the push can
+        /// then go up. False is the server's own no — a protected branch, a
+        /// hook, a key without write — which another sync repeats exactly, and
+        /// where the only thing worth reading is what the server said.
+        stale: bool,
     },
     /// The remote address is one this application will not talk to.
     ///
@@ -259,9 +268,12 @@ pub fn sync_repository(request: SyncRequest) -> Result<SyncOutcome, SyncError> {
 /// know whether an edit happened.
 ///
 /// What it will not do is force the remote to take them. A push the server
-/// refuses comes back as [`SyncError::Rejected`] with the commits still here;
-/// the answer to it is a fetch, and after that a fast-forward this application
-/// can already do. Rewriting either history is not among the things it offers.
+/// refuses comes back as [`SyncError::Rejected`] with the commits still here.
+/// Whether another attempt can help is the `stale` field of that error: a
+/// remote that moved on is answered by the fetch this module already does, and
+/// a server that said no is answered by nobody here — which is why what it
+/// said travels with the error. Rewriting either history is not among the
+/// things this offers.
 #[uniffi::export]
 pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
     ensure_supported(&request.url)?;
@@ -287,10 +299,17 @@ pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
     // success, so a push that changed nothing on the remote would otherwise
     // read as one that worked.
     let refused: RefCell<Option<String>> = RefCell::new(None);
+    // What the server wrote in passing. A refusal explains itself here and
+    // nowhere else: the status beside the reference is a phrase from the
+    // protocol ("pre-receive hook declined"), while the reason a person can
+    // act on ("you are not allowed to push to protected branches") arrives on
+    // the side channel. Uncollected, it left the user with a phrase that named
+    // a mechanism rather than a cause.
+    let said: RefCell<String> = RefCell::new(String::new());
     let trust = HostTrust::new(&request);
     let attempt = {
         let mut remote = repository.find_remote("origin")?;
-        let mut options = push_options(&request, &refused, &trust);
+        let mut options = push_options(&request, &refused, &said, &trust);
         // Written out on both sides, and no leading `+`: the local branch is
         // offered to the branch of the same name, and only as a fast-forward
         // of it.
@@ -306,14 +325,19 @@ pub fn push_changes(request: SyncRequest) -> Result<PushOutcome, SyncError> {
         return Err(trust.explain(match error.code() {
             ErrorCode::NotFastForward => SyncError::Rejected {
                 branch,
-                detail: error.message().to_string(),
+                detail: told(error.message(), &said),
+                stale: true,
             },
             _ => error.into(),
         }));
     }
 
-    if let Some(detail) = refused.into_inner() {
-        return Err(SyncError::Rejected { branch, detail });
+    if let Some(status) = refused.into_inner() {
+        return Err(SyncError::Rejected {
+            branch,
+            detail: told(&status, &said),
+            stale: false,
+        });
     }
 
     Ok(PushOutcome {
@@ -1173,9 +1197,17 @@ fn fetch_options<'a>(request: &SyncRequest, trust: &'a HostTrust) -> FetchOption
 fn push_options<'a>(
     request: &SyncRequest,
     refused: &'a RefCell<Option<String>>,
+    said: &'a RefCell<String>,
     trust: &'a HostTrust,
 ) -> PushOptions<'a> {
     let mut callbacks = remote_callbacks(request, trust);
+    // Everything the server writes for a person to read, kept as it arrives.
+    // It comes in whatever pieces the transport chose, so the lines are joined
+    // here and split apart once, in `told`.
+    callbacks.sideband_progress(|bytes| {
+        said.borrow_mut().push_str(&String::from_utf8_lossy(bytes));
+        true
+    });
     callbacks.push_update_reference(|_reference, status| {
         if let Some(message) = status {
             // First one wins: one refspec goes up per push, and a second
@@ -1191,6 +1223,32 @@ fn push_options<'a>(
     options.remote_callbacks(callbacks);
     options.follow_redirects(git2::RemoteRedirect::Initial);
     options
+}
+
+/// The refusal as the user should read it: what the protocol called it, and
+/// then what the server said about it.
+///
+/// The status alone names a mechanism — "pre-receive hook declined" — and the
+/// reason is in the side channel beside it. Both are kept: the status is what
+/// a search engine matches, and the remark is what tells the user what to do.
+/// Servers pad their remarks with blank lines and carriage returns, and git
+/// prefixes each line with `remote:`; all of that goes, and what is left is
+/// joined into one sentence-like line.
+fn told(status: &str, said: &RefCell<String>) -> String {
+    let raw = said.borrow();
+    let remark = raw
+        .lines()
+        .map(|line| line.trim_end_matches('\r').trim())
+        .map(|line| line.strip_prefix("remote:").unwrap_or(line).trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if remark.is_empty() {
+        status.trim().to_string()
+    } else {
+        format!("{}: {remark}", status.trim())
+    }
 }
 
 /// The callbacks every request to the remote runs with: the credentials, and
@@ -1504,6 +1562,11 @@ fn read_status(repository: &Repository) -> Result<RepoStatus, SyncError> {
 mod tests {
     use super::*;
 
+    /// What a server writes beside a refusal, in the shape it arrives in:
+    /// `remote:` on every line, blank lines around it, and the carriage
+    /// returns of a stream written for a terminal.
+    const AS_GITLAB_WRITES_IT: &str = "remote:\r\nremote: GitLab: You are not allowed to push code to protected branches on this project.\r\nremote:\r\n";
+
     const CONFIGURED: &str = "https://git.example.org/notes.git";
     const OVER_SSH: &str = "ssh://git@git.example.org/notes.git";
 
@@ -1751,5 +1814,40 @@ mod tests {
             }),
             SyncError::Network { .. },
         ));
+    }
+
+    #[test]
+    fn a_refusal_is_read_as_the_server_wrote_it() {
+        let said = RefCell::new(AS_GITLAB_WRITES_IT.to_string());
+
+        let told = told("pre-receive hook declined", &said);
+
+        // The mechanism the protocol names, and then the reason a person can
+        // act on. Neither is dropped: one is what a search matches, the other
+        // is what says what to do about it.
+        assert_eq!(
+            "pre-receive hook declined: GitLab: You are not allowed to push code to protected branches on this project.",
+            told
+        );
+    }
+
+    #[test]
+    fn a_server_that_said_nothing_leaves_the_status_alone() {
+        let said = RefCell::new(String::new());
+
+        assert_eq!(
+            "pre-receive hook declined",
+            told("pre-receive hook declined", &said)
+        );
+    }
+
+    #[test]
+    fn a_remark_spread_over_lines_arrives_as_one() {
+        let said = RefCell::new("remote: first\nremote: second\n".to_string());
+
+        // Joined rather than kept as lines: the caller shows this inside a
+        // banner, where a newline is a wasted row and the two halves are one
+        // sentence anyway.
+        assert_eq!("declined: first second", told("declined", &said));
     }
 }

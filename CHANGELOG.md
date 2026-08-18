@@ -220,3 +220,17 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   storage.
 - The decisions behind all of the above, as Architecture Decision Records in
   `docs/adr/`, in the format the two sibling projects use.
+- A push the server refuses is reported in the server's own words. Two
+  refusals used to wear one sentence: the branch here being behind, which the
+  next sync fixes by fetching first, and the server itself saying no — a
+  protected branch, a hook, a key without write. Only the first was worded,
+  and it was worded over the second, so a phone told to sync again did so
+  forever while the reason went unread. The core now says which refusal it
+  met, and what the server wrote beside it — the explanation arrives on the
+  side channel, which nothing was listening to — and the banner words the
+  branch that fell behind and quotes the server that declined.
+- The banner's second line is no longer cut mid-sentence. Prose written here
+  is shown whole however many lines it takes, because every word of it was
+  chosen to be read and a translation is longer than the English it was
+  measured against; what a server or a library wrote keeps its two lines. Both
+  end in an ellipsis when they are cut, so a cut says that it is one.
