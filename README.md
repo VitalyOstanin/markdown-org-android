@@ -179,6 +179,10 @@ Writing to them, one line at a time:
 - `setPriority(target, priority)` — the same for the `[#A]` cookie;
 - `shiftPlanning(target, keyword, days)` — move a `SCHEDULED` or `DEADLINE`
   date;
+- `setPlanning(target, keyword, date)` — put such a date on a task that has
+  none, move one to a day chosen outright, or take the line off with `null`. A
+  line written from nothing follows the file it goes into: the same weekday
+  language, the same inline-code framing, the same indentation;
 - `completeTask(target, today)` — mark done, or move a repeating task to its
   next occurrence and leave it open, following upstream Org-mode's
   `org-auto-repeat-maybe`;

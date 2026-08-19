@@ -263,6 +263,8 @@
     <string name="hint_action_reopen">Writes TODO into the heading, whatever it carried before.</string>
     <string name="hint_action_priority">The [#A] cookie of the heading. A, B and C are what org-mode uses out of the box, and the level in force is drawn as the selection; another one appears here when the note carries it.</string>
     <string name="hint_action_shift">Moves the date of the planning line by one day. The time, the repeater and the warning cookie stay as written, and the weekday is rewritten to match in the language the file uses.</string>
+    <string name="hint_action_date">Writes the day chosen in the calendar into the planning line the task already has, or takes that line out of the note. The time, the repeater and the warning cookie stay as written.</string>
+    <string name="hint_action_no_date">Writes a planning line the task does not have yet, on the day chosen in the calendar. Spelled the way the file spells its other dates: the same weekday language, and the same framing.</string>
 
     <!--
       The settings screen. The fields carry a line under them; what a button
@@ -325,6 +327,16 @@
     <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>
+    <!-- The calendar, for a task that already carries a planning date. -->
+    <string name="action_pick_date">Pick a day…</string>
+    <string name="action_clear_date">Take it off</string>
+    <!-- Giving a date to a task that carries none. Both kinds are
+         offered, because they are not interchangeable: one says when
+         work starts, the other when the task is due. -->
+    <string name="action_set_scheduled">Schedule…</string>
+    <string name="action_set_deadline">Set a deadline…</string>
+    <string name="date_set">Set</string>
+    <string name="date_cancel">Cancel</string>
 
     <string name="edit_failed">The task could not be changed</string>
     <string name="edit_failed_stale">The file has changed; sync and try again</string>

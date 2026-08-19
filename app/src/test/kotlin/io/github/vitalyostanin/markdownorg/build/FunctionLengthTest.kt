@@ -46,6 +46,11 @@ class FunctionLengthTest {
      * the first line that is a closing brace at exactly that depth, since
      * everything inside a function is indented further. A declaration with no
      * such line is an expression body, which is short by construction.
+     *
+     * A declaration carrying no body at all — a method of an interface — is
+     * left out, because the first closing brace at its depth is the one that
+     * ends the interface: the first method of a growing interface was
+     * otherwise reported as being as long as everything declared after it.
      */
     private fun File.longFunctions(): List<Pair<String, Int>> {
         val lines = readLines()
@@ -55,12 +60,37 @@ class FunctionLengthTest {
                 ?.groupValues
                 ?.get(1)
                 ?: return@mapNotNull null
+            if (!lines.bodyFollows(start)) return@mapNotNull null
             val end = (start + 1..lines.lastIndex).firstOrNull { lines[it] == "$indent}" }
                 ?: return@mapNotNull null
             val length = end - start + 1
 
             ("$name:${start + 1}" to length).takeIf { length > LIMIT }
         }
+    }
+
+    /**
+     * Whether the declaration beginning at [start] is followed by a body.
+     *
+     * Read off what stands after the parameter list closes, which may be
+     * several lines down: a `{` or an `=` opens a body, and anything else is a
+     * declaration on its own. Looking past the closing bracket rather than at
+     * the whole line keeps a default value (`a: Int = 1`) from reading as an
+     * expression body.
+     */
+    private fun List<String>.bodyFollows(start: Int): Boolean {
+        var depth = 0
+
+        for (index in start..lastIndex) {
+            val line = this[index]
+            depth += line.count { it == '(' } - line.count { it == ')' }
+            if (depth > 0) continue
+
+            val tail = line.substring(line.lastIndexOf(')') + 1)
+            return tail.trimEnd().endsWith("{") || tail.contains('=')
+        }
+
+        return false
     }
 
     private fun sources(): List<File> = root.resolve("app/src/main/kotlin")

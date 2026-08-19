@@ -309,6 +309,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val span by model.span.collectAsStateWithLifecycle()
     val grouped by model.grouped.collectAsStateWithLifecycle()
     val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
+    val weekStart by model.weekStart.collectAsStateWithLifecycle()
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
     val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
@@ -369,6 +370,9 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             task = task,
             onAction = { action -> model.apply(task, action) },
             onDismiss = { model.select(null) },
+            // The calendar is cut where the agenda's month grid is cut: the
+            // reader answered that question once, in the settings.
+            weekStart = weekStart,
             onEdit = { model.edit(task) },
             // Handled here rather than in the view model: this leaves the
             // application, and what it needs is an activity to launch from,

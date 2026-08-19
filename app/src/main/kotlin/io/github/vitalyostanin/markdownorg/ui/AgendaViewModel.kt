@@ -664,9 +664,15 @@ class AgendaViewModel(
             val started = System.nanoTime()
             val outcome = when (action) {
                 TaskAction.Complete -> theirEditor.complete(task, clock().toLocalDate())
+
                 is TaskAction.Status -> theirEditor.setStatus(task, action.status)
+
                 is TaskAction.Priority -> theirEditor.setPriority(task, action.value)
+
                 is TaskAction.Shift -> theirEditor.shift(task, action.keyword, action.days)
+
+                is TaskAction.Plan ->
+                    theirEditor.setPlanning(task, action.keyword, action.date)
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 

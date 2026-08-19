@@ -101,6 +101,60 @@ pub fn shift_planning(
     write_line(&mut document, line_index, rewritten)
 }
 
+/// Put a planning date on a task, or take one off.
+///
+/// `date` is `YYYY-MM-DD`, and `None` removes the line. The two are one
+/// operation because they are one question on screen — which day this is
+/// planned for, if any — and because a date removed and put back has to land
+/// where the first one was.
+///
+/// Where an existing line is rewritten, only its date changes: the time, the
+/// repeater and the warning cookie stay as written, exactly as a shift leaves
+/// them. A line that has to be written from nothing follows the file rather
+/// than a house style — see [`sample_planning`].
+#[uniffi::export]
+pub fn set_planning(
+    target: EditTarget,
+    keyword: PlanningKeyword,
+    date: Option<String>,
+) -> Result<EditOutcome, EditError> {
+    // Parsed before the file is opened: a date the caller mistyped must leave
+    // the notes as they were.
+    let date = date
+        .map(|date| {
+            NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
+                detail: format!("{date:?}: {error}"),
+            })
+        })
+        .transpose()?;
+
+    let mut document = Document::open(&target)?;
+    let (index, _) = document.heading(&target)?;
+
+    let found = planning_lines(&document, index)
+        .into_iter()
+        .find(|(_, kind, _)| *kind == keyword);
+
+    match (date, found) {
+        (Some(date), Some((line_index, _, parts))) => {
+            let line = document.at(line_index).to_string();
+            let rewritten = rewrite_date(&line, &parts, date)?;
+            write_line(&mut document, line_index, rewritten)
+        }
+        (Some(date), None) => insert_planning(&mut document, index, keyword, date),
+        (None, Some((line_index, _, parts))) => {
+            remove_planning(&mut document, line_index, keyword, &parts)
+        }
+        // Nothing to take off. Reported as an edit that changed nothing rather
+        // than as a failure: the task already has no date of that kind, which
+        // is what the caller asked for.
+        (None, None) => Ok(EditOutcome {
+            line: String::new(),
+            changed: false,
+        }),
+    }
+}
+
 /// Mark a task done, or move it to its next occurrence when it repeats.
 ///
 /// `today` is `YYYY-MM-DD` and comes from the caller rather than the clock,
@@ -235,6 +289,172 @@ pub(crate) fn planning_keyword(line: &str) -> Option<PlanningKeyword> {
     } else {
         None
     }
+}
+
+/// The closing date org-mode writes when a task is finished.
+///
+/// One of the keyword lines that sit under a heading, and structural like the
+/// planning lines: written by an operation rather than typed. Shared with the
+/// entry editor, which keeps such lines out of the body it hands over.
+pub(crate) const CLOSED: &str = "CLOSED:";
+
+/// The date org-mode's expiry convention writes when an entry is created.
+/// Never edited here, only stepped over: it stands in the same block the
+/// planning lines do.
+const CREATED: &str = "CREATED:";
+
+/// Whether the line is one of the keyword lines written under a heading,
+/// rather than the text of the entry.
+fn keyword_line(line: &str) -> bool {
+    let start = bare_start(line);
+    planning_keyword(line).is_some() || start.starts_with(CLOSED) || start.starts_with(CREATED)
+}
+
+/// Write a planning line the entry did not have, and save the file.
+///
+/// It goes below the keyword lines already under the heading rather than
+/// directly under it, so a `SCHEDULED` added to a task that carries `CREATED`
+/// and `DEADLINE` joins that block instead of splitting it.
+fn insert_planning(
+    document: &mut Document,
+    index: usize,
+    keyword: PlanningKeyword,
+    date: NaiveDate,
+) -> Result<EditOutcome, EditError> {
+    let line = planning_line(document, index, keyword, date)?;
+
+    let mut at = index + 1;
+    while at < document.len() && keyword_line(document.at(at)) {
+        at += 1;
+    }
+
+    document.replace_lines(at..at, vec![line.clone()]);
+    document.save()?;
+
+    Ok(EditOutcome {
+        line,
+        changed: true,
+    })
+}
+
+/// The planning line to write, spelled the way this file spells the ones it
+/// already has.
+fn planning_line(
+    document: &Document,
+    index: usize,
+    keyword: PlanningKeyword,
+    date: NaiveDate,
+) -> Result<String, EditError> {
+    // The same bound `rewrite_date` keeps: a year outside four digits is
+    // written by chrono in a form no reader of these files accepts.
+    if !(1000..=9999).contains(&date.year()) {
+        return Err(EditError::InvalidDate {
+            detail: format!("{date} is outside the four-digit years timestamps are written in"),
+        });
+    }
+
+    let sample = sample_planning(document, index);
+    let indent = sample.as_ref().map_or("", |(line, _)| {
+        &line[..line.len() - line.trim_start().len()]
+    });
+    // Framed in inline code, which is how these lines are written in markdown
+    // notes: the timestamp is not a link and the backticks keep a renderer
+    // from making one of it. A file that writes them bare keeps doing so.
+    let fenced = sample
+        .as_ref()
+        .is_none_or(|(line, _)| line.trim_start().starts_with('`'));
+
+    let weekday = match &sample {
+        // A file that writes its dates without a weekday goes on without one.
+        Some((line, parts)) => parts.weekday.clone().map(|range| {
+            // A weekday this application cannot rewrite -- a language neither
+            // of the two -- is no reason to refuse a date it was not asked to
+            // touch, so the canonical name is written instead.
+            weekday_like(&line[range], date).unwrap_or_else(|_| date.weekday().to_string())
+        }),
+        None => Some(date.weekday().to_string()),
+    };
+
+    let stamp = match weekday {
+        Some(weekday) => format!("<{} {weekday}>", date.format("%Y-%m-%d")),
+        None => format!("<{}>", date.format("%Y-%m-%d")),
+    };
+    let body = format!("{} {stamp}", keyword.token());
+
+    Ok(if fenced {
+        format!("{indent}`{body}`")
+    } else {
+        format!("{indent}{body}")
+    })
+}
+
+/// A planning line to copy the spelling of: the entry's own first, then the
+/// first one anywhere in the file.
+///
+/// The entry first because that is what the new line will stand beside; the
+/// file after it because a note written in Russian, or without weekdays, or
+/// without the inline-code framing, is written that way throughout. A file
+/// with no planning line at all leaves nothing to follow, and the caller
+/// writes the canonical form.
+fn sample_planning(document: &Document, index: usize) -> Option<(String, TimestampParts)> {
+    let own = planning_lines(document, index)
+        .into_iter()
+        .next()
+        .map(|(line_index, _, parts)| (document.at(line_index).to_string(), parts));
+    if own.is_some() {
+        return own;
+    }
+
+    (0..document.len()).find_map(|line_index| {
+        let line = document.at(line_index);
+        planning_keyword(line)?;
+        parse_timestamp_parts(line).map(|parts| (line.to_string(), parts))
+    })
+}
+
+/// Take a planning line out of the file, and save it.
+///
+/// Only a line that carries this timestamp and nothing else is removed. A
+/// line holding both keywords at once -- which a manual edit can leave behind
+/// -- is refused rather than half-read: the operations here locate a keyword
+/// at the start of a line, so cutting one out of such a line would take the
+/// other's date with it.
+fn remove_planning(
+    document: &mut Document,
+    line_index: usize,
+    keyword: PlanningKeyword,
+    parts: &TimestampParts,
+) -> Result<EditOutcome, EditError> {
+    let line = document.at(line_index);
+    if !holds_only(line, keyword, parts) {
+        return Err(EditError::Unsupported {
+            detail: format!(
+                "{line:?} carries more than the {} timestamp, and is left to be edited by hand",
+                keyword.token()
+            ),
+        });
+    }
+
+    document.remove(line_index);
+    document.save()?;
+
+    Ok(EditOutcome {
+        line: String::new(),
+        changed: true,
+    })
+}
+
+/// Whether the line holds the keyword, its timestamp and nothing else worth
+/// keeping -- indentation and the inline-code framing aside.
+fn holds_only(line: &str, keyword: PlanningKeyword, parts: &TimestampParts) -> bool {
+    let bare = bare_start(line);
+    let after_keyword = line.len() - bare.len() + keyword.token().len();
+
+    let between = line.get(after_keyword..parts.whole.start);
+    let tail = line.get(parts.whole.end..);
+
+    between.is_some_and(|gap| gap.chars().all(char::is_whitespace))
+        && tail.is_some_and(|tail| tail.trim().trim_end_matches('`').trim().is_empty())
 }
 
 /// Put `date` into the timestamp `parts` describes, keeping the weekday token

@@ -118,6 +118,11 @@ reasoning.
   writes — the keyword, the cookie, the dates — is refused if it is typed, and
   an entry past twenty thousand characters goes to the editor above instead. See
   [ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md).
+- A planning date is set, moved and taken off by one operation, and a line
+  written where there was none is spelled after the file it lands in: the same
+  weekday language, framing and indentation as the dates already there. A line
+  a manual edit left carrying two keywords is left to be edited by hand. See
+  [ADR-0030](docs/adr/0030-a-date-written-from-nothing-follows-the-file.md).
 
 ## Working on the core
 

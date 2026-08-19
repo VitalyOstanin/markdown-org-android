@@ -24,12 +24,7 @@ use markdown_org_extract::parse_heading_line;
 
 use crate::document::Document;
 use crate::edit::{splice, EditError, EditOutcome, EditTarget};
-use crate::planning::{bare_start, planning_keyword};
-
-/// The closing date org-mode writes when a task is finished. Structural like
-/// the planning lines, and kept out of the body for the same reason: it is
-/// written by an operation, not typed.
-const CLOSED: &str = "CLOSED:";
+use crate::planning::{bare_start, planning_keyword, CLOSED};
 
 /// The text of an entry as the file holds it.
 #[derive(Debug, Clone, uniffi::Record)]

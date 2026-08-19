@@ -34,6 +34,7 @@ import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.BulkRefusal
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RefusalReason
 import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Scope
@@ -1598,6 +1599,34 @@ class AgendaViewModelTest {
             storageGranted = { granted },
             clock = { moment },
         )
+    }
+
+    @Test
+    fun aDateChosenInTheCalendarReachesTheNoteAsThatDay() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.apply(
+            task(timestampType = null, date = null),
+            TaskAction.Plan(PlanningKeyword.DEADLINE, LocalDate.of(2026, 8, 19)),
+        )
+        advanceUntilIdle()
+
+        assertEquals(PlanningKeyword.DEADLINE to LocalDate.of(2026, 8, 19), writer.planned)
+    }
+
+    @Test
+    fun takingADateOffIsTheSameActionWithNoDayInIt() = runTest(dispatcher) {
+        // One action for both, because the file is written by one call: a
+        // second one for clearing would be a second refusal to translate and a
+        // second message in the history.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.apply(task(), TaskAction.Plan(PlanningKeyword.SCHEDULED, null))
+        advanceUntilIdle()
+
+        assertEquals(PlanningKeyword.SCHEDULED to null, writer.planned)
     }
 
     /** Where the one collection is, as the settings hold it. */

@@ -286,6 +286,19 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         days: Int,
     ): Result<EditReport> = record()
 
+    /** Which date the last call wrote, and to when -- `null` for one taken off. */
+    var planned: Pair<PlanningKeyword, LocalDate?>? = null
+        private set
+
+    override suspend fun setPlanning(
+        task: Task,
+        keyword: PlanningKeyword,
+        date: LocalDate?,
+    ): Result<EditReport> {
+        planned = keyword to date
+        return record()
+    }
+
     /** What an entry reads as, and what the last save was handed. */
     var entry: Result<EntryText> = Result.success(EntryText(title = "", body = ""))
 

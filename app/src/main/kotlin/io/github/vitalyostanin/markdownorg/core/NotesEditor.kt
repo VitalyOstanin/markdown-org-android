@@ -21,6 +21,7 @@ import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertBulk as coreRevertBulk
 import uniffi.markdown_org_ffi.setEntry as coreSetEntry
+import uniffi.markdown_org_ffi.setPlanning as coreSetPlanning
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -58,6 +59,19 @@ interface NotesWriter {
     suspend fun setPriority(task: Task, priority: String?): Result<EditReport>
 
     suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<EditReport>
+
+    /**
+     * Put a planning date on a task, or take one off with `null`.
+     *
+     * A day rather than a number of days, which is what the calendar answers
+     * with and what a task carrying no date at all can be given: there is
+     * nothing for a shift to count from until one is written.
+     */
+    suspend fun setPlanning(
+        task: Task,
+        keyword: PlanningKeyword,
+        date: LocalDate?,
+    ): Result<EditReport>
 
     /**
      * The title and the body of a task's entry, as the file holds them.
@@ -193,6 +207,16 @@ class NotesEditor internal constructor(
     ): Result<EditReport> = write {
         coreShiftPlanning(task.target(), keyword, days)
         shiftMessage(task.heading, keyword, days)
+    }
+
+    /** Put a planning date on a task, or take one off. */
+    override suspend fun setPlanning(
+        task: Task,
+        keyword: PlanningKeyword,
+        date: LocalDate?,
+    ): Result<EditReport> = write {
+        coreSetPlanning(task.target(), keyword, date?.toString())
+        planningMessage(task.heading, keyword, date)
     }
 
     /**
@@ -372,6 +396,18 @@ internal fun shiftMessage(heading: String, keyword: PlanningKeyword, days: Int):
         else -> "Leave the $date of \"$heading\" where it is"
     }
 }
+
+/**
+ * Which date was written, and to when -- or that it was taken off.
+ *
+ * The day is spelled the way the notes spell it, `YYYY-MM-DD`, rather than the
+ * way the phone's locale would: the history is read beside the files.
+ */
+internal fun planningMessage(heading: String, keyword: PlanningKeyword, date: LocalDate?): String =
+    when (date) {
+        null -> "Take the ${keyword.keyword()} off \"$heading\""
+        else -> "Set the ${keyword.keyword()} of \"$heading\" to $date"
+    }
 
 private fun TaskType.keyword() = when (this) {
     TaskType.TODO -> "TODO"

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +25,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
-import uniffi.markdown_org_ffi.TimestampType
+import java.time.LocalDate
 
 /** What the user asked to do with a task. */
 sealed interface TaskAction {
@@ -38,6 +40,9 @@ sealed interface TaskAction {
 
     /** Move a planning date by whole days. */
     data class Shift(val keyword: PlanningKeyword, val days: Int) : TaskAction
+
+    /** Put a planning date on the day chosen, or take it off with `null`. */
+    data class Plan(val keyword: PlanningKeyword, val date: LocalDate?) : TaskAction
 }
 
 /**
@@ -55,15 +60,27 @@ fun TaskActionsSheet(
     onAction: (TaskAction) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    weekStart: WeekStart = WeekStart.AUTO,
     onEdit: (() -> Unit)? = null,
     onOpenExternally: (() -> Unit)? = null,
 ) {
-    val state = rememberModalBottomSheetState()
+    // Opened whole rather than half way up. What the sheet holds depends on the
+    // task -- a dated one carries two rows of date actions on top of the rest --
+    // and the half-open state cut the last actions off below the edge, with the
+    // scroll of the column inside it going to the column rather than to the
+    // sheet.
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, modifier = modifier) {
         Column(
+            // Scrolled, because how tall the sheet is depends on the task: a
+            // dated task carries two rows of date actions the others do not,
+            // and on a short screen the last actions -- editing the text,
+            // handing the note over -- were drawn past the bottom edge with
+            // no way to reach them.
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.gutter)
                 .padding(bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -125,22 +142,7 @@ fun TaskActionsSheet(
 
             PriorityChoice(task.priority, onAction)
 
-            // Which planning line the task carries decides which one can move;
-            // the extractor reports the kind it found.
-            val keyword = when (task.timestampType) {
-                TimestampType.DEADLINE -> PlanningKeyword.DEADLINE
-
-                TimestampType.SCHEDULED -> PlanningKeyword.SCHEDULED
-
-                // Neither is a planning line: a closing date records when the
-                // task was finished, and a bare timestamp carries no keyword
-                // to move. Spelled out rather than left to `else`, so a kind
-                // added to the core has to be answered for here.
-                TimestampType.CLOSED, TimestampType.PLAIN, null -> null
-            }
-            if (keyword != null) {
-                ShiftRow(keyword, onAction)
-            }
+            TaskDates(task, weekStart, onAction)
 
             // The one action that opens a screen rather than writing a line:
             // the heading's own text and the lines under it. Absent when the
@@ -167,35 +169,6 @@ fun TaskActionsSheet(
                     onClick = onOpenExternally,
                 )
             }
-        }
-    }
-}
-
-/**
- * Moving the planning date by a day, both ways.
- *
- * One line for both buttons: what a day earlier and a day later write differs
- * only in the sign, and the rest — the time, the repeater, the weekday — is
- * what is worth saying. The tooltip goes around the row rather than around
- * each button: a weight handed to a tooltip is not the weight the row
- * measures, and the second button ended up off the screen. A long press on
- * either of them reaches the box all the same — a button takes the tap and
- * leaves the long press alone.
- */
-@Composable
-private fun ShiftRow(keyword: PlanningKeyword, onAction: (TaskAction) -> Unit) {
-    HintTooltip(stringResource(R.string.hint_action_shift)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            ShiftButton(
-                label = stringResource(R.string.action_shift_back),
-                tag = "action-shift-back",
-                modifier = Modifier.weight(1f),
-            ) { onAction(TaskAction.Shift(keyword, -1)) }
-            ShiftButton(
-                label = stringResource(R.string.action_shift_forward),
-                tag = "action-shift-forward",
-                modifier = Modifier.weight(1f),
-            ) { onAction(TaskAction.Shift(keyword, 1)) }
         }
     }
 }
@@ -259,7 +232,7 @@ private val DEFAULT_RANGE = listOf("A", "B", "C")
 @Composable
 private fun SheetButton(label: String, tag: String, hint: String, onClick: () -> Unit) {
     HintTooltip(hint) {
-        ShiftButton(label = label, tag = tag, onClick = onClick)
+        SheetAction(label = label, tag = tag, onClick = onClick)
     }
 }
 
@@ -272,7 +245,7 @@ private fun SheetButton(label: String, tag: String, hint: String, onClick: () ->
  * off the screen.
  */
 @Composable
-private fun ShiftButton(
+internal fun SheetAction(
     label: String,
     tag: String,
     modifier: Modifier = Modifier,

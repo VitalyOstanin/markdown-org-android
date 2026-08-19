@@ -6,7 +6,7 @@
 //! today. Marking a repeating task done therefore moves it forward and leaves
 //! it open rather than closing it.
 
-use markdown_org_ffi::{complete_task, shift_planning, EditError, PlanningKeyword};
+use markdown_org_ffi::{complete_task, set_planning, shift_planning, EditError, PlanningKeyword};
 
 mod common;
 
@@ -467,4 +467,298 @@ fn completing_a_repeating_task_without_a_keyword_does_not_add_one() {
         body(vault.path()),
         "# Water the plants\n`SCHEDULED: <2026-07-08 Wed +1w>`\n"
     );
+}
+
+#[test]
+fn a_date_is_written_where_the_entry_had_none() {
+    let vault = vault("# TODO Write the report\n\nThe figures are in.\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-08-19 Wed>`");
+    assert!(outcome.changed);
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n\nThe figures are in.\n"
+    );
+}
+
+#[test]
+fn a_new_line_is_spelled_the_way_the_file_spells_the_others() {
+    let vault = vault(concat!(
+        "# TODO Полить цветы\n",
+        "`SCHEDULED: <2026-08-17 Пн>`\n",
+        "\n",
+        "# TODO Написать отчёт\n",
+    ));
+
+    let outcome = set_planning(
+        target(vault.path(), 4, "Написать отчёт"),
+        PlanningKeyword::Deadline,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "`DEADLINE: <2026-08-19 Ср>`");
+}
+
+#[test]
+fn a_file_that_writes_no_weekday_gets_a_date_without_one() {
+    let vault = vault("# TODO Water\n`SCHEDULED: <2026-08-17>`\n\n# TODO Write\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 4, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-08-19>`");
+}
+
+#[test]
+fn a_file_that_writes_its_lines_bare_keeps_them_bare() {
+    let vault = vault("# TODO Water\nSCHEDULED: <2026-08-17 Mon>\n\n# TODO Write\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 4, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "SCHEDULED: <2026-08-19 Wed>");
+}
+
+#[test]
+fn a_weekday_this_application_cannot_rewrite_does_not_stop_a_new_date() {
+    let vault = vault("# TODO Water\n`SCHEDULED: <2026-08-17 Δευ>`\n\n# TODO Write\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 4, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-08-19 Wed>`");
+}
+
+#[test]
+fn a_new_line_joins_the_block_under_the_heading() {
+    let vault = vault(concat!(
+        "# TODO Write the report\n",
+        "`CREATED: [2026-08-01 Sat]`\n",
+        "`DEADLINE: <2026-08-25 Tue>`\n",
+        "\n",
+        "The figures are in.\n",
+    ));
+
+    set_planning(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(
+        body(vault.path()),
+        concat!(
+            "# TODO Write the report\n",
+            "`CREATED: [2026-08-01 Sat]`\n",
+            "`DEADLINE: <2026-08-25 Tue>`\n",
+            "`SCHEDULED: <2026-08-19 Wed>`\n",
+            "\n",
+            "The figures are in.\n",
+        )
+    );
+}
+
+#[test]
+fn setting_a_date_on_a_line_that_has_one_moves_the_date_and_nothing_else() {
+    let vault = vault("# TODO Write\n`SCHEDULED: <2026-07-28 Tue 10:00 ++1w -2d>`\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-08-19 Wed 10:00 ++1w -2d>`");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`SCHEDULED: <2026-08-19 Wed 10:00 ++1w -2d>`\n"
+    );
+}
+
+#[test]
+fn setting_the_date_the_file_already_holds_writes_nothing() {
+    let vault = vault("# TODO Write\n`SCHEDULED: <2026-08-19 Wed>`\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert!(!outcome.changed);
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`SCHEDULED: <2026-08-19 Wed>`\n"
+    );
+}
+
+#[test]
+fn clearing_a_date_takes_its_line_out_and_leaves_the_rest() {
+    let vault = vault(concat!(
+        "# TODO Write\n",
+        "`SCHEDULED: <2026-08-19 Wed>`\n",
+        "`DEADLINE: <2026-08-25 Tue>`\n",
+        "\n",
+        "The figures are in.\n",
+    ));
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        None,
+    )
+    .expect("clear");
+
+    assert!(outcome.changed);
+    assert_eq!(outcome.line, "");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`DEADLINE: <2026-08-25 Tue>`\n\nThe figures are in.\n"
+    );
+}
+
+#[test]
+fn clearing_a_date_the_entry_does_not_carry_is_no_edit_at_all() {
+    let vault = vault("# TODO Write\n`DEADLINE: <2026-08-25 Tue>`\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        None,
+    )
+    .expect("clear");
+
+    assert!(!outcome.changed);
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`DEADLINE: <2026-08-25 Tue>`\n"
+    );
+}
+
+#[test]
+fn a_line_carrying_both_keywords_is_refused_rather_than_half_cut() {
+    let vault = vault("# TODO Write\n`SCHEDULED: <2026-08-19 Wed> DEADLINE: <2026-08-25 Tue>`\n");
+
+    let refused = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        None,
+    )
+    .expect_err("refused");
+
+    assert!(
+        matches!(refused, EditError::Unsupported { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`SCHEDULED: <2026-08-19 Wed> DEADLINE: <2026-08-25 Tue>`\n"
+    );
+}
+
+#[test]
+fn a_date_that_is_not_a_date_is_refused_before_the_file_is_opened() {
+    let vault = vault("# TODO Write\n");
+
+    let refused = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("19.08.2026".to_string()),
+    )
+    .expect_err("refused");
+
+    assert!(
+        matches!(refused, EditError::InvalidDate { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(body(vault.path()), "# TODO Write\n");
+}
+
+#[test]
+fn a_date_outside_the_four_digit_years_is_refused() {
+    let vault = vault("# TODO Write\n");
+
+    let refused = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("0999-08-19".to_string()),
+    )
+    .expect_err("refused");
+
+    assert!(
+        matches!(refused, EditError::InvalidDate { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(body(vault.path()), "# TODO Write\n");
+}
+
+#[test]
+fn a_line_added_to_a_crlf_file_is_written_with_crlf() {
+    let vault = vault("# TODO Write\r\n\r\nThe figures are in.\r\n");
+
+    set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Deadline,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\r\n`DEADLINE: <2026-08-19 Wed>`\r\n\r\nThe figures are in.\r\n"
+    );
+}
+
+#[test]
+fn a_file_that_ends_without_a_newline_does_not_grow_one() {
+    let vault = vault("# TODO Write");
+
+    set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write\n`SCHEDULED: <2026-08-19 Wed>`"
+    );
+}
+
+#[test]
+fn an_indented_block_keeps_its_indentation() {
+    let vault = vault("# TODO Write\n  `DEADLINE: <2026-08-25 Tue>`\n");
+
+    let outcome = set_planning(
+        target(vault.path(), 1, "Write"),
+        PlanningKeyword::Scheduled,
+        Some("2026-08-19".to_string()),
+    )
+    .expect("set");
+
+    assert_eq!(outcome.line, "  `SCHEDULED: <2026-08-19 Wed>`");
 }

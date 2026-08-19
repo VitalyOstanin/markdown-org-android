@@ -8,6 +8,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -225,14 +226,21 @@ class TaskActionsSheetTest {
     fun theSheetOffersToOpenTheNoteElsewhere() {
         show(task())
 
-        compose.onNodeWithText(string(R.string.action_open_externally)).assertIsDisplayed()
+        // Scrolled to first: the sheet is taller than a short screen once a
+        // dated task adds its rows of date actions, and the last action of all
+        // is this one.
+        compose.onNodeWithText(string(R.string.action_open_externally))
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
     fun openingElsewhereSaysWhatItLeavesUncommitted() {
         show(task())
 
-        compose.onNodeWithTag("action-open-externally").performTouchInput { longClick() }
+        compose.onNodeWithTag("action-open-externally")
+            .performScrollTo()
+            .performTouchInput { longClick() }
 
         compose.onNodeWithText(string(R.string.hint_action_open_externally), substring = true)
             .assertIsDisplayed()
@@ -242,7 +250,7 @@ class TaskActionsSheetTest {
     fun editingTheEntryReachesTheCaller() {
         show(task())
 
-        compose.onNodeWithTag("action-edit-entry").performClick()
+        compose.onNodeWithTag("action-edit-entry").performScrollTo().performClick()
 
         assertEquals(1, edits)
     }
@@ -251,7 +259,7 @@ class TaskActionsSheetTest {
     fun openingElsewhereReachesTheCaller() {
         show(task())
 
-        compose.onNodeWithTag("action-open-externally").performClick()
+        compose.onNodeWithTag("action-open-externally").performScrollTo().performClick()
 
         assertEquals(1, opened)
     }

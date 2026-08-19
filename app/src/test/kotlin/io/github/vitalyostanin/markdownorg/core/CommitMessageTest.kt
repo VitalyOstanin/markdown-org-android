@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
+import java.time.LocalDate
 
 /**
  * What the history of someone's notes ends up reading like.
@@ -92,6 +93,22 @@ class CommitMessageTest {
         assertEquals(
             "Rewrite the text of \"Pay rent\"",
             entryMessage("Pay rent", "Pay rent"),
+        )
+    }
+
+    @Test
+    fun aDateWrittenNamesTheKindAndTheDay() {
+        assertEquals(
+            "Set the SCHEDULED of \"Pay rent\" to 2026-08-19",
+            planningMessage("Pay rent", PlanningKeyword.SCHEDULED, LocalDate.of(2026, 8, 19)),
+        )
+    }
+
+    @Test
+    fun aDateTakenOffSaysWhichKindWentRatherThanNamingADay() {
+        assertEquals(
+            "Take the DEADLINE off \"Pay rent\"",
+            planningMessage("Pay rent", PlanningKeyword.DEADLINE, null),
         )
     }
 

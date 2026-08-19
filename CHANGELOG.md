@@ -234,6 +234,18 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen to be read and a translation is longer than the English it was
   measured against; what a server or a library wrote keeps its two lines. Both
   end in an ellipsis when they are cut, so a cut says that it is one.
+- A planning date can be given, picked from a calendar, and taken off. Until
+  now the sheet could only move a date the task already had, so a task that
+  arrived without one had nothing to shift and a date cleared elsewhere could
+  not be put back from the phone. A task with a date is offered the calendar
+  and the way out of it; a task without one is asked which kind it is being
+  given, because a day work starts and a day something is due are not
+  interchangeable. A line written where there was none is spelled after the
+  file it lands in — the same weekday language, the same inline-code framing,
+  the same indentation as the dates already there — and joins the block under
+  the heading rather than splitting it. The calendar is cut on the weekday the
+  month grid is cut on. A line a manual edit left carrying both keywords at
+  once is refused rather than half-cut.
 - The text of an entry is edited here: the title of its heading, and the lines
   under it. Everything else on the sheet writes one line and stays where it is;
   this opens a screen with the two of them, and the core writes both back in
