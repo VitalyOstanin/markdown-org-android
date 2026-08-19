@@ -55,6 +55,7 @@ fun TaskActionsSheet(
     onAction: (TaskAction) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null,
     onOpenExternally: (() -> Unit)? = null,
 ) {
     val state = rememberModalBottomSheetState()
@@ -139,6 +140,19 @@ fun TaskActionsSheet(
             }
             if (keyword != null) {
                 ShiftRow(keyword, onAction)
+            }
+
+            // The one action that opens a screen rather than writing a line:
+            // the heading's own text and the lines under it. Absent when the
+            // caller does not offer it -- a preview, or a test that drives the
+            // sheet alone.
+            if (onEdit != null) {
+                SheetButton(
+                    label = stringResource(R.string.action_edit_entry),
+                    tag = "action-edit-entry",
+                    hint = stringResource(R.string.hint_action_edit_entry),
+                    onClick = onEdit,
+                )
             }
 
             // Last, and on its own: every action above writes one line and

@@ -20,6 +20,7 @@ use markdown_org_extract::{
 mod bulk;
 mod document;
 mod edit;
+mod entry;
 mod index;
 mod planning;
 mod sync;
@@ -29,6 +30,7 @@ pub use bulk::{
     RefusalReason, RevertOutcome,
 };
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
+pub use entry::{read_entry, set_entry, EntryText};
 pub use index::NotesIndex;
 pub use planning::{complete_task, shift_planning, CompleteOutcome, PlanningKeyword};
 pub use sync::{

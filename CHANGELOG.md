@@ -234,6 +234,16 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen to be read and a translation is longer than the English it was
   measured against; what a server or a library wrote keeps its two lines. Both
   end in an ellipsis when they are cut, so a cut says that it is one.
+- The text of an entry is edited here: the title of its heading, and the lines
+  under it. Everything else on the sheet writes one line and stays where it is;
+  this opens a screen with the two of them, and the core writes both back in
+  one commit. What an action writes is left to the actions — a title that would
+  read as a keyword, and a body line that would read as a planning line or as
+  another heading, are refused rather than written, and an entry read and saved
+  unchanged leaves the file byte for byte as it was. An entry longer than
+  twenty thousand characters is not opened here but handed to the editor
+  below: a field of that size answers a keystroke in seconds, which was
+  measured rather than assumed.
 - A task offers to open its note in another application. The agenda reads the
   notes and edits the line a task sits on; reading a note as a document, or
   reaching a section that carries no date at all — a shopping list, a page of

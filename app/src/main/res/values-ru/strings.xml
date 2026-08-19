@@ -172,6 +172,7 @@
     <string name="hint_group_drop_date">Снять дату планирования со всех записей группы. Задачи остаются и уходят из повестки, пока им снова не назначат дату.</string>
     <string name="hint_group_cancel">Отметить все записи группы отменёнными, записав ключевое слово в исходную заметку.</string>
 
+    <string name="hint_action_edit_entry">Открывает текст самого заголовка и строки под ним. Ключевое слово, приоритет и даты остаются за действиями выше; правка записывается в файл и фиксируется как любая другая.</string>
     <string name="hint_action_open_externally">Передаёт заметку целиком выбранному вами редактору markdown. Сделанную там правку это приложение зафиксирует при ближайшей синхронизации, под сообщением, которого никто не выбирал; до тех пор правка есть только на устройстве.</string>
     <string name="hint_action_where">Файл, в котором записана задача, и строка её заголовка — внутри каталога своей коллекции.</string>
     <string name="hint_action_complete">Записывает в заголовок DONE и делает коммит. Задача уходит из повестки и остаётся в заметке.</string>
@@ -211,6 +212,14 @@
     <string name="action_cancel_task">Снять задачу</string>
     <string name="action_reopen">Вернуть в работу</string>
     <string name="action_open_externally">Открыть заметку в другом приложении</string>
+    <string name="action_edit_entry">Править текст</string>
+    <string name="entry_title">Запись</string>
+    <string name="entry_heading">Заголовок</string>
+    <string name="entry_body">Текст</string>
+    <string name="entry_cancel">Отмена</string>
+    <string name="entry_save">Сохранить</string>
+    <string name="entry_note">Ключевое слово, приоритет и даты пишутся действиями из листа, а не вводятся здесь.</string>
+    <string name="entry_too_long">Текст под этим заголовком слишком велик для правки здесь; откройте заметку в другом приложении.</string>
     <string name="sync_commit_and_retry">Зафиксировать и синхронизировать снова</string>
     <string name="open_externally_failed">На устройстве нет приложения, открывающего markdown.</string>
     <string name="action_priority">Приоритет</string>

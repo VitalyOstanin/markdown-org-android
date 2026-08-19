@@ -34,6 +34,9 @@ class TaskActionsSheetTest {
     /** How many times the sheet asked for the note to be opened elsewhere. */
     private var opened = 0
 
+    /** How many times the sheet asked for the entry to be edited. */
+    private var edits = 0
+
     @Test
     fun theSheetNamesTheTaskAndWhereItIs() {
         show(task(heading = "Water the plants", file = "home.md", line = 12u))
@@ -236,6 +239,15 @@ class TaskActionsSheetTest {
     }
 
     @Test
+    fun editingTheEntryReachesTheCaller() {
+        show(task())
+
+        compose.onNodeWithTag("action-edit-entry").performClick()
+
+        assertEquals(1, edits)
+    }
+
+    @Test
     fun openingElsewhereReachesTheCaller() {
         show(task())
 
@@ -257,6 +269,7 @@ class TaskActionsSheetTest {
         }
 
         compose.onNodeWithTag("action-open-externally").assertDoesNotExist()
+        compose.onNodeWithTag("action-edit-entry").assertDoesNotExist()
     }
 
     private fun show(task: Task) {
@@ -266,6 +279,7 @@ class TaskActionsSheetTest {
                     task = task,
                     onAction = { action -> actions += action },
                     onDismiss = {},
+                    onEdit = { edits += 1 },
                     onOpenExternally = { opened += 1 },
                 )
             }

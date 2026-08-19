@@ -32,6 +32,7 @@ import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.BulkRefusal
+import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.RefusalReason
 import uniffi.markdown_org_ffi.RevertOutcome
@@ -631,6 +632,87 @@ class AgendaViewModelTest {
 
         assertEquals(failure, model.editIssue.value)
         assertEquals(R.string.sync_cloned, model.syncState.value.message?.text)
+    }
+
+    @Test
+    fun anEntryOpensOnTheTextTheCoreRead() = runTest(dispatcher) {
+        // The heading the agenda carries has had its markup taken off, so an
+        // editor filled from it would drop the markup on the first save.
+        writer.entry = Result.success(
+            EntryText(title = "Write **the** report", body = "The figures are in the drive."),
+        )
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        model.select(task())
+
+        model.edit(task())
+        advanceUntilIdle()
+
+        assertEquals("Write **the** report", model.editedEntry.value?.title)
+        assertEquals("The figures are in the drive.", model.editedEntry.value?.body)
+        assertNull("the sheet stayed open over the editor", model.selected.value)
+    }
+
+    @Test
+    fun anEntryLongerThanTheScreenCanHoldIsNotOpened() = runTest(dispatcher) {
+        // A note whose whole content sits under one heading: a field of that
+        // size answers a keystroke in seconds, which is not an editor.
+        writer.entry = Result.success(EntryText(title = "A note", body = "x".repeat(20_001)))
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.edit(task())
+        advanceUntilIdle()
+
+        assertNull(model.editedEntry.value)
+        assertEquals(R.string.entry_too_long, model.editIssue.value?.text)
+    }
+
+    @Test
+    fun anEntryThatCannotBeReadDoesNotOpenAnEmptyEditor() = runTest(dispatcher) {
+        // An editor opened over text the core refused to hand over would save
+        // an empty entry onto a file that has moved on.
+        writer.entry = Result.failure(IllegalStateException("the file moved on"))
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.edit(task())
+        advanceUntilIdle()
+
+        assertNull(model.editedEntry.value)
+        assertEquals(R.string.edit_failed, model.editIssue.value?.text)
+    }
+
+    @Test
+    fun savingAnEntryWritesBothHalvesAndRebuildsTheAgenda() = runTest(dispatcher) {
+        writer.entry = Result.success(EntryText(title = "A note", body = "One line."))
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        model.edit(task())
+        advanceUntilIdle()
+        val scansBefore = loader.pending.size
+
+        model.saveEntry("A note, retitled", "Two\nlines.")
+        advanceUntilIdle()
+
+        assertEquals("A note, retitled" to "Two\nlines.", writer.saved)
+        assertNull(model.editedEntry.value)
+        assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
+    }
+
+    @Test
+    fun leavingTheEditorWritesNothing() = runTest(dispatcher) {
+        writer.entry = Result.success(EntryText(title = "A note", body = "One line."))
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        model.edit(task())
+        advanceUntilIdle()
+
+        model.cancelEdit()
+        advanceUntilIdle()
+
+        assertNull(model.editedEntry.value)
+        assertEquals(0, writer.calls)
     }
 
     @Test

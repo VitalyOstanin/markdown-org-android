@@ -64,6 +64,7 @@ so a decision can be followed across the three repositories.
 | 0026 | [The day picked out of the month stands under the grid](0026-the-day-picked-out-of-the-month-stands-under-it.md) | Accepted |
 | 0027 | [A refusal is reported in the words of whoever refused](0027-a-refusal-is-reported-in-the-words-of-whoever-refused.md) | Accepted |
 | 0028 | [A note is handed to an editor rather than opened here](0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md) | Accepted |
+| 0029 | [An entry is edited here, a file is not](0029-an-entry-is-edited-here-a-file-is-not.md) | Accepted |
 
 ## Adding a new ADR
 

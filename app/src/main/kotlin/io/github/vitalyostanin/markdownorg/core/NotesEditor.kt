@@ -5,6 +5,7 @@ import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.BulkTarget
 import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
+import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RevertOutcome
@@ -17,7 +18,9 @@ import java.time.LocalDate
 import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.completeTask as coreComplete
+import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertBulk as coreRevertBulk
+import uniffi.markdown_org_ffi.setEntry as coreSetEntry
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -55,6 +58,24 @@ interface NotesWriter {
     suspend fun setPriority(task: Task, priority: String?): Result<EditReport>
 
     suspend fun shift(task: Task, keyword: PlanningKeyword, days: Int): Result<EditReport>
+
+    /**
+     * The title and the body of a task's entry, as the file holds them.
+     *
+     * Read through the core rather than off the task the agenda produced: what
+     * the agenda carries is the display text of the heading, with the markup
+     * taken off, and handing that to an editor would lose it on the first save.
+     */
+    suspend fun readEntry(task: Task): Result<EntryText>
+
+    /**
+     * Write the title and the body back, in one write and one commit.
+     *
+     * Both at once because they are one edit to the reader, and because two
+     * calls could not work: the first changes the heading, and the second
+     * would arrive naming a heading the file no longer holds.
+     */
+    suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport>
 
     /**
      * Apply one action to every task of a group.
@@ -151,6 +172,18 @@ class NotesEditor internal constructor(
         coreSetPriority(task.target(), priority)
         priorityMessage(task.heading, priority)
     }
+
+    /** Read the text of an entry for editing. */
+    override suspend fun readEntry(task: Task): Result<EntryText> = notes.exclusive {
+        runCatching { coreReadEntry(task.target()) }
+    }
+
+    /** Write an edited title and body back. */
+    override suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport> =
+        write {
+            coreSetEntry(task.target(), title, body)
+            entryMessage(task.heading, title)
+        }
 
     /** Move a planning date by whole days. */
     override suspend fun shift(
@@ -312,6 +345,19 @@ internal fun statusMessage(heading: String, status: TaskType?): String = when (s
 internal fun priorityMessage(heading: String, priority: String?): String = when (priority) {
     null -> "Drop the priority of \"$heading\""
     else -> "Set the priority of \"$heading\" to $priority"
+}
+
+/**
+ * What an edited entry says it did.
+ *
+ * A retitled entry names both titles, because that is the change a reader of
+ * the history would look for; an entry whose title stayed put says only that
+ * its text was rewritten. The old title is the display text the agenda
+ * carried, so a heading holding markup reads in the message without it.
+ */
+internal fun entryMessage(heading: String, title: String): String = when (title.trim()) {
+    heading -> "Rewrite the text of \"$heading\""
+    else -> "Rewrite \"$heading\", now \"${title.trim()}\""
 }
 
 /** Which date moved, which way and by how much. */

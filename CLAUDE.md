@@ -113,6 +113,11 @@ reasoning.
   one launch. What that application writes is committed by the next sync, which
   says so, because the commit is one nobody asked for. See
   [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md).
+- The text of one entry is edited here, and nothing wider: the title of its
+  heading and the lines under it, written back in one commit. What an action
+  writes — the keyword, the cookie, the dates — is refused if it is typed, and
+  an entry past twenty thousand characters goes to the editor above instead. See
+  [ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md).
 
 ## Working on the core
 

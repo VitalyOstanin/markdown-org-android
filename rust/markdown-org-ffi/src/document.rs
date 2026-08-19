@@ -167,6 +167,66 @@ impl Document {
         }
     }
 
+    /// Put `lines` where the lines of `range` were.
+    ///
+    /// Each replacement takes the ending of the line it stands in place of,
+    /// so a body that came back unedited is written out byte for byte —
+    /// including a file of mixed endings, where a prevailing ending imposed
+    /// on every line would rewrite lines nobody touched. Lines beyond the
+    /// range replaced take the ending the file opens with.
+    ///
+    /// Whether the file ends in a newline belongs to the file rather than to
+    /// its last line, so it is read off before the splice and put back after
+    /// it: an entry edited at the end of a file that ended without one must
+    /// not grow one, and a line that stops being last must not run into the
+    /// one that follows it.
+    pub(crate) fn replace_lines(&mut self, range: std::ops::Range<usize>, lines: Vec<String>) {
+        let ending = self.ending();
+        let open = self.lines.last().is_some_and(|(_, end)| end.is_empty());
+
+        let replaced: Vec<_> = lines
+            .into_iter()
+            .enumerate()
+            .map(|(offset, body)| {
+                let inherited = self
+                    .lines
+                    .get(range.start + offset)
+                    .filter(|_| range.start + offset < range.end)
+                    .map(|(_, end)| end.clone())
+                    .filter(|end| !end.is_empty());
+                (body, inherited.unwrap_or_else(|| ending.clone()))
+            })
+            .collect();
+        self.lines.splice(range, replaced);
+
+        let last = self.lines.len().saturating_sub(1);
+        for (index, (_, end)) in self.lines.iter_mut().enumerate() {
+            if index < last && end.is_empty() {
+                *end = ending.clone();
+            }
+        }
+        if let Some((_, end)) = self.lines.last_mut() {
+            if open {
+                end.clear();
+            } else if end.is_empty() {
+                *end = ending;
+            }
+        }
+    }
+
+    /// The line ending the file is written with, taken from the first line
+    /// that has one. A file of a single line without a newline has none to
+    /// take, and a line added to it gets the ending of the platform the notes
+    /// are read on everywhere else.
+    fn ending(&self) -> String {
+        self.lines
+            .iter()
+            .map(|(_, end)| end)
+            .find(|end| !end.is_empty())
+            .cloned()
+            .unwrap_or_else(|| "\n".to_string())
+    }
+
     /// The file as it now stands, byte for byte as [`Document::save`] writes
     /// it.
     pub(crate) fn text(&self) -> String {

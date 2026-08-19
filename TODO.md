@@ -103,11 +103,19 @@ Two rules the layout imposes, both learnt from a test that failed:
 believes is there byte for byte. Today both come from the same scan and pass
 through Kotlin without loss, so a NFC/NFD difference cannot arise.
 
-It can as soon as a heading is typed — a system keyboard hands over decomposed
-diacritics — and a visually identical heading would then be refused as
-`Stale`. The answer is to compare after NFC normalisation
-(`unicode-normalization`), and it is worth adding together with whatever first
-lets a heading be entered.
+A heading can be typed now — the entry editor of
+[ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md) writes what
+the keyboard hands over, and a system keyboard hands over decomposed
+diacritics. Nothing is refused by it yet: the agenda re-reads the file it just
+wrote, so both sides of the comparison keep coming from the same bytes. What it
+does produce is a note that differs from the one another client wrote while
+looking identical, and a `Stale` refusal as soon as the two forms meet — a
+heading typed here against a task listed from a scan taken before.
+
+The answer is the same as it was: normalise to NFC on the way in and compare
+after normalising (`unicode-normalization`). The cost is a dependency, and with
+it the licence notices the APK carries, which is why it is written down here
+rather than done alongside the editor.
 
 ## Publishing to the app stores
 

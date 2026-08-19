@@ -87,6 +87,7 @@ markdown-org-android/
 │   │   ├── src/index.rs      # the notes held between calls, and re-reading one
 │   │   ├── src/document.rs   # reading a note and writing one line back
 │   │   ├── src/edit.rs       # the status and the priority cookie
+│   │   ├── src/entry.rs      # the title of a heading and the lines under it
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
 │   │   ├── src/bulk.rs       # one action over a whole group, and putting it back
 │   │   ├── src/sync.rs       # clone, fast-forward, commit, the state of the checkout
@@ -183,12 +184,26 @@ Writing to them, one line at a time:
   `org-auto-repeat-maybe`;
 - `commitChanges(dir, message, author)` — commit the working copy.
 
-There is no text editor and no whole-file write: each call rewrites exactly
-one line, keeping the rest of the file byte-for-byte. That is what lets git
-merge an edit made on the phone with one made on a laptop instead of
-reporting a conflict. `target` carries the file, the line and the heading the
-caller believes is there — a file that moved on since the agenda was built is
-refused rather than overwritten.
+Each of those rewrites exactly one line, keeping the rest of the file
+byte-for-byte. That is what lets git merge an edit made on the phone with one
+made on a laptop instead of reporting a conflict. `target` carries the file,
+the line and the heading the caller believes is there — a file that moved on
+since the agenda was built is refused rather than overwritten.
+
+The text of one entry is the exception, and it is bounded to that entry:
+
+- `readEntry(target)` — the title of the heading, as written, and the lines
+  under it that are neither planning lines nor the blank separators around
+  them;
+- `setEntry(target, title, body)` — write both back in one call. A title that
+  would read as a keyword or a priority cookie, and a body line that would read
+  as a planning line or as another heading, are refused rather than written;
+  the entries around it, its planning lines and the file's line endings are
+  left as they were.
+
+There is no whole-file write and no editor for one: a file is handed to
+whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)
+and [ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md) set out.
 
 A group of tasks is answered in one move rather than one at a time:
 

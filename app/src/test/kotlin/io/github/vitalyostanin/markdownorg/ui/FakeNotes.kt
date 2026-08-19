@@ -25,6 +25,7 @@ import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.BulkOutcome
+import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RepoStatus
@@ -284,6 +285,20 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         keyword: PlanningKeyword,
         days: Int,
     ): Result<EditReport> = record()
+
+    /** What an entry reads as, and what the last save was handed. */
+    var entry: Result<EntryText> = Result.success(EntryText(title = "", body = ""))
+
+    /** The title and the body of the last save, so a test can see them. */
+    var saved: Pair<String, String>? = null
+        private set
+
+    override suspend fun readEntry(task: Task): Result<EntryText> = entry
+
+    override suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport> {
+        saved = title to body
+        return record()
+    }
 
     /** What the last group action was asked to do, and to how many tasks. */
     var group: Pair<BulkAction, List<Task>>? = null

@@ -14,6 +14,7 @@ import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
+import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
@@ -261,6 +262,15 @@ class AgendaViewModel(
      */
     private val _selected = MutableStateFlow<Task?>(null)
     val selected: StateFlow<Task?> = _selected.asStateFlow()
+
+    /**
+     * The entry whose text is open for editing, if any.
+     *
+     * Held here for the reason [selected] is: the write that ends the editing
+     * rebuilds the agenda underneath it.
+     */
+    private val _editedEntry = MutableStateFlow<EntryDraft?>(null)
+    val editedEntry: StateFlow<EntryDraft?> = _editedEntry.asStateFlow()
 
     /**
      * The work in flight, so a new request can supersede it.
@@ -645,25 +655,7 @@ class AgendaViewModel(
     fun apply(task: Task, action: TaskAction) {
         _selected.value = null
 
-        // A task read out of a file whose name is not UTF-8 names a path that
-        // does not exist, so every edit would come back as "file not found" —
-        // refused here with a reason instead.
-        if (!task.isEditable()) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
-            return
-        }
-
-        // The collection the task came from rather than the one being edited
-        // in the settings: the agenda shows several at once, and writing to
-        // the wrong directory would edit whatever note happens to sit at the
-        // same relative path there. A collection removed while its tasks were
-        // still on screen has nothing to write to.
-        val theirEditor = collections.byRoot(task.root)?.editor
-        if (theirEditor == null) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
-            refresh()
-            return
-        }
+        val theirEditor = editorFor(task) ?: return
 
         viewModelScope.launch {
             // The other half of what a tap costs, alongside the scan timed in
@@ -678,40 +670,134 @@ class AgendaViewModel(
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 
-            outcome.fold(
-                onSuccess = { report ->
-                    // The note has been written either way. A commit that did
-                    // not happen is said so in its own words — reported as a
-                    // failed edit, it would send the user to tap again over a
-                    // file that has already changed, and that second attempt
-                    // comes back as "the file has changed".
-                    report.commitFailure?.let { failure ->
-                        Log.w(TAG, "the edit was written but not committed", failure)
+            settle(task, outcome)
+        }
+    }
+
+    /**
+     * Open the text of a task's entry: its heading and the lines under it.
+     *
+     * Read before the screen is shown rather than by the screen itself, so a
+     * file that has moved on says so where every other refusal is said, and
+     * the editor never opens over text it could not write back.
+     */
+    fun edit(task: Task) {
+        _selected.value = null
+
+        val theirEditor = editorFor(task) ?: return
+
+        viewModelScope.launch {
+            theirEditor.readEntry(task).fold(
+                onSuccess = { text ->
+                    // A note whose whole content sits under one heading turns
+                    // the body into a file, and a field of that size is not
+                    // slow but unusable: a run measured six seconds for one
+                    // keystroke at 676 KB. Past the threshold the note goes to
+                    // an editor built for it.
+                    if (text.body.length > BODY_LIMIT) {
+                        _editIssue.value = SyncMessage(R.string.entry_too_long, failed = true)
+                    } else {
+                        _editedEntry.value = EntryDraft(task, text.title, text.body)
                     }
-                    _editIssue.value = report.commitFailure
-                        ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
-                    // One file changed and it is known which. Saying so is what
-                    // keeps the agenda that follows from re-reading every note
-                    // in the collection; a failure to re-read is not worth a
-                    // sentence on screen, because the next full scan fixes it.
-                    // Named by both halves — the same relative path occurs in
-                    // more than one collection.
-                    task.root?.let { root ->
-                        agenda.reread(root, task.file).onFailure { failure ->
-                            Log.w(TAG, "the edited note could not be re-read", failure)
-                        }
-                    }
-                    refresh()
                 },
                 onFailure = { error ->
-                    // What the core wrote about it is an English sentence for
-                    // a log, and that is where it goes; the sheet answers in
-                    // the language of the interface.
-                    Log.w(TAG, "the edit failed", error)
+                    Log.w(TAG, "the entry could not be read", error)
                     _editIssue.value = error.toEditMessage()
                 },
             )
         }
+    }
+
+    /** The editing screen was left without writing anything. */
+    fun cancelEdit() {
+        _editedEntry.value = null
+    }
+
+    /**
+     * Write the edited entry back, then rebuild the agenda.
+     *
+     * The screen closes first, for the reason the sheet does: what follows is
+     * a write and a rebuilt list, and a screen left standing over it reads as
+     * the save not having registered.
+     */
+    fun saveEntry(title: String, body: String) {
+        val draft = _editedEntry.value ?: return
+        _editedEntry.value = null
+
+        val theirEditor = editorFor(draft.task) ?: return
+
+        viewModelScope.launch {
+            val started = System.nanoTime()
+            val outcome = theirEditor.setEntry(draft.task, title, body)
+            Log.i(TAG, "the entry took ${millisSince(started)} ms")
+
+            settle(draft.task, outcome)
+        }
+    }
+
+    /**
+     * Which editor writes the collection a task came from, or nothing and a
+     * reason on screen.
+     *
+     * The collection the task came from rather than the one being edited in
+     * the settings: the agenda shows several at once, and writing to the wrong
+     * directory would edit whatever note happens to sit at the same relative
+     * path there. A task read out of a file whose name is not UTF-8 names a
+     * path that does not exist, so every edit would come back as "file not
+     * found" — refused here with a reason instead.
+     */
+    private fun editorFor(task: Task): NotesWriter? {
+        if (!task.isEditable()) {
+            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
+            return null
+        }
+
+        // A collection removed while its tasks were still on screen has
+        // nothing to write to.
+        val theirEditor = collections.byRoot(task.root)?.editor
+        if (theirEditor == null) {
+            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
+            refresh()
+        }
+
+        return theirEditor
+    }
+
+    /** What a finished write leaves on the screen, whichever write it was. */
+    private suspend fun settle(task: Task, outcome: Result<EditReport>) {
+        outcome.fold(
+            onSuccess = { report ->
+                // The note has been written either way. A commit that did not
+                // happen is said so in its own words — reported as a failed
+                // edit, it would send the user to tap again over a file that
+                // has already changed, and that second attempt comes back as
+                // "the file has changed".
+                report.commitFailure?.let { failure ->
+                    Log.w(TAG, "the edit was written but not committed", failure)
+                }
+                _editIssue.value = report.commitFailure
+                    ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
+                // One file changed and it is known which. Saying so is what
+                // keeps the agenda that follows from re-reading every note in
+                // the collection; a failure to re-read is not worth a sentence
+                // on screen, because the next full scan fixes it. Named by
+                // both halves — the same relative path occurs in more than one
+                // collection.
+                task.root?.let { root ->
+                    agenda.reread(root, task.file).onFailure { failure ->
+                        Log.w(TAG, "the edited note could not be re-read", failure)
+                    }
+                }
+                refresh()
+            },
+            onFailure = { error ->
+                // What the core wrote about it is an English sentence for a
+                // log, and that is where it goes; the screen answers in the
+                // language of the interface.
+                Log.w(TAG, "the edit failed", error)
+                _editIssue.value = error.toEditMessage()
+            },
+        )
     }
 
     /**
@@ -1774,6 +1860,17 @@ class AgendaViewModel(
     companion object {
         /** Where the failures the screen does not spell out are written. */
         private const val TAG = "Agenda"
+
+        /**
+         * How much text an entry may hold and still be edited here.
+         *
+         * A field of this size answers a keystroke in about a third of a
+         * second on an emulator; a run of the same measurement puts 134 KB at
+         * a second and 676 KB at six. What sets the size is the user's file
+         * rather than the interface, so the limit is stated rather than
+         * assumed, and a longer entry is sent to an editor built for one.
+         */
+        private const val BODY_LIMIT = 20_000
 
         /**
          * How long the ticker keeps running after the screen stops watching.

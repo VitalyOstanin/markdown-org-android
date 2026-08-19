@@ -42,6 +42,7 @@ import io.github.vitalyostanin.markdownorg.ui.AgendaView
 import io.github.vitalyostanin.markdownorg.ui.AgendaViewModel
 import io.github.vitalyostanin.markdownorg.ui.CollectionsUi
 import io.github.vitalyostanin.markdownorg.ui.DiagnosticsUi
+import io.github.vitalyostanin.markdownorg.ui.EntryEditor
 import io.github.vitalyostanin.markdownorg.ui.ExternalNote
 import io.github.vitalyostanin.markdownorg.ui.LicensesScreen
 import io.github.vitalyostanin.markdownorg.ui.SettingsInitial
@@ -310,6 +311,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
+    val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
     val editIssue by model.editIssue.collectAsStateWithLifecycle()
     val groupResult by model.groupResult.collectAsStateWithLifecycle()
     val collections by model.collectionFilter.collectAsStateWithLifecycle()
@@ -367,6 +369,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             task = task,
             onAction = { action -> model.apply(task, action) },
             onDismiss = { model.select(null) },
+            onEdit = { model.edit(task) },
             // Handled here rather than in the view model: this leaves the
             // application, and what it needs is an activity to launch from,
             // not the notes. The sheet closes first, the way it does for
@@ -379,6 +382,16 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
                     model.reportOpenFailure()
                 }
             },
+        )
+    }
+
+    // Over the agenda as well, and after the sheet: what opens it is one of
+    // the sheet's own actions.
+    editedEntry?.let { draft ->
+        EntryEditor(
+            draft = draft,
+            onSave = model::saveEntry,
+            onDismiss = model::cancelEdit,
         )
     }
 }

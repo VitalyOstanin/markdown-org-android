@@ -86,4 +86,22 @@ class CommitMessageTest {
             shiftMessage("Pay rent", PlanningKeyword.SCHEDULED, 0),
         )
     }
+
+    @Test
+    fun anEntryWhoseTitleStayedSaysOnlyThatItWasRewritten() {
+        assertEquals(
+            "Rewrite the text of \"Pay rent\"",
+            entryMessage("Pay rent", "Pay rent"),
+        )
+    }
+
+    @Test
+    fun aRetitledEntryNamesBothTitles() {
+        // What a reader of the history looks for is the title they remember,
+        // so the message has to carry the one that is no longer in the file.
+        assertEquals(
+            "Rewrite \"Pay rent\", now \"Pay the rent\"",
+            entryMessage("Pay rent", "  Pay the rent  "),
+        )
+    }
 }

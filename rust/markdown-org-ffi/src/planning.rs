@@ -205,6 +205,15 @@ pub(crate) fn planning_lines(
     found
 }
 
+/// The line with the indentation and the inline-code framing taken off.
+///
+/// What is left is where a keyword is looked for. Shared with the entry
+/// editor, which recognises the same lines to keep them out of the body it
+/// hands over for editing.
+pub(crate) fn bare_start(line: &str) -> &str {
+    line.trim_start().trim_start_matches('`').trim_start()
+}
+
 /// The planning keyword `line` begins with, if it is a planning line.
 ///
 /// Anchored at the start of the line, as the extractor anchors it: a body
@@ -216,8 +225,8 @@ pub(crate) fn planning_lines(
 /// Leading backticks are skipped because that is how these lines are written
 /// in the notes: the extractor reads the timestamp out of an inline-code
 /// span, and it sees the literal without the framing this does.
-fn planning_keyword(line: &str) -> Option<PlanningKeyword> {
-    let start = line.trim_start().trim_start_matches('`').trim_start();
+pub(crate) fn planning_keyword(line: &str) -> Option<PlanningKeyword> {
+    let start = bare_start(line);
 
     if start.starts_with(PlanningKeyword::Scheduled.token()) {
         Some(PlanningKeyword::Scheduled)
