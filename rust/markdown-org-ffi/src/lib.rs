@@ -24,11 +24,9 @@ mod entry;
 mod index;
 mod planning;
 mod sync;
+mod undo;
 
-pub use bulk::{
-    apply_to_group, revert_bulk, BulkAction, BulkOutcome, BulkRefusal, BulkTarget, FileRollback,
-    RefusalReason, RevertOutcome,
-};
+pub use bulk::{apply_to_group, BulkAction, BulkOutcome, BulkRefusal, BulkTarget, RefusalReason};
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use entry::{read_entry, set_entry, EntryText};
 pub use index::NotesIndex;
@@ -38,6 +36,7 @@ pub use sync::{
     push_changes, repository_status, sync_repository, take_remote_notes, Adoption, CommitAuthor,
     PushOutcome, RepoStatus, SshKeyPair, SyncError, SyncOutcome, SyncRequest, KEPT_BRANCH,
 };
+pub use undo::{revert_files, FileRollback, RevertOutcome};
 
 uniffi::setup_scaffolding!();
 

@@ -677,7 +677,7 @@ class AgendaScreenTest {
             .getQuantityString(R.plurals.agenda_group_refused, 1, 1)
         compose.onNodeWithText(left, substring = true).assertIsDisplayed()
 
-        compose.onNodeWithText(string(R.string.agenda_group_undo)).performClick()
+        compose.onNodeWithText(string(R.string.agenda_undo)).performClick()
         compose.waitForIdle()
 
         assertEquals(1, undone)
@@ -699,7 +699,28 @@ class AgendaScreenTest {
         val cancelled = compose.activity.resources
             .getQuantityString(R.plurals.agenda_group_cancelled, 0, 0)
         compose.onNodeWithText(cancelled, substring = true).assertIsDisplayed()
-        compose.onNodeWithText(string(R.string.agenda_group_undo)).assertDoesNotExist()
+        compose.onNodeWithText(string(R.string.agenda_undo)).assertDoesNotExist()
+    }
+
+    @Test
+    fun whatOneTapDidIsShownWithTheUndoBesideIt() {
+        var undone = 0
+        showAgenda(
+            AgendaLayout.LIST,
+            editResult = EditResult(
+                root = "/notes",
+                heading = "Pay the tax",
+                rollback = FileRollback(file = "notes.md", before = "before", after = "after"),
+            ),
+            onUndoEdit = { undone += 1 },
+        )
+
+        compose.onNodeWithText(string(R.string.agenda_edit_done)).assertIsDisplayed()
+
+        compose.onNodeWithText(string(R.string.agenda_undo)).performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, undone)
     }
 
     @Test
@@ -745,6 +766,8 @@ class AgendaScreenTest {
         grouped: Boolean = true,
         onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
         onUndoGroup: () -> Unit = {},
+        editResult: EditResult? = null,
+        onUndoEdit: () -> Unit = {},
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -755,10 +778,12 @@ class AgendaScreenTest {
                         now = now,
                         sync = sync,
                         groupResult = groupResult,
+                        editResult = editResult,
                         actions = AgendaActions(
                             onTaskClick = onTaskClick,
                             onGroupAction = onGroupAction,
                             onUndoGroup = onUndoGroup,
+                            onUndoEdit = onUndoEdit,
                         ),
                     )
                 }

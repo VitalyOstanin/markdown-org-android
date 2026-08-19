@@ -113,6 +113,14 @@ class CommitMessageTest {
     }
 
     @Test
+    fun anUndoneEditNamesTheTaskItPutBack() {
+        assertEquals(
+            "Undo the edit of \"Pay rent\"",
+            undoEditMessage("Pay rent"),
+        )
+    }
+
+    @Test
     fun aRetitledEntryNamesBothTitles() {
         // What a reader of the history looks for is the title they remember,
         // so the message has to carry the one that is no longer in the file.

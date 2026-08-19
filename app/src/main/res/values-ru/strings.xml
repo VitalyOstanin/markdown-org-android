@@ -38,8 +38,10 @@
     <string name="agenda_group_move_today">Перенести на сегодня</string>
     <string name="agenda_group_drop_date">Снять дату</string>
     <string name="agenda_group_cancel">Отметить отменёнными</string>
-    <string name="agenda_group_undo">Вернуть</string>
+    <string name="agenda_undo">Вернуть</string>
     <string name="agenda_group_undo_partial">Часть заметок изменилась и оставлена как есть</string>
+    <string name="agenda_edit_done">Заметка записана</string>
+    <string name="agenda_edit_undo_skipped">Заметка изменилась и оставлена как есть</string>
     <string name="agenda_section_timed">Ко времени</string>
     <string name="agenda_section_untimed">Весь день и предстоящие</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>

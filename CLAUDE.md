@@ -123,6 +123,11 @@ reasoning.
   weekday language, framing and indentation as the dates already there. A line
   a manual edit left carrying two keywords is left to be edited by hand. See
   [ADR-0030](docs/adr/0030-a-date-written-from-nothing-follows-the-file.md).
+- Every edit hands back what the note held before it and after it, and one
+  press at the foot of the screen writes the first back — the same restore the
+  group action makes, refused where the note has moved on since. The offer is
+  the last tap only, and it is dropped by the next edit. See
+  [ADR-0031](docs/adr/0031-every-edit-carries-what-it-takes-to-undo-it.md).
 
 ## Working on the core
 

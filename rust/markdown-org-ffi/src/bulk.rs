@@ -14,7 +14,7 @@
 //! * what was overwritten is handed back as [`FileRollback`], so the move can
 //!   be undone. A move over twenty notes is not something to be sure about in
 //!   advance, and the notes may not be in git at all — see
-//!   [`revert_bulk`].
+//!   [`crate::revert_files`].
 
 use chrono::NaiveDate;
 use markdown_org_extract::TimestampParts;
@@ -22,6 +22,7 @@ use markdown_org_extract::TimestampParts;
 use crate::document::Document;
 use crate::edit::{with_status, EditError, EditTarget};
 use crate::planning::{next_occurrence, planning_lines, rewrite_date, PlanningKeyword};
+use crate::undo::FileRollback;
 use crate::TaskType;
 
 /// One task of the group, and which of its planning lines the agenda placed
@@ -87,21 +88,6 @@ pub enum RefusalReason {
     Unreadable,
 }
 
-/// A file as it was before the group was applied and as it stands after.
-///
-/// Both halves are kept because an undo has to know it is undoing its own
-/// edit: a file the user has changed in the meantime — a sync landed, another
-/// edit was made — is left alone rather than reverted over.
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct FileRollback {
-    /// Path of the file relative to the notes directory.
-    pub file: String,
-    /// The file as it stood before the group was applied.
-    pub before: String,
-    /// The file as the group left it.
-    pub after: String,
-}
-
 /// What acting on the group did.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct BulkOutcome {
@@ -109,19 +95,8 @@ pub struct BulkOutcome {
     pub changed: u32,
     /// The tasks that were left alone, and why.
     pub refused: Vec<BulkRefusal>,
-    /// What to hand [`revert_bulk`] to put the notes back.
+    /// What to hand [`crate::revert_files`] to put the notes back.
     pub rollback: Vec<FileRollback>,
-}
-
-/// What undoing a group did.
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct RevertOutcome {
-    /// Files put back the way they were.
-    pub restored: Vec<String>,
-    /// Files that no longer held what the group wrote and were left alone.
-    pub skipped: Vec<String>,
-    /// Files that could not be read or written back.
-    pub failed: Vec<String>,
 }
 
 /// Apply `action` to every task of `targets`.
@@ -157,42 +132,6 @@ pub fn apply_to_group(
     }
 
     Ok(outcome)
-}
-
-/// Put the files back the way [`apply_to_group`] found them.
-///
-/// A file is restored only when it still holds exactly what the group wrote
-/// into it. Anything else — a sync landed on it, a task in it was edited
-/// since — is skipped and named: an undo that overwrote those changes would
-/// take away work the user did after the move, which is worse than the move
-/// it is undoing.
-#[uniffi::export]
-pub fn revert_bulk(dir: String, rollback: Vec<FileRollback>) -> RevertOutcome {
-    let mut outcome = RevertOutcome {
-        restored: Vec::new(),
-        skipped: Vec::new(),
-        failed: Vec::new(),
-    };
-
-    for entry in rollback {
-        let Ok(mut document) = Document::read(&dir, &entry.file) else {
-            outcome.failed.push(entry.file);
-            continue;
-        };
-
-        if document.text() != entry.after {
-            outcome.skipped.push(entry.file);
-            continue;
-        }
-
-        document.set_text(&entry.before);
-        match document.save() {
-            Ok(()) => outcome.restored.push(entry.file),
-            Err(_) => outcome.failed.push(entry.file),
-        }
-    }
-
-    outcome
 }
 
 /// The files the targets name, each once, in the order they first appear.
@@ -275,22 +214,20 @@ fn apply_to_file(
         }
     }
 
-    let after = document.text();
-    if let Err(error) = document.save() {
-        // Nothing was written: `save` renames a finished temporary over the
-        // note, so a failure leaves the file exactly as it was.
-        outcome
-            .refused
-            .extend(targets.iter().map(|target| target.refused(&error)));
-        return;
-    }
+    let rollback = match document.saved(before) {
+        Ok(rollback) => rollback,
+        Err(error) => {
+            // Nothing was written: `save` renames a finished temporary over
+            // the note, so a failure leaves the file exactly as it was.
+            outcome
+                .refused
+                .extend(targets.iter().map(|target| target.refused(&error)));
+            return;
+        }
+    };
 
     outcome.changed += changes.len() as u32;
-    outcome.rollback.push(FileRollback {
-        file: file.to_string(),
-        before,
-        after,
-    });
+    outcome.rollback.push(rollback);
 }
 
 /// What `action` does to one task, or `None` when the task already stands

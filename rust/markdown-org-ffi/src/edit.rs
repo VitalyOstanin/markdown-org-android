@@ -14,6 +14,7 @@
 use markdown_org_extract::{HeadingLine, Priority};
 
 use crate::document::Document;
+use crate::undo::FileRollback;
 use crate::TaskType;
 
 /// Which heading to edit, and what the caller believes is written there.
@@ -42,6 +43,10 @@ pub struct EditOutcome {
     /// `false` when the file already held exactly this line and was not
     /// written to.
     pub changed: bool,
+    /// What the file held before this edit and holds after it, to hand
+    /// [`crate::revert_files`] if the edit is taken back. `None` where
+    /// nothing was written, and there is nothing to take back.
+    pub rollback: Option<FileRollback>,
 }
 
 /// Why an edit did not happen.
@@ -222,15 +227,21 @@ pub(crate) fn write_line(
         return Ok(EditOutcome {
             line: rewritten,
             changed: false,
+            rollback: None,
         });
     }
 
+    // Read before the line is changed, and only then: this is the whole file
+    // as text, and taking it on every call would charge an edit that changes
+    // nothing for the note's full size.
+    let before = document.text();
     document.set(index, rewritten.clone());
-    document.save()?;
+    let rollback = document.saved(before)?;
 
     Ok(EditOutcome {
         line: rewritten,
         changed: true,
+        rollback: Some(rollback),
     })
 }
 

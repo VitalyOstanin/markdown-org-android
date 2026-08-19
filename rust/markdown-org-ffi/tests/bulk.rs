@@ -10,7 +10,7 @@ use std::fs;
 use std::path::Path;
 
 use markdown_org_ffi::{
-    apply_to_group, revert_bulk, BulkAction, BulkTarget, PlanningKeyword, RefusalReason,
+    apply_to_group, revert_files, BulkAction, BulkTarget, PlanningKeyword, RefusalReason,
 };
 
 /// Three overdue tasks, two of them dated and one repeating.
@@ -273,7 +273,7 @@ fn undoing_a_group_puts_the_notes_back() {
     )
     .expect("group");
 
-    let undone = revert_bulk(dir(&vault), outcome.rollback);
+    let undone = revert_files(dir(&vault), outcome.rollback);
 
     assert_eq!(undone.restored, vec!["notes.md"]);
     assert!(undone.skipped.is_empty());
@@ -303,7 +303,7 @@ fn a_file_opening_with_a_byte_order_mark_keeps_it_through_the_undo() {
         read(&vault, "notes.md")
     );
 
-    let undone = revert_bulk(dir(&vault), outcome.rollback);
+    let undone = revert_files(dir(&vault), outcome.rollback);
 
     assert_eq!(undone.restored, vec!["notes.md"]);
     assert_eq!(read(&vault, "notes.md"), marked);
@@ -337,7 +337,7 @@ fn a_file_written_to_since_the_group_is_left_alone_by_the_undo() {
     let moved_on = "# DONE Water the plants\n`SCHEDULED: <2026-08-02 Sun>`\n";
     fs::write(vault.path().join("home.md"), moved_on).expect("write");
 
-    let undone = revert_bulk(dir(&vault), outcome.rollback);
+    let undone = revert_files(dir(&vault), outcome.rollback);
 
     assert_eq!(undone.restored, vec!["work.md"]);
     assert_eq!(undone.skipped, vec!["home.md"]);

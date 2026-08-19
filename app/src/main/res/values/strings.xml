@@ -69,9 +69,13 @@
     <string name="agenda_group_move_today">Move to today</string>
     <string name="agenda_group_drop_date">Drop the date</string>
     <string name="agenda_group_cancel">Mark cancelled</string>
-    <string name="agenda_group_undo">Undo</string>
+    <string name="agenda_undo">Undo</string>
     <!-- Part of the group went back and part of it had moved on since. -->
     <string name="agenda_group_undo_partial">Some notes had changed and were left as they are</string>
+    <!-- One tap wrote to a note, and the same line offers to take it back. -->
+    <string name="agenda_edit_done">The note has been written</string>
+    <!-- The note moved on between the edit and the undo, so it stands as it is. -->
+    <string name="agenda_edit_undo_skipped">The note had changed and was left as it is</string>
     <!-- Heading of the band, drawn under every day of a week or a month. -->
     <string name="agenda_section_timed">At a set time</string>
     <string name="agenda_section_untimed">All-day &amp; upcoming</string>

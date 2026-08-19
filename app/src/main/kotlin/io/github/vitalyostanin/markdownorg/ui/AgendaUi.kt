@@ -45,8 +45,11 @@ data class AgendaActions(
     val onShowDay: (LocalDate) -> Unit = {},
     val onGroupAction: (OverdueGroup, BulkAction) -> Unit = { _, _ -> },
     val onUndoGroup: () -> Unit = {},
+    /** Put back the note the last single edit wrote to. */
+    val onUndoEdit: () -> Unit = {},
     val onEditIssueShown: () -> Unit = {},
     val onGroupResultShown: () -> Unit = {},
+    val onEditResultShown: () -> Unit = {},
 )
 
 /**

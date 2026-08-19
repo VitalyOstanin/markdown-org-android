@@ -93,13 +93,15 @@ pub fn set_entry(
         return Ok(EditOutcome {
             line: rewritten,
             changed: false,
+            rollback: None,
         });
     }
 
-    document.save()?;
+    let rollback = document.saved(before)?;
     Ok(EditOutcome {
         line: rewritten,
         changed: true,
+        rollback: Some(rollback),
     })
 }
 

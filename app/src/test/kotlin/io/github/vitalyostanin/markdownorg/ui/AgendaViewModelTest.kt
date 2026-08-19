@@ -1379,6 +1379,93 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun aTapThatWroteToANoteOffersToPutItBack() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val written = rollback("notes.md")
+        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+
+        model.apply(task(heading = "Pay the tax"), TaskAction.Complete)
+        advanceUntilIdle()
+
+        val result = model.editResult.value
+        assertEquals(written, result?.rollback)
+        // Both halves of the address travel with it: the same relative path
+        // occurs in more than one collection, and the undo commits by name.
+        assertEquals("/notes", result?.root)
+        assertEquals("Pay the tax", result?.heading)
+    }
+
+    @Test
+    fun aTapThatChangedNothingIsNotOfferedAnUndo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        // The task already stood that way, so the core wrote nothing and
+        // handed back no pair to put back.
+        writer.outcome = Result.success(EditReport(committed = true))
+
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+
+        assertNull(model.editResult.value)
+    }
+
+    @Test
+    fun theUndoOfOneTapHandsBackWhatThatTapOverwrote() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val written = rollback("notes.md")
+        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = listOf("notes.md"),
+                    skipped = emptyList(),
+                    failed = emptyList(),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.apply(task(heading = "Pay the tax"), TaskAction.Complete)
+        advanceUntilIdle()
+
+        model.undoEdit()
+        advanceUntilIdle()
+
+        assertEquals(listOf(written), writer.undone)
+        assertEquals("Pay the tax", writer.undoneEdit)
+        // The offer goes with it, for the reason the group's does: pressing it
+        // twice would put the note back over whatever came after.
+        assertNull(model.editResult.value)
+    }
+
+    @Test
+    fun aNoteThatMovedOnBetweenTheTapAndTheUndoSaysSo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        writer.outcome = Result.success(
+            EditReport(committed = true, rollback = rollback("notes.md")),
+        )
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = emptyList(),
+                    skipped = listOf("notes.md"),
+                    failed = emptyList(),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+
+        model.undoEdit()
+        advanceUntilIdle()
+
+        assertEquals(R.string.agenda_edit_undo_skipped, model.editIssue.value?.text)
+    }
+
+    @Test
     fun aBandOfNotesWithUnnamedFilesIsRefusedBeforeItReachesTheCore() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()

@@ -356,6 +356,16 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         return undoOutcome
     }
 
+    /** Which task the last single undo named, for the commit it makes. */
+    var undoneEdit: String? = null
+        private set
+
+    override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> {
+        undone = listOf(rollback)
+        undoneEdit = heading
+        return undoOutcome
+    }
+
     override suspend fun commitPending(): Result<Boolean> {
         pendingCommits += 1
         return Result.success(false)

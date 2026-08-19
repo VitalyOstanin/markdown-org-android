@@ -234,6 +234,16 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen to be read and a translation is longer than the English it was
   measured against; what a server or a library wrote keeps its two lines. Both
   end in an ellipsis when they are cut, so a cut says that it is one.
+- Any single edit can be taken back: the line at the foot of the screen offers
+  it for as long as it stands, and the note goes back to the bytes it held
+  rather than to a line rebuilt from what the edit understood. That is what a
+  group action has offered since it existed, and the same restore serves both.
+  It matters most for the two edits that lose something otherwise unreachable
+  from the phone — a date cleared with its time, its repeater and the weekday
+  in the note's own language, and the rewritten text of an entry. A note a
+  sync landed on, or one edited elsewhere, is left as it stands and the screen
+  says so; the offer is dropped by the next edit, because it describes one
+  state of one note. Undoing commits, naming the task it put back.
 - A planning date can be given, picked from a calendar, and taken off. Until
   now the sheet could only move a date the task already had, so a task that
   arrived without one had nothing to shift and a date cleared elsewhere could

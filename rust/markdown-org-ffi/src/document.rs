@@ -22,6 +22,7 @@ use std::path::{Component, Path, PathBuf};
 use markdown_org_extract::{display_text, parse_heading_line, HeadingLine};
 
 use crate::edit::{EditError, EditTarget};
+use crate::undo::FileRollback;
 
 /// Name prefix of the file [`Document::save`] writes before renaming it over
 /// the note. Nothing else in the notes directory is expected to carry it, so
@@ -54,6 +55,11 @@ fn split_byte_order_mark(content: &str) -> (bool, &str) {
 
 pub(crate) struct Document {
     path: PathBuf,
+    /// Path of the file relative to the notes directory, as the caller named
+    /// it. Kept because that is how a rollback names a file: an undo is given
+    /// the notes directory and finds the file under it, and the absolute path
+    /// this document was opened by would tie the pair to one device.
+    file: String,
     /// Whether the file began with a byte-order mark. Held apart from the
     /// lines so the first line reads as what it is, and put back by
     /// [`Document::text`] so the file keeps the mark it was written with.
@@ -120,6 +126,7 @@ impl Document {
 
         Ok(Self {
             path,
+            file: file.to_string(),
             byte_order_mark,
             lines: split_lines(body),
         })
@@ -265,6 +272,26 @@ impl Document {
 
         self.byte_order_mark = byte_order_mark;
         self.lines = split_lines(body);
+    }
+
+    /// Write the file out, handing back what it held before and what it
+    /// holds now.
+    ///
+    /// The pair is what an undo works from -- see [`crate::undo`] -- and it is
+    /// taken here rather than left to each edit, so that every write produces
+    /// one: an edit that forgot to would be an edit that cannot be taken back.
+    ///
+    /// `before` is the caller's, because only the caller knows when it stopped
+    /// being true: it has to be read off the document before the first line is
+    /// changed, and by the time this is called the change has been made.
+    pub(crate) fn saved(&self, before: String) -> Result<FileRollback, EditError> {
+        self.save()?;
+
+        Ok(FileRollback {
+            file: self.file.clone(),
+            before,
+            after: self.text(),
+        })
     }
 
     /// Write the file out as a whole.

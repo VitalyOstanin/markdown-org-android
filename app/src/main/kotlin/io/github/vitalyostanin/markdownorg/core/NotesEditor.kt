@@ -19,7 +19,7 @@ import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.readEntry as coreReadEntry
-import uniffi.markdown_org_ffi.revertBulk as coreRevertBulk
+import uniffi.markdown_org_ffi.revertFiles as coreRevertFiles
 import uniffi.markdown_org_ffi.setEntry as coreSetEntry
 import uniffi.markdown_org_ffi.setPlanning as coreSetPlanning
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
@@ -35,7 +35,20 @@ import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
  * edited file, and the answer is to commit again, which the next edit and the
  * next sync both do.
  */
-data class EditReport(val committed: Boolean, val commitFailure: Throwable? = null)
+data class EditReport(
+    val committed: Boolean,
+    val commitFailure: Throwable? = null,
+    /**
+     * What the note held before this edit and holds after it, or `null` where
+     * nothing was written.
+     *
+     * Carried out of every edit rather than asked for by the ones that offer
+     * an undo: which taps are worth offering it for is a decision for the
+     * screen, and an edit that did not bring the pair back could not be given
+     * one later.
+     */
+    val rollback: FileRollback? = null,
+)
 
 /**
  * What acting on a whole group did: to the notes, and to the history.
@@ -113,6 +126,15 @@ interface NotesWriter {
     suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport>
 
     /**
+     * Put back what a single edit overwrote, naming the task in the commit.
+     *
+     * The same restore the group undo makes -- one note instead of several --
+     * and it is refused on the same terms: a note written to since the edit is
+     * left as it stands.
+     */
+    suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport>
+
+    /**
      * Commit whatever earlier edits left uncommitted.
      *
      * The core's commit is idempotent — a working copy that matches HEAD
@@ -172,19 +194,19 @@ class NotesEditor internal constructor(
     /** Mark done, or move a repeating task to its next occurrence. */
     override suspend fun complete(task: Task, today: LocalDate): Result<EditReport> = write {
         val outcome = coreComplete(task.target(), today.toString())
-        completionMessage(task.heading, outcome.repeated)
+        outcome.rollback to completionMessage(task.heading, outcome.repeated)
     }
 
     /** Set or clear the keyword outright, without the repeater semantics. */
     override suspend fun setStatus(task: Task, status: TaskType?): Result<EditReport> = write {
-        coreSetStatus(task.target(), status)
-        statusMessage(task.heading, status)
+        val outcome = coreSetStatus(task.target(), status)
+        outcome.rollback to statusMessage(task.heading, status)
     }
 
     /** Set or clear the priority cookie. */
     override suspend fun setPriority(task: Task, priority: String?): Result<EditReport> = write {
-        coreSetPriority(task.target(), priority)
-        priorityMessage(task.heading, priority)
+        val outcome = coreSetPriority(task.target(), priority)
+        outcome.rollback to priorityMessage(task.heading, priority)
     }
 
     /** Read the text of an entry for editing. */
@@ -195,8 +217,8 @@ class NotesEditor internal constructor(
     /** Write an edited title and body back. */
     override suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport> =
         write {
-            coreSetEntry(task.target(), title, body)
-            entryMessage(task.heading, title)
+            val outcome = coreSetEntry(task.target(), title, body)
+            outcome.rollback to entryMessage(task.heading, title)
         }
 
     /** Move a planning date by whole days. */
@@ -205,8 +227,8 @@ class NotesEditor internal constructor(
         keyword: PlanningKeyword,
         days: Int,
     ): Result<EditReport> = write {
-        coreShiftPlanning(task.target(), keyword, days)
-        shiftMessage(task.heading, keyword, days)
+        val outcome = coreShiftPlanning(task.target(), keyword, days)
+        outcome.rollback to shiftMessage(task.heading, keyword, days)
     }
 
     /** Put a planning date on a task, or take one off. */
@@ -215,8 +237,8 @@ class NotesEditor internal constructor(
         keyword: PlanningKeyword,
         date: LocalDate?,
     ): Result<EditReport> = write {
-        coreSetPlanning(task.target(), keyword, date?.toString())
-        planningMessage(task.heading, keyword, date)
+        val outcome = coreSetPlanning(task.target(), keyword, date?.toString())
+        outcome.rollback to planningMessage(task.heading, keyword, date)
     }
 
     /**
@@ -241,9 +263,19 @@ class NotesEditor internal constructor(
         outcome to groupMessage(action, outcome.changed.toInt())
     }.map { (outcome, report) -> GroupReport(outcome, report) }
 
-    override suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport> = writing {
-        val outcome = coreRevertBulk(notes.root.absolutePath, rollback)
-        outcome to undoMessage(outcome.restored.size)
+    override suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport> =
+        undo(rollback) { outcome -> undoMessage(outcome.restored.size) }
+
+    override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> =
+        undo(listOf(rollback)) { undoEditMessage(heading) }
+
+    /** Restore [rollback], committing what [message] calls it. */
+    private suspend fun undo(
+        rollback: List<FileRollback>,
+        message: (RevertOutcome) -> String,
+    ): Result<UndoReport> = writing {
+        val outcome = coreRevertFiles(notes.root.absolutePath, rollback)
+        outcome to message(outcome)
     }.map { (outcome, report) -> UndoReport(outcome, report) }
 
     override suspend fun commitPending(): Result<Boolean> = notes.exclusive {
@@ -259,7 +291,8 @@ class NotesEditor internal constructor(
      *
      * [edit] returns the commit message, so the message describes what
      * actually happened — a completion that turned out to be a repeat says
-     * so.
+     * so — and what the note held on either side of it, which is what an undo
+     * of that one tap works from.
      *
      * The two halves answer separately. A write that failed is a failure: the
      * file is as it was. A commit that failed over a written file is not —
@@ -268,8 +301,8 @@ class NotesEditor internal constructor(
      * changed". The uncommitted change is picked up by the next edit and by
      * the commit that precedes the next sync.
      */
-    internal suspend fun write(edit: () -> String): Result<EditReport> =
-        writing { Unit to edit() }.map { (_, report) -> report }
+    internal suspend fun write(edit: () -> Pair<FileRollback?, String>): Result<EditReport> =
+        writing(edit).map { (rollback, report) -> report.copy(rollback = rollback) }
 
     /**
      * [write] for an edit that has something to say beyond its message.
@@ -354,6 +387,14 @@ internal fun undoMessage(restored: Int): String {
 
     return "Undo the group edit of $restored $notes"
 }
+
+/**
+ * What undoing one edit did, as one line of history.
+ *
+ * Named after the task rather than after the edit: what was done to it is the
+ * commit above this one, and the pair reads as a move and its reversal.
+ */
+internal fun undoEditMessage(heading: String): String = "Undo the edit of \"$heading\""
 
 /** A completion that turned out to be a repeat says so. */
 internal fun completionMessage(heading: String, repeated: Boolean): String = when {

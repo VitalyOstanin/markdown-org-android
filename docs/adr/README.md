@@ -66,6 +66,7 @@ so a decision can be followed across the three repositories.
 | 0028 | [A note is handed to an editor rather than opened here](0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md) | Accepted |
 | 0029 | [An entry is edited here, a file is not](0029-an-entry-is-edited-here-a-file-is-not.md) | Accepted |
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
+| 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
 
 ## Adding a new ADR
 

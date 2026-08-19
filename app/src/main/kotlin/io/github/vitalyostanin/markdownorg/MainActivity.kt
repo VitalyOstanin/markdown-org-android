@@ -315,6 +315,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
     val editIssue by model.editIssue.collectAsStateWithLifecycle()
     val groupResult by model.groupResult.collectAsStateWithLifecycle()
+    val editResult by model.editResult.collectAsStateWithLifecycle()
     val collections by model.collectionFilter.collectAsStateWithLifecycle()
     val tags by model.tags.collectAsStateWithLifecycle()
     val currentTag by model.currentTag.collectAsStateWithLifecycle()
@@ -337,6 +338,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
         sync = sync,
         editIssue = editIssue,
         groupResult = groupResult,
+        editResult = editResult,
         filters = AgendaFilters(
             collections = collections,
             onCollectionShown = model::setCollectionShown,
@@ -356,8 +358,10 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             onShowDay = model::showDay,
             onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
             onUndoGroup = model::undoGroup,
+            onUndoEdit = model::undoEdit,
             onEditIssueShown = model::editIssueShown,
             onGroupResultShown = model::groupResultShown,
+            onEditResultShown = model::editResultShown,
         ),
     )
 

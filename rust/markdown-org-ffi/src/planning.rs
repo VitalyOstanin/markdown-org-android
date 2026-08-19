@@ -29,6 +29,7 @@ use markdown_org_extract::{
 
 use crate::document::Document;
 use crate::edit::{splice, with_status, write_line, EditError, EditOutcome, EditTarget};
+use crate::undo::FileRollback;
 use crate::TaskType;
 
 /// Which planning line an operation applies to.
@@ -59,6 +60,9 @@ pub struct CompleteOutcome {
     pub repeated: bool,
     /// The planning lines that moved, as they now stand.
     pub planning: Vec<String>,
+    /// What the file held before and holds after, to hand
+    /// [`crate::revert_files`] if the completion is taken back.
+    pub rollback: Option<FileRollback>,
 }
 
 /// Move a planning date by whole days.
@@ -151,6 +155,7 @@ pub fn set_planning(
         (None, None) => Ok(EditOutcome {
             line: String::new(),
             changed: false,
+            rollback: None,
         }),
     }
 }
@@ -178,12 +183,14 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
 
     if repeating.is_empty() {
         let closed = with_status(&heading_line, &heading, Some(TaskType::Done));
+        let before = document.text();
         document.set(index, closed.clone());
-        document.save()?;
+        let rollback = document.saved(before)?;
         return Ok(CompleteOutcome {
             heading: closed,
             repeated: false,
             planning: Vec::new(),
+            rollback: Some(rollback),
         });
     }
 
@@ -197,6 +204,8 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
         let line = document.at(*line_index);
         moved.push((*line_index, rewrite_date(line, parts, next)?));
     }
+
+    let before = document.text();
 
     // A loop rather than a `map` that writes as it goes: the write is the
     // point, and a lazy adapter leaves it to whoever consumes the chain.
@@ -216,12 +225,13 @@ pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcom
         None => heading_line.clone(),
     };
     document.set(index, reopened.clone());
-    document.save()?;
+    let rollback = document.saved(before)?;
 
     Ok(CompleteOutcome {
         heading: reopened,
         repeated: true,
         planning,
+        rollback: Some(rollback),
     })
 }
 
@@ -328,12 +338,14 @@ fn insert_planning(
         at += 1;
     }
 
+    let before = document.text();
     document.replace_lines(at..at, vec![line.clone()]);
-    document.save()?;
+    let rollback = document.saved(before)?;
 
     Ok(EditOutcome {
         line,
         changed: true,
+        rollback: Some(rollback),
     })
 }
 
@@ -435,12 +447,14 @@ fn remove_planning(
         });
     }
 
+    let before = document.text();
     document.remove(line_index);
-    document.save()?;
+    let rollback = document.saved(before)?;
 
     Ok(EditOutcome {
         line: String::new(),
         changed: true,
+        rollback: Some(rollback),
     })
 }
 

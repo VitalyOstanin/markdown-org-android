@@ -89,7 +89,8 @@ markdown-org-android/
 │   │   ├── src/edit.rs       # the status and the priority cookie
 │   │   ├── src/entry.rs      # the title of a heading and the lines under it
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
-│   │   ├── src/bulk.rs       # one action over a whole group, and putting it back
+│   │   ├── src/bulk.rs       # one action over a whole group
+│   │   ├── src/undo.rs       # what an edit overwrote, and putting the note back
 │   │   ├── src/sync.rs       # clone, fast-forward, commit, the state of the checkout
 │   │   └── tests/            # tests for the projection and error mapping
 │   └── uniffi-bindgen/       # binding generator entry point
@@ -215,9 +216,14 @@ A group of tasks is answered in one move rather than one at a time:
   to today, drop its date or mark it cancelled. Each file is read and written
   once however many of its tasks are named, and a task that cannot be edited
   is reported on its own while the rest go through;
-- `revertBulk(dir, rollback)` — put the group back. Only the files that still
-  hold what the group wrote are restored, so an edit or a sync that landed in
-  the meantime is left alone.
+- `revertFiles(dir, rollback)` — put the notes back. Only the files that still
+  hold what was written into them are restored, so an edit or a sync that
+  landed in the meantime is left alone.
+
+Every edit — a single tap as much as a group — hands back what each note it
+wrote to held before and after, and `revertFiles` is what takes it back. The
+screen offers that for the last tap, and drops the offer with the next edit;
+see [ADR-0031](docs/adr/0031-every-edit-carries-what-it-takes-to-undo-it.md).
 
 A missed repeat is caught up rather than dragged to today: moving it keeps the
 repeater and lands on the next occurrence its own interval gives, which is the

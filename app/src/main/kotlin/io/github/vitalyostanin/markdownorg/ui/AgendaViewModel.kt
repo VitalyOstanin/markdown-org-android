@@ -255,6 +255,16 @@ class AgendaViewModel(
     val groupResult: StateFlow<GroupResult?> = _groupResult.asStateFlow()
 
     /**
+     * What the last single edit did, until it has been shown.
+     *
+     * Apart from [editIssue] for the reason [groupResult] is: it is not an
+     * issue but an offer, and the offer is what makes a tap on a sheet of
+     * eight actions something a user can risk.
+     */
+    private val _editResult = MutableStateFlow<EditResult?>(null)
+    val editResult: StateFlow<EditResult?> = _editResult.asStateFlow()
+
+    /**
      * The task whose actions are open, if any.
      *
      * Held here rather than in the composition so it survives a rebuild of
@@ -783,6 +793,15 @@ class AgendaViewModel(
                 }
                 _editIssue.value = report.commitFailure
                     ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
+                // What it takes to put this one tap back, for as long as the
+                // line offering it stands. An edit that wrote nothing brings
+                // back no pair and clears the offer: the previous edit's
+                // rollback would restore a note this tap never touched.
+                _editResult.value = report.rollback?.let { rollback ->
+                    task.root?.let { root ->
+                        EditResult(root = root, heading = task.heading, rollback = rollback)
+                    }
+                }
                 // One file changed and it is known which. Saying so is what
                 // keeps the agenda that follows from re-reading every note in
                 // the collection; a failure to re-read is not worth a sentence
@@ -935,6 +954,54 @@ class AgendaViewModel(
     /** The group result has been shown, so it is not shown again. */
     fun groupResultShown() {
         _groupResult.value = null
+    }
+
+    /**
+     * Put back what the last single edit overwrote.
+     *
+     * The note goes back only while it still holds what the edit wrote — a
+     * sync landed since, the note was opened in another application — and the
+     * screen says so rather than reporting an undo that did not happen. The
+     * offer is dropped either way: it was made about a state the note has left.
+     */
+    fun undoEdit() {
+        val result = _editResult.value ?: return
+        _editResult.value = null
+
+        // The collection the edit was made in, which may have been removed
+        // while its line stood on screen.
+        val theirEditor = collections.byRoot(result.root)?.editor ?: return
+
+        viewModelScope.launch {
+            theirEditor.undoEdit(result.rollback, result.heading).fold(
+                onSuccess = { undone ->
+                    undone.report.commitFailure?.let { failure ->
+                        Log.w(TAG, "the undo was written but not committed", failure)
+                    }
+                    if (undone.outcome.restored.isEmpty()) {
+                        _editIssue.value = SyncMessage(R.string.agenda_edit_undo_skipped)
+                        return@fold
+                    }
+
+                    // One file went back and it is known which, so the agenda
+                    // is rebuilt off a re-read of that note rather than a walk
+                    // of the collection.
+                    agenda.reread(result.root, result.rollback.file).onFailure { failure ->
+                        Log.w(TAG, "the restored note could not be re-read", failure)
+                    }
+                    refresh()
+                },
+                onFailure = { error ->
+                    Log.w(TAG, "the edit could not be undone", error)
+                    _editIssue.value = error.toEditMessage()
+                },
+            )
+        }
+    }
+
+    /** The edit result has been shown, so it is not shown again. */
+    fun editResultShown() {
+        _editResult.value = null
     }
 
     /**

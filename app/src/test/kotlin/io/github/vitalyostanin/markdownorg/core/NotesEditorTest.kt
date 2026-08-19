@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.markdown_org_ffi.FileRollback
 import java.io.File
 import java.time.LocalDate
 
@@ -26,6 +27,13 @@ class NotesEditorTest {
 
     private var commits = mutableListOf<String>()
 
+    /** What a write hands back for an undo to work from. */
+    private val rollback = FileRollback(
+        file = "notes.md",
+        before = "# TODO Task\n",
+        after = "# TODO [#A] Task\n",
+    )
+
     private val editor = NotesEditor(notes, FakeSettings()) { _, message, _ ->
         failCommit?.let { throw it }
         commits += message
@@ -36,7 +44,7 @@ class NotesEditorTest {
     fun aCommitThatFailedOverAWrittenFileIsNotAFailedEdit() = runBlocking {
         failCommit = IllegalStateException("index.lock exists")
 
-        val report = editor.write { "Mark \"Task\" as done" }
+        val report = editor.write { null to "Mark \"Task\" as done" }
 
         assertTrue("the edit was reported as failed", report.isSuccess)
         assertFalse(report.getOrThrow().committed)
@@ -53,11 +61,14 @@ class NotesEditorTest {
 
     @Test
     fun anEditThatWentThroughReportsTheCommitItMade() = runBlocking {
-        val report = editor.write { "Set the priority of \"Task\" to A" }
+        val report = editor.write { rollback to "Set the priority of \"Task\" to A" }
 
         assertTrue(report.getOrThrow().committed)
         assertNull(report.getOrThrow().commitFailure)
         assertEquals(listOf("Set the priority of \"Task\" to A"), commits)
+        // What the note held on either side of it comes back out with the
+        // report: without it the screen has nothing to offer an undo from.
+        assertEquals(rollback, report.getOrThrow().rollback)
     }
 
     @Test

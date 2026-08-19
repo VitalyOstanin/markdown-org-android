@@ -96,6 +96,8 @@ fun AgendaScreen(
     editIssue: SyncMessage? = null,
     /** What acting on a whole band did, and what it takes to undo it. */
     groupResult: GroupResult? = null,
+    /** What the last single edit did, and what it takes to undo that. */
+    editResult: EditResult? = null,
     filters: AgendaFilters = AgendaFilters(),
     actions: AgendaActions = AgendaActions(),
 ) {
@@ -116,7 +118,7 @@ fun AgendaScreen(
     // not an undo, and the wording of the move is what makes it clear which
     // of the four bands was moved.
     val report = groupResult?.let { groupReport(it) }
-    val undo = stringResource(R.string.agenda_group_undo)
+    val undo = stringResource(R.string.agenda_undo)
     LaunchedEffect(groupResult) {
         if (report != null) {
             val answered = snackbar.showSnackbar(
@@ -128,6 +130,25 @@ fun AgendaScreen(
                 actions.onUndoGroup()
             } else {
                 actions.onGroupResultShown()
+            }
+        }
+    }
+
+    // The same offer for one tap. A line of its own rather than a shared one
+    // with the group: the two are answered by different undos, and a snackbar
+    // that outlived the state it was raised for would put back the wrong note.
+    val edited = stringResource(R.string.agenda_edit_done)
+    LaunchedEffect(editResult) {
+        if (editResult != null) {
+            val answered = snackbar.showSnackbar(
+                message = edited,
+                actionLabel = undo,
+                withDismissAction = true,
+            )
+            if (answered == SnackbarResult.ActionPerformed) {
+                actions.onUndoEdit()
+            } else {
+                actions.onEditResultShown()
             }
         }
     }
