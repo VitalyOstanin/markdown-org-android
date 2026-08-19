@@ -49,6 +49,7 @@ import io.github.vitalyostanin.markdownorg.ui.SettingsInitial
 import io.github.vitalyostanin.markdownorg.ui.StorageUi
 import io.github.vitalyostanin.markdownorg.ui.SyncSettingsScreen
 import io.github.vitalyostanin.markdownorg.ui.TaskActionsSheet
+import io.github.vitalyostanin.markdownorg.ui.TaskCreator
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -164,6 +165,7 @@ private fun SettingsRoute(
             branch = form.branch,
             notesPath = form.notesPath,
             name = form.name,
+            inbox = form.inbox,
             hasToken = form.hasToken,
             hasKey = form.hasKey,
             // The state wins over what was read when the screen opened: a key
@@ -181,6 +183,7 @@ private fun SettingsRoute(
                 dropToken = saved.dropToken,
                 notesPath = saved.notesPath,
                 name = saved.name,
+                inbox = saved.inbox,
                 sshKey = saved.sshKey,
                 sshPassphrase = saved.sshPassphrase,
                 dropKey = saved.dropKey,
@@ -313,6 +316,8 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
     val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
+    val creating by model.creating.collectAsStateWithLifecycle()
+    val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
     val editIssue by model.editIssue.collectAsStateWithLifecycle()
     val groupResult by model.groupResult.collectAsStateWithLifecycle()
     val editResult by model.editResult.collectAsStateWithLifecycle()
@@ -359,6 +364,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
             onUndoGroup = model::undoGroup,
             onUndoEdit = model::undoEdit,
+            onCreate = model::startCreating,
             onEditIssueShown = model::editIssueShown,
             onGroupResultShown = model::groupResultShown,
             onEditResultShown = model::editResultShown,
@@ -400,6 +406,17 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             draft = draft,
             onSave = model::saveEntry,
             onDismiss = model::cancelEdit,
+        )
+    }
+
+    // The one screen over the agenda that no task opens: it writes a task that
+    // is not there yet, and the button for it sits at the corner of the plan.
+    if (creating) {
+        TaskCreator(
+            collections = collectionSet,
+            onCreate = model::createTask,
+            onDismiss = model::cancelCreating,
+            weekStart = weekStart,
         )
     }
 }

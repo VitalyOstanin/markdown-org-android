@@ -67,6 +67,7 @@ so a decision can be followed across the three repositories.
 | 0029 | [An entry is edited here, a file is not](0029-an-entry-is-edited-here-a-file-is-not.md) | Accepted |
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
+| 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted |
 
 ## Adding a new ADR
 

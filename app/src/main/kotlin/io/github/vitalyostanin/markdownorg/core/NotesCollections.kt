@@ -28,7 +28,82 @@ data class NotesCollection(
 
     /** The directory, absolute, as [notesPathProblem] has already allowed it. */
     val path: String,
+
+    /**
+     * The file a task created here is written to, relative to [path].
+     *
+     * A file rather than a rule about which file: a new task has no date, no
+     * tag and no section to be filed by, and every guess this application
+     * could make about where it belongs would be wrong in someone's notes.
+     * The entry is appended to the end of this one — see the core's `create`
+     * module for why the end is the one place a write cannot collide with an
+     * edit made on another device.
+     *
+     * [DEFAULT_INBOX] until the collection says otherwise, and created by the
+     * first task written to it.
+     */
+    val inbox: String = DEFAULT_INBOX,
 )
+
+/**
+ * The file a collection receives new tasks in until one is chosen for it.
+ *
+ * A name of its own rather than one of the notes already there: writing into
+ * a file this application picked out of someone's collection would put its
+ * entries among notes kept for another purpose, and a file that is not there
+ * yet says plainly where the tasks made here have gone.
+ */
+const val DEFAULT_INBOX = "inbox.md"
+
+/** Why a file cannot be the one a collection receives new tasks in. */
+enum class InboxProblem {
+
+    /** Nothing to write to, and nothing to show as the answer. */
+    EMPTY,
+
+    /** An absolute path, or one climbing out of the collection. */
+    OUTSIDE,
+
+    /**
+     * Not a markdown file.
+     *
+     * The walk behind the agenda reads `*.md` and nothing else, so a task
+     * written elsewhere would appear on the agenda — the note it went into is
+     * re-read by name after the write — and be gone at the next full scan,
+     * with the file still holding it.
+     */
+    NOT_MARKDOWN,
+}
+
+/**
+ * Checks the file a collection is to receive new tasks in.
+ *
+ * Checked here rather than left to the core, which refuses a path leaving the
+ * notes directory when it is asked to write: the settings are where the file
+ * is named, and a name that cannot work has to be answered there rather than
+ * on the first task somebody tries to create.
+ *
+ * Returns `null` when the file can be written to.
+ */
+fun inboxProblem(file: String): InboxProblem? {
+    val named = file.trim()
+
+    return when {
+        named.isEmpty() -> InboxProblem.EMPTY
+
+        // The same two ways out of the directory the core refuses: an absolute
+        // path, and a step above the root of the collection.
+        named.startsWith('/') || named.split('/', '\\').any { it == ".." } ->
+            InboxProblem.OUTSIDE
+
+        !named.endsWith(MARKDOWN, ignoreCase = true) -> InboxProblem.NOT_MARKDOWN
+
+        else -> null
+    }
+}
+
+/** What the walk behind the agenda reads, and therefore what a task can go into. */
+private const val MARKDOWN = ".md"
 
 /** Why a collection cannot be added, beyond what [notesPathProblem] refuses. */
 enum class CollectionProblem {
@@ -171,6 +246,15 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
                             id = id,
                             name = preferences.getString(KEY_NAME + id, null).orEmpty(),
                             path = path,
+                            // A collection stored by a version that had no
+                            // receiving file gets the default one, which is
+                            // the whole of that migration: nothing is written
+                            // back until the settings are saved, and the file
+                            // itself is made by the first task that goes into
+                            // it.
+                            inbox = preferences.getString(KEY_INBOX + id, null)
+                                ?.takeUnless(String::isBlank)
+                                ?: DEFAULT_INBOX,
                         )
                     }
                 }
@@ -184,6 +268,7 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
             value.forEach { collection ->
                 edit.putString(KEY_NAME + collection.id, collection.name)
                 edit.putString(KEY_PATH + collection.id, collection.path)
+                edit.putString(KEY_INBOX + collection.id, collection.inbox)
             }
             edit.apply()
         }
@@ -193,6 +278,7 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
         const val KEY_ORDER = "order"
         const val KEY_NAME = "name."
         const val KEY_PATH = "path."
+        const val KEY_INBOX = "inbox."
 
         /** Not part of an identifier, which is a number. */
         const val SEPARATOR = ','

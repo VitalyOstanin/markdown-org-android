@@ -42,6 +42,7 @@
     <string name="agenda_group_undo_partial">Часть заметок изменилась и оставлена как есть</string>
     <string name="agenda_edit_done">Заметка записана</string>
     <string name="agenda_edit_undo_skipped">Заметка изменилась и оставлена как есть</string>
+    <string name="agenda_create_done">Задача записана</string>
     <string name="agenda_section_timed">Ко времени</string>
     <string name="agenda_section_untimed">Весь день и предстоящие</string>
     <string name="agenda_free_between">свободно %1$s — %2$s</string>
@@ -94,6 +95,11 @@
     <string name="settings_token_page">Где выпустить токен</string>
     <string name="settings_ssh_key_page">Куда вставить ключ</string>
     <string name="settings_notes">Каталог заметок</string>
+    <string name="settings_inbox">Файл для новых задач</string>
+    <string name="settings_inbox_support">Новые задачи дописываются в конец этого файла внутри каталога заметок.</string>
+    <string name="settings_inbox_empty">Укажите файл, в который писать новые задачи</string>
+    <string name="settings_inbox_outside">Файл должен быть внутри каталога заметок</string>
+    <string name="settings_inbox_markdown">Файл должен оканчиваться на .md — агенда читает только такие</string>
     <string name="settings_notes_default">пусто — собственное хранилище приложения</string>
     <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
     <string name="settings_notes_not_dir">По этому пути файл, а не каталог</string>
@@ -158,6 +164,7 @@
     <string name="hint_sync_now">Получить с сервера, затем отдать ему сделанные здесь коммиты. Слияние не выполняется: расхождение с сервером показывается, а не разрешается.</string>
     <string name="hint_sync_unavailable">Ни у одной коллекции нет сервера. Заметки хранятся на устройстве, пока адрес не задан в настройках.</string>
     <string name="hint_open_settings">Коллекции, каталог заметок каждой из них и сервер, с которым она синхронизируется.</string>
+    <string name="hint_agenda_create">Пишет задачу в конец файла, в который коллекция принимает новые задачи; файл задаётся в настройках. Ключевое слово, приоритет и дата выбираются на открывающемся экране.</string>
     <string name="hint_step_back">На один охват назад: день, неделю или месяц — смотря что на экране. План можно листать и смахиванием по заголовку.</string>
     <string name="hint_step_forward">На один охват вперёд: день, неделю или месяц — смотря что на экране. План можно листать и смахиванием по заголовку.</string>
     <string name="hint_show_today">Вернуться к текущему дню.</string>
@@ -224,6 +231,15 @@
     <string name="entry_save">Сохранить</string>
     <string name="entry_note">Ключевое слово, приоритет и даты пишутся действиями из листа, а не вводятся здесь.</string>
     <string name="entry_too_long">Текст под этим заголовком слишком велик для правки здесь; откройте заметку в другом приложении.</string>
+    <string name="create_title">Новая задача</string>
+    <string name="create_save">Создать</string>
+    <string name="create_collection">Коллекция</string>
+    <string name="create_keyword">Ключевое слово</string>
+    <string name="create_date">Дата</string>
+    <string name="create_scheduled">Дата начала</string>
+    <string name="create_deadline">Срок</string>
+    <string name="create_date_none">Без даты</string>
+    <string name="create_goes_to">Пишется в конец файла %1$s</string>
     <string name="sync_commit_and_retry">Зафиксировать и синхронизировать снова</string>
     <string name="open_externally_failed">На устройстве нет приложения, открывающего markdown.</string>
     <string name="action_priority">Приоритет</string>

@@ -47,6 +47,8 @@ data class AgendaActions(
     val onUndoGroup: () -> Unit = {},
     /** Put back the note the last single edit wrote to. */
     val onUndoEdit: () -> Unit = {},
+    /** Open the screen that writes a task the notes do not hold yet. */
+    val onCreate: () -> Unit = {},
     val onEditIssueShown: () -> Unit = {},
     val onGroupResultShown: () -> Unit = {},
     val onEditResultShown: () -> Unit = {},

@@ -19,6 +19,8 @@ data class SettingsInitial(
     val notesPath: String = "",
     /** What the collection being edited is called, as it is stored. */
     val name: String = "",
+    /** The file it receives new tasks in, as it is stored. */
+    val inbox: String = "",
     val hasToken: Boolean = false,
     /** A private key for an `ssh://` remote is stored, whatever it is. */
     val hasKey: Boolean = false,

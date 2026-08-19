@@ -18,6 +18,7 @@ use markdown_org_extract::{
 };
 
 mod bulk;
+mod create;
 mod document;
 mod edit;
 mod entry;
@@ -27,6 +28,7 @@ mod sync;
 mod undo;
 
 pub use bulk::{apply_to_group, BulkAction, BulkOutcome, BulkRefusal, BulkTarget, RefusalReason};
+pub use create::{create_task, NewPlanning, NewTask};
 pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use entry::{read_entry, set_entry, EntryText};
 pub use index::NotesIndex;

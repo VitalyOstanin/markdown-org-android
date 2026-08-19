@@ -31,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -138,10 +139,13 @@ fun AgendaScreen(
     // with the group: the two are answered by different undos, and a snackbar
     // that outlived the state it was raised for would put back the wrong note.
     val edited = stringResource(R.string.agenda_edit_done)
+    // A task written from nothing says so instead: what the offer takes back
+    // is the whole entry rather than a line of an entry that stays either way.
+    val created = stringResource(R.string.agenda_create_done)
     LaunchedEffect(editResult) {
         if (editResult != null) {
             val answered = snackbar.showSnackbar(
-                message = edited,
+                message = if (editResult.created) created else edited,
                 actionLabel = undo,
                 withDismissAction = true,
             )
@@ -163,7 +167,46 @@ fun AgendaScreen(
                 filters = filters,
                 actions = actions,
             )
+            CreateButton(
+                onCreate = actions.onCreate,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(Spacing.lg),
+            )
+            // Over the button rather than beside it: what a snackbar says is
+            // about the tap just made, and it is gone in a few seconds.
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
+
+/**
+ * The one control that writes rather than reads, kept away from the ones that
+ * do.
+ *
+ * At the corner rather than in the header: the header holds five controls
+ * about what is on screen, and a sixth that changes the notes would be the
+ * only one among them that does. Where it goes is the collection's own
+ * setting, so the button asks nothing before opening the screen.
+ */
+@Composable
+private fun CreateButton(onCreate: () -> Unit, modifier: Modifier = Modifier) {
+    // A box of its own carries where this sits, and the tooltip goes inside
+    // it. An alignment handed to HintTooltip does not reach the box of the
+    // screen -- the same trap its own documentation names for a size and a
+    // weight -- and the button was drawn in the top corner instead, over the
+    // arrow that steps the plan back.
+    Box(modifier) {
+        HintTooltip(stringResource(R.string.hint_agenda_create)) {
+            FloatingActionButton(
+                onClick = onCreate,
+                modifier = Modifier.testTag("agenda-create"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_add),
+                    contentDescription = stringResource(R.string.create_title),
+                )
+            }
         }
     }
 }

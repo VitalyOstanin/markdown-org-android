@@ -724,6 +724,48 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun theCornerOfThePlanOffersToWriteATaskThatIsNotInIt() {
+        var asked = 0
+        showAgenda(AgendaLayout.LIST, onCreate = { asked += 1 })
+
+        compose.onNodeWithTag("agenda-create").performClick()
+
+        assertEquals(1, asked)
+    }
+
+    @Test
+    fun theButtonThatWritesATaskStandsClearOfTheHeader() {
+        // It was drawn over the arrow that steps the plan back: an alignment
+        // handed to the tooltip around it never reached the box of the screen,
+        // and the button took the box's default corner, which is that one.
+        showAgenda(AgendaLayout.LIST)
+
+        val header = compose.onNodeWithTag("agenda-header-area").fetchSemanticsNode()
+        val button = compose.onNodeWithTag("agenda-create").fetchSemanticsNode()
+
+        val below = button.positionInRoot.y >= header.positionInRoot.y + header.size.height
+        assertTrue("the button that writes a task sits over the header", below)
+    }
+
+    @Test
+    fun aTaskWrittenFromNothingSaysSoRatherThanReadingAsAnEditedNote() {
+        showAgenda(
+            AgendaLayout.LIST,
+            editResult = EditResult(
+                root = "/notes",
+                heading = "Ring the dentist",
+                rollback = FileRollback(file = "inbox.md", before = "", after = "after"),
+                created = true,
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.agenda_create_done)).assertIsDisplayed()
+        // And the same offer beside it: an entry written by mistake has no
+        // other way out of the notes from here.
+        compose.onNodeWithText(string(R.string.agenda_undo)).assertIsDisplayed()
+    }
+
+    @Test
     fun theDayAndItsDateEachTakeOneLine() {
         // The controls used to share the row with the day, leaving it about a
         // quarter of the width. A word has nowhere to wrap, so the name of the
@@ -768,6 +810,7 @@ class AgendaScreenTest {
         onUndoGroup: () -> Unit = {},
         editResult: EditResult? = null,
         onUndoEdit: () -> Unit = {},
+        onCreate: () -> Unit = {},
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -784,6 +827,7 @@ class AgendaScreenTest {
                             onGroupAction = onGroupAction,
                             onUndoGroup = onUndoGroup,
                             onUndoEdit = onUndoEdit,
+                            onCreate = onCreate,
                         ),
                     )
                 }

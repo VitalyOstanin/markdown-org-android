@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
@@ -15,6 +16,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
+import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import io.github.vitalyostanin.markdownorg.core.holdingAll
@@ -313,6 +315,15 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         return record()
     }
 
+    /** What the last creation was asked to write, and into which file. */
+    var created: Pair<String, TaskDraft>? = null
+        private set
+
+    override suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport> {
+        created = file to draft
+        return record()
+    }
+
     /** What the last group action was asked to do, and to how many tasks. */
     var group: Pair<BulkAction, List<Task>>? = null
         private set
@@ -363,6 +374,19 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
     override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> {
         undone = listOf(rollback)
         undoneEdit = heading
+        return undoOutcome
+    }
+
+    /** Which task the last undone creation named, so the two undos tell apart. */
+    var undoneCreation: String? = null
+        private set
+
+    override suspend fun undoCreation(
+        rollback: FileRollback,
+        heading: String,
+    ): Result<UndoReport> {
+        undone = listOf(rollback)
+        undoneCreation = heading
         return undoOutcome
     }
 
@@ -436,12 +460,13 @@ class FakeCollections(override var entries: List<CollectionInUse>) : Collections
             id: String = FIRST_ID,
             name: String = "Notes",
             path: String = "/notes",
+            inbox: String = DEFAULT_INBOX,
             area: FakeNotesArea = FakeNotesArea(File(path)),
             settings: FakePreferences = FakePreferences(),
             editor: FakeWriter = FakeWriter(),
             syncer: FakeSyncer = FakeSyncer(),
         ) = CollectionInUse(
-            collection = NotesCollection(id = id, name = name, path = path),
+            collection = NotesCollection(id = id, name = name, path = path, inbox = inbox),
             // The stand-in area names a directory that is not on disk, so the
             // path is taken as it is rather than resolved: what matters here
             // is that a task from it carries the same string.

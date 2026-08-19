@@ -18,6 +18,11 @@ pub fn vault(body: &str) -> tempfile::TempDir {
 
 /// What an edit is aimed at: the file, the line, and the heading the caller
 /// believes is on it.
+///
+/// Unused by the cases that write a task rather than edit one, which reach the
+/// file by name instead — hence the allowance: this module is compiled into
+/// every test binary, and each takes only the helpers it needs.
+#[allow(dead_code)]
 pub fn target(dir: &Path, line: u32, heading: &str) -> EditTarget {
     EditTarget {
         dir: dir.display().to_string(),

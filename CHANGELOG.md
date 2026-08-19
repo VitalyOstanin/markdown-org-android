@@ -234,6 +234,19 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   chosen to be read and a translation is longer than the English it was
   measured against; what a server or a library wrote keeps its two lines. Both
   end in an ellipsis when they are cut, so a cut says that it is one.
+- A task can be written here rather than only found: the corner of the plan
+  opens a screen with a heading, a text, the keyword, the priority and a day
+  from the same calendar the sheet uses. Where it goes is a setting of the
+  collection — the file it receives new tasks in, `inbox.md` unless it is said
+  otherwise, made by the first task written to it — so a creation asks which
+  collection when there is more than one and nothing else. The entry is
+  appended to the end of that file, which is what keeps two devices' additions
+  merging cleanly, and it is written at the level the file writes its tasks at,
+  with its date spelled the way the file spells the ones it already holds. A
+  title that would read as a keyword or a priority is refused, because those
+  are fields beside it. The task that was just written can be taken out again
+  from the same line that offers an undo of an edit, and that is the only way
+  an entry is removed here.
 - Any single edit can be taken back: the line at the foot of the screen offers
   it for as long as it stands, and the note goes back to the bytes it held
   rather than to a line rebuilt from what the edit understood. That is what a

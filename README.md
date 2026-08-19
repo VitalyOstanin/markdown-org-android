@@ -88,6 +88,7 @@ markdown-org-android/
 │   │   ├── src/document.rs   # reading a note and writing one line back
 │   │   ├── src/edit.rs       # the status and the priority cookie
 │   │   ├── src/entry.rs      # the title of a heading and the lines under it
+│   │   ├── src/create.rs     # a task the notes did not hold, written at the end of a file
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
 │   │   ├── src/bulk.rs       # one action over a whole group
 │   │   ├── src/undo.rs       # what an edit overwrote, and putting the note back
@@ -209,6 +210,15 @@ The text of one entry is the exception, and it is bounded to that entry:
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)
 and [ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md) set out.
+
+A task that is not in the notes yet is written by one more call:
+
+- `createTask(task)` — append an entry to the end of the file named in it,
+  creating that file when it is not there. The heading goes in at the level
+  the file writes its tasks at, a date is spelled the way the file spells the
+  ones it already has, and a title that would read as a keyword or a priority
+  is refused. Which file receives new tasks is a setting of the collection —
+  see [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md).
 
 A group of tasks is answered in one move rather than one at a time:
 

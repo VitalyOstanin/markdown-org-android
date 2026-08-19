@@ -142,7 +142,10 @@ fn retitled(line: &str, title_start: usize, title: &str) -> Result<String, EditE
 /// between the planning lines and the body, and the one before the next
 /// heading, belong to the file and are what [`body_range`] leaves out. Keeping
 /// them here would add one on every save.
-fn body_lines(body: &str) -> Result<Vec<String>, EditError> {
+///
+/// Shared with [`crate::create`]: a task written from nothing carries a body
+/// typed into the same field, and it is refused on the same terms.
+pub(crate) fn body_lines(body: &str) -> Result<Vec<String>, EditError> {
     let mut lines: Vec<String> = body
         .split('\n')
         .map(|line| line.trim_end_matches('\r').to_string())

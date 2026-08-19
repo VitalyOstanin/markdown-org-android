@@ -149,10 +149,13 @@ private fun ShiftRow(keyword: PlanningKeyword, onAction: (TaskAction) -> Unit) {
  * cannot be saved: its saver is not public, and the locale below is not one
  * the remembered picker accepts. Keeping the day here means a rotation with
  * the calendar open comes back to the day that was chosen in it.
+ *
+ * Shared with the screen that writes a new task, which asks the same question
+ * about a task that is not in the notes yet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateChoice(
+internal fun DateChoice(
     initial: LocalDate?,
     weekStart: WeekStart,
     onDismiss: () -> Unit,

@@ -4,6 +4,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.testWording
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -56,6 +58,9 @@ class AgendaCollectionsTest {
         id = "2",
         name = "Work",
         path = WORK,
+        // Its own receiving file, so a task written into "the" inbox rather
+        // than into this collection's would be visible as such.
+        inbox = "work-inbox.md",
         editor = workWriter,
     )
 
@@ -91,6 +96,37 @@ class AgendaCollectionsTest {
         // the collection the settings happen to be about.
         assertEquals(0, personalWriter.calls)
         assertEquals(1, workWriter.calls)
+    }
+
+    @Test
+    fun aNewTaskGoesIntoTheFileTheChosenCollectionReceivesThemIn() = runTest(dispatcher) {
+        val model = viewModel()
+        advanceUntilIdle()
+
+        model.createTask("2", TaskDraft(title = "Write the report"))
+        advanceUntilIdle()
+
+        // Which collection was chosen decides both the directory and the file:
+        // the receiving file is a setting of the collection, and the two
+        // collections need not name the same one.
+        assertNull(personalWriter.created)
+        assertEquals("work-inbox.md", workWriter.created?.first)
+        assertEquals("Write the report", workWriter.created?.second?.title)
+    }
+
+    @Test
+    fun aTaskAimedAtACollectionThatIsGoneIsNotWrittenSomewhereElse() = runTest(dispatcher) {
+        val model = viewModel()
+        advanceUntilIdle()
+
+        // The screen stood over the agenda while the collection it was opened
+        // for was removed in the settings.
+        model.createTask("3", TaskDraft(title = "Write the report"))
+        advanceUntilIdle()
+
+        assertNull(personalWriter.created)
+        assertNull(workWriter.created)
+        assertEquals(R.string.edit_failed_no_collection, model.editIssue.value?.text)
     }
 
     @Test

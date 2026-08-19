@@ -28,11 +28,13 @@ import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
 import io.github.vitalyostanin.markdownorg.core.SyncRun
+import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UiSettings
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.collectionProblem
+import io.github.vitalyostanin.markdownorg.core.inboxProblem
 import io.github.vitalyostanin.markdownorg.core.mergeTagDictionaries
 import io.github.vitalyostanin.markdownorg.core.migratedCollections
 import io.github.vitalyostanin.markdownorg.core.nextCollectionId
@@ -272,6 +274,16 @@ class AgendaViewModel(
      */
     private val _selected = MutableStateFlow<Task?>(null)
     val selected: StateFlow<Task?> = _selected.asStateFlow()
+
+    /**
+     * Whether the screen that writes a new task is open.
+     *
+     * A flag rather than a draft: what is being typed belongs to the screen,
+     * which keeps it across a rotation itself. What the model has to know is
+     * that the screen is up — the agenda under it is rebuilt while it stands.
+     */
+    private val _creating = MutableStateFlow(false)
+    val creating: StateFlow<Boolean> = _creating.asStateFlow()
 
     /**
      * The entry whose text is open for editing, if any.
@@ -729,6 +741,53 @@ class AgendaViewModel(
         _editedEntry.value = null
     }
 
+    /** Open the screen that writes a task the notes do not hold yet. */
+    fun startCreating() {
+        // The sheet of another task has nothing to do with a new one, and two
+        // things over the agenda at once is one too many.
+        _selected.value = null
+        _creating.value = true
+    }
+
+    /** The creation screen was left without writing anything. */
+    fun cancelCreating() {
+        _creating.value = false
+    }
+
+    /**
+     * Write a new task into the file the chosen collection receives them in.
+     *
+     * The screen closes first, for the reason the editing one does: what
+     * follows is a write and a rebuilt agenda, and a screen left standing over
+     * it reads as the task not having been created.
+     */
+    fun createTask(collectionId: String, draft: TaskDraft) {
+        _creating.value = false
+
+        // A collection removed while the screen stood over the agenda has
+        // nothing to write to.
+        val target = collections.entries.firstOrNull { it.collection.id == collectionId }
+        if (target == null) {
+            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
+            refresh()
+            return
+        }
+
+        viewModelScope.launch {
+            val outcome = target.editor.createTask(target.collection.inbox, draft)
+
+            settle(
+                Written(
+                    root = target.root,
+                    file = target.collection.inbox,
+                    heading = draft.title.trim(),
+                    created = true,
+                ),
+                outcome,
+            )
+        }
+    }
+
     /**
      * Write the edited entry back, then rebuild the agenda.
      *
@@ -779,8 +838,29 @@ class AgendaViewModel(
         return theirEditor
     }
 
+    /**
+     * Which note a finished write changed, and what it was.
+     *
+     * One object rather than four arguments, and the reason there are four at
+     * all: a write is settled the same way whether it edited a task the agenda
+     * showed or wrote one that was not there — and the second has no task to
+     * read the file and the heading off.
+     */
+    private data class Written(
+        val root: String?,
+        val file: String,
+        val heading: String,
+        val created: Boolean = false,
+    )
+
     /** What a finished write leaves on the screen, whichever write it was. */
-    private suspend fun settle(task: Task, outcome: Result<EditReport>) {
+    private suspend fun settle(task: Task, outcome: Result<EditReport>) = settle(
+        Written(root = task.root, file = task.file, heading = task.heading),
+        outcome,
+    )
+
+    /** The same, for a write that changed a note no task on screen names. */
+    private suspend fun settle(written: Written, outcome: Result<EditReport>) {
         outcome.fold(
             onSuccess = { report ->
                 // The note has been written either way. A commit that did not
@@ -798,8 +878,13 @@ class AgendaViewModel(
                 // back no pair and clears the offer: the previous edit's
                 // rollback would restore a note this tap never touched.
                 _editResult.value = report.rollback?.let { rollback ->
-                    task.root?.let { root ->
-                        EditResult(root = root, heading = task.heading, rollback = rollback)
+                    written.root?.let { root ->
+                        EditResult(
+                            root = root,
+                            heading = written.heading,
+                            rollback = rollback,
+                            created = written.created,
+                        )
                     }
                 }
                 // One file changed and it is known which. Saying so is what
@@ -808,8 +893,8 @@ class AgendaViewModel(
                 // on screen, because the next full scan fixes it. Named by
                 // both halves — the same relative path occurs in more than one
                 // collection.
-                task.root?.let { root ->
-                    agenda.reread(root, task.file).onFailure { failure ->
+                written.root?.let { root ->
+                    agenda.reread(root, written.file).onFailure { failure ->
                         Log.w(TAG, "the edited note could not be re-read", failure)
                     }
                 }
@@ -973,7 +1058,14 @@ class AgendaViewModel(
         val theirEditor = collections.byRoot(result.root)?.editor ?: return
 
         viewModelScope.launch {
-            theirEditor.undoEdit(result.rollback, result.heading).fold(
+            // A creation is taken back by its own call: what it puts back is
+            // the same file, and what it says in the history is not.
+            val taken = when {
+                result.created -> theirEditor.undoCreation(result.rollback, result.heading)
+                else -> theirEditor.undoEdit(result.rollback, result.heading)
+            }
+
+            taken.fold(
                 onSuccess = { undone ->
                     undone.report.commitFailure?.let { failure ->
                         Log.w(TAG, "the undo was written but not committed", failure)
@@ -1193,6 +1285,7 @@ class AgendaViewModel(
         dropToken: Boolean = false,
         notesPath: String = editing.collection.path,
         name: String = editing.collection.name,
+        inbox: String = editing.collection.inbox,
         sshKey: String = "",
         sshPassphrase: String = "",
         dropKey: Boolean = false,
@@ -1203,6 +1296,15 @@ class AgendaViewModel(
         val named = name.trim()
         if (named.isEmpty()) {
             _syncState.update { it.copy(message = CollectionProblem.NAME_EMPTY.toMessage()) }
+            return
+        }
+
+        // And on the same terms: a collection whose receiving file cannot hold
+        // a task is one where the button that writes one has nowhere to go.
+        val receiving = inbox.trim()
+        val inboxProblem = inboxProblem(receiving)
+        if (inboxProblem != null) {
+            _syncState.update { it.copy(message = inboxProblem.toMessage()) }
             return
         }
 
@@ -1249,7 +1351,7 @@ class AgendaViewModel(
             running?.cancelAndJoin()
             _syncState.update { it.copy(running = false) }
 
-            if (!saveDirectory(notesPath, named)) {
+            if (!saveDirectory(notesPath, named, receiving)) {
                 return@launch
             }
 
@@ -1273,7 +1375,7 @@ class AgendaViewModel(
      * the rest untouched, because storing a remote against a directory the
      * notes are not in would clone into the old one.
      */
-    private suspend fun saveDirectory(notesPath: String, named: String): Boolean {
+    private suspend fun saveDirectory(notesPath: String, named: String, inbox: String): Boolean {
         if (moveNotes(notesPath).isFailure) {
             return false
         }
@@ -1281,7 +1383,7 @@ class AgendaViewModel(
         // After the move, and over what the move stored: the two are edits to
         // the same set, and renaming against the set as it was would put the
         // old directory back.
-        renameEditing(named)
+        reviseEditing(named, inbox)
 
         return true
     }
@@ -1653,15 +1755,19 @@ class AgendaViewModel(
      * are the ones already in use — [CollectionsInUse.use] keeps an entry whose
      * directory has not moved.
      */
-    private fun renameEditing(named: String) {
+    private fun reviseEditing(named: String, inbox: String) {
         val collection = editing.collection
-        if (named == collection.name) {
+        if (named == collection.name && inbox == collection.inbox) {
             return
         }
 
         useCollections(
             stored.collections.map { entry ->
-                if (entry.id == collection.id) entry.copy(name = named) else entry
+                if (entry.id == collection.id) {
+                    entry.copy(name = named, inbox = inbox)
+                } else {
+                    entry
+                }
             },
         )
     }
@@ -1673,6 +1779,7 @@ class AgendaViewModel(
         hasToken = !settings.token.isNullOrBlank(),
         notesPath = editing.collection.path,
         name = editing.collection.name,
+        inbox = editing.collection.inbox,
         hasKey = !settings.sshKey.isNullOrBlank(),
         publicKey = settings.sshPublicKey.orEmpty(),
         knownHost = settings.knownHost.orEmpty(),

@@ -76,6 +76,8 @@
     <string name="agenda_edit_done">The note has been written</string>
     <!-- The note moved on between the edit and the undo, so it stands as it is. -->
     <string name="agenda_edit_undo_skipped">The note had changed and was left as it is</string>
+    <!-- A task was written from nothing, and the same line offers to take it out again. -->
+    <string name="agenda_create_done">The task has been written</string>
     <!-- Heading of the band, drawn under every day of a week or a month. -->
     <string name="agenda_section_timed">At a set time</string>
     <string name="agenda_section_untimed">All-day &amp; upcoming</string>
@@ -145,6 +147,12 @@
     <!-- The same for the page a public key is pasted into. -->
     <string name="settings_ssh_key_page">Where to paste the key</string>
     <string name="settings_notes">Notes directory</string>
+    <!-- The file of this collection that new tasks are appended to. -->
+    <string name="settings_inbox">File for new tasks</string>
+    <string name="settings_inbox_support">New tasks are appended to the end of this file, inside the notes directory.</string>
+    <string name="settings_inbox_empty">Name the file new tasks are written to</string>
+    <string name="settings_inbox_outside">The file has to be inside the notes directory</string>
+    <string name="settings_inbox_markdown">The file has to end in .md, which is what the agenda reads</string>
     <string name="settings_notes_default">empty: the application\'s own storage</string>
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
     <string name="settings_notes_not_dir">That path is a file, not a directory</string>
@@ -235,6 +243,7 @@
     <string name="hint_sync_now">Fetch from the server, then hand it what was committed here. Nothing is merged: notes that moved on both sides are reported rather than resolved.</string>
     <string name="hint_sync_unavailable">No collection has a server yet. The notes are kept on this device until one is given an address in the settings.</string>
     <string name="hint_open_settings">The collections, the directory each of them reads and the server it syncs with.</string>
+    <string name="hint_agenda_create">Writes a task at the end of the file the collection receives new ones in, named in the settings. The keyword, the priority and the date are chosen on the screen it opens.</string>
     <string name="hint_step_back">One span back: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
     <string name="hint_step_forward">One span forward: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
     <string name="hint_show_today">Back to the day being lived through.</string>
@@ -328,6 +337,20 @@
     <string name="entry_save">Save</string>
     <string name="entry_note">The keyword, the priority and the dates are written by the actions of the sheet, not typed here.</string>
     <string name="entry_too_long">The text under this heading is too long to edit here; open the note in another app.</string>
+    <!-- The screen that writes a task the notes do not hold yet. -->
+    <string name="create_title">New task</string>
+    <string name="create_save">Create</string>
+    <string name="create_collection">Collection</string>
+    <!-- The TODO / DONE / CANCELLED word the heading is written with. The
+         words themselves are the format and are not translated. -->
+    <string name="create_keyword">Keyword</string>
+    <string name="create_date">Date</string>
+    <string name="create_scheduled">Scheduled</string>
+    <string name="create_deadline">Deadline</string>
+    <!-- Takes the chosen day off again, leaving the task without a date. -->
+    <string name="create_date_none">No date</string>
+    <!-- Where the task is about to be written; %1$s is the file of the collection. -->
+    <string name="create_goes_to">Written at the end of %1$s</string>
     <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>

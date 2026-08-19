@@ -76,12 +76,14 @@ impl Document {
         Self::read(&target.dir, &target.file)
     }
 
-    /// Read `file` from under `dir`, refusing a path that leaves it.
+    /// Where `file` sits under `dir`, refusing a path that leaves it.
     ///
     /// The path comes back from a scan of that very directory, so a `..` in it
     /// means something went wrong upstream rather than that the user asked for
-    /// a file elsewhere.
-    pub(crate) fn read(dir: &str, file: &str) -> Result<Self, EditError> {
+    /// a file elsewhere. The one path that does not come from a scan is the
+    /// file a collection receives new tasks in, which the user types into the
+    /// settings — and that is the case this refusal is for.
+    fn resolve(dir: &str, file: &str) -> Result<PathBuf, EditError> {
         let relative = Path::new(file);
         let climbs = relative
             .components()
@@ -92,7 +94,47 @@ impl Document {
             });
         }
 
-        let path = Path::new(dir).join(relative);
+        Ok(Path::new(dir).join(relative))
+    }
+
+    /// Read `file` from under `dir`, or start an empty document where there is
+    /// nothing there yet.
+    ///
+    /// For the file a collection receives new tasks in: it is named in the
+    /// settings rather than found by a scan, so the first task written to it
+    /// is also what creates it. Only a file that is not there at all is
+    /// started from nothing — anything else standing at that path, a directory
+    /// or a symbolic link, is refused by [`Document::read`] rather than
+    /// written over.
+    ///
+    /// The directory above it is not created: a receiving file named under a
+    /// directory nobody made is a typo in the settings, and making the
+    /// directory would leave the typo in place and the notes with an empty
+    /// tree in them.
+    pub(crate) fn read_or_empty(dir: &str, file: &str) -> Result<Self, EditError> {
+        let path = Self::resolve(dir, file)?;
+        if fs::symlink_metadata(&path).is_ok() {
+            return Self::read(dir, file);
+        }
+
+        let directory = path.parent().unwrap_or_else(|| Path::new("."));
+        if !directory.is_dir() {
+            return Err(EditError::NotFound {
+                detail: format!("{} is not a directory", directory.display()),
+            });
+        }
+
+        Ok(Self {
+            path,
+            file: file.to_string(),
+            byte_order_mark: false,
+            lines: Vec::new(),
+        })
+    }
+
+    /// Read `file` from under `dir`, refusing a path that leaves it.
+    pub(crate) fn read(dir: &str, file: &str) -> Result<Self, EditError> {
+        let path = Self::resolve(dir, file)?;
         // `symlink_metadata` rather than `is_file`, which follows the link:
         // `..` is not the only way out of the directory, and a link inside it
         // points anywhere. The scan the path comes from does not follow links

@@ -121,6 +121,24 @@ class CommitMessageTest {
     }
 
     @Test
+    fun aTaskWrittenFromNothingSaysItWasCreated() {
+        assertEquals(
+            "Create \"Pay rent\"",
+            creationMessage("  Pay rent  "),
+        )
+    }
+
+    @Test
+    fun anUndoneCreationSaysTheEntryWentRatherThanThatANoteWentBack() {
+        // The two undos put the same file back and mean different things: one
+        // returns a line to what it said, the other takes an entry out.
+        assertEquals(
+            "Undo the creation of \"Pay rent\"",
+            undoCreationMessage("Pay rent"),
+        )
+    }
+
+    @Test
     fun aRetitledEntryNamesBothTitles() {
         // What a reader of the history looks for is the title they remember,
         // so the message has to carry the one that is no longer in the file.

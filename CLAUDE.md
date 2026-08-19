@@ -128,6 +128,11 @@ reasoning.
   group action makes, refused where the note has moved on since. The offer is
   the last tap only, and it is dropped by the next edit. See
   [ADR-0031](docs/adr/0031-every-edit-carries-what-it-takes-to-undo-it.md).
+- A task written from nothing goes to the end of the file its collection names
+  in the settings, at the level that file writes its tasks at. Where it goes is
+  decided once rather than guessed per task, and the end of the file is what
+  keeps two devices' additions merging without a conflict. See
+  [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md).
 
 ## Working on the core
 

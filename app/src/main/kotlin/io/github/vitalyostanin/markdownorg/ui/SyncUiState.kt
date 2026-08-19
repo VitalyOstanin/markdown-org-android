@@ -4,6 +4,7 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
+import io.github.vitalyostanin.markdownorg.core.InboxProblem
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.SyncRun
@@ -109,6 +110,8 @@ data class SyncForm(
     val notesPath: String,
     /** What the collection is called on the agenda and in the filter. */
     val name: String = "",
+    /** The file it receives new tasks in, relative to its directory. */
+    val inbox: String = "",
     /** A private key is stored, which the form shows no more of than this. */
     val hasKey: Boolean = false,
     /** The public half of a key made here, empty when there is none to offer. */
@@ -133,6 +136,8 @@ data class SyncFormValues(
     val notesPath: String,
     /** What the collection is called; blank is refused rather than stored. */
     val name: String = "",
+    /** The file new tasks go into; a file that cannot hold them is refused. */
+    val inbox: String = "",
     /** Blank leaves the stored key alone, the way a blank token does. */
     val sshKey: String = "",
     val sshPassphrase: String = "",
@@ -197,6 +202,13 @@ fun CollectionProblem.toMessage(): SyncMessage = when (this) {
     CollectionProblem.NAME_EMPTY -> SyncMessage(R.string.collection_name_empty, failed = true)
     CollectionProblem.PATH_TAKEN -> SyncMessage(R.string.collection_path_taken, failed = true)
     CollectionProblem.PATH_NESTED -> SyncMessage(R.string.collection_path_nested, failed = true)
+}
+
+/** What to tell the user about a file that cannot receive new tasks. */
+fun InboxProblem.toMessage(): SyncMessage = when (this) {
+    InboxProblem.EMPTY -> SyncMessage(R.string.settings_inbox_empty, failed = true)
+    InboxProblem.OUTSIDE -> SyncMessage(R.string.settings_inbox_outside, failed = true)
+    InboxProblem.NOT_MARKDOWN -> SyncMessage(R.string.settings_inbox_markdown, failed = true)
 }
 
 /** What to tell the user about an address that cannot be used. */

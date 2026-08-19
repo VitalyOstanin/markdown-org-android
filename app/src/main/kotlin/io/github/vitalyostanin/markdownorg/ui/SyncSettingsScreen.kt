@@ -46,10 +46,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
+import io.github.vitalyostanin.markdownorg.core.InboxProblem
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.credentialPages
+import io.github.vitalyostanin.markdownorg.core.inboxProblem
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
@@ -98,6 +101,7 @@ fun SyncSettingsScreen(
         branch = initial.branch,
         name = initial.name,
         notesPath = initial.notesPath,
+        inbox = initial.inbox,
     )
     // Which collection the confirmation is about, and nothing while there is
     // no dialog up: removing one takes a directory off the agenda, and a
@@ -145,13 +149,7 @@ fun SyncSettingsScreen(
                 onOpenPage = onOpenPage,
             )
 
-            NotesDirectorySection(
-                form = form,
-                problem = issues.path,
-                refused = issues.pathRefused,
-                onPickNotesDirectory = storage.onPick,
-                onRequestStorage = storage.onRequestPermission,
-            )
+            NotesSection(form = form, issues = issues, storage = storage)
 
             Spacer(Modifier.height(Spacing.xs))
 
@@ -176,8 +174,7 @@ fun SyncSettingsScreen(
                 // carries where the notes are kept, and notes already on the
                 // device need no remote at all. A collection with no name is
                 // one the filter offers as a blank chip.
-                canSave = !issues.remoteRefused && !issues.pathRefused &&
-                    (collections.all.isEmpty() || form.name.isNotBlank()),
+                canSave = !issues.refused && (collections.all.isEmpty() || form.name.isNotBlank()),
             )
         }
     }
@@ -202,10 +199,22 @@ fun SyncSettingsScreen(
  * next to the problems themselves — the field states what it was given, while
  * Save asks only whether it may be pressed.
  */
-private data class FormIssues(val remote: RemoteUrlProblem?, val path: NotesPathProblem?) {
+private data class FormIssues(
+    val remote: RemoteUrlProblem?,
+    val path: NotesPathProblem?,
+    /**
+     * What is wrong with the file new tasks go into, which — unlike the two
+     * above — has no empty case that means something: a collection with no
+     * receiving file has nowhere to write a task.
+     */
+    val inbox: InboxProblem?,
+) {
     val remoteRefused: Boolean get() = remote != null && remote != RemoteUrlProblem.EMPTY
 
     val pathRefused: Boolean get() = path != null && path != NotesPathProblem.EMPTY
+
+    /** Whether anything on the form stands in the way of saving it. */
+    val refused: Boolean get() = remoteRefused || pathRefused || inbox != null
 }
 
 /**
@@ -224,8 +233,41 @@ private fun rememberFormIssues(form: SyncFormState, storage: StorageUi): FormIss
     val path = remember(form.notesPath, storage.granted, own) {
         notesPathProblem(form.notesPath, own, storage.granted)
     }
+    val inbox = remember(form.inbox) { inboxProblem(form.inbox) }
 
-    return remember(remote, path) { FormIssues(remote, path) }
+    return remember(remote, path, inbox) { FormIssues(remote, path, inbox) }
+}
+
+/**
+ * The file this collection receives new tasks in.
+ *
+ * Under the directory rather than beside the agenda's own settings: it names a
+ * file inside that directory, and the two are read together. A task created
+ * from the agenda is appended to the end of it, and nothing else in the
+ * application writes there.
+ */
+@Composable
+private fun InboxSection(form: SyncFormState, problem: InboxProblem?) {
+    OutlinedTextField(
+        value = form.inbox,
+        onValueChange = { form.inbox = it },
+        label = { Text(stringResource(R.string.settings_inbox)) },
+        placeholder = { Text(DEFAULT_INBOX) },
+        isError = problem != null,
+        supportingText = {
+            Text(stringResource(problem?.support() ?: R.string.settings_inbox_support))
+        },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-inbox"),
+    )
+}
+
+/** What to say under the field about the file it names. */
+private fun InboxProblem.support() = when (this) {
+    InboxProblem.EMPTY -> R.string.settings_inbox_empty
+    InboxProblem.OUTSIDE -> R.string.settings_inbox_outside
+    InboxProblem.NOT_MARKDOWN -> R.string.settings_inbox_markdown
 }
 
 /**
@@ -455,6 +497,27 @@ private fun RemoteSection(
             }
         }
     }
+}
+
+/**
+ * Where this collection's notes are kept, and which file among them receives
+ * the tasks made here.
+ *
+ * One section because they are one question asked twice over: the directory
+ * says which notes the agenda reads, and the file says where a task written
+ * from the agenda goes — and the second is named relative to the first.
+ */
+@Composable
+private fun NotesSection(form: SyncFormState, issues: FormIssues, storage: StorageUi) {
+    NotesDirectorySection(
+        form = form,
+        problem = issues.path,
+        refused = issues.pathRefused,
+        onPickNotesDirectory = storage.onPick,
+        onRequestStorage = storage.onRequestPermission,
+    )
+
+    InboxSection(form = form, problem = issues.inbox)
 }
 
 /**

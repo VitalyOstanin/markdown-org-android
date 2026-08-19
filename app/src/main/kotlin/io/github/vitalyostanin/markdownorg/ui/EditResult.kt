@@ -21,4 +21,12 @@ data class EditResult(
     /** The task the edit was aimed at, for the commit the undo makes. */
     val heading: String,
     val rollback: FileRollback,
+    /**
+     * The task was written from nothing rather than changed.
+     *
+     * What the line says differs, and so does what undoing it does: an undone
+     * edit puts a note back the way it was, while an undone creation takes an
+     * entry out of it — which is the only way this application removes one.
+     */
+    val created: Boolean = false,
 )

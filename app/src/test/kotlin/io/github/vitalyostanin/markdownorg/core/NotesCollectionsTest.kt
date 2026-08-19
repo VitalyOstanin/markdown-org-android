@@ -186,4 +186,41 @@ class NotesCollectionsTest {
             ),
         )
     }
+
+    @Test
+    fun aCollectionReceivesNewTasksInAFileOfItsOwnUntilOneIsChosen() {
+        // What a device upgrading from a version that had no such setting
+        // gets: nothing stored, and a file that is made by the first task
+        // written to it.
+        val collection = collection(FIRST_ID, own)
+
+        assertEquals(DEFAULT_INBOX, collection.inbox)
+    }
+
+    @Test
+    fun aFileWithNoNameCannotReceiveTasks() {
+        assertEquals(InboxProblem.EMPTY, inboxProblem("   "))
+    }
+
+    @Test
+    fun aFileOutsideTheCollectionIsRefused() {
+        // The two ways out the core refuses when it is asked to write: an
+        // absolute path, and a step above the root of the collection.
+        assertEquals(InboxProblem.OUTSIDE, inboxProblem("/storage/emulated/0/inbox.md"))
+        assertEquals(InboxProblem.OUTSIDE, inboxProblem("../inbox.md"))
+        assertEquals(InboxProblem.OUTSIDE, inboxProblem("work/../../inbox.md"))
+    }
+
+    @Test
+    fun aFileTheAgendaWouldNotReadIsRefused() {
+        // The walk reads *.md: a task written anywhere else would show up on
+        // the agenda after the write and be gone at the next full scan.
+        assertEquals(InboxProblem.NOT_MARKDOWN, inboxProblem("inbox.txt"))
+        assertNull(inboxProblem("inbox.MD"))
+    }
+
+    @Test
+    fun aFileInSideDirectoryOfTheCollectionIsAllowed() {
+        assertNull(inboxProblem("work/inbox.md"))
+    }
 }

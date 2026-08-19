@@ -351,7 +351,11 @@ fn insert_planning(
 
 /// The planning line to write, spelled the way this file spells the ones it
 /// already has.
-fn planning_line(
+///
+/// Shared with [`crate::create`], which writes one under a heading it has just
+/// added: a date on a new task follows the file exactly as a date put on an
+/// old one does.
+pub(crate) fn planning_line(
     document: &Document,
     index: usize,
     keyword: PlanningKeyword,

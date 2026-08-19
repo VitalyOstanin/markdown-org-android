@@ -270,7 +270,7 @@ fn body_start(line: &str, level: usize) -> usize {
 /// The keyword written for a status. The cancelled variant is written in the
 /// double-L spelling org-mode itself uses; a file already spelling it with one
 /// L keeps its spelling, because that case never reaches here.
-fn keyword_of(status: TaskType) -> &'static str {
+pub(crate) fn keyword_of(status: TaskType) -> &'static str {
     match status {
         TaskType::Todo => "TODO",
         TaskType::Done => "DONE",

@@ -30,11 +30,15 @@ class SyncFormState(
     branch: String = "",
     name: String = "",
     notesPath: String = "",
+    inbox: String = "",
 ) {
     var url by mutableStateOf(url)
     var branch by mutableStateOf(branch)
     var name by mutableStateOf(name)
     var notesPath by mutableStateOf(notesPath)
+
+    /** The file this collection receives new tasks in, relative to its directory. */
+    var inbox by mutableStateOf(inbox)
 
     /** Blank leaves the stored token alone: the form never shows it. */
     var token by mutableStateOf("")
@@ -53,6 +57,7 @@ class SyncFormState(
         dropToken = dropToken,
         notesPath = notesPath,
         name = name,
+        inbox = inbox,
         sshKey = sshKey,
         sshPassphrase = sshPassphrase,
         dropKey = dropKey,
@@ -66,6 +71,7 @@ class SyncFormState(
                     "branch" to form.branch,
                     "name" to form.name,
                     "notesPath" to form.notesPath,
+                    "inbox" to form.inbox,
                     "token" to form.token,
                     "dropToken" to form.dropToken,
                     "sshKey" to form.sshKey,
@@ -79,6 +85,7 @@ class SyncFormState(
                     branch = saved["branch"] as? String ?: "",
                     name = saved["name"] as? String ?: "",
                     notesPath = saved["notesPath"] as? String ?: "",
+                    inbox = saved["inbox"] as? String ?: "",
                 ).apply {
                     token = saved["token"] as? String ?: ""
                     dropToken = saved["dropToken"] as? Boolean ?: false
@@ -105,6 +112,13 @@ fun rememberSyncForm(
     branch: String,
     name: String,
     notesPath: String,
+    inbox: String,
 ): SyncFormState = rememberSaveable(editingId, saver = SyncFormState.Saver) {
-    SyncFormState(url = url, branch = branch, name = name, notesPath = notesPath)
+    SyncFormState(
+        url = url,
+        branch = branch,
+        name = name,
+        notesPath = notesPath,
+        inbox = inbox,
+    )
 }

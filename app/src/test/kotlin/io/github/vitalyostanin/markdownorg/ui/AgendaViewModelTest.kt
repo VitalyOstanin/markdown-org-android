@@ -6,6 +6,7 @@ import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.SyncRun
+import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import io.github.vitalyostanin.markdownorg.core.testWording
 import kotlinx.coroutines.CompletableDeferred
@@ -1437,6 +1438,57 @@ class AgendaViewModelTest {
         // The offer goes with it, for the reason the group's does: pressing it
         // twice would put the note back over whatever came after.
         assertNull(model.editResult.value)
+    }
+
+    @Test
+    fun aTaskWrittenFromNothingIsOfferedToBeTakenOutAgain() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val written = rollback("inbox.md")
+        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        advanceUntilIdle()
+
+        val result = model.editResult.value
+        assertEquals(written, result?.rollback)
+        assertEquals("Pay the tax", result?.heading)
+        // Marked as a creation, because what the offer takes back is the whole
+        // entry rather than a line of one that stays either way -- and the
+        // line on screen says so.
+        assertEquals(true, result?.created)
+        // The note it went into is re-read by name, so the agenda that follows
+        // costs one file rather than a walk of the collection.
+        assertEquals(listOf("inbox.md"), loader.reread)
+    }
+
+    @Test
+    fun theUndoOfACreationTakesTheEntryOutRatherThanPuttingALineBack() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val written = rollback("inbox.md")
+        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = listOf("inbox.md"),
+                    skipped = emptyList(),
+                    failed = emptyList(),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        advanceUntilIdle()
+
+        model.undoEdit()
+        advanceUntilIdle()
+
+        // Through the undo that says so in the history: the same file goes
+        // back either way, and the commit above it is what a reader sees.
+        assertEquals("Pay the tax", writer.undoneCreation)
+        assertNull(writer.undoneEdit)
+        assertEquals(listOf(written), writer.undone)
     }
 
     @Test

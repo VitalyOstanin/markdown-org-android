@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,6 +35,9 @@ class SyncSettingsScreenTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private var saved: Triple<String, String, String>? = null
+
+    /** The file the collection is to receive new tasks in, as it was saved. */
+    private var savedInbox: String? = null
     private var droppedToken: Boolean? = null
     private var dismissed = false
 
@@ -48,6 +52,28 @@ class SyncSettingsScreenTest {
         compose.onNodeWithTag("settings-save").performScrollTo().performClick()
 
         assertEquals(Triple("https://example.org/notes.git", "main", "ghp_secret"), saved)
+    }
+
+    @Test
+    fun theFileNewTasksGoIntoIsSavedWithTheRest() {
+        showForm()
+
+        compose.onNodeWithTag("settings-inbox").performScrollTo().performTextReplacement("work.md")
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals("work.md", savedInbox)
+    }
+
+    @Test
+    fun aFileTheAgendaWouldNotReadCannotBeSaved() {
+        // The walk reads *.md: a task written anywhere else would be on the
+        // agenda after the write and gone at the next full scan.
+        showForm()
+
+        compose.onNodeWithTag("settings-inbox").performScrollTo().performTextReplacement("inbox")
+
+        compose.onNodeWithText(string(R.string.settings_inbox_markdown)).assertIsDisplayed()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
@@ -504,6 +530,7 @@ class SyncSettingsScreenTest {
         hasKey: Boolean = false,
         publicKey: String = "",
         knownHost: String = "",
+        inbox: String = DEFAULT_INBOX,
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -517,9 +544,11 @@ class SyncSettingsScreenTest {
                         publicKey = publicKey,
                         knownHost = knownHost,
                         storesLocally = storesLocally,
+                        inbox = inbox,
                     ),
                     onSave = { values ->
                         saved = Triple(values.url, values.branch, values.token)
+                        savedInbox = values.inbox
                         droppedToken = values.dropToken
                         savedNotesPath = values.notesPath
                         savedKey = values.sshKey

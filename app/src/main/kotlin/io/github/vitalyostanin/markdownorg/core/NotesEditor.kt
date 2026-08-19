@@ -7,6 +7,8 @@ import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.NewPlanning
+import uniffi.markdown_org_ffi.NewTask
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Task
@@ -18,6 +20,7 @@ import java.time.LocalDate
 import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.completeTask as coreComplete
+import uniffi.markdown_org_ffi.createTask as coreCreateTask
 import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertFiles as coreRevertFiles
 import uniffi.markdown_org_ffi.setEntry as coreSetEntry
@@ -48,6 +51,32 @@ data class EditReport(
      * one later.
      */
     val rollback: FileRollback? = null,
+)
+
+/**
+ * A task to write, as the screen composed it.
+ *
+ * Not the core's own record, which also carries the directory and the file:
+ * those are the writer's to fill in — the directory is the collection it
+ * belongs to, and the file is the one that collection receives new tasks in.
+ * What is here is what somebody typed.
+ */
+data class TaskDraft(
+    val title: String,
+    val body: String = "",
+    /** The keyword to write, or `null` for a heading that carries none. */
+    val status: TaskType? = TaskType.TODO,
+    /** The bare priority (`A`), without the `[#` `]` framing. */
+    val priority: String? = null,
+    /**
+     * Which kind of date [date] is, when there is one.
+     *
+     * Always answered, even where no date was chosen: a date has to say
+     * whether it is the day work starts or the day the task is due, and the
+     * two are not interchangeable. No date at all is [date] being `null`.
+     */
+    val keyword: PlanningKeyword = PlanningKeyword.SCHEDULED,
+    val date: LocalDate? = null,
 )
 
 /**
@@ -105,6 +134,15 @@ interface NotesWriter {
     suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport>
 
     /**
+     * Write a task that was not in the notes before, at the end of [file].
+     *
+     * [file] is named by the collection rather than worked out from the task:
+     * where a new entry belongs is a question this application cannot answer
+     * from a title and a date, and the settings are where it is answered once.
+     */
+    suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport>
+
+    /**
      * Apply one action to every task of a group.
      *
      * One pass over the notes and one commit, however many tasks are named:
@@ -133,6 +171,15 @@ interface NotesWriter {
      * left as it stands.
      */
     suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport>
+
+    /**
+     * Take back a task that was just created, naming it in the commit.
+     *
+     * The same restore as any other undo, and the only way this application
+     * removes an entry: what it puts back is the file as it stood before the
+     * task was written into it.
+     */
+    suspend fun undoCreation(rollback: FileRollback, heading: String): Result<UndoReport>
 
     /**
      * Commit whatever earlier edits left uncommitted.
@@ -221,6 +268,12 @@ class NotesEditor internal constructor(
             outcome.rollback to entryMessage(task.heading, title)
         }
 
+    /** Write a task the notes did not hold, into the file that receives them. */
+    override suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport> = write {
+        val outcome = coreCreateTask(draft.asNewTask(notes.root.absolutePath, file))
+        outcome.rollback to creationMessage(draft.title)
+    }
+
     /** Move a planning date by whole days. */
     override suspend fun shift(
         task: Task,
@@ -268,6 +321,9 @@ class NotesEditor internal constructor(
 
     override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> =
         undo(listOf(rollback)) { undoEditMessage(heading) }
+
+    override suspend fun undoCreation(rollback: FileRollback, heading: String): Result<UndoReport> =
+        undo(listOf(rollback)) { undoCreationMessage(heading) }
 
     /** Restore [rollback], committing what [message] calls it. */
     private suspend fun undo(
@@ -323,6 +379,20 @@ class NotesEditor internal constructor(
                 )
             }
         }
+
+    /**
+     * The draft as the core takes it: with the collection it goes to and the
+     * file that receives it, and with the date paired to the kind it is.
+     */
+    private fun TaskDraft.asNewTask(dir: String, file: String) = NewTask(
+        dir = dir,
+        file = file,
+        title = title,
+        body = body,
+        status = status,
+        priority = priority,
+        planning = date?.let { NewPlanning(keyword = keyword, date = it.toString()) },
+    )
 
     private fun Task.target() = EditTarget(
         dir = notes.root.absolutePath,
@@ -395,6 +465,19 @@ internal fun undoMessage(restored: Int): String {
  * commit above this one, and the pair reads as a move and its reversal.
  */
 internal fun undoEditMessage(heading: String): String = "Undo the edit of \"$heading\""
+
+/** What a task written from nothing says it did. */
+internal fun creationMessage(title: String): String = "Create \"${title.trim()}\""
+
+/**
+ * What taking a new task back did, as one line of history.
+ *
+ * Named apart from an undone edit because the two undo different things: an
+ * edit put a note back the way it was, and this one takes an entry out of it
+ * again.
+ */
+internal fun undoCreationMessage(heading: String): String =
+    "Undo the creation of \"${heading.trim()}\""
 
 /** A completion that turned out to be a repeat says so. */
 internal fun completionMessage(heading: String, repeated: Boolean): String = when {
