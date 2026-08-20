@@ -9,6 +9,8 @@ Work that is understood but deliberately not done yet.
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
 - [Tooltips beyond the agenda screen](#tooltips-beyond-the-agenda-screen)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
+- [Telling the reader what is coming](#telling-the-reader-what-is-coming)
+- [Moving one occurrence of a repeating entry](#moving-one-occurrence-of-a-repeating-entry)
 - [Publishing to the app stores](#publishing-to-the-app-stores)
 
 ## How long ago is "long ago"
@@ -122,6 +124,118 @@ The answer is the same as it was: normalise to NFC on the way in and compare
 after normalising (`unicode-normalization`). The cost is a dependency, and with
 it the licence notices the APK carries, which is why it is written down here
 rather than done alongside the editor.
+
+## Telling the reader what is coming
+
+The agenda answers only while it is open. A note that says 15:00 is of use if
+something says so at 14:45, and nothing does: the application holds no
+notification, no channel and no alarm, and the manifest asks for neither
+`POST_NOTIFICATIONS` nor `RECEIVE_BOOT_COMPLETED`.
+
+### What a reminder means, per kind of entry
+
+The notes carry three kinds of dated entry, and one rule does not fit them.
+
+| № | Kind                                                | What the file holds                          | What a reminder is                                                                 |
+|---|-----------------------------------------------------|----------------------------------------------|--------------------------------------------------------------------------------------|
+| 1 | Timed entry                                         | a date and `HH:MM`, on `SCHEDULED`, `DEADLINE` or a bare active stamp | a moment exists, so: one alarm a lead time before it (15 minutes by default) |
+| 2 | Dated entry with no time                            | a date alone                                 | there is no moment, so: one digest at an hour the reader picks, naming what the day holds |
+| 3 | Deadline with a date                                | `DEADLINE` and a date, with or without `-Xd` | the warning window the core already opens, carried into the digest with the distance named |
+
+Kind 3 needs no rule of its own for when to start warning: the core opens the
+window from the `-Xd` the stamp may carry and falls back to
+`DEADLINE_WARNING_DAYS = 14` (`src/agenda.rs:15` of the core), and from that day
+it files the deadline into today's agenda. A reminder that reads the agenda
+therefore inherits Org's own answer instead of inventing a second one. On the
+day the deadline falls, a timed deadline is kind 1; an untimed one is named
+first in the digest.
+
+What is deliberately not reminded about:
+
+| № | Left silent                              | Why                                                                          |
+|---|------------------------------------------|--------------------------------------------------------------------------------|
+| 1 | `DONE` and `CANCELLED` entries           | the work is over; the date is history                                          |
+| 2 | An inactive `[...]` stamp                | inactive is the reader saying "not on the agenda" (core ADR-0014)              |
+| 3 | An occurrence already past               | the digest counts the arrears; an alarm for them would fire for a backlog kept for years |
+| 4 | Arrears, one by one                      | same reason: a count in the digest, not a notification each                    |
+
+### How it would be scheduled
+
+| № | Piece            | Choice                                                                                                              |
+|---|------------------|-----------------------------------------------------------------------------------------------------------------------|
+| 1 | Timed alarms     | `AlarmManager.setExactAndAllowWhileIdle`: a meeting reminded about forty minutes late is not a reminder                 |
+| 2 | The digest       | an inexact window (`setWindow`, or `WorkManager`): "around nine" is what the reader asked for                           |
+| 3 | Horizon          | schedule what falls within the next two days plus the following digest, and re-plan whenever one fires — a daily repeater over a year is thousands of alarms, and the platform caps what one application may hold |
+| 4 | Re-plan triggers | application start; a sync that changed files; an edit made in the application; `BOOT_COMPLETED`; `TIME_SET`; `TIMEZONE_CHANGED`; `MY_PACKAGE_REPLACED` |
+| 5 | Source of truth  | the core, through the same call the agenda makes — no second copy of the plan. A full re-scan on the phone measured 150 ms for 1000 files and 5000 tasks (31.07.2026, HONOR BVL-N49), so a receiver can afford to ask rather than cache |
+| 6 | Channels         | two: timed entries and the daily digest, so either can be silenced without losing the other                            |
+| 7 | Tapping one      | opens the agenda on that day with the entry selected                                                                   |
+| 8 | Actions on one   | Done, which writes through the core and so moves a repeater the way the sheet does; Snooze, which re-arms the alarm and touches no file |
+
+Permissions, all of which have to be re-checked against the platform
+documentation before anything is written — these rules move, and the API levels
+most of all:
+
+| № | Permission               | From | Note                                                                                          |
+|---|--------------------------|------|-------------------------------------------------------------------------------------------------|
+| 1 | `POST_NOTIFICATIONS`     | 33   | asked at runtime; refused means the feature is off, not that the application is                  |
+| 2 | `SCHEDULE_EXACT_ALARM`   | 31   | granted by the user in settings; `canScheduleExactAlarms()` before every plan, inexact when refused |
+| 3 | `USE_EXACT_ALARM`        | 33   | needs no asking, but the store policy limits it to alarm and calendar applications — reachable only once publishing is settled |
+| 4 | `RECEIVE_BOOT_COMPLETED` | any  | without it the plan dies at the first restart                                                    |
+
+`minSdk` is 26, so both the older path (no runtime notification permission, no
+exact-alarm gate) and the newer one have to work.
+
+### What has to be decided before it is written
+
+| № | Question                                                                                 |
+|---|---------------------------------------------------------------------------------------------|
+| 1 | Is the digest one notification for the day, or one per entry?                               |
+| 2 | Does a timed entry also get an alarm at the moment itself, or only the lead time?           |
+| 3 | Do reminders live on the device (a setting, like everything else the application stores) or in the notes (an `org-properties` key such as `REMINDER: 30m`, which the core already parses under ADR-0020 and which would mean the same in the extension later)? |
+| 4 | What happens to the remaining alarms of a repeating entry completed early?                  |
+| 5 | Do all collections take part, or is it per collection like the other per-collection settings? |
+
+Testing: the decision of what to remind about and when is a pure function of the
+agenda, the clock and the settings, so it is a unit test — the alarms and the
+channels are the thin part around it. One instrumented test is still owed: that
+a re-plan after a boot broadcast produces the same set as the one the
+application produced while running.
+
+## Moving one occurrence of a repeating entry
+
+A repeating stamp is one line describing an endless series:
+`<2026-08-20 Thu 15:00 +1w>` says English is at three every Thursday. It says
+nothing about this Thursday being at six, and the file has nowhere to put
+that.
+
+What can be done today, and why neither is the answer:
+
+| № | What the reader can do now                | What it costs                                                                        |
+|---|-------------------------------------------|-----------------------------------------------------------------------------------------|
+| 1 | Edit the date or time on the line          | the anchor moves, so every future occurrence moves with it — next Thursday is six too    |
+| 2 | Drop the repeater and write a one-off      | the series is gone; it has to be typed back afterwards                                   |
+| 3 | Add a second entry at the new time         | the day shows both, because nothing excludes the original occurrence                     |
+
+The shape of an answer, none of which is chosen yet:
+
+| № | Option                          | How it reads in a file                                                        | What it costs                                                                 |
+|---|---------------------------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| 1 | Exception plus a separate entry | a property excluding the date, e.g. `EXDATE: 2026-08-20`, and an ordinary entry at the new time | the moved occurrence is a heading of its own, so its `DONE`, its notes and its clocks live apart from the series |
+| 2 | Override in place               | a property naming the occurrence and its replacement, e.g. `MOVED: 2026-08-20 15:00 -> 2026-08-20 18:00` | the series stays one heading, but the core's occurrence resolver grows a second source of truth that every consumer has to read |
+| 3 | No format change                | the client offers "detach this occurrence" and performs option 1 mechanically  | the convention still has to exist; this only decides who types it                |
+
+Whatever is chosen belongs to the core rather than to this client: the
+occurrence a row is drawn on, `timestamp_next` and `timestamp_next_after` are
+all resolved there, and the extension reads the same fields. iCalendar answers
+exactly this question with `EXDATE` and `RECURRENCE-ID`, and the extension
+already maps a repeater to an `RRULE` for Google Calendar, so an override in
+that shape would survive the round trip rather than being lost on the way out.
+
+Left to decide: which of the three; the syntax, if a property is involved; what
+the completion rules (`+`, `++`, `.+`) do when the occurrence completed is a
+moved one; and what the agenda shows on the original date — nothing at all, or
+a trace saying where it went.
 
 ## Publishing to the app stores
 
