@@ -173,17 +173,21 @@ private fun CreatorBar(creatable: Boolean, onCreate: () -> Unit, onDismiss: () -
     TopAppBar(
         title = { Text(stringResource(R.string.create_title)) },
         navigationIcon = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("create-cancel")) {
-                Text(stringResource(R.string.entry_cancel))
+            HintTooltip(stringResource(R.string.hint_create_cancel)) {
+                TextButton(onClick = onDismiss, modifier = Modifier.testTag("create-cancel")) {
+                    Text(stringResource(R.string.entry_cancel))
+                }
             }
         },
         actions = {
-            TextButton(
-                onClick = onCreate,
-                enabled = creatable,
-                modifier = Modifier.testTag("create-save"),
-            ) {
-                Text(stringResource(R.string.create_save))
+            HintTooltip(stringResource(R.string.hint_create_save)) {
+                TextButton(
+                    onClick = onCreate,
+                    enabled = creatable,
+                    modifier = Modifier.testTag("create-save"),
+                ) {
+                    Text(stringResource(R.string.create_save))
+                }
             }
         },
     )
@@ -209,10 +213,13 @@ private fun CreatorFields(
     ) {
         ReceivingCollection(state, collections)
 
+        // A line under the field rather than a tooltip on it: inside a text
+        // field a long press belongs to selecting text.
         OutlinedTextField(
             value = state.title,
             onValueChange = { state.title = it },
             label = { Text(stringResource(R.string.entry_heading)) },
+            supportingText = { Text(stringResource(R.string.create_heading_support)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -222,6 +229,7 @@ private fun CreatorFields(
             value = state.body,
             onValueChange = { state.body = it },
             label = { Text(stringResource(R.string.entry_body)) },
+            supportingText = { Text(stringResource(R.string.create_body_support)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .withoutAutofill()
@@ -258,7 +266,10 @@ private fun ReceivingCollection(state: NewTaskState, collections: List<NotesColl
         return
     }
 
-    ChoiceHeading(stringResource(R.string.create_collection))
+    ChoiceHeading(
+        text = stringResource(R.string.create_collection),
+        hint = stringResource(R.string.hint_create_collection),
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -293,7 +304,10 @@ private fun ReceivingCollection(state: NewTaskState, collections: List<NotesColl
  */
 @Composable
 private fun NewTaskKeyword(state: NewTaskState) {
-    ChoiceHeading(stringResource(R.string.create_keyword))
+    ChoiceHeading(
+        text = stringResource(R.string.create_keyword),
+        hint = stringResource(R.string.hint_create_keyword),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         KEYWORDS.forEach { status ->
             FilterChip(
@@ -318,7 +332,10 @@ private val KEYWORDS = listOf(TaskType.TODO, TaskType.DONE, TaskType.CANCELLED, 
  */
 @Composable
 private fun NewTaskPriority(state: NewTaskState) {
-    ChoiceHeading(stringResource(R.string.action_priority))
+    ChoiceHeading(
+        text = stringResource(R.string.action_priority),
+        hint = stringResource(R.string.hint_create_priority),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         PRIORITIES.forEach { level ->
             FilterChip(
@@ -345,7 +362,10 @@ private val PRIORITIES = listOf("A", "B", "C", null)
 private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
     var picking by rememberSaveable { mutableStateOf(false) }
 
-    ChoiceHeading(stringResource(R.string.create_date))
+    ChoiceHeading(
+        text = stringResource(R.string.create_date),
+        hint = stringResource(R.string.hint_create_date),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         KINDS.forEach { kind ->
             FilterChip(
@@ -395,12 +415,20 @@ private fun PlanningKeyword.label() = when (this) {
     PlanningKeyword.DEADLINE -> R.string.create_deadline
 }
 
-/** What a row of chips is about, in the size the sheet uses for the same. */
+/**
+ * What a row of chips is about, in the size the sheet uses for the same.
+ *
+ * The heading carries the row's tooltip, as it does in the sheet: the chips
+ * are the answers and the heading is the question, so what a choice writes
+ * into the file is explained once rather than on each chip.
+ */
 @Composable
-private fun ChoiceHeading(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+private fun ChoiceHeading(text: String, hint: String) {
+    HintTooltip(hint) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }

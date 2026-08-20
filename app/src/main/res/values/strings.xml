@@ -337,6 +337,12 @@
     <string name="entry_save">Save</string>
     <string name="entry_note">The keyword, the priority and the dates are written by the actions of the sheet, not typed here.</string>
     <string name="entry_too_long">The text under this heading is too long to edit here; open the note in another app.</string>
+    <!-- The two fields answer with a line under them rather than with a
+         tooltip: a long press inside a text field belongs to selecting text. -->
+    <string name="entry_heading_support">The heading as the file has it, markup included. The keyword and the priority cookie are not part of it: a title that reads as one is refused rather than written.</string>
+    <string name="entry_body_support">What stands under the heading, up to the next one. The planning lines are not part of it, and a line that reads as one is refused.</string>
+    <string name="hint_entry_cancel">Leaves the entry as the file has it. Nothing typed here is written until Save.</string>
+    <string name="hint_entry_save">Writes the heading and the lines under it back into the note, in one write and one commit. An entry saved unchanged leaves the file byte for byte as it was.</string>
     <!-- The screen that writes a task the notes do not hold yet. -->
     <string name="create_title">New task</string>
     <string name="create_save">Create</string>
@@ -351,6 +357,14 @@
     <string name="create_date_none">No date</string>
     <!-- Where the task is about to be written; %1$s is the file of the collection. -->
     <string name="create_goes_to">Written at the end of %1$s</string>
+    <string name="create_heading_support">What the task says. The keyword, the priority and the date are chosen below and written around it.</string>
+    <string name="create_body_support">The lines that go under the heading. Optional: a task is a heading, and the text under it is what it needs explaining.</string>
+    <string name="hint_create_cancel">Leaves without writing anything. Nothing reaches the notes until Create.</string>
+    <string name="hint_create_save">Writes the task at the end of the collection\'s file and commits. Unavailable while the heading is empty: the core refuses to write a heading that says nothing.</string>
+    <string name="hint_create_collection">Which set of notes takes the task. The file it is appended to is the inbox of that collection, named at the foot of the screen.</string>
+    <string name="hint_create_keyword">The word the heading starts with. TODO is what the agenda plans for; DONE and CANCELLED write a task already closed; without one the heading is a note, shown where its date falls. The words are the format and stay as they are in every language.</string>
+    <string name="hint_create_priority">The [#A] cookie of the heading. A, B and C are what org-mode uses out of the box, and a new task carries none unless it is said otherwise; the sheet of the task offers the rest of the scale once it is in the notes.</string>
+    <string name="hint_create_date">Which planning line is written: SCHEDULED for the day the work starts, DEADLINE for the day it is due. Without a chosen day no planning line is written at all, and the task shows up in the flat list of tasks rather than on a date.</string>
     <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>

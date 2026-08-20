@@ -5,11 +5,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -86,6 +89,30 @@ class EntryEditorTest {
         assertNull(saved)
         assertEquals(1, dismissed)
     }
+
+    @Test
+    fun theButtonThatWritesSaysWhatItWrites() {
+        // "Save" names the gesture, not what reaches the file: the heading and
+        // the lines under it, in one write and one commit.
+        show(title = "A note", body = "One line.")
+
+        compose.onNodeWithTag("entry-save").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_entry_save), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theFieldsSayWhatTheyTakeWithoutAPress() {
+        // A long press inside a text field belongs to selecting text, so the
+        // fields answer with a line under them instead.
+        show(title = "A note", body = "One line.")
+
+        compose.onNodeWithText(string(R.string.entry_heading_support)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.entry_body_support)).assertIsDisplayed()
+    }
+
+    private fun string(id: Int): String = compose.activity.getString(id)
 
     private fun show(title: String, body: String) {
         compose.setContent {

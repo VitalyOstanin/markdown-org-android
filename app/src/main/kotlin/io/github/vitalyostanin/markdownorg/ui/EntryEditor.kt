@@ -101,20 +101,24 @@ private fun EntryEditorBar(savable: Boolean, onSave: () -> Unit, onDismiss: () -
     TopAppBar(
         title = { Text(stringResource(R.string.entry_title)) },
         navigationIcon = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("entry-cancel")) {
-                Text(stringResource(R.string.entry_cancel))
+            HintTooltip(stringResource(R.string.hint_entry_cancel)) {
+                TextButton(onClick = onDismiss, modifier = Modifier.testTag("entry-cancel")) {
+                    Text(stringResource(R.string.entry_cancel))
+                }
             }
         },
         actions = {
             // A heading with no title is not a heading, and the core refuses
             // to write one; the button says so by being unavailable rather
             // than by failing afterwards.
-            TextButton(
-                onClick = onSave,
-                enabled = savable,
-                modifier = Modifier.testTag("entry-save"),
-            ) {
-                Text(stringResource(R.string.entry_save))
+            HintTooltip(stringResource(R.string.hint_entry_save)) {
+                TextButton(
+                    onClick = onSave,
+                    enabled = savable,
+                    modifier = Modifier.testTag("entry-save"),
+                ) {
+                    Text(stringResource(R.string.entry_save))
+                }
             }
         },
     )
@@ -142,10 +146,14 @@ private fun EntryFields(
             .padding(horizontal = Spacing.gutter, vertical = Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
+        // The fields say what they take under themselves rather than behind a
+        // long press: inside a text field that press belongs to selecting
+        // text, and a tooltip there would take the gesture away from it.
         OutlinedTextField(
             value = title,
             onValueChange = onTitleChange,
             label = { Text(stringResource(R.string.entry_heading)) },
+            supportingText = { Text(stringResource(R.string.entry_heading_support)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -155,6 +163,7 @@ private fun EntryFields(
             value = body,
             onValueChange = onBodyChange,
             label = { Text(stringResource(R.string.entry_body)) },
+            supportingText = { Text(stringResource(R.string.entry_body_support)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .withoutAutofill()

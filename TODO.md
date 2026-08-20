@@ -86,6 +86,12 @@ keyword, the cookie, the date and what stays as written. The settings screen:
 every button, both checkboxes, the heading of the collections and the two
 lines at the bottom; the fields answer with a line under them instead, which
 is readable without a press. The licence screen: the card and the way back.
+The entry editor and the screen that writes a new task, both added on
+2026-08-19: the two buttons of each bar, and — on the creator — the heading of
+every row of chips, which is where what a choice puts into the file is stated;
+their fields answer with a line under them, for the reason the settings fields
+do. A long press inside a text field belongs to selecting text, and a tooltip
+there would take that gesture away.
 
 Wording follows the VS Code extension where the two show the same thing, so
 the same task reads alike on the phone and in the editor.

@@ -5,10 +5,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -141,6 +144,51 @@ class TaskCreatorTest {
         assertNull(created)
         assertEquals(1, dismissed)
     }
+
+    @Test
+    fun aChoiceSaysWhatItWritesIntoTheFile() {
+        // The chips carry the format itself -- TODO, DEADLINE -- and a heading
+        // of one word above them. What each choice puts in the note is said by
+        // the heading, which is the question the chips answer.
+        show()
+
+        compose.onNodeWithText(string(R.string.create_keyword)).performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_create_keyword), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theTwoKindsOfDateAreToldApart() {
+        show()
+
+        compose.onNodeWithText(string(R.string.create_date)).performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_create_date), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theButtonThatWritesSaysWhereItWrites() {
+        show()
+
+        compose.onNodeWithTag("create-save").performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_create_save), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theFieldsExplainThemselvesWithoutAPress() {
+        // A long press inside a text field belongs to selecting text, so what
+        // the field takes is a line under it rather than a tooltip.
+        show()
+
+        compose.onNodeWithText(string(R.string.create_heading_support)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.create_body_support)).assertIsDisplayed()
+    }
+
+    private fun string(id: Int): String = compose.activity.getString(id)
 
     private fun show(collections: List<NotesCollection> = PAIR) {
         compose.setContent {
