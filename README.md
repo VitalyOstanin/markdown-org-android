@@ -90,6 +90,7 @@ markdown-org-android/
 │   │   ├── src/entry.rs      # the title of a heading and the lines under it
 │   │   ├── src/create.rs     # a task the notes did not hold, written at the end of a file
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
+│   │   ├── src/occurrence.rs # one occurrence of a series: cancelled, or moved
 │   │   ├── src/bulk.rs       # one action over a whole group
 │   │   ├── src/undo.rs       # what an edit overwrote, and putting the note back
 │   │   ├── src/sync.rs       # clone, fast-forward, commit, the state of the checkout
@@ -206,6 +207,17 @@ The text of one entry is the exception, and it is bounded to that entry:
   as a planning line or as another heading, are refused rather than written;
   the entries around it, its planning lines and the file's line endings are
   left as they were.
+
+One occurrence of a repeating entry is answered apart from the series it
+belongs to, following iCalendar's answer to the same question — see
+[ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md):
+
+- `cancelOccurrence(target, date)` — take one occurrence out of the series by
+  adding the day to its `EXDATE`, leaving the series repeating;
+- `moveOccurrence(target, occurrence, date, time, seriesId)` — write a second
+  entry at the new day or hour, naming the occurrence it stands in for. The
+  series keeps its own line and gains an identifier if it has none;
+  `seriesId` is the caller's, so the same call writes the same file.
 
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)

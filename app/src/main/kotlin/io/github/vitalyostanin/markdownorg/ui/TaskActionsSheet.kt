@@ -26,6 +26,7 @@ import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import java.time.LocalDate
+import java.time.LocalTime
 
 /** What the user asked to do with a task. */
 sealed interface TaskAction {
@@ -43,6 +44,29 @@ sealed interface TaskAction {
 
     /** Put a planning date on the day chosen, or take it off with `null`. */
     data class Plan(val keyword: PlanningKeyword, val date: LocalDate?) : TaskAction
+
+    /**
+     * Take one occurrence out of a repeating entry, leaving the series as it
+     * is.
+     *
+     * [date] is the day the row was drawn on, which is the occurrence being
+     * cancelled -- not the anchor the file spells the series with.
+     */
+    data class CancelOccurrence(val date: LocalDate) : TaskAction
+
+    /**
+     * Move one occurrence to another day, another time, or both.
+     *
+     * [occurrence] is the day it stands on now, and is what the entry written
+     * in its place names: a replacement has to say which occurrence it is
+     * standing in for, and the new date cannot say that. [time] is `null`
+     * where the series is not held at an hour.
+     */
+    data class MoveOccurrence(
+        val occurrence: LocalDate,
+        val date: LocalDate,
+        val time: LocalTime?,
+    ) : TaskAction
 }
 
 /**
@@ -99,30 +123,7 @@ fun TaskActionsSheet(
                 )
             }
 
-            val repeating = task.timestampRepeater != null
-            // A task that is already done has nothing to complete — writing
-            // the keyword back would commit a change that changes nothing. A
-            // repeating one is the exception: there "done" means the next
-            // occurrence, whatever the keyword says now.
-            if (repeating || task.taskType != TaskType.DONE) {
-                SheetButton(
-                    label = stringResource(
-                        if (repeating) {
-                            R.string.action_complete_repeating
-                        } else {
-                            R.string.action_complete
-                        },
-                    ),
-                    tag = "action-complete",
-                    hint = stringResource(
-                        if (repeating) {
-                            R.string.hint_action_complete_repeating
-                        } else {
-                            R.string.hint_action_complete
-                        },
-                    ),
-                ) { onAction(TaskAction.Complete) }
-            }
+            CompletionAction(task, onAction)
 
             if (task.taskType != TaskType.CANCELLED) {
                 SheetButton(
@@ -143,6 +144,10 @@ fun TaskActionsSheet(
             PriorityChoice(task.priority, onAction)
 
             TaskDates(task, weekStart, onAction)
+
+            // Under the date actions, because they are the same question
+            // narrowed: those move the series, these move one of it.
+            TaskOccurrence(task, weekStart, onAction)
 
             // The one action that opens a screen rather than writing a line:
             // the heading's own text and the lines under it. Absent when the
@@ -171,6 +176,36 @@ fun TaskActionsSheet(
             }
         }
     }
+}
+
+/**
+ * Finishing the task, worded by what finishing it does.
+ *
+ * A task that is already done has nothing to complete — writing the keyword
+ * back would commit a change that changes nothing. A repeating one is the
+ * exception: there "done" means the next occurrence, whatever the keyword
+ * says now.
+ */
+@Composable
+private fun CompletionAction(task: Task, onAction: (TaskAction) -> Unit) {
+    val repeating = task.timestampRepeater != null
+    if (!repeating && task.taskType == TaskType.DONE) {
+        return
+    }
+
+    SheetButton(
+        label = stringResource(
+            if (repeating) R.string.action_complete_repeating else R.string.action_complete,
+        ),
+        tag = "action-complete",
+        hint = stringResource(
+            if (repeating) {
+                R.string.hint_action_complete_repeating
+            } else {
+                R.string.hint_action_complete
+            },
+        ),
+    ) { onAction(TaskAction.Complete) }
 }
 
 /**
@@ -230,7 +265,7 @@ private val DEFAULT_RANGE = listOf("A", "B", "C")
  * semantics node, so the tag stays where it is put.
  */
 @Composable
-private fun SheetButton(label: String, tag: String, hint: String, onClick: () -> Unit) {
+internal fun SheetButton(label: String, tag: String, hint: String, onClick: () -> Unit) {
     HintTooltip(hint) {
         SheetAction(label = label, tag = tag, onClick = onClick)
     }

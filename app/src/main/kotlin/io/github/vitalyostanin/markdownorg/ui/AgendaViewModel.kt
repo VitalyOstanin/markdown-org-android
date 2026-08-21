@@ -695,6 +695,12 @@ class AgendaViewModel(
 
                 is TaskAction.Plan ->
                     theirEditor.setPlanning(task, action.keyword, action.date)
+
+                is TaskAction.CancelOccurrence ->
+                    theirEditor.cancelOccurrence(task, action.date)
+
+                is TaskAction.MoveOccurrence ->
+                    theirEditor.moveOccurrence(task, action.occurrence, action.date, action.time)
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 

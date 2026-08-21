@@ -44,6 +44,7 @@ import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.temporal.WeekFields
 import java.util.Locale
 
@@ -1752,6 +1753,46 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(PlanningKeyword.DEADLINE to LocalDate.of(2026, 8, 19), writer.planned)
+    }
+
+    @Test
+    fun cancellingOneOccurrenceReachesTheWriterWithTheDayTheRowStandsOn() = runTest(dispatcher) {
+        // The day a repeating row was drawn on, not the anchor written in the
+        // file: the core rewrites the date of the copy it puts in a day.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.apply(
+            task(repeater = "+1w", date = "2026-08-20"),
+            TaskAction.CancelOccurrence(LocalDate.of(2026, 8, 20)),
+        )
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 8, 20), writer.cancelled)
+    }
+
+    @Test
+    fun movingOneOccurrenceCarriesTheDayItLeftAlongWithTheNewOne() = runTest(dispatcher) {
+        // Which occurrence is being replaced is not the new date: an
+        // occurrence moved to another day names both, and the core needs the
+        // first to say what the entry stands in for.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.apply(
+            task(repeater = "+1w", date = "2026-08-20", time = "15:00"),
+            TaskAction.MoveOccurrence(
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 21),
+                LocalTime.of(18, 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            Triple(LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21), LocalTime.of(18, 0)),
+            writer.moved,
+        )
     }
 
     @Test

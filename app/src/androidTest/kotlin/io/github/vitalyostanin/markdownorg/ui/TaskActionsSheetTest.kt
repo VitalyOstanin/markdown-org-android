@@ -19,6 +19,8 @@ import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
+import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * The sheet only offers what the task can actually do: an action that fails
@@ -217,6 +219,100 @@ class TaskActionsSheetTest {
         compose.onNodeWithText("home.md:12").performTouchInput { longClick() }
 
         compose.onNodeWithText(string(R.string.hint_action_where), substring = true)
+            .assertIsDisplayed()
+    }
+
+    // ---- one occurrence of a series ----------------------------------------
+
+    @Test
+    fun aTaskThatDoesNotRepeatHasNoOccurrenceToActOn() {
+        show(task(repeater = null))
+
+        compose.onNodeWithTag("action-cancel-occurrence").assertDoesNotExist()
+        compose.onNodeWithTag("action-move-occurrence").assertDoesNotExist()
+    }
+
+    @Test
+    fun oneOccurrenceOfASeriesCanBeCancelledOnTheDayItStandsOn() {
+        show(task(repeater = "+1w", date = "2026-08-20"))
+
+        compose.onNodeWithTag("action-cancel-occurrence").performScrollTo().performClick()
+
+        assertEquals(
+            listOf<TaskAction>(TaskAction.CancelOccurrence(LocalDate.of(2026, 8, 20))),
+            actions,
+        )
+    }
+
+    @Test
+    fun movingOneOccurrenceAsksWhichDayFirst() {
+        show(task(repeater = "+1w", date = "2026-08-20"))
+
+        compose.onNodeWithTag("action-move-occurrence").performScrollTo().performClick()
+
+        compose.onNodeWithTag("date-picker").assertIsDisplayed()
+    }
+
+    @Test
+    fun anUntimedSeriesIsMovedByTheDayAlone() {
+        show(task(repeater = "+1w", date = "2026-08-20", time = null))
+
+        compose.onNodeWithTag("action-move-occurrence").performScrollTo().performClick()
+        compose.onNodeWithTag("date-set").performClick()
+
+        assertEquals(
+            listOf<TaskAction>(
+                TaskAction.MoveOccurrence(
+                    LocalDate.of(2026, 8, 20),
+                    LocalDate.of(2026, 8, 20),
+                    null,
+                ),
+            ),
+            actions,
+        )
+    }
+
+    @Test
+    fun aSeriesHeldAtAnHourIsAskedForTheHourToo() {
+        // The case the whole operation exists for: the class is at three every
+        // Thursday, and this Thursday it is at six.
+        show(task(repeater = "+1w", date = "2026-08-20", time = "15:00"))
+
+        compose.onNodeWithTag("action-move-occurrence").performScrollTo().performClick()
+        compose.onNodeWithTag("date-set").performClick()
+
+        compose.onNodeWithTag("time-picker").assertIsDisplayed()
+    }
+
+    @Test
+    fun theTimeConfirmedIsTheTimeTheOccurrenceMovesTo() {
+        show(task(repeater = "+1w", date = "2026-08-20", time = "15:00"))
+
+        compose.onNodeWithTag("action-move-occurrence").performScrollTo().performClick()
+        compose.onNodeWithTag("date-set").performClick()
+        compose.onNodeWithTag("time-set").performClick()
+
+        assertEquals(
+            listOf<TaskAction>(
+                TaskAction.MoveOccurrence(
+                    LocalDate.of(2026, 8, 20),
+                    LocalDate.of(2026, 8, 20),
+                    LocalTime.of(15, 0),
+                ),
+            ),
+            actions,
+        )
+    }
+
+    @Test
+    fun cancellingOneOccurrenceSaysWhatItWritesIntoTheSeries() {
+        show(task(repeater = "+1w", date = "2026-08-20"))
+
+        compose.onNodeWithTag("action-cancel-occurrence")
+            .performScrollTo()
+            .performTouchInput { longClick() }
+
+        compose.onNodeWithText(string(R.string.hint_action_cancel_occurrence), substring = true)
             .assertIsDisplayed()
     }
 

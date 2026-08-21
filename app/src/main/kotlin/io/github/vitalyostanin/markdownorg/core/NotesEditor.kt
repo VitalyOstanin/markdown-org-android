@@ -17,10 +17,14 @@ import uniffi.markdown_org_ffi.TimestampType
 import uniffi.markdown_org_ffi.commitChanges
 import uniffi.markdown_org_ffi.holdsRepository
 import java.time.LocalDate
+import java.time.LocalTime
+import java.util.UUID
 import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
+import uniffi.markdown_org_ffi.cancelOccurrence as coreCancelOccurrence
 import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.createTask as coreCreateTask
+import uniffi.markdown_org_ffi.moveOccurrence as coreMoveOccurrence
 import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertFiles as coreRevertFiles
 import uniffi.markdown_org_ffi.setEntry as coreSetEntry
@@ -113,6 +117,31 @@ interface NotesWriter {
         task: Task,
         keyword: PlanningKeyword,
         date: LocalDate?,
+    ): Result<EditReport>
+
+    /**
+     * Take one occurrence out of a repeating entry.
+     *
+     * [date] is the day the row stands on, which the core writes into the
+     * series' own list of occurrences it does not have. The series is left
+     * repeating: what is excluded is the one day.
+     */
+    suspend fun cancelOccurrence(task: Task, date: LocalDate): Result<EditReport>
+
+    /**
+     * Move one occurrence of a repeating entry, leaving the series where it is.
+     *
+     * [occurrence] is the day it stands on now and [date] the day it moves to;
+     * both are needed, because the entry written in its place has to name the
+     * occurrence it stands in for, and the new date cannot say that. [time] is
+     * `null` for a series not held at an hour, and for one that keeps the hour
+     * it already has.
+     */
+    suspend fun moveOccurrence(
+        task: Task,
+        occurrence: LocalDate,
+        date: LocalDate,
+        time: LocalTime?,
     ): Result<EditReport>
 
     /**
@@ -292,6 +321,36 @@ class NotesEditor internal constructor(
     ): Result<EditReport> = write {
         val outcome = coreSetPlanning(task.target(), keyword, date?.toString())
         outcome.rollback to planningMessage(task.heading, keyword, date)
+    }
+
+    /** Take one occurrence out of a repeating entry. */
+    override suspend fun cancelOccurrence(task: Task, date: LocalDate): Result<EditReport> = write {
+        val outcome = coreCancelOccurrence(task.target(), date.toString())
+        outcome.rollback to occurrenceCancelMessage(task.heading, date)
+    }
+
+    /**
+     * Move one occurrence, writing the entry that stands in its place.
+     *
+     * The identifier a series is named by is drawn here rather than in the
+     * core, which takes it as an argument for the reason it takes today as
+     * one: the same call has to write the same file. It is used only where the
+     * series does not already carry one.
+     */
+    override suspend fun moveOccurrence(
+        task: Task,
+        occurrence: LocalDate,
+        date: LocalDate,
+        time: LocalTime?,
+    ): Result<EditReport> = write {
+        val outcome = coreMoveOccurrence(
+            task.target(),
+            occurrence.toString(),
+            date.toString(),
+            time?.toString(),
+            UUID.randomUUID().toString(),
+        )
+        outcome.rollback to occurrenceMoveMessage(task.heading, occurrence, date, time)
     }
 
     /**
@@ -532,6 +591,39 @@ internal fun planningMessage(heading: String, keyword: PlanningKeyword, date: Lo
         null -> "Take the ${keyword.keyword()} off \"$heading\""
         else -> "Set the ${keyword.keyword()} of \"$heading\" to $date"
     }
+
+/**
+ * Which occurrence left the series, and which day it stood on.
+ *
+ * The day is spelled the way the notes spell it, as every other date in these
+ * messages is: the history is read beside the files.
+ */
+internal fun occurrenceCancelMessage(heading: String, date: LocalDate): String =
+    "Take the occurrence of \"$heading\" on $date out of the series"
+
+/**
+ * Which occurrence moved, and to when.
+ *
+ * Both days are named even where they are the same one: a class moved from
+ * three to six is still the occurrence of that day, and a message naming only
+ * the new date would read as though something else had happened.
+ */
+internal fun occurrenceMoveMessage(
+    heading: String,
+    occurrence: LocalDate,
+    date: LocalDate,
+    time: LocalTime?,
+): String {
+    // `toString` rather than a formatter: it writes HH:mm and leaves a zero
+    // second out, where ISO_LOCAL_TIME spells the seconds every time, and it
+    // is not the locale's digits either.
+    val moved = when (time) {
+        null -> "$date"
+        else -> "$date $time"
+    }
+
+    return "Move the occurrence of \"$heading\" on $occurrence to $moved"
+}
 
 private fun TaskType.keyword() = when (this) {
     TaskType.TODO -> "TODO"

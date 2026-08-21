@@ -192,6 +192,8 @@
     <string name="hint_action_shift">Двигает дату строки планирования на один день. Время, повторитель и предупреждение остаются как записаны, а день недели переписывается под новую дату на языке файла.</string>
     <string name="hint_action_date">Записывает выбранный в календаре день в строку планирования, которая у задачи уже есть, либо убирает эту строку из заметки. Время, повторитель и предупреждение остаются как записаны.</string>
     <string name="hint_action_no_date">Записывает строку планирования, которой у задачи ещё нет, на выбранный в календаре день. Оформление берётся из файла: тот же язык дня недели и то же обрамление, что у остальных дат.</string>
+    <string name="hint_action_move_occurrence">Записывает отдельную запись на новое время и указывает в ней, какое повторение она замещает. Сама серия остаётся нетронутой, а в этот день показывается новая запись вместо того повторения, которое было бы у серии.</string>
+    <string name="hint_action_cancel_occurrence">Добавляет этот день в список повторений, которых у серии нет. Серия продолжает повторяться, а этот один день из неё выпадает.</string>
 
     <string name="hint_settings_collection">К какой коллекции относятся все поля ниже. Повестка читает их все сразу; здесь выбирается только та, которая правится.</string>
     <string name="hint_settings_collection_add">Ещё один каталог заметок со своим адресом и своим токеном. Добавляется пустым и начинает читаться после сохранения.</string>
@@ -260,6 +262,9 @@
     <string name="action_shift_forward">На день позже</string>
     <string name="action_pick_date">Выбрать день…</string>
     <string name="action_clear_date">Снять дату</string>
+    <string name="action_occurrence">Только это повторение</string>
+    <string name="action_move_occurrence">Перенести…</string>
+    <string name="action_cancel_occurrence">Отменить</string>
     <string name="action_set_scheduled">Назначить дату…</string>
     <string name="action_set_deadline">Назначить срок…</string>
     <string name="date_set">Установить</string>

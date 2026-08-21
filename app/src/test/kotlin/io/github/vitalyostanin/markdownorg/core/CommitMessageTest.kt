@@ -5,6 +5,7 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * What the history of someone's notes ends up reading like.
@@ -145,6 +146,40 @@ class CommitMessageTest {
         assertEquals(
             "Rewrite \"Pay rent\", now \"Pay the rent\"",
             entryMessage("Pay rent", "  Pay the rent  "),
+        )
+    }
+
+    @Test
+    fun cancellingOneOccurrenceSaysWhichDayLeftTheSeries() {
+        assertEquals(
+            "Take the occurrence of \"English\" on 2026-08-20 out of the series",
+            occurrenceCancelMessage("English", LocalDate.of(2026, 8, 20)),
+        )
+    }
+
+    @Test
+    fun movingOneOccurrenceNamesTheDayItLeftAndWhereItWent() {
+        assertEquals(
+            "Move the occurrence of \"English\" on 2026-08-20 to 2026-08-20 18:00",
+            occurrenceMoveMessage(
+                "English",
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 20),
+                LocalTime.of(18, 0),
+            ),
+        )
+    }
+
+    @Test
+    fun anOccurrenceMovedToAnotherDayAloneNamesNoTime() {
+        assertEquals(
+            "Move the occurrence of \"English\" on 2026-08-20 to 2026-08-27",
+            occurrenceMoveMessage(
+                "English",
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 27),
+                null,
+            ),
         )
     }
 }

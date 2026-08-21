@@ -337,12 +337,15 @@ carries it forward.
 |---|-------------------------------------------------------------|------------------------------------------------------------------------|
 | 1 | The extractor leaves out an occurrence excluded or replaced | done: `EXDATE`, `SERIES_ID` and `RECURRENCE_ID` are read, and the next occurrence steps over them |
 | 2 | `cancel_occurrence` and `move_occurrence` on the boundary   | done: `rust/markdown-org-ffi/src/occurrence.rs`, with the property block kept out of the entry editor |
-| 3 | The actions on the task sheet                               | to do: "just this one" beside the date actions of a repeating entry — cancel it, or move it to another day or time |
+| 3 | The actions on the task sheet                               | done: "Just this occurrence" under the date actions — move it, which asks for the day and then the hour, or cancel it |
 | 4 | Saying that an entry replaces an occurrence                 | to do: a row standing in for one occurrence reads as an ordinary entry, and nothing says which series it came from |
 | 5 | The pin on the extractor                                    | to do: until the version pinned in `rust/markdown-org-ffi/Cargo.toml` carries ADR-0031, a moved occurrence stands on the agenda twice |
 
-The interface is the open question now, not the format: what the two actions
-are called, and whether moving one occurrence asks for a day, a time or both.
+What is left is the reading side. Until the pin on the extractor moves, a moved
+occurrence stands on the agenda twice — the series still draws it, because the
+version bundled here does not know about replacements — and an entry that
+replaces one reads as an ordinary entry, with nothing saying which series it
+came from.
 
 ## Publishing to the app stores
 

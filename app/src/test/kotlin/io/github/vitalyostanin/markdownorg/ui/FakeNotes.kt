@@ -39,6 +39,7 @@ import uniffi.markdown_org_ffi.TaskType
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /**
@@ -298,6 +299,29 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         date: LocalDate?,
     ): Result<EditReport> {
         planned = keyword to date
+        return record()
+    }
+
+    /** The occurrence the last call took out of a series. */
+    var cancelled: LocalDate? = null
+        private set
+
+    override suspend fun cancelOccurrence(task: Task, date: LocalDate): Result<EditReport> {
+        cancelled = date
+        return record()
+    }
+
+    /** Which occurrence the last call moved, to which day, and to what time. */
+    var moved: Triple<LocalDate, LocalDate, LocalTime?>? = null
+        private set
+
+    override suspend fun moveOccurrence(
+        task: Task,
+        occurrence: LocalDate,
+        date: LocalDate,
+        time: LocalTime?,
+    ): Result<EditReport> {
+        moved = Triple(occurrence, date, time)
         return record()
     }
 
