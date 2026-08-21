@@ -323,10 +323,26 @@ exactly this question with `EXDATE` and `RECURRENCE-ID`, and the extension
 already maps a repeater to an `RRULE` for Google Calendar, so an override in
 that shape would survive the round trip rather than being lost on the way out.
 
-Left to decide: which of the three; the syntax, if a property is involved; what
-the completion rules (`+`, `++`, `.+`) do when the occurrence completed is a
-moved one; and what the agenda shows on the original date — nothing at all, or
-a trace saying where it went.
+### Where this stands
+
+Decided and written down: the extractor's ADR-0031 for the shape on disk, and
+[ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md)
+here for what this application writes and what it refuses. The questions the
+options left open are answered by that shape: the original date shows nothing
+at all, and a moved occurrence is an ordinary entry, so completing it is
+completing an entry — the series is untouched and its own repeater is what
+carries it forward.
+
+| № | Part                                                        | State                                                                  |
+|---|-------------------------------------------------------------|------------------------------------------------------------------------|
+| 1 | The extractor leaves out an occurrence excluded or replaced | done: `EXDATE`, `SERIES_ID` and `RECURRENCE_ID` are read, and the next occurrence steps over them |
+| 2 | `cancel_occurrence` and `move_occurrence` on the boundary   | done: `rust/markdown-org-ffi/src/occurrence.rs`, with the property block kept out of the entry editor |
+| 3 | The actions on the task sheet                               | to do: "just this one" beside the date actions of a repeating entry — cancel it, or move it to another day or time |
+| 4 | Saying that an entry replaces an occurrence                 | to do: a row standing in for one occurrence reads as an ordinary entry, and nothing says which series it came from |
+| 5 | The pin on the extractor                                    | to do: until the version pinned in `rust/markdown-org-ffi/Cargo.toml` carries ADR-0031, a moved occurrence stands on the agenda twice |
+
+The interface is the open question now, not the format: what the two actions
+are called, and whether moving one occurrence asks for a day, a time or both.
 
 ## Publishing to the app stores
 

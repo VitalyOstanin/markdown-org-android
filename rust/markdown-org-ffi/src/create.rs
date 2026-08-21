@@ -135,7 +135,7 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
 /// A file whose last line already stands empty gets no second one: the
 /// separator belongs between two entries, and one added on every write would
 /// open a gap that grows by a line per task.
-fn opening(document: &Document, heading: String) -> Vec<String> {
+pub(crate) fn opening(document: &Document, heading: String) -> Vec<String> {
     let last = document.len().checked_sub(1);
     let closed = last.is_none_or(|index| document.at(index).trim().is_empty());
 
@@ -147,7 +147,7 @@ fn opening(document: &Document, heading: String) -> Vec<String> {
 }
 
 /// Put `lines` at the end of the document.
-fn append(document: &mut Document, lines: Vec<String>) {
+pub(crate) fn append(document: &mut Document, lines: Vec<String>) {
     let at = document.len();
     document.replace_lines(at..at, lines);
 }

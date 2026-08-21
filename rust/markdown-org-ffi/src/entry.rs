@@ -24,6 +24,7 @@ use markdown_org_extract::parse_heading_line;
 
 use crate::document::Document;
 use crate::edit::{splice, EditError, EditOutcome, EditTarget};
+use crate::occurrence::property_block_at;
 use crate::planning::{bare_start, planning_keyword, CLOSED};
 
 /// The text of an entry as the file holds it.
@@ -184,6 +185,14 @@ pub(crate) fn body_lines(body: &str) -> Result<Vec<String>, EditError> {
 /// between them — is left with that paragraph untouched rather than having it
 /// swallowed by an edit aimed at the text below.
 ///
+/// A property block standing under the planning lines is stepped over as
+/// well: what it holds is written by the actions of the sheet rather than
+/// typed — a cancelled occurrence, the identifier of a series, the calendar
+/// event a task was exported as — and handing it over as text would put it in
+/// front of a user who asked to edit the entry, and let one keystroke undo an
+/// action. A block written further down, among the text, is the text: it was
+/// put there by hand, and it goes back the way it came.
+///
 /// Blank lines at either end are left out, so the separator under the planning
 /// lines and the one before the next heading survive an edit that empties the
 /// body.
@@ -206,8 +215,17 @@ fn body_range(document: &Document, index: usize) -> std::ops::Range<usize> {
     while end > start && document.at(end - 1).trim().is_empty() {
         end -= 1;
     }
-    while start < end && document.at(start).trim().is_empty() {
-        start += 1;
+    loop {
+        while start < end && document.at(start).trim().is_empty() {
+            start += 1;
+        }
+        let past = (start < end)
+            .then(|| property_block_at(document, start))
+            .flatten();
+        match past {
+            Some(past) => start = past.min(end),
+            None => break,
+        }
     }
 
     start..end

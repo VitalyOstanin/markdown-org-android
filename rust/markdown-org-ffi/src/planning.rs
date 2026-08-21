@@ -313,6 +313,21 @@ pub(crate) const CLOSED: &str = "CLOSED:";
 /// planning lines do.
 const CREATED: &str = "CREATED:";
 
+/// Where the block of keyword lines under the heading at `index` ends.
+///
+/// Where a line written by an operation rather than typed belongs: a
+/// `SCHEDULED` added to a task carrying `CREATED` and `DEADLINE` joins that
+/// block instead of splitting it, and so does the property block an exception
+/// is written into.
+pub(crate) fn keyword_block_end(document: &Document, index: usize) -> usize {
+    let mut at = index + 1;
+    while at < document.len() && keyword_line(document.at(at)) {
+        at += 1;
+    }
+
+    at
+}
+
 /// Whether the line is one of the keyword lines written under a heading,
 /// rather than the text of the entry.
 fn keyword_line(line: &str) -> bool {
@@ -332,11 +347,7 @@ fn insert_planning(
     date: NaiveDate,
 ) -> Result<EditOutcome, EditError> {
     let line = planning_line(document, index, keyword, date)?;
-
-    let mut at = index + 1;
-    while at < document.len() && keyword_line(document.at(at)) {
-        at += 1;
-    }
+    let at = keyword_block_end(document, index);
 
     let before = document.text();
     document.replace_lines(at..at, vec![line.clone()]);
@@ -520,7 +531,7 @@ pub(crate) fn rewrite_date(
 /// A token in neither of the two languages the ecosystem knows — Ukrainian
 /// `Нд`, Greek `Δευ` — is refused rather than replaced with a Russian or
 /// English name, for the same reason.
-fn weekday_like(written: &str, date: NaiveDate) -> Result<String, EditError> {
+pub(crate) fn weekday_like(written: &str, date: NaiveDate) -> Result<String, EditError> {
     let (language, full) = language_of(written).ok_or_else(|| EditError::Unsupported {
         detail: format!("{written:?} is not a weekday name this application can rewrite"),
     })?;

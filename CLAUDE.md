@@ -134,6 +134,13 @@ reasoning.
   keeps two devices' additions merging without a conflict. See
   [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md).
 
+- One occurrence of a repeating entry is cancelled by an `EXDATE` on the
+  series, and moved by an entry of its own carrying `SERIES_ID` and
+  `RECURRENCE_ID` — iCalendar's answer, in the extractor's property block. The
+  identifier a series is named by comes from the caller, and the property block
+  under the planning lines is not the body the entry editor hands over. See
+  [ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

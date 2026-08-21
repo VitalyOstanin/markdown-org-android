@@ -68,6 +68,7 @@ so a decision can be followed across the three repositories.
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
 | 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted |
+| 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted |
 
 ## Adding a new ADR
 

@@ -281,3 +281,70 @@ fn an_entry_that_has_moved_on_is_not_written_to() {
     assert!(matches!(refusal, EditError::Stale { .. }));
     assert_eq!(body(vault.path()), ENTRY);
 }
+
+/// An entry carrying the block the actions of the sheet write into: an
+/// occurrence taken out of a repeating series, in this case.
+const WITH_PROPERTIES: &str = "\
+# TODO English
+`SCHEDULED: <2026-08-06 Thu 15:00 +1w>`
+```org-properties
+EXDATE: 2026-08-20
+```
+
+Textbook, unit four.
+";
+
+#[test]
+fn the_property_block_is_not_part_of_the_entry_that_is_handed_over() {
+    let vault = vault(WITH_PROPERTIES);
+
+    let entry = read_entry(target(vault.path(), 1, "English")).expect("read");
+
+    assert_eq!(entry.body, "Textbook, unit four.");
+}
+
+#[test]
+fn an_entry_written_back_keeps_the_property_block_above_it() {
+    let vault = vault(WITH_PROPERTIES);
+
+    set_entry(
+        target(vault.path(), 1, "English"),
+        "English".to_string(),
+        "Textbook, unit five.".to_string(),
+    )
+    .expect("write");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
+         ```org-properties\n\
+         EXDATE: 2026-08-20\n\
+         ```\n\
+         \n\
+         Textbook, unit five.\n"
+    );
+}
+
+#[test]
+fn a_block_written_among_the_text_is_text() {
+    // Only the block standing under the planning lines is written by an
+    // action. One below the body was typed there, and an entry that came back
+    // without it would lose what the user wrote.
+    let vault = vault(
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu +1w>`\n\
+         \n\
+         Textbook, unit four.\n\
+         ```org-properties\n\
+         NOTE: by hand\n\
+         ```\n",
+    );
+
+    let entry = read_entry(target(vault.path(), 1, "English")).expect("read");
+
+    assert_eq!(
+        entry.body,
+        "Textbook, unit four.\n```org-properties\nNOTE: by hand\n```"
+    );
+}
