@@ -217,6 +217,97 @@ What can be done today, and why neither is the answer:
 | 2 | Drop the repeater and write a one-off      | the series is gone; it has to be typed back afterwards                                   |
 | 3 | Add a second entry at the new time         | the day shows both, because nothing excludes the original occurrence                     |
 
+### What Org itself does about this
+
+Checked against the Org sources rather than recalled: the clone in
+`~/devel/org-mode` at `6916affed` (2026-08-15), and the manual in the same tree.
+
+| № | Mechanism                                         | What it gives                                                                                    | Where                                        |
+|---|---------------------------------------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------|
+| 1 | The repeater itself (`+`, `++`, `.+`)             | nothing for exceptions: the section on repeated tasks describes shifting the base date on completion and warning periods, and names no way to exclude or move a single occurrence | `doc/org-manual.org`, "Repeated tasks"       |
+| 2 | `org-clone-subtree-with-time-shift` (`C-c C-x c`) | the manual's own alternative to a repeater: N copies of the subtree with the dates shifted. When the original carries a repeater, the repeater is dropped from every clone, one extra clone holds the unshifted date, and the original is placed after the clones with its start shifted past the last one | `lisp/org.el:7729`; manual, end of "Repeated tasks" |
+| 3 | The diary sexp `org-class`                        | the one exclusion Org has: an entry that applies on a weekday between two dates but skips named ISO weeks and holidays. Whole weeks only, and only for a sexp entry — not for `SCHEDULED` or `DEADLINE` | `lisp/org-agenda.el:6064`                    |
+| 4 | The iCalendar export                              | only the cumulate repeater (`+`) becomes an `RRULE`; `++` and `.+` are warned about and exported without one. `EXDATE` appears in the file exactly once — a comment reading "TODO Add catch-up to supported repeaters (use EXDATE to implement)" | `lisp/ox-icalendar.el:887`, comment at `:896` |
+
+So Org's answer is to stop having a series and have entries instead. Writing
+about exactly this case — a training that is cancelled on holidays and moved on
+occasion — Karl Voit gives up the repeater for the clone command, because with a
+repeater he "would have the recurring event on my agenda without the possibility
+to define exceptions" (<https://karl-voit.at/2017/01/15/org-clone-subtree-with-time-shift/>).
+
+Two consequences for the options below.
+
+1. An `EXDATE` or `MOVED` property is not something Org would understand. The
+   notes are read by Emacs too, and there the series would still show the
+   occurrence the property excludes. Whatever is invented is invisible outside
+   this ecosystem, which is the cost the core's ADR-0012 exists to weigh —
+   semantics are settled against Org's own Elisp, not around it.
+2. There is an answer that needs no format change at all, and it is what the
+   clone command amounts to for a single occurrence: complete the occurrence on
+   the series entry, which moves the series to the next one, and write a
+   one-off entry at the new time. The day then holds one entry at six, the
+   series carries on from next week, and every reader — this client, the
+   extension, Emacs — sees the same thing. What it costs is that the series
+   records a completion that did not happen, and that the moved occurrence
+   carries its own state.
+
+### What everyone else does
+
+Org is not the state of the art here, and its position is not the only one. Two
+families of answer exist, and only one of them is a rule.
+
+| № | Family                          | How the exception is stored                                                                 | Examples                                                                 |
+|---|---------------------------------|----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| 1 | A rule plus an override record  | the series stays a rule; a separate record names the occurrence it replaces, and a list names the occurrences that are gone | iCalendar `RRULE` + `RECURRENCE-ID` + `EXDATE`; Google Calendar's `instances` with `originalStartTime`; Microsoft Graph |
+| 2 | Occurrences written out         | the series is a template, and each occurrence becomes a record of its own that can be edited alone | Taskwarrior (template and synthesised instances); Obsidian Tasks (completing one writes the next as a new line); todo.txt `rec:` in topydo and sleek; Org's own clone command |
+| 3 | A rule and nothing else         | no per-occurrence exception exists; only whole-calendar rules such as holidays               | Remind (`OMIT`, `SKIP`, `SATISFY`, `OMITFUNC`); Org repeaters              |
+
+What iCalendar settled on (RFC 5545) is worth reading in full, because it is what
+every phone and every server already speaks: the occurrence is identified by the
+start it would have had (`RECURRENCE-ID`), a replacement event carries the same
+`UID` plus that identifier, `EXDATE` deletes occurrences outright, and
+`RECURRENCE-ID;RANGE=THISANDFUTURE` splits the series in two — the original
+truncated, a new one from that point.
+
+Org's own iCalendar bridge does none of it: org-caldav gained recurring events in
+September 2024 and its manual says plainly that "complex iCalender recurrences,
+such as 'repeat on the 2nd Tuesday of each month until X date', are not
+supported"; `EXDATE` appears in `ox-icalendar.el` only in a comment. So the Org
+ecosystem has not answered this, rather than having answered it in the negative.
+
+### What this means here
+
+The compatibility argument against inventing something needs correcting, because
+these notes are Markdown, not Org files: ADR-0002 of the core asks that a
+timestamp line still parse in Emacs, not that Emacs run its agenda over this
+directory. Nothing here is read by `org-agenda`, so a property Org does not know
+costs recognisability, not interoperability.
+
+That leaves the iCalendar model as the one to copy, written in the notation the
+notes already have — the `org-properties` block the core parses under ADR-0020:
+
+| № | Piece                    | In a note                                              | What it means                                                       |
+|---|--------------------------|--------------------------------------------------------|------------------------------------------------------------------------|
+| 1 | The series               | the heading with the repeating stamp, unchanged         | as today                                                              |
+| 2 | An occurrence cancelled  | `EXDATE: 2026-08-20` on the series (a list, comma-separated) | the resolver skips that occurrence                                |
+| 3 | An occurrence moved      | an ordinary entry at the new time, carrying `RECURRENCE-ID: 2026-08-20 15:00` and the series' `ID` | it replaces exactly that occurrence, and holds its own state, notes and clocks |
+| 4 | Everything from here on  | later, if wanted: `RANGE: THISANDFUTURE` beside the identifier | splits the series rather than moving one of it                    |
+
+Why this shape rather than a bare `MOVED:` line: it is the one the extension's
+Google Calendar export can carry across without inventing a mapping, it separates
+"gone" from "moved" the way the calendar world found necessary, and it keeps the
+moved occurrence a real entry — with its own `DONE`, its own body, its own clock —
+which the alternative of rewriting the series line cannot do.
+
+What it costs: the core's occurrence resolver reads a second source; both clients
+need a way to say "move just this one"; and a core older than the change ignores
+the properties, so an old reader shows both the series occurrence and the moved
+entry on that day.
+
+Until any of it exists, the answer that needs no format change is the one the
+clone command amounts to: complete the occurrence on the series, which moves the
+series to the next one, and write a one-off entry at the new time.
+
 The shape of an answer, none of which is chosen yet:
 
 | № | Option                          | How it reads in a file                                                        | What it costs                                                                 |
