@@ -50,6 +50,7 @@ import io.github.vitalyostanin.markdownorg.ui.StorageUi
 import io.github.vitalyostanin.markdownorg.ui.SyncSettingsScreen
 import io.github.vitalyostanin.markdownorg.ui.TaskActionsSheet
 import io.github.vitalyostanin.markdownorg.ui.TaskCreator
+import io.github.vitalyostanin.markdownorg.ui.rememberRemindersUi
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -144,6 +145,7 @@ private fun SettingsRoute(
     val weekStart by model.weekStart.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
+    val reminders = rememberRemindersUi()
 
     // Read once per opening, so a save followed by a reopen shows what was
     // stored — and again when the form is pointed at another collection, whose
@@ -222,6 +224,7 @@ private fun SettingsRoute(
             weekStart = weekStart,
             onWeekStartChange = model::setWeekStart,
         ),
+        reminders = reminders,
     )
 }
 

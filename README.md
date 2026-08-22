@@ -29,6 +29,7 @@ the emulator.
 - [How the core is reused](#how-the-core-is-reused)
 - [What an edit refuses to do](#what-an-edit-refuses-to-do)
 - [Reading a note in full](#reading-a-note-in-full)
+- [Telling the reader what is coming](#telling-the-reader-what-is-coming)
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
 - [Collections](#collections)
@@ -340,6 +341,49 @@ the banner says so when it happens:
 
 Left alone in between, an edit made elsewhere is only on the phone: a push
 carries commits, and until one is made there is nothing to carry.
+
+## Telling the reader what is coming
+
+The agenda answers while it is open, and a note that says 15:00 is of use if
+something says so at 14:45. Reminders are off until they are switched on in the
+settings, and everything about them is decided on this device rather than
+written into the notes — see
+[ADR-0034](docs/adr/0034-reminders-are-planned-on-the-device-and-replaced-whole.md).
+
+The notes hold three kinds of dated entry, and they are not announced alike:
+
+| № | Kind                          | What the file holds                                     | What is raised                                                         |
+|---|-------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------|
+| 1 | An entry held at an hour      | a date and `HH:MM`, on `SCHEDULED`, `DEADLINE` or a bare active stamp | one notification a lead time before it, and a second at the hour when asked for |
+| 2 | A dated entry with no hour    | a date alone                                             | counted in the day's digest — there is no moment to announce             |
+| 3 | A deadline within its window  | `DEADLINE` and a date, with or without `-Xd`             | counted in the digest from the day the core opens the warning window on   |
+
+What is deliberately not announced: `DONE` and `CANCELLED` entries, an inactive
+`[...]` stamp — which is the reader saying "not on the agenda" — and arrears one
+by one, which the digest counts instead.
+
+The digest is read at the moment it is raised rather than when it was planned,
+so an entry closed in the hours between is not named in it. The plan itself
+holds two days and is replaced whole whenever a note may have moved: the
+settings changed, a fetch landed, an entry was edited here, an alarm fired, the
+phone restarted, the application was replaced, the clock or the time zone was
+set, or the exact-alarm access changed.
+
+Two accesses are granted separately by the platform, and the settings say which
+of them is missing where the switch is:
+
+| № | Access                                     | Without it                                                                  |
+|---|--------------------------------------------|--------------------------------------------------------------------------------|
+| 1 | Notifications (`POST_NOTIFICATIONS`, from Android 13) | the plan stands and fires, and nothing of it reaches the screen       |
+| 2 | Alarms to the minute (`SCHEDULE_EXACT_ALARM`, from Android 12) | the platform delivers within an hour of the time asked for — a reminder for a day, not for a meeting |
+
+`USE_EXACT_ALARM`, which is granted without asking, is not declared: the store
+policy limits it to alarm and calendar applications.
+
+Notifications go on two channels — entries held at an hour, and the day's
+digest — so either can be silenced in the system settings without losing the
+other. Switching reminders off drops the plan and takes back whatever it
+already raised, so nothing of it is left standing in the drawer.
 
 ## Where the notes live
 

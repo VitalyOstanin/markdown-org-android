@@ -94,6 +94,8 @@ fun SyncSettingsScreen(
     onOpenPage: (String) -> Unit = {},
     /** How the agenda is drawn; see [AgendaSection]. */
     agenda: AgendaUi = AgendaUi(),
+    /** Whether the reader is told what is coming; see [RemindersSection]. */
+    reminders: RemindersUi = RemindersUi(),
 ) {
     val form = rememberSyncForm(
         editingId = collections.editingId,
@@ -160,6 +162,7 @@ fun SyncSettingsScreen(
             }
 
             AgendaSection(agenda)
+            RemindersSection(reminders)
 
             DiagnosticsSection(
                 crash = diagnostics.crash,
@@ -599,7 +602,7 @@ private fun AgendaSection(agenda: AgendaUi) {
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
     )
-    AgendaChoice(
+    SettingCheck(
         checked = agenda.grouped,
         onCheckedChange = agenda.onGroupedChange,
         tag = "settings-agenda-grouped",
@@ -607,7 +610,7 @@ private fun AgendaSection(agenda: AgendaUi) {
         hint = R.string.hint_settings_agenda_grouped,
         explanation = R.string.settings_agenda_grouped_hint,
     )
-    AgendaChoice(
+    SettingCheck(
         checked = agenda.monthAsGrid,
         onCheckedChange = agenda.onMonthAsGridChange,
         tag = "settings-agenda-month-grid",
@@ -653,38 +656,6 @@ private fun WeekStartChoice(current: WeekStart, onChange: (WeekStart) -> Unit) {
     }
     Text(
         text = stringResource(R.string.settings_week_start_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-/** One tick of [AgendaSection]: the box, its label and the line under it. */
-@Composable
-private fun AgendaChoice(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    tag: String,
-    @StringRes label: Int,
-    @StringRes hint: Int,
-    @StringRes explanation: Int,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = Modifier.testTag(tag),
-        )
-        // On the label rather than on the box, as with the other ticks here.
-        HintTooltip(stringResource(hint)) {
-            Text(
-                text = stringResource(label),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-    Text(
-        text = stringResource(explanation),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

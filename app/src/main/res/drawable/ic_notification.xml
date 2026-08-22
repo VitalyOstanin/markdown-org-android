@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launcher's three agenda rows, in one colour on nothing.
+
+  A notification icon is drawn by the platform as a silhouette: every colour is
+  discarded and only the alpha channel survives, so the launcher icon used here
+  would arrive as a white square. Hence a shape of its own, in the same motif —
+  a marker and the row beside it, three times.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.5,4 h4 a1,1 0 0 1 1,1 v3 a1,1 0 0 1 -1,1 h-4 a1,1 0 0 1 -1,-1 v-3 a1,1 0 0 1 1,-1 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,5 h11 a1.5,1.5 0 0 1 0,3 h-11 a1.5,1.5 0 0 1 0,-3 z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.5,10.5 h4 a1,1 0 0 1 1,1 v3 a1,1 0 0 1 -1,1 h-4 a1,1 0 0 1 -1,-1 v-3 a1,1 0 0 1 1,-1 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,11.5 h8 a1.5,1.5 0 0 1 0,3 h-8 a1.5,1.5 0 0 1 0,-3 z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.5,17 h4 a1,1 0 0 1 1,1 v3 a1,1 0 0 1 -1,1 h-4 a1,1 0 0 1 -1,-1 v-3 a1,1 0 0 1 1,-1 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,18 h9.5 a1.5,1.5 0 0 1 0,3 h-9.5 a1.5,1.5 0 0 1 0,-3 z" />
+</vector>

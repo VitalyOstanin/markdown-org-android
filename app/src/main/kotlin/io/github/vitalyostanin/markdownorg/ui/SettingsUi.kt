@@ -1,7 +1,9 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.runtime.Immutable
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_DIGEST_TIME
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import java.time.LocalTime
 
 /**
  * What the settings form opens on, as it is stored.
@@ -75,6 +77,40 @@ data class AgendaUi(
     /** Which weekday a week is read as beginning on; costs a scan to change. */
     val weekStart: WeekStart = WeekStart.AUTO,
     val onWeekStartChange: (WeekStart) -> Unit = {},
+)
+
+/**
+ * Whether the reader is told what is coming, and on what terms.
+ *
+ * Grouped for the reason [AgendaUi] is, and kept apart from it because the two
+ * are answered at different moments: the agenda choices change what is on
+ * screen while it is being looked at, these decide what happens while it is
+ * not.
+ *
+ * The two "needs" flags are the platform's answers rather than the reader's:
+ * notifications may be refused and exact alarms may be disallowed, and either
+ * leaves the choices above meaning less than they say. They are stated here so
+ * the section can say so and offer the screen that grants them.
+ */
+@Immutable
+data class RemindersUi(
+    val enabled: Boolean = false,
+    val onEnabledChange: (Boolean) -> Unit = {},
+    /** How long before a timed entry it is announced. */
+    val lead: ReminderLead = ReminderLead.FIFTEEN,
+    val onLeadChange: (ReminderLead) -> Unit = {},
+    /** Whether the moment itself is announced as well as the lead time. */
+    val alsoAtStart: Boolean = false,
+    val onAlsoAtStartChange: (Boolean) -> Unit = {},
+    /** The hour the day's digest is raised at. */
+    val digestAt: LocalTime = DEFAULT_DIGEST_TIME,
+    val onDigestChange: (LocalTime) -> Unit = {},
+    /** Notifications are refused, so nothing raised here would be seen. */
+    val needsNotifications: Boolean = false,
+    val onGrantNotifications: () -> Unit = {},
+    /** Exact alarms are disallowed, so a timed entry is announced late. */
+    val needsExactAlarms: Boolean = false,
+    val onAllowExactAlarms: () -> Unit = {},
 )
 
 /** What is left of the last run, and the notices of what the APK carries. */

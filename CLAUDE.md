@@ -141,6 +141,13 @@ reasoning.
   under the planning lines is not the body the entry editor hands over. See
   [ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md).
 
+- What the reader is told is coming is decided on the device, from the same
+  agenda the screen draws: an entry held at an hour is announced ahead of it,
+  and everything else a day holds is announced once, in a digest read at the
+  moment it is raised. The plan holds two days and is replaced whole whenever a
+  note may have moved. See
+  [ADR-0034](docs/adr/0034-reminders-are-planned-on-the-device-and-replaced-whole.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

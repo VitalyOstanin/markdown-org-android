@@ -2,6 +2,8 @@ package io.github.vitalyostanin.markdownorg
 
 import android.app.Application
 import io.github.vitalyostanin.markdownorg.core.CrashLog
+import io.github.vitalyostanin.markdownorg.core.ReminderChannels
+import io.github.vitalyostanin.markdownorg.core.ReminderSettings
 import io.github.vitalyostanin.markdownorg.core.SyncSettings
 import io.github.vitalyostanin.markdownorg.core.UiSettings
 
@@ -29,6 +31,12 @@ class MarkdownOrgApp : Application() {
             platform?.uncaughtException(thread, failure)
         }
 
+        // Declared on every launch rather than at the first notification:
+        // what the reader silenced or let through is kept by the platform, and
+        // a channel declared only when it is first used cannot be found in the
+        // settings before that.
+        ReminderChannels.declare(this)
+
         // After the handler above is in place, so that a failure on that
         // thread is written down like any other.
         warmPreferences()
@@ -39,8 +47,9 @@ class MarkdownOrgApp : Application() {
      *
      * Reading a preference reads its file off storage, and the agenda asks for
      * three of them — the remote, the layout, the time of the last sync —
-     * while the main thread is building the first frame. Doing it here, on a
-     * thread of its own, moves that read out of the way of the frame.
+     * while the main thread is building the first frame. The reminders are a
+     * fourth, read as soon as the first agenda is built. Doing it here, on a
+     * thread of its own, moves those reads out of the way of the frame.
      *
      * An attempt rather than a guarantee: nothing waits on this thread. Should
      * the agenda get there first, the read happens where it used to — and a
@@ -53,6 +62,7 @@ class MarkdownOrgApp : Application() {
                 runCatching {
                     SyncSettings(this).isConfigured
                     UiSettings(this).layout
+                    ReminderSettings(this).enabled
                 }
             },
             "preferences-warmup",

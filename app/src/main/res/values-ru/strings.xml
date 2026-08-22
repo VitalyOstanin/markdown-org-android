@@ -137,6 +137,33 @@
     <string name="settings_week_start_monday">Понедельника</string>
     <string name="settings_week_start_sunday">Воскресенья</string>
     <string name="settings_week_start_hint">Определяет, по каким дням режется календарь и как группируется неделя.</string>
+    <!-- Сообщать ли читателю о том, что впереди, и на каких условиях. -->
+    <string name="settings_reminders">Напоминания</string>
+    <string name="settings_reminders_enabled">Сообщать о том, что впереди</string>
+    <string name="settings_reminders_enabled_hint">О записи, назначенной на час, сообщается заранее; о дне с датами и сроками — один раз, сводкой.</string>
+    <string name="settings_reminders_lead">Сообщать о записи ко времени</string>
+    <string name="settings_reminders_lead_hint">За сколько до её часа. О сроке с собственной датой здесь не сообщается — он попадает в сводку через окно предупреждения, которое у него уже есть.</string>
+    <string name="settings_reminders_lead_none">В сам момент</string>
+    <string name="settings_reminders_lead_five">За 5 мин</string>
+    <string name="settings_reminders_lead_fifteen">За 15 мин</string>
+    <string name="settings_reminders_lead_thirty">За 30 мин</string>
+    <string name="settings_reminders_lead_hour">За час</string>
+    <string name="settings_reminders_at_start">И ещё раз в сам час</string>
+    <string name="settings_reminders_at_start_hint">Два уведомления об одной записи: одно заранее, второе в момент начала.</string>
+    <string name="settings_reminders_digest">Сводка дня в</string>
+    <string name="settings_reminders_digest_hint">Одно уведомление о том, что в дне: записи без часа, сроки внутри окна предупреждения и сколько просрочено.</string>
+    <string name="settings_reminders_no_notifications">Уведомления запрещены, поэтому ничего не будет видно.</string>
+    <string name="settings_reminders_grant">Разрешить уведомления</string>
+    <string name="settings_reminders_no_exact_alarms">Точные сигналы не разрешены: о записи ко времени сообщат в пределах часа, а не в минуту.</string>
+    <string name="settings_reminders_allow_exact">Разрешить точные сигналы</string>
+    <string name="reminders_channel_timed">Записи ко времени</string>
+    <string name="reminders_channel_timed_description">По уведомлению на запись, заранее — за время, выбранное в настройках.</string>
+    <string name="reminders_channel_digest">Сводка дня</string>
+    <string name="reminders_channel_digest_description">Одно уведомление в день о том, что в нём: записи с датой без времени, сроки и просроченное.</string>
+    <string name="reminder_starts_at">Начало в %1$s</string>
+    <string name="reminder_digest_title">Что в плане на день</string>
+    <string name="reminder_digest_overdue">просрочено: %d</string>
+    <string name="reminder_digest_separator">", "</string>
     <string name="settings_licences">Лицензии</string>
     <string name="settings_version">Версия %1$s (%2$d), коммит %3$s</string>
     <string name="settings_crash">Предыдущий запуск завершился аварийно</string>
@@ -211,6 +238,12 @@
     <string name="hint_settings_agenda_grouped">Заголовки говорят, что за строка перед вами — назначенная на день, без времени или просроченная и насколько давно, — и несут действия над всей группой. Без них эта высота уходит строкам.</string>
     <string name="hint_settings_week_start">По умолчанию отвечает сам телефон — по языку и региону. Задайте явно, если привычка и телефон расходятся: от ответа зависит, какой день стоит первым столбцом календаря и какие семь дней покрывает неделя. Смена запрашивает повестку заново.</string>
     <string name="hint_settings_agenda_month_grid">Календарь показывает форму месяца: где недели заполнены, где скопились просрочки, где свободно. Что именно стоит в дне, читается открытием дня. Список говорит, что в месяце есть, но за это приходится его прокрутить.</string>
+    <string name="hint_settings_reminders_enabled">Пока выключено, ничего не сообщается и ни один сигнал не поставлен. О чём сообщать, решается по той же повестке, что рисует экран, поэтому запись, закрытая на другом устройстве, перестаёт напоминать о себе сразу после получения заметок.</string>
+    <string name="hint_settings_reminders_lead">Упреждение одно на все записи: заметки ничего не говорят о том, сколько добираться, а упреждение на запись пришлось бы писать в них самих. «В сам момент» — это упреждение в ноль, а не отсутствие напоминания.</string>
+    <string name="hint_settings_reminders_at_start">Для записи, о которой стоит сказать дважды: заранее — чтобы собраться, и в час — чтобы начать. При упреждении «в сам момент» оба совпадают, и остаётся одно уведомление.</string>
+    <string name="hint_settings_reminders_digest">У записи с датой и без часа нет момента, о котором можно сообщить, поэтому сообщается о дне — один раз, в этот час, что бы в нём ни было. Содержание читается в момент срабатывания, а не при планировании.</string>
+    <string name="hint_settings_reminders_grant">Открывает экран платформы, где разрешаются уведомления этого приложения. Без разрешения план стоит и срабатывает, но на экран ничего не попадает.</string>
+    <string name="hint_settings_reminders_allow_exact">Открывает экран платформы, где разрешаются точные сигналы. Без разрешения платформа доставляет сигнал в пределах часа от его времени, а для встречи это не напоминание.</string>
     <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
     <string name="hint_settings_crash">То, что осталось от аварийно завершившегося запуска. Это стоит приложить к сообщению об ошибке; само никуда не отправляется.</string>
     <string name="hint_settings_version">Какая сборка установлена. Две сборки одной версии различаются только коммитом — поэтому он здесь.</string>
@@ -400,5 +433,18 @@
         <item quantity="few">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
         <item quantity="many">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
         <item quantity="other">у %d файлов имена не в UTF-8, их задачи изменить нельзя</item>
+    </plurals>
+
+    <plurals name="reminder_digest_dated">
+        <item quantity="one">%d запись</item>
+        <item quantity="few">%d записи</item>
+        <item quantity="many">%d записей</item>
+        <item quantity="other">%d записи</item>
+    </plurals>
+    <plurals name="reminder_digest_deadlines">
+        <item quantity="one">%d срок</item>
+        <item quantity="few">%d срока</item>
+        <item quantity="many">%d сроков</item>
+        <item quantity="other">%d срока</item>
     </plurals>
 </resources>

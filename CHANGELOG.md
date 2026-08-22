@@ -300,3 +300,19 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   itself cannot be made the sync stops on a dirty checkout, and the banner
   offers to commit and go again — nothing else here moves a checkout out of
   that state.
+- The reader is told what is coming, off the same agenda the screen draws. An
+  entry held at an hour is announced ahead of it — a quarter of an hour by
+  default, five minutes to an hour by choice, and again at the hour itself for
+  the reader who wants both. What a day holds without an hour of its own —
+  dated entries, deadlines inside the warning window the core opens, and how
+  much is overdue — is announced once, in a digest at an hour the reader picks,
+  read at the moment it is raised rather than when it was planned, so an entry
+  closed in between is not named. Everything is off until it is switched on in
+  the settings, where the two accesses the platform grants separately are asked
+  for: notifications, and alarms to the minute. Without the second the platform
+  delivers within the hour, and the settings say so rather than pretending the
+  plan holds. The plan holds two days, is remade whenever a note may have moved
+  — a fetch, an edit, a restart, the clock or the time zone being set — and is
+  raised on two channels, so a meeting and a digest are silenced separately.
+  Switching reminders off drops the alarms and takes back whatever they left
+  in the drawer.

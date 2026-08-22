@@ -23,6 +23,9 @@ import io.github.vitalyostanin.markdownorg.core.NotesCollectionsStore
 import io.github.vitalyostanin.markdownorg.core.NotesLocation
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
+import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
+import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
+import io.github.vitalyostanin.markdownorg.core.ReminderSettings
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
@@ -90,6 +93,17 @@ class AgendaViewModel(
     private val sample: SampleWording,
     /** Whether a directory outside that one may be read, asked of the platform. */
     private val storageGranted: () -> Boolean,
+    /**
+     * Told when the notes may have moved under whatever else reads them.
+     *
+     * The reminders are what this is for, and they are named nowhere here: a
+     * plan of what to announce is not the agenda's business, and the agenda
+     * would otherwise have to be built with the alarms of the platform behind
+     * it to be exercised at all. What is passed in shares this walk's index,
+     * so the reading it does costs the days it asks for rather than the
+     * collection.
+     */
+    private val notesChanged: suspend () -> Unit = {},
     /** The wall clock, taken as a parameter so a test can move it by hand. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
 ) : ViewModel() {
@@ -137,6 +151,15 @@ class AgendaViewModel(
      * out of it after a chip has been turned off is not possible.
      */
     private var scanned: List<AgendaDay>? = null
+
+    /**
+     * Whether whatever reads the notes behind the screen has been told yet.
+     *
+     * Once per launch and then on each occasion that moves a note: the first
+     * agenda of a run is also the first chance to say that this device is
+     * awake and its notes are as they are.
+     */
+    private var announced = false
 
     /** The collections whose rows the filter is keeping off the screen. */
     private var hidden: Set<String> = emptySet()
@@ -628,6 +651,7 @@ class AgendaViewModel(
             // index behind it is opened again over the new roots.
             agenda.invalidate()
             refresh()
+            notesMayHaveMoved()
         }
     }
 
@@ -905,6 +929,7 @@ class AgendaViewModel(
                     }
                 }
                 refresh()
+                notesMayHaveMoved()
             },
             onFailure = { error ->
                 // What the core wrote about it is an English sentence for a
@@ -1217,7 +1242,22 @@ class AgendaViewModel(
                         AgendaUiState.Failed(error.toAgendaMessage())
                     },
                 )
+
+            if (!announced && _state.value is AgendaUiState.Ready) {
+                announced = true
+                notesMayHaveMoved()
+            }
         }
+    }
+
+    /**
+     * Say that the notes are as they now are, without waiting for the answer.
+     *
+     * Its own coroutine because what listens walks the notes: a screen that
+     * waited for that would hold the edit it has just finished reporting.
+     */
+    private fun notesMayHaveMoved() {
+        viewModelScope.launch { notesChanged() }
     }
 
     /**
@@ -1928,6 +1968,7 @@ class AgendaViewModel(
             // the directories again.
             agenda.invalidate()
             refresh()
+            notesMayHaveMoved()
         }
     }
 
@@ -2100,10 +2141,18 @@ class AgendaViewModel(
                 stored.collections = collections
 
                 val inUse = DeviceCollections(application, collections)
+                val agenda = AgendaSource(inUse)
+                // Over the same index the screen reads: a plan of its own
+                // would walk every collection a second time on every edit.
+                val reminders = ReminderScheduler(
+                    agenda = agenda,
+                    preferences = ReminderSettings(application),
+                    alarms = ReminderAlarms(application),
+                )
                 AgendaViewModel(
                     collections = inUse,
                     stored = stored,
-                    agenda = AgendaSource(inUse),
+                    agenda = agenda,
                     ui = UiSettings(application),
                     ownNotes = ownNotesRoot(application),
                     sample = sampleWording(application),
@@ -2112,6 +2161,7 @@ class AgendaViewModel(
                     // application is still running when the user comes back
                     // from it.
                     storageGranted = { StorageAccess.granted(application) },
+                    notesChanged = { reminders.replan() },
                 )
             }
         }

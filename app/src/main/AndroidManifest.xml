@@ -20,6 +20,23 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
+    <!--
+        Telling the reader what is coming. All three are asked for by the
+        reminders and by nothing else, and none of them is held until the
+        reader switches reminders on.
+
+        POST_NOTIFICATIONS is asked at runtime from Android 13. Without
+        SCHEDULE_EXACT_ALARM the platform still delivers, within an hour of the
+        time asked for, which the settings screen says where the switch is;
+        USE_EXACT_ALARM, which needs no asking, is deliberately not declared,
+        as the store policy limits it to alarm and calendar applications.
+        RECEIVE_BOOT_COMPLETED is what lets the plan be made again after a
+        restart: alarms do not survive one.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".MarkdownOrgApp"
         android:allowBackup="false"
@@ -45,6 +62,32 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/note_paths" />
         </provider>
+
+        <!--
+            An alarm coming due. Not exported: the only sender is this
+            application's own alarm, which the platform delivers on its behalf.
+        -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+
+        <!--
+            The occasions on which the plan is gone or about to be wrong. All
+            five are broadcasts of the system, which reach a receiver that is
+            not exported.
+        -->
+        <receiver
+            android:name=".ReminderRestartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action
+                    android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"
