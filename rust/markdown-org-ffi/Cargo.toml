@@ -42,13 +42,18 @@ foreign-types = "0.3"
 # The library API used here (scan_directory, filter_agenda, parse_heading_line)
 # is taken from a released version rather than a git revision: advisories are
 # checked against it, and the VS Code extension pins the same number, so the
-# three clients read one set of notes the same way. The floor is 0.18 because
+# three clients read one set of notes the same way. The floor is 0.19 because
 # that release is the first to read the exception keys of a repeating series
-# (EXDATE, SERIES_ID, RECURRENCE_ID): an older one draws the occurrence that was
+# (EXDATE, SERIES_ID, RECURRENCE_ID) in every form they are written in. Anything
+# below 0.18 does not read them at all: it draws the occurrence that was
 # cancelled, and draws the one that moved twice -- on the day it left and again
-# beside the entry standing in for it. A phone disagreeing with the editor over
-# which days a series has is the difference this pin exists to prevent.
-markdown-org-extract = "0.18"
+# beside the entry standing in for it. 0.18 reads them, but not as a calendar
+# export writes them: an EXDATE carrying a time (the form RFC 5545 uses for a
+# timed series) it cannot read at all, so the cancelled occurrence comes back,
+# and a RECURRENCE_ID written with seconds loses the time it names. A phone
+# disagreeing with the editor over which days a series has is the difference
+# this pin exists to prevent.
+markdown-org-extract = "0.19"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor
