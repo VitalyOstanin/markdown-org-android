@@ -83,6 +83,12 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   committed straight away, so a working copy is never left half-changed.
 - Repeating tasks move to their next occurrence when they are marked done,
   following the repeater written in the timestamp rather than dropping it.
+- A single occurrence of a repeating task can be cancelled or moved without
+  breaking the series apart, and the agenda reads it the way the editor does:
+  a day named by the series' `EXDATE` holds nothing, and a day another entry
+  stands in for — one naming the series through `SERIES_ID` and the occurrence
+  through `RECURRENCE_ID` — is held by that entry alone rather than by both.
+  The reading comes from the core the two clients share.
 - Synchronisation with a git remote: clone on first use, then fetch and push.
   An edit is committed locally straight away, and a sync hands those commits
   to the remote as a fast-forward of its branch or not at all. Nothing is

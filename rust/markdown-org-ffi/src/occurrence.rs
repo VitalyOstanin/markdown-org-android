@@ -29,7 +29,11 @@
 //! extractor reads it that way.
 //!
 //! The identifier a series is given when it has none comes from the caller,
-//! for the reason "today" does — see ADR-0011. A value drawn here would make
+//! for the reason "today" does — see this project's ADR-0011. (ADR numbers
+//! run independently in the two repositories and have already collided on
+//! this subject: 0011 here is where "today" comes from, 0011 in the
+//! extractor is the release commit format. Every cross-project reference in
+//! this file names the project it belongs to.) A value drawn here would make
 //! the same call write a different file each time, and the tests could not
 //! say what the file holds.
 //!
@@ -61,7 +65,7 @@ const ID: &str = "ID";
 ///
 /// Spelled here rather than taken from the extractor because the version this
 /// crate pins does not export it yet; it comes from there once the release
-/// carrying ADR-0031 is the one pinned.
+/// carrying the extractor's ADR-0031 is the one pinned.
 const PROPERTIES: &str = "org-properties";
 
 /// Take one occurrence out of a repeating entry.
@@ -363,8 +367,9 @@ fn property_blocks(document: &Document, range: Range<usize>) -> Vec<Range<usize>
     blocks
 }
 
-/// The key and the value a property line holds, following ADR-0020: the key
-/// is what stands before the first colon, and both halves are trimmed.
+/// The key and the value a property line holds, following the extractor's
+/// ADR-0020: the key is what stands before the first colon, and both halves
+/// are trimmed.
 fn property_line(line: &str) -> Option<(&str, &str)> {
     let (key, value) = line.split_once(':')?;
     let key = key.trim();
@@ -395,8 +400,9 @@ fn property(document: &Document, section: Range<usize>, key: &str) -> Option<(us
 ///
 /// The line the key is already on is rewritten where there is one; otherwise
 /// it joins the last property block the entry has, and an entry with no block
-/// gets one under its planning lines — which is where ADR-0020 puts it, and
-/// where it stays out of the body the entry editor hands over.
+/// gets one under its planning lines — which is where the extractor's
+/// ADR-0020 puts it, and where it stays out of the body the entry editor
+/// hands over.
 fn set_property(document: &mut Document, index: usize, key: &str, value: &str) -> String {
     let section = section(document, index);
     let blocks = property_blocks(document, section.clone());
