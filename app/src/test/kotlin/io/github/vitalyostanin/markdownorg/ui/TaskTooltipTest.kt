@@ -72,6 +72,48 @@ class TaskTooltipTest {
     }
 
     @Test
+    fun `asked for this occurrence a repeating row names the day it stands on`() {
+        // What the sheet asks, where the tooltip asks the opposite: the sheet
+        // covers the row it was opened from, so the occurrence after it is of
+        // no use there. The core rewrites the date of every copy it renders
+        // onto the occurrence that copy stands on, which is what is read here.
+        val line = task(
+            date = "2026-08-06",
+            time = "14:00",
+            repeater = "++7d",
+            next = "2026-08-06",
+            nextAfter = "2026-08-13",
+        ).line(Occurrence.THIS)
+
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_on, listOf(" (++7d)", "<2026-08-06> [14:00]")),
+            line,
+        )
+    }
+
+    @Test
+    fun `a deadline coming due answers with the day it is counting towards`() {
+        // The one copy the core does not re-date: a deadline borrowed into
+        // today keeps what the file states, which for a yearly repeat is the
+        // anchor years back. Naming that would answer a row reading "in 1 day"
+        // with a date from another decade, so the resolved occurrence is named
+        // instead. Arrears, whose date the core does rewrite, keep answering
+        // with the occurrence they are in arrears for.
+        val anniversary =
+            task(date = "2020-08-24", repeater = "+1y", next = "2026-08-24", daysOffset = 1)
+        val owed = task(date = "2026-08-20", repeater = "+1w", next = "2026-08-27", daysOffset = -3)
+
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_on, listOf(" (+1y)", "<2026-08-24>")),
+            anniversary.line(Occurrence.THIS),
+        )
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_on, listOf(" (+1w)", "<2026-08-20>")),
+            owed.line(Occurrence.THIS),
+        )
+    }
+
+    @Test
     fun `an hour repeater drops the time its next occurrence does not keep`() {
         // The next occurrence of an hour repeater is projected onto a whole-day
         // grid with the interval ignored, so the stated clock time is not its
@@ -82,6 +124,11 @@ class TaskTooltipTest {
         assertEquals(
             TooltipLine(R.string.tooltip_repeating_next, listOf(" (+3h)", "<2026-08-05>")),
             line,
+        )
+        assertEquals(
+            TooltipLine(R.string.tooltip_repeating_on, listOf(" (+3h)", "<2026-07-01>")),
+            task(date = "2026-07-01", time = "09:00", repeater = "+3h", next = "2026-08-05")
+                .line(Occurrence.THIS),
         )
     }
 
@@ -147,4 +194,5 @@ class TaskTooltipTest {
  * The kind line with the two formatters replaced by markers, so a test can see
  * which value went through which of them without depending on a locale.
  */
-private fun Task.line(): TooltipLine? = tooltipKind(date = { "<$it>" }, time = { "[$it]" })
+private fun Task.line(occurrence: Occurrence = Occurrence.NEXT): TooltipLine? =
+    tooltipKind(date = { "<$it>" }, time = { "[$it]" }, occurrence = occurrence)

@@ -37,6 +37,18 @@ internal data class TooltipLine(
 )
 
 /**
+ * Which occurrence of a repeating entry a line names.
+ *
+ * A row on its own day already says when it is, so a tooltip beside it adds
+ * the one after; a sheet covers the row it was opened from, and there the only
+ * question left is which day that row stands on.
+ */
+internal enum class Occurrence(@param:StringRes val naming: Int) {
+    NEXT(R.string.tooltip_repeating_next),
+    THIS(R.string.tooltip_repeating_on),
+}
+
+/**
  * What the entry is, spelled out with the date it carries.
  *
  * [date] and [time] arrive as arguments for the reason the same helpers in the
@@ -44,7 +56,11 @@ internal data class TooltipLine(
  * and this decision is made outside it. `null` where there is nothing to say —
  * a task with no timestamp at all states nothing beyond its heading.
  */
-internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String): TooltipLine? {
+internal fun Task.tooltipKind(
+    date: (String) -> String,
+    time: (String) -> String,
+    occurrence: Occurrence = Occurrence.NEXT,
+): TooltipLine? {
     val repeater = timestampRepeater
     // The time of day stays the same across occurrences, so it is read once.
     val at = timestampTime?.let(time).orEmpty()
@@ -63,9 +79,21 @@ internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String
         // day; the copies the core borrows into today -- arrears, and
         // deadlines coming due -- carry only the one after today, which is
         // what they are there to say.
+        //
+        // Asked for this occurrence instead, the date on the copy is the
+        // answer almost everywhere: the core rewrites it onto the day the copy
+        // is drawn on, arrears included. The exception is a deadline coming
+        // due, which keeps the date the file states -- the anchor of the
+        // series, years back for a yearly repeat -- and is recognised by
+        // counting forward, the only bucket whose offset is positive.
         AgendaKind.REPEAT -> repeatLine(
             repeater.orEmpty(),
-            timestampNextAfter ?: timestampNext,
+            when {
+                occurrence == Occurrence.NEXT -> timestampNextAfter ?: timestampNext
+                (daysOffset ?: 0) > 0 -> timestampNext
+                else -> timestampDate
+            },
+            occurrence.naming,
             stated,
             moment,
         )
@@ -98,6 +126,7 @@ internal fun Task.tooltipKind(date: (String) -> String, time: (String) -> String
 private fun repeatLine(
     repeater: String,
     next: String?,
+    @StringRes naming: Int,
     stated: String,
     moment: (String, Boolean) -> String,
 ): TooltipLine {
@@ -105,7 +134,7 @@ private fun repeatLine(
 
     return when {
         next != null -> TooltipLine(
-            R.string.tooltip_repeating_next,
+            naming,
             listOf(brackets, moment(next, !repeater.trim().endsWith(HOUR_UNIT))),
         )
 
@@ -142,20 +171,27 @@ private const val HOUR_UNIT = "h"
  * sheet and pressing the row again, long this time.
  */
 @Composable
-internal fun taskKindLine(task: Task): TooltipLine? {
+internal fun taskKindLine(task: Task, occurrence: Occurrence = Occurrence.NEXT): TooltipLine? {
     val locale = LocalLocale.current.platformLocale
     val use24Hour = use24Hour()
 
     return task.tooltipKind(
         date = { statedDateLabel(it, locale) },
         time = { statedTimeLabel(it, locale, use24Hour) },
+        occurrence = occurrence,
     )
 }
 
-/** The same line as finished text, or `null` where the entry states no date. */
+/**
+ * The same line as finished text, or `null` where the entry states no date.
+ *
+ * Names this occurrence rather than the next one: the sheet stands in place of
+ * the row, so a repeating entry that answered with the occurrence after would
+ * leave the tap on "in 1 day" as unanswered as it was before the line existed.
+ */
 @Composable
 internal fun taskDateLine(task: Task): String? =
-    taskKindLine(task)?.let { stringResource(it.text, *it.args.toTypedArray()) }
+    taskKindLine(task, Occurrence.THIS)?.let { stringResource(it.text, *it.args.toTypedArray()) }
 
 /** The whole tooltip: the heading in full, then what the row could not say. */
 @Composable

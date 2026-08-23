@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
@@ -71,14 +72,44 @@ class TaskActionsSheetTest {
     // counts down to a day it never names.
     @Test
     fun aRepeatingTaskNamesTheOccurrenceItIsCountingTowards() {
-        show(task(date = "2020-08-24", repeater = "+1y", next = "2026-08-24"))
+        show(task(date = "2020-08-24", repeater = "+1y", next = "2026-08-24", daysOffset = 1))
 
         compose.onNodeWithTag("action-date")
             .assertTextEquals(
                 string(
-                    R.string.tooltip_repeating_next,
+                    R.string.tooltip_repeating_on,
                     " (+1y)",
                     statedDateLabel("2026-08-24", Locale.getDefault()),
+                ),
+            )
+    }
+
+    // The other half of the same question: a row standing on its own day is
+    // asked which day that is, not which one comes after it. The tooltip
+    // answers the opposite way, because there the row is still on screen.
+    @Test
+    fun aRepeatingRowOnItsOwnDayNamesThatDay() {
+        show(
+            task(
+                date = "2026-08-23",
+                time = "14:00",
+                repeater = "++7d",
+                next = "2026-08-23",
+                nextAfter = "2026-08-30",
+            ),
+        )
+
+        compose.onNodeWithTag("action-date")
+            .assertTextEquals(
+                string(
+                    R.string.tooltip_repeating_on,
+                    " (++7d)",
+                    statedDateLabel("2026-08-23", Locale.getDefault()) + " " +
+                        statedTimeLabel(
+                            "14:00",
+                            Locale.getDefault(),
+                            DateFormat.is24HourFormat(compose.activity),
+                        ),
                 ),
             )
     }

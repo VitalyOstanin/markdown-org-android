@@ -267,9 +267,12 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   A row counts days -- "in 1 day" -- and an anniversary repeating once a year
   counts them for months without ever naming the day it is counting towards;
   the date was on the long press alone, so reading it meant putting the sheet
-  away and pressing the row again. The wording is the one the long press uses,
-  so the two agree, and a repeat names the occurrence it is counting towards
-  rather than the anchor its file is written with.
+  away and pressing the row again. A repeating row is answered with the day it
+  stands on rather than the one after it: the long press names the occurrence
+  after, because there the row is still on screen to say when it is, and the
+  sheet covers the row it was opened from. A deadline coming due is named by
+  the occurrence it counts towards, which is the one day it has -- the date in
+  its file is the anchor of the series, years back for a yearly repeat.
 - A planning date can be given, picked from a calendar, and taken off. Until
   now the sheet could only move a date the task already had, so a task that
   arrived without one had nothing to shift and a date cleared elsewhere could
