@@ -132,16 +132,36 @@ internal fun Task.tooltipPriority(): TooltipLine? {
 /** The unit whose next occurrence carries no time of day. */
 private const val HOUR_UNIT = "h"
 
+/**
+ * What the entry is and when, in the reader's own locale and clock.
+ *
+ * Split out because two places ask it: the tooltip a long press shows, and the
+ * sheet a tap opens. The sheet used to name neither the date nor the
+ * occurrence -- a row saying "in 1 day" opened onto a heading, a file and a
+ * list of actions, and which day that was could only be had by dismissing the
+ * sheet and pressing the row again, long this time.
+ */
+@Composable
+internal fun taskKindLine(task: Task): TooltipLine? {
+    val locale = LocalLocale.current.platformLocale
+    val use24Hour = use24Hour()
+
+    return task.tooltipKind(
+        date = { statedDateLabel(it, locale) },
+        time = { statedTimeLabel(it, locale, use24Hour) },
+    )
+}
+
+/** The same line as finished text, or `null` where the entry states no date. */
+@Composable
+internal fun taskDateLine(task: Task): String? =
+    taskKindLine(task)?.let { stringResource(it.text, *it.args.toTypedArray()) }
+
 /** The whole tooltip: the heading in full, then what the row could not say. */
 @Composable
 internal fun taskTooltipText(task: Task, collection: CollectionLabel? = null): String {
-    val locale = LocalLocale.current.platformLocale
-    val use24Hour = use24Hour()
     val lines = listOfNotNull(
-        task.tooltipKind(
-            date = { statedDateLabel(it, locale) },
-            time = { statedTimeLabel(it, locale, use24Hour) },
-        ),
+        taskKindLine(task),
         task.tooltipPriority(),
         // The dot at the head of the row is six points across — too small to
         // aim a press at, and it is inside the row's own tooltip anyway. The

@@ -263,6 +263,13 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   sync landed on, or one edited elsewhere, is left as it stands and the screen
   says so; the offer is dropped by the next edit, because it describes one
   state of one note. Undoing commits, naming the task it put back.
+- The sheet a tap opens names the day the entry stands on, under its heading.
+  A row counts days -- "in 1 day" -- and an anniversary repeating once a year
+  counts them for months without ever naming the day it is counting towards;
+  the date was on the long press alone, so reading it meant putting the sheet
+  away and pressing the row again. The wording is the one the long press uses,
+  so the two agree, and a repeat names the occurrence it is counting towards
+  rather than the anchor its file is written with.
 - A planning date can be given, picked from a calendar, and taken off. Until
   now the sheet could only move a date the task already had, so a task that
   arrived without one had nothing to shift and a date cleared elsewhere could

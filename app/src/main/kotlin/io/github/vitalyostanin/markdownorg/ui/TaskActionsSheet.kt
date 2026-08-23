@@ -114,6 +114,19 @@ fun TaskActionsSheet(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.testTag("action-heading"),
             )
+            // The date the row could only count towards. A row says how far
+            // off the day is -- "in 1 day" -- and the day itself was nowhere
+            // in the sheet the tap opens, so a reader who wanted the date had
+            // to put the sheet away and press the row again, long. The wording
+            // is the one the long press uses, so the two agree.
+            taskDateLine(task)?.let { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("action-date"),
+                )
+            }
             HintTooltip(stringResource(R.string.hint_action_where)) {
                 Text(
                     text = "${task.file}:${task.line}",

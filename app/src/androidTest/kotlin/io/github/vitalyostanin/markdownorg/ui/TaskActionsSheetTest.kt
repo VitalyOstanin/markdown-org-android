@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +22,7 @@ import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 
 /**
  * The sheet only offers what the task can actually do: an action that fails
@@ -46,6 +48,46 @@ class TaskActionsSheetTest {
 
         compose.onNodeWithText("Water the plants").assertIsDisplayed()
         compose.onNodeWithText("home.md:12").assertIsDisplayed()
+    }
+
+    // The row a tap comes from counts days -- "in 1 day" -- and says nothing
+    // about which day that is. Before this the sheet said nothing either, and
+    // the date could only be had by dismissing it and pressing the row again,
+    // long, for the tooltip.
+    @Test
+    fun theSheetNamesTheDayTheTaskStandsOn() {
+        show(task(date = "2026-07-28"))
+
+        compose.onNodeWithTag("action-date")
+            .assertTextEquals(
+                string(
+                    R.string.tooltip_scheduled_at,
+                    statedDateLabel("2026-07-28", Locale.getDefault()),
+                ),
+            )
+    }
+
+    // An anniversary is the case that sent this: a yearly repeat whose row
+    // counts down to a day it never names.
+    @Test
+    fun aRepeatingTaskNamesTheOccurrenceItIsCountingTowards() {
+        show(task(date = "2020-08-24", repeater = "+1y", next = "2026-08-24"))
+
+        compose.onNodeWithTag("action-date")
+            .assertTextEquals(
+                string(
+                    R.string.tooltip_repeating_next,
+                    " (+1y)",
+                    statedDateLabel("2026-08-24", Locale.getDefault()),
+                ),
+            )
+    }
+
+    @Test
+    fun anEntryWithNoDateStatesNone() {
+        show(task(timestampType = null, date = null))
+
+        compose.onNodeWithTag("action-date").assertDoesNotExist()
     }
 
     @Test
@@ -390,5 +432,5 @@ class TaskActionsSheetTest {
         }
     }
 
-    private fun string(id: Int): String = compose.activity.getString(id)
+    private fun string(id: Int, vararg args: Any): String = compose.activity.getString(id, *args)
 }
