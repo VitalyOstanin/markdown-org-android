@@ -29,6 +29,16 @@ fn task(dir: &tempfile::TempDir, title: &str) -> NewTask {
     }
 }
 
+/// A planning date on its own: no hour, and happening once.
+fn planning(keyword: PlanningKeyword, date: &str) -> NewPlanning {
+    NewPlanning {
+        keyword,
+        date: date.to_string(),
+        time: None,
+        repeater: None,
+    }
+}
+
 #[test]
 fn the_task_goes_at_the_end_of_the_file() {
     let vault = vault("# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n");
@@ -138,10 +148,7 @@ fn a_task_can_be_written_without_a_keyword() {
 fn the_date_is_spelled_the_way_the_file_spells_its_own() {
     let vault = vault("# TODO Write\n  `SCHEDULED: <2026-08-19 Ср 10:00>`\n");
     let mut asked = task(&vault, "Ring the dentist");
-    asked.planning = Some(NewPlanning {
-        keyword: PlanningKeyword::Deadline,
-        date: "2026-08-21".to_string(),
-    });
+    asked.planning = Some(planning(PlanningKeyword::Deadline, "2026-08-21"));
 
     create_task(asked).expect("create");
 
@@ -156,10 +163,7 @@ fn the_date_is_spelled_the_way_the_file_spells_its_own() {
 fn a_file_with_no_date_in_it_gets_the_canonical_spelling() {
     let vault = vault("# Notes\n");
     let mut asked = task(&vault, "Ring the dentist");
-    asked.planning = Some(NewPlanning {
-        keyword: PlanningKeyword::Scheduled,
-        date: "2026-08-21".to_string(),
-    });
+    asked.planning = Some(planning(PlanningKeyword::Scheduled, "2026-08-21"));
 
     create_task(asked).expect("create");
 
@@ -170,14 +174,107 @@ fn a_file_with_no_date_in_it_gets_the_canonical_spelling() {
 }
 
 #[test]
+fn an_hour_and_a_repeater_are_written_into_the_timestamp() {
+    let vault = vault("# Notes\n");
+    let mut asked = task(&vault, "Water the plants");
+    asked.planning = Some(NewPlanning {
+        keyword: PlanningKeyword::Scheduled,
+        date: "2026-08-21".to_string(),
+        time: Some("09:00".to_string()),
+        repeater: Some("++1w".to_string()),
+    });
+
+    create_task(asked).expect("create");
+
+    assert!(
+        body(vault.path()).ends_with("`SCHEDULED: <2026-08-21 Fri 09:00 ++1w>`\n"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
+fn the_repeater_is_written_the_canonical_way_whatever_it_was_spelled_as() {
+    let vault = vault("# Notes\n");
+    let mut asked = task(&vault, "Water the plants");
+    asked.planning = Some(NewPlanning {
+        keyword: PlanningKeyword::Scheduled,
+        date: "2026-08-21".to_string(),
+        time: None,
+        repeater: Some("  ++007w  ".to_string()),
+    });
+
+    create_task(asked).expect("create");
+
+    assert!(
+        body(vault.path()).ends_with("`SCHEDULED: <2026-08-21 Fri ++7w>`\n"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
+fn an_hour_is_written_even_where_the_file_spells_its_dates_without_one() {
+    let vault = vault("# TODO Write\n  `SCHEDULED: <2026-08-19 Ср>`\n");
+    let mut asked = task(&vault, "Ring the dentist");
+    asked.planning = Some(NewPlanning {
+        keyword: PlanningKeyword::Deadline,
+        date: "2026-08-21".to_string(),
+        time: Some("18:30".to_string()),
+        repeater: None,
+    });
+
+    create_task(asked).expect("create");
+
+    assert!(
+        body(vault.path()).ends_with("  `DEADLINE: <2026-08-21 Пт 18:30>`\n"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
+fn an_hour_that_is_not_one_is_refused_before_the_file_is_opened() {
+    let vault = vault("# Notes\n");
+    let before = body(vault.path());
+    let mut asked = task(&vault, "Water the plants");
+    asked.planning = Some(NewPlanning {
+        keyword: PlanningKeyword::Scheduled,
+        date: "2026-08-21".to_string(),
+        time: Some("half nine".to_string()),
+        repeater: None,
+    });
+
+    let refused = create_task(asked).expect_err("refused");
+
+    assert!(format!("{refused}").contains("HH:MM"), "{refused}");
+    assert_eq!(body(vault.path()), before);
+}
+
+#[test]
+fn a_repeater_that_spells_nothing_is_refused_before_the_file_is_opened() {
+    let vault = vault("# Notes\n");
+    let before = body(vault.path());
+    let mut asked = task(&vault, "Water the plants");
+    asked.planning = Some(NewPlanning {
+        keyword: PlanningKeyword::Scheduled,
+        date: "2026-08-21".to_string(),
+        time: None,
+        repeater: Some("weekly".to_string()),
+    });
+
+    let refused = create_task(asked).expect_err("refused");
+
+    assert!(format!("{refused}").contains("not a repeater"), "{refused}");
+    assert_eq!(body(vault.path()), before);
+}
+
+#[test]
 fn the_body_goes_under_the_date_with_a_line_between_them() {
     let vault = vault("# Notes\n");
     let mut asked = task(&vault, "Ring the dentist");
     asked.body = "The number is on the fridge.\nAsk for the evening slot.".to_string();
-    asked.planning = Some(NewPlanning {
-        keyword: PlanningKeyword::Scheduled,
-        date: "2026-08-21".to_string(),
-    });
+    asked.planning = Some(planning(PlanningKeyword::Scheduled, "2026-08-21"));
 
     create_task(asked).expect("create");
 
@@ -249,10 +346,7 @@ fn a_date_that_is_not_a_date_is_refused_before_the_file_is_opened() {
     let vault = vault("# Notes\n");
     let before = body(vault.path());
     let mut asked = task(&vault, "Ring the dentist");
-    asked.planning = Some(NewPlanning {
-        keyword: PlanningKeyword::Scheduled,
-        date: "the 21st".to_string(),
-    });
+    asked.planning = Some(planning(PlanningKeyword::Scheduled, "the 21st"));
 
     create_task(asked).expect_err("refused");
 

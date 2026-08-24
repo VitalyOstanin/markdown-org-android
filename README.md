@@ -230,8 +230,14 @@ A task that is not in the notes yet is written by one more call:
   creating that file when it is not there. The heading goes in at the level
   the file writes its tasks at, a date is spelled the way the file spells the
   ones it already has, and a title that would read as a keyword or a priority
-  is refused. Which file receives new tasks is a setting of the collection —
-  see [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md).
+  is refused. The date can carry the hour the entry is held at and a repeater
+  that makes it a series, both written into the timestamp after the day. Which
+  file receives new tasks is a setting of the collection —
+  see [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md);
+- `canonicalRepeater(value)` — what repeater a string spells, written the way
+  it would go into the file, or nothing where it spells none. It is how a
+  repeater typed by hand is answered while it is being typed rather than after
+  the task has been composed.
 
 A group of tasks is answered in one move rather than one at a time:
 

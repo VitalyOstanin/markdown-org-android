@@ -6,7 +6,9 @@
 //! today. Marking a repeating task done therefore moves it forward and leaves
 //! it open rather than closing it.
 
-use markdown_org_ffi::{complete_task, set_planning, shift_planning, EditError, PlanningKeyword};
+use markdown_org_ffi::{
+    canonical_repeater, complete_task, set_planning, shift_planning, EditError, PlanningKeyword,
+};
 
 mod common;
 
@@ -761,4 +763,37 @@ fn an_indented_block_keeps_its_indentation() {
     .expect("set");
 
     assert_eq!(outcome.line, "  `SCHEDULED: <2026-08-19 Wed>`");
+}
+
+#[test]
+fn a_repeater_comes_back_written_the_way_it_goes_into_the_file() {
+    assert_eq!(
+        canonical_repeater("++1w".to_string()).as_deref(),
+        Some("++1w")
+    );
+    assert_eq!(
+        canonical_repeater("  .+3d ".to_string()).as_deref(),
+        Some(".+3d")
+    );
+    assert_eq!(
+        canonical_repeater("+007d".to_string()).as_deref(),
+        Some("+7d")
+    );
+    assert_eq!(
+        canonical_repeater("+1wd".to_string()).as_deref(),
+        Some("+1wd")
+    );
+}
+
+#[test]
+fn what_is_not_a_repeater_is_answered_as_none() {
+    // No prefix, no unit, a step of nothing, a word, and the upper case the
+    // format does not read -- each is a field somebody can type.
+    for value in ["1w", "+1", "+0d", "weekly", "++2W", ""] {
+        assert_eq!(
+            canonical_repeater(value.to_string()),
+            None,
+            "{value:?} was taken for a repeater"
+        );
+    }
 }

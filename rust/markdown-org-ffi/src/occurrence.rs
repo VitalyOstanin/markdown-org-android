@@ -248,7 +248,7 @@ fn parse_date(value: &str) -> Result<NaiveDate, EditError> {
 }
 
 /// `HH:MM`, or `HH:MM-HH:MM` for an occurrence held between two times.
-fn parse_time(value: &str) -> Result<String, EditError> {
+pub(crate) fn parse_time(value: &str) -> Result<String, EditError> {
     let refused = || EditError::InvalidDate {
         detail: format!("{value:?} is not a time written HH:MM"),
     };

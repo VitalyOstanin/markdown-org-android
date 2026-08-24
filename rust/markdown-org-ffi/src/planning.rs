@@ -22,6 +22,7 @@
 
 use chrono::{Datelike, Duration, NaiveDate};
 use markdown_org_extract::locale::RU_WEEKDAY_MAPPINGS;
+use markdown_org_extract::timestamp::parse_repeater;
 use markdown_org_extract::{
     add_months, parse_heading_line, parse_timestamp_parts, HolidayCalendar, Repeater, RepeaterType,
     RepeaterUnit, TimestampParts,
@@ -48,6 +49,28 @@ impl PlanningKeyword {
             PlanningKeyword::Deadline => "DEADLINE:",
         }
     }
+}
+
+/// The repeater `value` spells, written the canonical way, or `None` where it
+/// spells none.
+///
+/// Offered to the interface so a repeater typed by hand can be answered
+/// before it is written: the screen that takes one has a field the user fills
+/// in, and a field that only reports its mistake once the task has been
+/// created reports it too late. What comes back is what would go into the
+/// file, so `+007d` shown back as `+7d` is the answer as well as the check.
+#[uniffi::export]
+pub fn canonical_repeater(value: String) -> Option<String> {
+    parse_repeater(&value).map(|repeater| repeater.canonical())
+}
+
+/// The same, as the writers take it: canonical or refused.
+pub(crate) fn checked_repeater(value: &str) -> Result<String, EditError> {
+    canonical_repeater(value.to_string()).ok_or_else(|| EditError::Unsupported {
+        detail: format!(
+            "{value:?} is not a repeater: those are written +1d, ++2w, .+1m, +1wd and the like"
+        ),
+    })
 }
 
 /// What completing a task did.
@@ -346,7 +369,7 @@ fn insert_planning(
     keyword: PlanningKeyword,
     date: NaiveDate,
 ) -> Result<EditOutcome, EditError> {
-    let line = planning_line(document, index, keyword, date)?;
+    let line = planning_line(document, index, keyword, date, StampTokens::default())?;
     let at = keyword_block_end(document, index);
 
     let before = document.text();
@@ -360,6 +383,20 @@ fn insert_planning(
     })
 }
 
+/// What a new timestamp carries besides its date.
+///
+/// Both empty for a date put on a task that already exists: that operation is
+/// asked for a day and leaves the rest of the line as written. A task being
+/// created has no line to leave alone, so the screen that composes it can say
+/// what hour the entry is held at and whether it repeats.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct StampTokens<'a> {
+    /// `HH:MM`, or `HH:MM-HH:MM` for an entry held between two times.
+    pub time: Option<&'a str>,
+    /// An org repeater as it is written, `++1w`.
+    pub repeater: Option<&'a str>,
+}
+
 /// The planning line to write, spelled the way this file spells the ones it
 /// already has.
 ///
@@ -371,6 +408,7 @@ pub(crate) fn planning_line(
     index: usize,
     keyword: PlanningKeyword,
     date: NaiveDate,
+    tokens: StampTokens<'_>,
 ) -> Result<String, EditError> {
     // The same bound `rewrite_date` keeps: a year outside four digits is
     // written by chrono in a form no reader of these files accepts.
@@ -402,10 +440,18 @@ pub(crate) fn planning_line(
         None => Some(date.weekday().to_string()),
     };
 
-    let stamp = match weekday {
-        Some(weekday) => format!("<{} {weekday}>", date.format("%Y-%m-%d")),
-        None => format!("<{}>", date.format("%Y-%m-%d")),
-    };
+    // The order org writes them in: the date, then the weekday that names it,
+    // then the hour it is held at, and the repeater last.
+    let written = [
+        Some(date.format("%Y-%m-%d").to_string()),
+        weekday,
+        tokens.time.map(str::to_string),
+        tokens.repeater.map(str::to_string),
+    ];
+    let stamp = format!(
+        "<{}>",
+        written.into_iter().flatten().collect::<Vec<_>>().join(" ")
+    );
     let body = format!("{} {stamp}", keyword.token());
 
     Ok(if fenced {

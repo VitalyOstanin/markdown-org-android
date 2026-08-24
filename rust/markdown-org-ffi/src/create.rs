@@ -20,7 +20,8 @@ use markdown_org_extract::{parse_heading_line, Priority};
 use crate::document::Document;
 use crate::edit::{keyword_of, EditError, EditOutcome};
 use crate::entry::body_lines;
-use crate::planning::{planning_line, PlanningKeyword};
+use crate::occurrence::parse_time;
+use crate::planning::{checked_repeater, planning_line, PlanningKeyword, StampTokens};
 use crate::TaskType;
 
 /// A task to write, as the screen composed it.
@@ -45,16 +46,23 @@ pub struct NewTask {
     pub planning: Option<NewPlanning>,
 }
 
-/// A date on a new task, and which kind of date it is.
+/// A date on a new task, and everything the timestamp around it carries.
 ///
-/// One record rather than two optional fields, because a date without a
+/// One record rather than loose optional fields, because a date without a
 /// keyword is not a planning line and a keyword without a date is not a date:
-/// the pair travels together or not at all.
+/// they travel together or not at all. The hour and the repeater belong to
+/// that same date — there is no hour to be held at and nothing to repeat
+/// where no day was chosen.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct NewPlanning {
     pub keyword: PlanningKeyword,
     /// `YYYY-MM-DD`.
     pub date: String,
+    /// `HH:MM`, or `None` for an entry that takes the whole day.
+    pub time: Option<String>,
+    /// An org repeater (`++1w`), or `None` for a task that happens once.
+    /// Written the canonical way whatever the caller spelled it as.
+    pub repeater: Option<String>,
 }
 
 /// Write a new task at the end of the file that receives them.
@@ -64,14 +72,14 @@ pub struct NewPlanning {
 /// is always true: a task that was asked for is a task that was written.
 ///
 /// Nothing reaches the file until all of it is in hand: a title that reads as
-/// a keyword, a body line that would start another entry and a date outside
-/// the years timestamps are written in are all refused with the file exactly
-/// as it was.
+/// a keyword, a body line that would start another entry, a date outside the
+/// years timestamps are written in, an hour that is not one and a repeater
+/// that spells nothing are all refused with the file exactly as it was.
 #[uniffi::export]
 pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
-    // Both parsed before the file is opened, for the reason the other
-    // operations parse theirs there: a value the caller mistyped must leave
-    // the notes as they were.
+    // Everything the caller typed is read before the file is opened, for the
+    // reason the other operations read theirs there: a value the caller
+    // mistyped must leave the notes as they were.
     if let Some(value) = task.priority.as_deref() {
         if Priority::parse(value).is_none() {
             return Err(EditError::InvalidPriority {
@@ -83,11 +91,19 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
         .planning
         .as_ref()
         .map(|planning| {
-            NaiveDate::parse_from_str(&planning.date, "%Y-%m-%d")
-                .map(|date| (planning.keyword, date))
-                .map_err(|error| EditError::InvalidDate {
+            let date = NaiveDate::parse_from_str(&planning.date, "%Y-%m-%d").map_err(|error| {
+                EditError::InvalidDate {
                     detail: format!("{:?}: {error}", planning.date),
-                })
+                }
+            })?;
+            let time = planning.time.as_deref().map(parse_time).transpose()?;
+            let repeater = planning
+                .repeater
+                .as_deref()
+                .map(checked_repeater)
+                .transpose()?;
+
+            Ok::<_, EditError>((planning.keyword, date, time, repeater))
         })
         .transpose()?;
 
@@ -107,8 +123,12 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
     // separator went in ahead of it.
     let index = document.len() - 1;
 
-    if let Some((keyword, date)) = planning {
-        let line = planning_line(&document, index, keyword, date)?;
+    if let Some((keyword, date, time, repeater)) = planning {
+        let tokens = StampTokens {
+            time: time.as_deref(),
+            repeater: repeater.as_deref(),
+        };
+        let line = planning_line(&document, index, keyword, date, tokens)?;
         append(&mut document, vec![line]);
     }
     if !body.is_empty() {
