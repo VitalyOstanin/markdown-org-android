@@ -469,6 +469,12 @@ jobs:
           api-level: ${{ env.ANDROID_EMULATOR_API }}
           target: google_apis
           arch: x86_64
+          # The same device tools/Containerfile.emulator names. Left out, the
+          # action creates an AVD with no hardware profile at all, which the
+          # emulator gives a 320x640 screen — narrow enough that the Material
+          # date and time dialogs do not come up, and eleven tests of the
+          # creation screen fail against a device nobody has.
+          profile: pixel_6
           # The action's own defaults, with the cameras off as well: nothing
           # here opens one, and emulating them costs a boot.
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
