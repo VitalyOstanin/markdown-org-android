@@ -156,5 +156,7 @@ class ReminderSchedulerDeviceTest {
         }
 
         override fun cancelAll() = Unit
+
+        override fun holdAside(key: Int, reminder: PlannedReminder) = Unit
     }
 }

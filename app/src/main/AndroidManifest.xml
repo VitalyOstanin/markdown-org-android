@@ -37,6 +37,16 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!--
+        Closing an entry from the drawer. A broadcast receiver has nine
+        seconds and is killed with the process if it overstays, while a write
+        reads the agenda, edits the note and commits it; a short service
+        carries that instead. The short type needs no permission of its own,
+        and the platform allows such a service to be started in answer to a
+        notification the reader has just pressed.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <application
         android:name=".MarkdownOrgApp"
         android:allowBackup="false"
@@ -88,6 +98,19 @@
                     android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            The buttons a reminder carries. Not exported: the only sender is
+            the notification this application raised.
+        -->
+        <receiver
+            android:name=".ReminderActionReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".ReminderCompletionService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
 
         <activity
             android:name=".MainActivity"

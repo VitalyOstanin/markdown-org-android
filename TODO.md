@@ -9,7 +9,6 @@ Work that is understood but deliberately not done yet.
 - [Weekday names beyond Russian and English](#weekday-names-beyond-russian-and-english)
 - [Tooltips beyond the agenda screen](#tooltips-beyond-the-agenda-screen)
 - [Unicode normalisation when a heading can be typed](#unicode-normalisation-when-a-heading-can-be-typed)
-- [What a reminder still does not do](#what-a-reminder-still-does-not-do)
 - [Moving one occurrence of a repeating entry](#moving-one-occurrence-of-a-repeating-entry)
 - [Publishing to the app stores](#publishing-to-the-app-stores)
 
@@ -124,24 +123,6 @@ The answer is the same as it was: normalise to NFC on the way in and compare
 after normalising (`unicode-normalization`). The cost is a dependency, and with
 it the licence notices the APK carries, which is why it is written down here
 rather than done alongside the editor.
-
-## What a reminder still does not do
-
-Reminders are in (ADR-0034): an entry held at an hour is announced ahead of it,
-everything else a day holds is announced once in a digest, and the plan is
-remade whenever a note may have moved. Two pieces of the original design were
-left out, and both are about the notification itself rather than about what is
-announced.
-
-| № | Left out                        | What it would take                                                                                                                     |
-|---|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Tapping one opens that day       | the notification opens the agenda as it stands. Opening a day with the entry selected means an intent this application answers — a date and a task to select — and the screen has no addresses within it today |
-| 2 | Actions on the notification      | Done, which writes through the core and so moves a repeater the way the sheet does; Snooze, which re-arms the alarm and touches no file. Done is a write from a broadcast receiver, which is the part to settle: the working copy is held under a lock, and the nine seconds a receiver has are not a budget for a commit |
-
-A third thing is known and not yet decided: the digest is scheduled the same
-way a timed entry is, exactly. "Around nine" would do, and an inexact window
-costs the platform less — but it also means the digest and the entries are held
-by two different mechanisms, which is a second thing to keep in step.
 
 ## Moving one occurrence of a repeating entry
 

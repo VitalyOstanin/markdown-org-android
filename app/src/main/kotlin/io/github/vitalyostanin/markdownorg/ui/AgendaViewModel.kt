@@ -161,6 +161,9 @@ class AgendaViewModel(
      */
     private var announced = false
 
+    /** An entry a notification named, waiting for the agenda that holds it. */
+    private var awaited: EntryAddress? = null
+
     /** The collections whose rows the filter is keeping off the screen. */
     private var hidden: Set<String> = emptySet()
 
@@ -508,6 +511,21 @@ class AgendaViewModel(
         refresh()
     }
 
+    /**
+     * Open the day an entry falls on, with the entry itself picked out.
+     *
+     * What a notification asks for. The entry is named by where it is written
+     * rather than by what it says: two headings can read alike, and the copy
+     * the agenda puts in a day carries the line of the original. The address
+     * is held until a day holding it has been read, because the scan is
+     * asynchronous — there is no sheet to open over an agenda still being
+     * built, and a day the entry has since left simply leaves it unopened.
+     */
+    fun showEntry(date: LocalDate, root: String?, file: String, line: UInt) {
+        awaited = EntryAddress(root = root, file = file, line = line)
+        showDay(date)
+    }
+
     /** Back to the day being lived through, from wherever the plan was moved to. */
     fun showToday() {
         if (_anchor.value == null) {
@@ -565,6 +583,27 @@ class AgendaViewModel(
                 else -> current
             }
         }
+    }
+
+    /**
+     * Pick out the entry a notification named, once the agenda holds it.
+     *
+     * Cleared whether or not the entry was there: a notification names the day
+     * the plan was made for, and an entry the reader has since moved or
+     * finished is one the sheet has nothing to say about. Holding the address
+     * for later would open a sheet over some other day, whenever that day
+     * happened to be read.
+     */
+    private fun pickAwaited() {
+        val address = awaited ?: return
+        val ready = _state.value as? AgendaUiState.Ready ?: return
+
+        awaited = null
+        _selected.value = ready.days
+            .asSequence()
+            .flatMap { day -> day.sections.run { overdue + timed + untimed }.asSequence() }
+            .map(AgendaRow::task)
+            .firstOrNull(address::names)
     }
 
     fun select(task: Task?) {
@@ -1247,6 +1286,7 @@ class AgendaViewModel(
                 announced = true
                 notesMayHaveMoved()
             }
+            pickAwaited()
         }
     }
 
@@ -2166,4 +2206,18 @@ class AgendaViewModel(
             }
         }
     }
+}
+
+/**
+ * Where an entry is written, which is what names it between screens.
+ *
+ * A heading is what the reader sees and not what tells two entries apart: the
+ * same words can stand in two notes, and a repeating entry puts the same words
+ * in every day it falls on. The file and the line are what the core hands out
+ * and what an edit is aimed at, and the collection is what keeps the same
+ * relative path in two of them apart.
+ */
+private data class EntryAddress(val root: String?, val file: String, val line: UInt) {
+
+    fun names(task: Task): Boolean = task.line == line && task.file == file && task.root == root
 }

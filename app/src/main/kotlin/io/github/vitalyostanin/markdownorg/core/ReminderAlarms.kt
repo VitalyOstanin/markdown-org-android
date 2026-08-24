@@ -9,6 +9,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.math.absoluteValue
 
 /**
  * Whatever holds the plan until it comes due.
@@ -25,6 +26,18 @@ interface AlarmHolder {
 
     /** Drop every alarm held. */
     fun cancelAll()
+
+    /**
+     * Hold one alarm beside the plan, under a number of the caller's choosing.
+     *
+     * What putting a reminder off comes to. The plan is remade whenever the
+     * notes may have moved, and a reminder the reader has pushed to later is
+     * not in the notes at all — held among the plan it would be dropped by the
+     * next fetch. Held aside, it survives until it fires. [key] tells one from
+     * another; the same key twice replaces the earlier one, which is what a
+     * reader pressing the button twice means.
+     */
+    fun holdAside(key: Int, reminder: PlannedReminder)
 }
 
 /**
@@ -81,6 +94,23 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         held.edit().putInt(KEY_HELD, 0).apply()
     }
 
+    /**
+     * The alarm the reader asked to have again later.
+     *
+     * Numbered above everything the plan uses, so that replacing the plan —
+     * which cancels by number, from zero to the count held — leaves it alone.
+     */
+    override fun holdAside(key: Int, reminder: PlannedReminder) {
+        if (alarms == null) {
+            return
+        }
+        schedule(
+            index = ASIDE + key.absoluteValue % ASIDE_RANGE,
+            reminder = reminder,
+            exact = ReminderAccess.exactAlarmsAllowed(context),
+        )
+    }
+
     private fun schedule(index: Int, reminder: PlannedReminder, exact: Boolean) {
         val errand = ReminderIntent.pack(context, reminder)
         val waiting = pending(index, errand, create = true) ?: return
@@ -91,7 +121,7 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         // same when the access was withdrawn between the check above and this
         // call, and the reminder is then worth having late rather than not at
         // all.
-        val scheduled = exact && runCatching {
+        val scheduled = heldExactly(reminder, exact) && runCatching {
             alarms?.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, waiting)
         }.isSuccess
 
@@ -118,6 +148,15 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         const val FILE = "reminder-alarms"
         const val KEY_HELD = "held"
 
+        /**
+         * Where the numbers of the alarms held aside begin.
+         *
+         * Above any plan: the plan is capped well below this, and cancelling
+         * it walks the numbers it used from zero.
+         */
+        const val ASIDE = 1_000
+        const val ASIDE_RANGE = 100_000
+
         /** Where the numbering of the plan's alarms starts. */
         const val REQUEST_BASE = 1000
     }
@@ -136,9 +175,18 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
 object ReminderIntent {
 
     /** The reminder as extras of a broadcast to [ReminderReceiver]. */
-    fun pack(context: Context, reminder: PlannedReminder): Intent {
-        val intent = Intent(context, ReminderReceiver::class.java)
-            .putExtra(EXTRA_AT, reminder.at.toInstant().toEpochMilli())
+    fun pack(context: Context, reminder: PlannedReminder): Intent =
+        fill(Intent(context, ReminderReceiver::class.java), reminder)
+
+    /**
+     * The same extras on an intent the caller has already addressed.
+     *
+     * The action buttons send the reminder back to the application, and what
+     * they send is what the alarm carried: the entry they are about is named
+     * the same way, and [unpack] reads either of them.
+     */
+    fun fill(intent: Intent, reminder: PlannedReminder): Intent {
+        intent.putExtra(EXTRA_AT, reminder.at.toInstant().toEpochMilli())
 
         return when (reminder) {
             is TimedReminder ->
@@ -195,3 +243,15 @@ object ReminderIntent {
     private const val EXTRA_LINE = "line"
     private const val EXTRA_HEADING = "heading"
 }
+
+/**
+ * Whether this reminder is one to hold at its minute, given the access.
+ *
+ * The digest never is. Exact alarms are a ration the platform keeps a count
+ * of, and an hour picked for a summary of the day is a request for "around
+ * nine" rather than for nine exactly — spending part of the ration on it
+ * leaves less for the entries held at a minute, which are the ones a minute
+ * matters to. Without the access nothing is exact, digest and entries alike.
+ */
+internal fun heldExactly(reminder: PlannedReminder, allowed: Boolean): Boolean =
+    allowed && reminder is TimedReminder

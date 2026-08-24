@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.vitalyostanin.markdownorg.core.AgendaAddress
 import io.github.vitalyostanin.markdownorg.core.CrashLog
 import io.github.vitalyostanin.markdownorg.core.LicenceGroup
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
@@ -58,14 +60,55 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * The same model the screens read, asked for here so a notification can
+     * be answered before anything is drawn.
+     */
+    private val model: AgendaViewModel by viewModels { AgendaViewModel.Factory }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        open(intent)
         setContent {
             MarkdownOrgTheme {
                 Application()
             }
         }
+    }
+
+    /**
+     * Started again while already up — which is what a tapped notification
+     * does to a screen the reader left open.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        open(intent)
+    }
+
+    /**
+     * Go where the notification points, if it points anywhere.
+     *
+     * The address is taken back out once it has been acted on: the activity
+     * keeps the intent it was started with, and a rotation or a return from
+     * the recents list hands the same one back — left in place, it would
+     * reopen a sheet the reader has closed.
+     */
+    private fun open(intent: Intent?) {
+        val target = AgendaAddress.unpack(intent) ?: return
+
+        AgendaAddress.clear(intent)
+        target.entry
+            ?.let { entry ->
+                model.showEntry(
+                    date = target.day,
+                    root = entry.root,
+                    file = entry.file,
+                    line = entry.line,
+                )
+            }
+            ?: model.showDay(target.day)
     }
 }
 

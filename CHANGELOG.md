@@ -333,4 +333,8 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   — a fetch, an edit, a restart, the clock or the time zone being set — and is
   raised on two channels, so a meeting and a digest are silenced separately.
   Switching reminders off drops the alarms and takes back whatever they left
-  in the drawer.
+  in the drawer. A reminder is answered where it is read: tapping one opens the
+  day it is about, with the entry it names picked out, and a reminder for an
+  entry held at an hour carries two buttons — Later, which says it again in a
+  quarter of an hour and touches no file, and Done, which closes the entry
+  through the core, moving a repeater the way the sheet of the task does.

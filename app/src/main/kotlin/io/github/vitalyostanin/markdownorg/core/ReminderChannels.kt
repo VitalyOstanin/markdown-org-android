@@ -28,6 +28,16 @@ object ReminderChannels {
     const val DIGEST = "reminders-digest"
 
     /**
+     * What the application stands behind while it closes an entry.
+     *
+     * A channel of its own, at the lowest importance a foreground service is
+     * allowed: the platform requires such a service to be visible, and this
+     * one is visible for a second or two. On its own channel the reader can
+     * silence it without silencing the reminders themselves.
+     */
+    const val WORKING = "reminders-working"
+
+    /**
      * Declare both channels, or refresh what the reader sees of them.
      *
      * Cheap and repeatable: the platform treats a second declaration of a
@@ -58,6 +68,15 @@ object ReminderChannels {
                     // The day is not urgent: it waits in the drawer until the
                     // reader looks, which is what a digest is for.
                     importance = NotificationManagerCompat.IMPORTANCE_DEFAULT,
+                ),
+                channel(
+                    context = context,
+                    id = WORKING,
+                    name = R.string.reminders_channel_working,
+                    description = R.string.reminders_channel_working_description,
+                    // Nothing to announce: it says the work is happening, and
+                    // the work is over before a sound would finish.
+                    importance = NotificationManagerCompat.IMPORTANCE_LOW,
                 ),
             ),
         )

@@ -391,6 +391,27 @@ digest — so either can be silenced in the system settings without losing the
 other. Switching reminders off drops the plan and takes back whatever it
 already raised, so nothing of it is left standing in the drawer.
 
+A reminder is answered where it is read. Tapping one opens the day it is about;
+the reminder for an entry names that entry too, and the agenda opens with it
+picked out. An entry held at an hour carries two buttons — see
+[ADR-0035](docs/adr/0035-a-reminder-is-answered-where-it-is-read.md):
+
+| № | Button | What it does                                                                                     |
+|---|--------|---------------------------------------------------------------------------------------------------|
+| 1 | Later  | says the same reminder again in a quarter of an hour and touches no file                          |
+| 2 | Done   | closes the entry through the core, so a repeating one moves to its next occurrence as it does from the sheet |
+
+Done reads the agenda again before it writes: hours can separate the plan from
+the press, and the entry may have been closed on another device in between. The
+write runs in a short service of its own rather than in the receiver, which the
+platform gives nine seconds — a third notification appears while it does, on a
+channel of its own at the lowest importance such a service is allowed.
+
+The digest is never held to the minute, whatever access the platform has
+granted: an hour picked for a summary of the day asks for around nine rather
+than for nine exactly, and exact alarms are a ration better spent on the
+entries a minute matters to.
+
 ## Where the notes live
 
 By default in a directory of the application's own storage, which is also the

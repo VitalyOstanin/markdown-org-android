@@ -219,12 +219,18 @@ class ReminderSchedulerTest {
 
         var cancelled = 0
 
+        val aside = mutableListOf<PlannedReminder>()
+
         override fun replace(plan: List<PlannedReminder>) {
             held = plan
         }
 
         override fun cancelAll() {
             cancelled += 1
+        }
+
+        override fun holdAside(key: Int, reminder: PlannedReminder) {
+            aside += reminder
         }
     }
 }

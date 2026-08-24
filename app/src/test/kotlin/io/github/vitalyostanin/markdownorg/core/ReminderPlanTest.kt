@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.core
 import io.github.vitalyostanin.markdownorg.ui.day
 import io.github.vitalyostanin.markdownorg.ui.task
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.markdown_org_ffi.TaskType
@@ -238,5 +239,50 @@ class ReminderPlanTest {
     private companion object {
         const val TODAY = "2026-08-22"
         val ZONE: ZoneId = ZoneId.of("Europe/Moscow")
+    }
+}
+
+/**
+ * Which reminders are held at their minute.
+ *
+ * The alarms themselves belong to the platform; what is decided here is which
+ * of them ask for the ration of exact ones the platform keeps a count of.
+ */
+class ExactlyHeldTest {
+
+    private val moment = ZonedDateTime.of(
+        LocalDate.of(2026, 8, 24),
+        LocalTime.of(9, 10),
+        ZoneId.systemDefault(),
+    )
+
+    @Test
+    fun `an entry at an hour is held at its minute`() {
+        val reminder = TimedReminder(
+            at = moment,
+            starts = moment.plusMinutes(15),
+            entry = ReminderEntry(root = null, file = "inbox.md", line = 1u, heading = "Call"),
+        )
+
+        assertTrue(heldExactly(reminder, allowed = true))
+    }
+
+    @Test
+    fun `the digest is not, however the access stands`() {
+        val digest = DigestReminder(at = moment, day = moment.toLocalDate())
+
+        assertFalse(heldExactly(digest, allowed = true))
+        assertFalse(heldExactly(digest, allowed = false))
+    }
+
+    @Test
+    fun `nothing is, once exact alarms are refused`() {
+        val reminder = TimedReminder(
+            at = moment,
+            starts = moment.plusMinutes(15),
+            entry = ReminderEntry(root = null, file = "inbox.md", line = 1u, heading = "Call"),
+        )
+
+        assertFalse(heldExactly(reminder, allowed = false))
     }
 }

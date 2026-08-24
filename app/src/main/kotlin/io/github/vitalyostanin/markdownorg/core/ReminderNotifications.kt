@@ -10,9 +10,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import io.github.vitalyostanin.markdownorg.MainActivity
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.ReminderActions
 import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.Task
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.absoluteValue
@@ -20,10 +23,9 @@ import kotlin.math.absoluteValue
 /**
  * What a reminder looks like once it reaches the screen.
  *
- * Every notification opens the agenda and nothing more particular: the
- * application has one screen and no addresses within it, so a notification
- * that promised to open the entry would open the agenda anyway, one tap later.
- * What the entry is stands in the notification itself.
+ * A notification opens the day it is about: the timed one with its entry
+ * picked out, the digest on the day it counted. What the entry is stands in
+ * the notification itself as well, for a reader who only wants to know.
  *
  * Nothing here reads the notes. The timed reminder says what was planned, and
  * the digest is handed a day the caller has just read — this decides how the
@@ -35,10 +37,11 @@ object ReminderNotifications {
     fun showTimed(context: Context, reminder: TimedReminder) {
         val hour = reminder.starts.toLocalTime()
             .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+        val id = idOf(reminder.entry)
 
         raise(
             context = context,
-            id = idOf(reminder.entry),
+            id = id,
             channel = ReminderChannels.TIMED,
             title = reminder.entry.heading,
             text = context.getString(R.string.reminder_starts_at, hour),
@@ -46,6 +49,11 @@ object ReminderNotifications {
             // arrived: sorted among the others in the drawer, this is what the
             // reader is being told about.
             moment = reminder.starts.toInstant().toEpochMilli(),
+            target = AgendaTarget(
+                day = reminder.starts.toLocalDate(),
+                entry = reminder.entry,
+            ),
+            actions = buttons(context, id, reminder),
         )
     }
 
@@ -80,6 +88,11 @@ object ReminderNotifications {
             title = context.getString(R.string.reminder_digest_title),
             text = counts.joinToString(context.getString(R.string.reminder_digest_separator)),
             headings = headings(day),
+            // The day it counted, with nothing picked out within it: the
+            // digest is about all of them, and the screen it opens is where
+            // the reader chooses which.
+            target = runCatching { LocalDate.parse(day.date) }.getOrNull()
+                ?.let { date -> AgendaTarget(day = date, entry = null) },
         )
     }
 
@@ -104,6 +117,8 @@ object ReminderNotifications {
         text: String,
         moment: Long? = null,
         headings: List<String> = emptyList(),
+        target: AgendaTarget? = null,
+        actions: List<NotificationCompat.Action> = emptyList(),
     ) {
         // Refused notifications are not an error to report anywhere: the
         // settings screen says so where the switch is, and `notify` on a
@@ -115,11 +130,12 @@ object ReminderNotifications {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
-            .setContentIntent(opensTheAgenda(context))
+            .setContentIntent(opens(context, id, target))
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
 
         moment?.let { builder.setWhen(it).setShowWhen(true) }
+        actions.forEach(builder::addAction)
         if (headings.isNotEmpty()) {
             builder.setStyle(
                 NotificationCompat.BigTextStyle()
@@ -137,6 +153,38 @@ object ReminderNotifications {
             Log.w(TAG, "the notification was refused", refused)
         }
     }
+
+    /**
+     * The two the reader can answer a timed reminder with.
+     *
+     * Only the timed one carries them: the digest is about a day's worth of
+     * entries, and there is no one of them for a button to be about. Neither
+     * button is offered without a channel to answer through — an entry named
+     * by nothing but a heading could not be found again.
+     */
+    private fun buttons(
+        context: Context,
+        id: Int,
+        reminder: TimedReminder,
+    ): List<NotificationCompat.Action> = listOf(
+        action(context, R.string.reminder_action_snooze, ReminderActions.SNOOZE, id, reminder),
+        action(context, R.string.reminder_action_done, ReminderActions.DONE, id, reminder),
+    )
+
+    private fun action(
+        context: Context,
+        label: Int,
+        deed: String,
+        id: Int,
+        reminder: TimedReminder,
+    ): NotificationCompat.Action = NotificationCompat.Action.Builder(
+        // No icon: the platform has drawn actions as text alone since the
+        // drawer was redesigned, and an icon here would be a resource nothing
+        // displays.
+        null,
+        context.getString(label),
+        ReminderActions.pressing(context, deed, id, reminder),
+    ).build()
 
     /**
      * Whether anything raised would be seen, asked of the platform directly.
@@ -184,14 +232,29 @@ object ReminderNotifications {
         return TIMED_BASE + (key.absoluteValue % TIMED_RANGE)
     }
 
-    private fun opensTheAgenda(context: Context): PendingIntent? {
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?: return null
+    /**
+     * The tap: the agenda, opened where the notification points.
+     *
+     * The request code is the notification's own. Pending intents are told
+     * apart by their request code and by the intent itself, and extras count
+     * for neither — one code for all of them would leave every notification
+     * holding whichever address was packed last.
+     */
+    private fun opens(context: Context, id: Int, target: AgendaTarget?): PendingIntent? {
+        // The activity by name rather than the launcher's intent for the
+        // package: what comes back from the launcher starts the application
+        // as the home screen does, and a screen already up is brought forward
+        // without being told what was tapped. Named and marked single top, the
+        // running screen is handed the address instead.
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        target?.let { AgendaAddress.pack(intent, it) }
 
         return PendingIntent.getActivity(
             context,
-            0,
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            id,
+            intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }

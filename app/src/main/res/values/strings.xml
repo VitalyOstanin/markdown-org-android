@@ -221,6 +221,11 @@
     <string name="reminders_channel_timed_description">One notification per entry, ahead of its hour by the lead time chosen in the settings.</string>
     <string name="reminders_channel_digest">The day\'s digest</string>
     <string name="reminders_channel_digest_description">One notification a day naming what it holds: dated entries without an hour, deadlines and arrears.</string>
+    <string name="reminders_channel_working">Closing an entry</string>
+    <string name="reminders_channel_working_description">Shown for a moment while an entry closed from a reminder is written to the notes.</string>
+    <string name="reminder_closing">Closing</string>
+    <string name="reminder_action_snooze">Later</string>
+    <string name="reminder_action_done">Done</string>
     <!-- Under the heading of the entry, which is the notification's title. -->
     <string name="reminder_starts_at">Starts at %1$s</string>
     <string name="reminder_digest_title">What the day holds</string>

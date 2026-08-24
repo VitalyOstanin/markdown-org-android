@@ -160,6 +160,11 @@
     <string name="reminders_channel_timed_description">По уведомлению на запись, заранее — за время, выбранное в настройках.</string>
     <string name="reminders_channel_digest">Сводка дня</string>
     <string name="reminders_channel_digest_description">Одно уведомление в день о том, что в нём: записи с датой без времени, сроки и просроченное.</string>
+    <string name="reminders_channel_working">Закрытие записи</string>
+    <string name="reminders_channel_working_description">Показывается на мгновение, пока запись, закрытая из напоминания, записывается в заметки.</string>
+    <string name="reminder_closing">Закрывается</string>
+    <string name="reminder_action_snooze">Позже</string>
+    <string name="reminder_action_done">Готово</string>
     <string name="reminder_starts_at">Начало в %1$s</string>
     <string name="reminder_digest_title">Что в плане на день</string>
     <string name="reminder_digest_overdue">просрочено: %d</string>

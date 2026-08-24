@@ -70,6 +70,7 @@ so a decision can be followed across the three repositories.
 | 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted |
 | 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted |
 | 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted |
+| 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |
 
 ## Adding a new ADR
 
