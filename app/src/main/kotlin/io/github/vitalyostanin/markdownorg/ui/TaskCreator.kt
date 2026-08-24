@@ -1,7 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -224,7 +223,7 @@ private fun CreatorBar(creatable: Boolean, onCreate: () -> Unit, onDismiss: () -
  * goes, what it says, what it is, and when it is for.
  */
 @Composable
-private fun CreatorFields(
+internal fun CreatorFields(
     state: NewTaskState,
     collections: List<NotesCollection>,
     weekStart: WeekStart,
@@ -296,12 +295,12 @@ private fun ReceivingCollection(state: NewTaskState, collections: List<NotesColl
         text = stringResource(R.string.create_collection),
         hint = stringResource(R.string.hint_create_collection),
     )
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .testTag("create-collections"),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         collections.forEach { collection ->
             FilterChip(
@@ -334,7 +333,14 @@ private fun NewTaskKeyword(state: NewTaskState) {
         text = stringResource(R.string.create_keyword),
         hint = stringResource(R.string.hint_create_keyword),
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    // Chips wrap rather than shrink: the words are longer in some languages
+    // than in others, and a row that only shrinks turns the last of them into
+    // a column of single letters instead of moving it to a second line.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         KEYWORDS.forEach { status ->
             FilterChip(
                 selected = status == state.status,
@@ -362,7 +368,11 @@ private fun NewTaskPriority(state: NewTaskState) {
         text = stringResource(R.string.action_priority),
         hint = stringResource(R.string.hint_create_priority),
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         PRIORITIES.forEach { level ->
             FilterChip(
                 selected = level == state.priority,
@@ -397,7 +407,11 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
         text = stringResource(R.string.create_date),
         hint = stringResource(R.string.hint_create_date),
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         KINDS.forEach { kind ->
             FilterChip(
                 selected = kind == state.keyword,
