@@ -283,7 +283,7 @@ Where the build already is:
 | 1 | Application id            | `io.github.vitalyostanin.markdownorg`, which any store will take as the package name         |
 | 2 | Signing                   | a release keystore held as a CI secret, read from `APP_KEYSTORE_*`; a local build is unsigned |
 | 3 | Artefact                  | APK only. Google Play takes an Android App Bundle, so `bundleRelease` has to be added         |
-| 4 | Version                   | `versionCode` / `versionName` come from the tag, which is what a store increments against     |
+| 4 | Version                   | `versionName` comes from `gradle.properties`; `versionCode` is the CI run number, which no store can reproduce from the source |
 | 5 | Licence notices           | already generated for the APK, and every store asks for the same list                         |
 | 6 | Store listing             | `fastlane/metadata/android/{en-US,ru}` holds the title, both descriptions, the icon and four screenshots per language; no feature graphic and no privacy policy yet |
 | 7 | Releases                  | every tag so far is a prerelease `v0.1.0-build.<run>`, and a store that tracks releases has nothing marked final to pick up |
@@ -346,3 +346,31 @@ What is left before the request to include it can be filed:
 | 2 | Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for that release      |
 | 3 | Decide whether a feature graphic is worth drawing — the listing renders without one          |
 | 4 | File the inclusion request, naming the repository and the tag pattern the APK is published under |
+
+### What F-Droid asks of this project
+
+Read on 2026-08-24 from their inclusion policy, the quick start guide, the
+build metadata reference and the two provisioning scripts of their build
+machine (`buildserver/provision-apt-get-install`,
+`buildserver/provision-android-ndk`), with the metadata of Delta Chat and Git
+Sync as worked examples.
+
+The machine is Debian trixie. It carries `default-jdk-headless` — openjdk 21 —
+`apksigner`, `sdkmanager` and little else; Rust, a newer JDK and the libraries
+a vendored build needs are installed by the application itself, in the `sudo`
+block of its metadata. The NDK is named by version and handed over as `$$NDK$$`.
+
+| № | What stands in the way                                                                 | What it takes                                                                                          |
+|---|-----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| 1 | `versionCode` is the CI run number                                                      | derive it from the source, so a build from a tag carries the code the release carries                       |
+| 2 | Every tag is a prerelease `v0.1.0-build.<run>`                                           | cut `v0.1.0`, which is what `UpdateCheckMode: Tags` and `AutoUpdateMode: Version v%v` look for               |
+| 3 | `jvmToolchain(25)` against openjdk 21 on their machine, and no toolchain resolver here   | install `openjdk-25-jdk-headless/trixie-backports` in `sudo` and set `JAVA_HOME`                             |
+| 4 | The core is built outside Gradle, into two directories the repository does not hold      | call `NATIVE=1 ABIS="arm64-v8a x86_64" tools/build-core.sh` from the `build` steps, before Gradle runs        |
+| 5 | The core vendors libgit2 and OpenSSL                                                     | `clang libclang-dev cmake make perl pkg-config` in the same `sudo` block, alongside `rustup`                  |
+| 6 | No `changelogs/<versionCode>.txt` under the fastlane metadata                            | write one per locale for the first release that is not a prerelease                                          |
+| 7 | JNA arrives as an `@aar` carrying prebuilt `.so`                                          | their policy asks binary dependencies to come from source or from Debian; how they read a Maven aar is untested |
+
+Reproducibility — their `binary` field, which lets the store hand out the APK
+this project signs — is a second pass, not a condition of inclusion. The
+toolchain here is already pinned by number and digest; what is missing is
+`-Ccodegen-units=1`, `--remap-path-prefix` and `SOURCE_DATE_EPOCH`.

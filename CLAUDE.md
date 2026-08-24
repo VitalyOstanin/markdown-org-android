@@ -148,6 +148,14 @@ reasoning.
   note may have moved. See
   [ADR-0034](docs/adr/0034-reminders-are-planned-on-the-device-and-replaced-whole.md).
 
+- A reminder is answered where it is read: it carries the day it is about and,
+  when it names an entry, the address of that entry, so a tap lands on the day
+  with the entry picked out rather than on the agenda as it stood. A timed one
+  carries two buttons — later re-arms the alarm a quarter of an hour ahead and
+  is held aside from the plan, done closes the entry through the core from a
+  short foreground service. The digest is never an exact alarm. See
+  [ADR-0035](docs/adr/0035-a-reminder-is-answered-where-it-is-read.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the
