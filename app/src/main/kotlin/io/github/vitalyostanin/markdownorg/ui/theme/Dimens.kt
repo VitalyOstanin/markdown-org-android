@@ -160,6 +160,16 @@ object Sizes {
     val shortWindow = 480.dp
 
     /**
+     * The window height a calendar needs before it can be picked from.
+     *
+     * Material's date dialog draws itself at this height whatever it is given:
+     * six rows of days at the height a finger needs, a header above them and a
+     * row of buttons below. A window shorter than this cuts the last week and
+     * the buttons off, so the dialog is asked for its typed form instead.
+     */
+    val calendarHeight = 568.dp
+
+    /**
      * How far the heading has to be dragged sideways before the plan steps.
      *
      * Short enough for a thumb resting on the header, long enough not to fire

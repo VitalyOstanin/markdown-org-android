@@ -6,9 +6,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DatePickerState
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -19,9 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
@@ -167,8 +173,13 @@ internal fun DateChoice(
 ) {
     var chosen by rememberSaveable { mutableStateOf(initial?.toEpochDay()?.times(A_DAY)) }
     val locale = weekStart.calendarLocale()
-    val state = remember(locale) {
-        DatePickerState(locale = locale, initialSelectedDateMillis = chosen)
+    val room = aCalendarFits(LocalConfiguration.current.screenHeightDp.dp)
+    val state = remember(locale, room) {
+        DatePickerState(
+            locale = locale,
+            initialSelectedDateMillis = chosen,
+            initialDisplayMode = if (room) DisplayMode.Picker else DisplayMode.Input,
+        )
     }
     LaunchedEffect(state.selectedDateMillis) { chosen = state.selectedDateMillis }
 
@@ -190,7 +201,11 @@ internal fun DateChoice(
         },
         modifier = Modifier.testTag("date-picker"),
     ) {
-        DatePicker(state = state)
+        DatePicker(
+            state = state,
+            showModeToggle = room,
+            modifier = Modifier.testTag(if (room) "date-calendar" else "date-typed"),
+        )
     }
 }
 
@@ -215,6 +230,8 @@ internal fun TimeChoice(initial: LocalTime, onDismiss: () -> Unit, onPicked: (Lo
         initialMinute = initial.minute,
     )
 
+    val room = with(LocalConfiguration.current) { aClockFits(screenWidthDp.dp, screenHeightDp.dp) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -230,7 +247,13 @@ internal fun TimeChoice(initial: LocalTime, onDismiss: () -> Unit, onPicked: (Lo
                 Text(stringResource(R.string.date_cancel))
             }
         },
-        text = { TimePicker(state = state) },
+        text = {
+            if (room) {
+                TimePicker(state = state, modifier = Modifier.testTag("time-clock"))
+            } else {
+                TimeInput(state = state, modifier = Modifier.testTag("time-typed"))
+            }
+        },
         modifier = Modifier.testTag("time-picker"),
     )
 }
@@ -259,6 +282,30 @@ internal fun WeekStart.calendarLocale(locale: Locale = Locale.getDefault()): Loc
         .build()
     return if (WeekFields.of(asked).firstDayOfWeek == wanted) asked else locale
 }
+
+/**
+ * Whether a window this tall has room for a calendar to be picked from.
+ *
+ * Material's calendar is not compressible: the grid asks for six rows of the
+ * height a finger needs, and the dialog around it for a fixed height on top of
+ * a header and a row of buttons. Given less, it draws at its full height and
+ * is cut by the edges of the window — the last week and the buttons that
+ * confirm the choice go off screen, and the date cannot be set at all. A phone
+ * held sideways is short enough for that, so the dialog is asked for its typed
+ * form instead, which is a single field and always fits.
+ */
+internal fun aCalendarFits(windowHeight: Dp): Boolean = windowHeight >= Sizes.calendarHeight
+
+/**
+ * Whether a window of this shape has room for a clock face to be turned.
+ *
+ * Material draws the clock across rather than down as soon as the window is
+ * wider than it is tall, and that arrangement — the hour and minute fields, a
+ * gap, and the dial — is wider than a dialog is allowed to be. The dial is
+ * then cut by the right edge and its far half cannot be reached, so a sideways
+ * window is given the typed form of the same question.
+ */
+internal fun aClockFits(windowWidth: Dp, windowHeight: Dp): Boolean = windowHeight >= windowWidth
 
 /** How many letters of a weekday the `fw` keyword is spelled with: `mon`, `sun`. */
 private const val WEEKDAY_KEY = 3

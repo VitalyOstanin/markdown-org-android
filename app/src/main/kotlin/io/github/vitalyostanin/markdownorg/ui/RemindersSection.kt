@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -22,10 +23,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import java.time.LocalTime
@@ -174,6 +177,9 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
             initialMinute = current.minute,
             is24Hour = use24Hour,
         )
+        val room = with(LocalConfiguration.current) {
+            aClockFits(screenWidthDp.dp, screenHeightDp.dp)
+        }
         AlertDialog(
             onDismissRequest = { picking = false },
             confirmButton = {
@@ -192,7 +198,19 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
-            text = { TimePicker(state = state) },
+            text = {
+                if (room) {
+                    TimePicker(
+                        state = state,
+                        modifier = Modifier.testTag("settings-reminders-digest-clock"),
+                    )
+                } else {
+                    TimeInput(
+                        state = state,
+                        modifier = Modifier.testTag("settings-reminders-digest-typed"),
+                    )
+                }
+            },
         )
     }
 }
