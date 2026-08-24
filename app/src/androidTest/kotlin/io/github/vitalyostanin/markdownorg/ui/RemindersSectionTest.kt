@@ -48,9 +48,9 @@ class RemindersSectionTest {
     }
 
     /**
-     * The chips scroll sideways, so the one at the far end is reached by the
-     * test the way the reader reaches it — [performScrollTo] on the chip
-     * itself, not on the row.
+     * The chip at the far end is reached the way the reader reaches it —
+     * [performScrollTo] on the chip itself, since the section as a whole is
+     * longer than a screen even though its chips now wrap rather than scroll.
      */
     @Test
     fun theChosenLeadTimeIsReportedAsTheChipThatWasPressed() {

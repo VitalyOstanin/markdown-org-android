@@ -1,11 +1,10 @@
 package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -97,12 +96,13 @@ internal fun RemindersSection(reminders: RemindersUi) {
  * How long before a timed entry it is announced: five chips, because the
  * answer is a habit rather than a number worth typing.
  *
- * The row scrolls sideways: five chips of translated words do not fit the
- * narrowest screen, and a chip that wraps out of sight is a choice the reader
- * cannot make.
+ * The row wraps: five chips of translated words do not fit one line of the
+ * narrowest screen, and a choice past the edge of a row that scrolls is one
+ * the reader never learns is there. Wrapping spends a second line instead,
+ * which this screen scrolls through anyway.
  */
 @Composable
-private fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit) {
+internal fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit) {
     HintTooltip(stringResource(R.string.hint_settings_reminders_lead)) {
         Text(
             text = stringResource(R.string.settings_reminders_lead),
@@ -110,13 +110,12 @@ private fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit) 
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .testTag("settings-reminders-lead"),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         ReminderLead.entries.forEach { option ->
             FilterChip(
