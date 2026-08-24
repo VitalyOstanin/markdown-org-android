@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,6 +19,7 @@ import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -107,6 +109,20 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-pick-time").assertIsDisplayed()
         compose.onNodeWithTag("create-repeat-weekly").assertIsDisplayed()
+
+        // The last of the intervals ends no further right than the rest of the
+        // page: a row that scrolls sideways would put the chip taking a
+        // repeater of its own past the edge, where nothing on screen says it
+        // is there. The heading field is the width the page has to spare, and
+        // both are measured unclipped — the page itself scrolls up and down,
+        // so a chip below the fold is no fault.
+        val edge = compose.onNodeWithTag("create-title").getUnclippedBoundsInRoot().right
+        val chip = compose.onNodeWithTag("create-repeat-custom").getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "the chip ends at ${chip.right}, past the $edge the page is wide",
+            chip.right <= edge,
+        )
     }
 
     @Test
@@ -130,8 +146,8 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
         pickToday()
-        // The row of intervals is wider than the screen, and the chip that
-        // takes a repeater of its own sits at the end of it.
+        // The chips wrap onto a second line, which on a short screen is
+        // below the fold of a page that scrolls.
         compose.onNodeWithTag("create-repeat-custom").performScrollTo().performClick()
         compose.onNodeWithTag("create-repeat-dialog").assertIsDisplayed()
         compose.onNodeWithTag("create-repeat-field").performTextReplacement("weekly")

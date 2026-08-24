@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -500,11 +501,14 @@ private fun NewTaskRepeat(state: NewTaskState) {
         text = stringResource(R.string.create_repeat),
         hint = stringResource(R.string.hint_create_repeat),
     )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+    // Six chips are wider than a phone held upright, and a row that scrolls
+    // sideways puts the last of them past the edge — the one that takes a
+    // repeater of its own, with nothing on screen to say it is there. Wrapping
+    // costs a line of height and keeps every answer in sight.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         REPEATS.forEach { repeat ->
             FilterChip(
