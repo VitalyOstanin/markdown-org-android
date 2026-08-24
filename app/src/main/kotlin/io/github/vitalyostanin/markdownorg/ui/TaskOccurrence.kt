@@ -1,19 +1,12 @@
 package io.github.vitalyostanin.markdownorg.ui
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import io.github.vitalyostanin.markdownorg.R
 import uniffi.markdown_org_ffi.Task
@@ -117,40 +110,3 @@ private fun Task.occurrence(): LocalDate? {
 /** The hour the entry is held at, for a series that names one. */
 private fun Task.startTime(): LocalTime? =
     timestampTime?.let { time -> runCatching { LocalTime.parse(time) }.getOrNull() }
-
-/**
- * The clock, as a dialog over the sheet.
- *
- * Wrapped in a dialog by hand, which is what Material's own guide for time
- * pickers gives: the picker is a composable, and the dialog around it is the
- * caller's. Whether it is drawn as a twelve- or a twenty-four-hour clock is
- * the phone's setting, which is what the picker's state reads when it is not
- * told otherwise.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimeChoice(initial: LocalTime, onDismiss: () -> Unit, onPicked: (LocalTime) -> Unit) {
-    val state = rememberTimePickerState(
-        initialHour = initial.hour,
-        initialMinute = initial.minute,
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = { onPicked(LocalTime.of(state.hour, state.minute)) },
-                modifier = Modifier.testTag("time-set"),
-            ) {
-                Text(stringResource(R.string.date_set))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("time-cancel")) {
-                Text(stringResource(R.string.date_cancel))
-            }
-        },
-        text = { TimePicker(state = state) },
-        modifier = Modifier.testTag("time-picker"),
-    )
-}

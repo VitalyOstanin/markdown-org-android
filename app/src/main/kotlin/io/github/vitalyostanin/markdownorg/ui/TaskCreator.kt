@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -28,8 +31,10 @@ import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -40,7 +45,9 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.canonicalRepeater
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * What is being typed into the creation screen.
@@ -73,6 +80,18 @@ class NewTaskState(collectionId: String) {
 
     var day by mutableStateOf<LocalDate?>(null)
 
+    /**
+     * The hour the entry is held at, `null` for one that takes the whole day.
+     *
+     * Kept even while no day is chosen, so a day cleared and picked again does
+     * not lose the hour that was set with it; what goes into the file is the
+     * pair, and the core is handed neither without a date.
+     */
+    var time by mutableStateOf<LocalTime?>(null)
+
+    /** The repeater to write (`++1w`), `null` for a task that happens once. */
+    var repeater by mutableStateOf<String?>(null)
+
     /** The draft as the writer takes it. */
     fun draft(): TaskDraft = TaskDraft(
         title = title,
@@ -81,12 +100,14 @@ class NewTaskState(collectionId: String) {
         priority = priority,
         keyword = keyword,
         date = day,
+        time = time,
+        repeater = repeater,
     )
 
     companion object {
-        // The enums travel by name and the day by its number: what a saved
-        // state holds goes into a Bundle, and a name is the one form of an
-        // enum that survives the class being reloaded.
+        // The enums travel by name and the day and the hour by their numbers:
+        // what a saved state holds goes into a Bundle, and a name is the one
+        // form of an enum that survives the class being reloaded.
         val Saver: Saver<NewTaskState, Any> = mapSaver(
             save = { state ->
                 mapOf(
@@ -97,6 +118,8 @@ class NewTaskState(collectionId: String) {
                     "priority" to state.priority,
                     "keyword" to state.keyword.name,
                     "day" to state.day?.toEpochDay(),
+                    "time" to state.time?.toSecondOfDay(),
+                    "repeater" to state.repeater,
                 )
             },
             restore = { saved ->
@@ -109,6 +132,8 @@ class NewTaskState(collectionId: String) {
                         ?.let(PlanningKeyword::valueOf)
                         ?: PlanningKeyword.SCHEDULED
                     day = (saved["day"] as? Long)?.let(LocalDate::ofEpochDay)
+                    time = (saved["time"] as? Int)?.toLong()?.let(LocalTime::ofSecondOfDay)
+                    repeater = saved["repeater"] as? String
                 }
             },
         )
@@ -357,10 +382,15 @@ private val PRIORITIES = listOf("A", "B", "C", null)
  * not interchangeable: one says when work starts, the other when the task is
  * due. A task written without a day carries no planning line at all and shows
  * up in the flat list of tasks rather than on a date.
+ *
+ * The hour and the repeater belong to the chosen day and are only offered once
+ * there is one: a timestamp is what carries them, and a task with no date has
+ * no timestamp to write them into.
  */
 @Composable
 private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
     var picking by rememberSaveable { mutableStateOf(false) }
+    var pickingTime by rememberSaveable { mutableStateOf(false) }
 
     ChoiceHeading(
         text = stringResource(R.string.create_date),
@@ -394,6 +424,34 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
         }
     }
 
+    if (state.day != null) {
+        ChoiceHeading(
+            text = stringResource(R.string.create_time),
+            hint = stringResource(R.string.hint_create_time),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            SheetAction(
+                // The hour as the phone writes it, which is what the picker
+                // showed and what the reader recognises; the file spells it
+                // its own way.
+                label = state.time
+                    ?.let { timeLabel(it, LocalLocale.current.platformLocale, use24Hour()) }
+                    ?: stringResource(R.string.create_pick_time),
+                tag = "create-pick-time",
+                modifier = Modifier.weight(1f),
+            ) { pickingTime = true }
+            if (state.time != null) {
+                SheetAction(
+                    label = stringResource(R.string.create_time_none),
+                    tag = "create-clear-time",
+                    modifier = Modifier.weight(1f),
+                ) { state.time = null }
+            }
+        }
+
+        NewTaskRepeat(state)
+    }
+
     if (picking) {
         DateChoice(
             initial = state.day,
@@ -405,7 +463,163 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
             },
         )
     }
+    if (pickingTime) {
+        TimeChoice(
+            // Nine in the morning for a task that has no hour yet: the picker
+            // opens somewhere, and the start of a working day is a shorter way
+            // from most answers than midnight is.
+            initial = state.time ?: DEFAULT_HOUR,
+            onDismiss = { pickingTime = false },
+            onPicked = { time ->
+                pickingTime = false
+                state.time = time
+            },
+        )
+    }
 }
+
+/** Where the clock opens for a task that names no hour yet. */
+private val DEFAULT_HOUR: LocalTime = LocalTime.of(9, 0)
+
+/**
+ * Whether the date repeats, and how often.
+ *
+ * Four intervals and none at all, with a field behind Every… for the rest of
+ * what the format writes. The four are catch-up repeaters (`++1w`): completing
+ * a task that was missed moves it to the next occurrence ahead of today rather
+ * than one step from the date in the file, which for a task done every week is
+ * what the next week means. A repeater that has to step exactly once, or count
+ * from the day it was done, is typed into the field.
+ */
+@Composable
+private fun NewTaskRepeat(state: NewTaskState) {
+    var typing by rememberSaveable { mutableStateOf(false) }
+    val ready = REPEATS.any { it.written == state.repeater }
+
+    ChoiceHeading(
+        text = stringResource(R.string.create_repeat),
+        hint = stringResource(R.string.hint_create_repeat),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        REPEATS.forEach { repeat ->
+            FilterChip(
+                selected = repeat.written == state.repeater,
+                onClick = { state.repeater = repeat.written },
+                label = { Text(stringResource(repeat.label)) },
+                modifier = Modifier.testTag("create-repeat-${repeat.tag}"),
+            )
+        }
+        FilterChip(
+            // The repeater itself once it is one of its own: what was typed is
+            // the answer, and a chip that keeps saying Every… says nothing
+            // about what it was set to.
+            selected = !ready,
+            onClick = { typing = true },
+            label = {
+                Text(
+                    text = state.repeater
+                        ?.takeUnless { ready }
+                        ?: stringResource(R.string.create_repeat_custom),
+                )
+            },
+            modifier = Modifier.testTag("create-repeat-custom"),
+        )
+    }
+
+    if (typing) {
+        RepeaterChoice(
+            initial = state.repeater.orEmpty(),
+            onDismiss = { typing = false },
+            onPicked = { written ->
+                typing = false
+                state.repeater = written
+            },
+        )
+    }
+}
+
+/**
+ * A repeater typed by hand, answered while it is being typed.
+ *
+ * The core is asked what the field spells, and what it answers is what would
+ * go into the file — so a repeater written +007d comes back as +7d rather than
+ * being written the long way. A field that spells no repeater cannot be
+ * confirmed: the alternative is a task refused after it has been composed.
+ */
+@Composable
+private fun RepeaterChoice(initial: String, onDismiss: () -> Unit, onPicked: (String) -> Unit) {
+    var typed by rememberSaveable { mutableStateOf(initial) }
+    val written = canonicalRepeater(typed.trim())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.create_repeat_title)) },
+        text = {
+            OutlinedTextField(
+                value = typed,
+                onValueChange = { typed = it },
+                singleLine = true,
+                isError = typed.isNotBlank() && written == null,
+                supportingText = {
+                    Text(
+                        stringResource(
+                            if (typed.isNotBlank() && written == null) {
+                                R.string.create_repeat_invalid
+                            } else {
+                                R.string.create_repeat_support
+                            },
+                        ),
+                    )
+                },
+                // A repeater is written in lower case and starts with a sign;
+                // the keyboard's own capitalising and correcting would both be
+                // answered by the field refusing what they produced.
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("create-repeat-field"),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { written?.let(onPicked) },
+                enabled = written != null,
+                modifier = Modifier.testTag("create-repeat-set"),
+            ) {
+                Text(stringResource(R.string.date_set))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("create-repeat-cancel")) {
+                Text(stringResource(R.string.date_cancel))
+            }
+        },
+        modifier = Modifier.testTag("create-repeat-dialog"),
+    )
+}
+
+/** One of the intervals the chips offer, and what it writes. */
+private class Repeat(@param:StringRes val label: Int, val tag: String, val written: String?)
+
+/**
+ * The intervals offered, in the order they are: none, and then from the
+ * shortest to the longest.
+ */
+private val REPEATS = listOf(
+    Repeat(R.string.create_repeat_none, "none", null),
+    Repeat(R.string.create_repeat_daily, "daily", "++1d"),
+    Repeat(R.string.create_repeat_weekly, "weekly", "++1w"),
+    Repeat(R.string.create_repeat_monthly, "monthly", "++1m"),
+    Repeat(R.string.create_repeat_yearly, "yearly", "++1y"),
+)
 
 /** The two kinds of planning date, in the order the sheet offers them. */
 private val KINDS = listOf(PlanningKeyword.SCHEDULED, PlanningKeyword.DEADLINE)

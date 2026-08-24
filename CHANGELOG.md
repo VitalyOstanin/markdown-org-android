@@ -242,7 +242,15 @@ its own yet: every build published to date is a prerelease of `0.1.0`, tagged
   end in an ellipsis when they are cut, so a cut says that it is one.
 - A task can be written here rather than only found: the corner of the plan
   opens a screen with a heading, a text, the keyword, the priority and a day
-  from the same calendar the sheet uses. Where it goes is a setting of the
+  from the same calendar the sheet uses. Once there is a day, the screen also
+  asks the hour it is held at — from the clock the sheet moves an occurrence
+  with — and whether it repeats: daily, weekly, monthly, yearly, or any
+  repeater the format writes, typed into a field that answers what it spells
+  while it is being typed rather than after the task has been composed. The
+  four ready intervals are catch-up repeaters, so completing a task that was
+  missed moves it to the next occurrence ahead of today instead of one step
+  from the date in the file. Both go into the timestamp after the day, which
+  is where org writes them. Where it goes is a setting of the
   collection — the file it receives new tasks in, `inbox.md` unless it is said
   otherwise, made by the first task written to it — so a creation asks which
   collection when there is more than one and nothing else. The entry is

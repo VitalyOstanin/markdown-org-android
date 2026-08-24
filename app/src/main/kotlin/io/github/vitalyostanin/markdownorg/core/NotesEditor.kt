@@ -81,6 +81,18 @@ data class TaskDraft(
      */
     val keyword: PlanningKeyword = PlanningKeyword.SCHEDULED,
     val date: LocalDate? = null,
+    /**
+     * The hour the entry is held at, or `null` for one that takes the whole
+     * day. Belongs to [date]: there is no hour to be held at on a task that
+     * is not planned for a day.
+     */
+    val time: LocalTime? = null,
+    /**
+     * The repeater that makes the date a series (`++1w`), or `null` for a
+     * task that happens once. Belongs to [date] for the same reason [time]
+     * does, and is checked by the core rather than here.
+     */
+    val repeater: String? = null,
 )
 
 /**
@@ -450,7 +462,17 @@ class NotesEditor internal constructor(
         body = body,
         status = status,
         priority = priority,
-        planning = date?.let { NewPlanning(keyword = keyword, date = it.toString()) },
+        planning = date?.let {
+            NewPlanning(
+                keyword = keyword,
+                date = it.toString(),
+                // `toString` writes HH:mm, which is what a timestamp holds;
+                // the picker the hour comes from names no seconds for it to
+                // spell out.
+                time = time?.toString(),
+                repeater = repeater,
+            )
+        },
     )
 
     private fun Task.target() = EditTarget(

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
@@ -21,6 +22,8 @@ import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
+import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * The screen that writes a task the notes do not hold yet.
@@ -89,6 +92,104 @@ class TaskCreatorTest {
         compose.onNodeWithTag("create-pick-date").assertIsDisplayed()
         compose.onNodeWithTag("create-save").performClick()
         assertNull(created?.second?.date)
+    }
+
+    @Test
+    fun theHourAndTheRepeatAreOfferedOnlyOnceThereIsADay() {
+        show()
+
+        // Nothing to hold at an hour and nothing to repeat: both belong to the
+        // timestamp, and a task with no date has none.
+        compose.onNodeWithTag("create-pick-time").assertDoesNotExist()
+        compose.onNodeWithTag("create-repeat-weekly").assertDoesNotExist()
+
+        pickToday()
+
+        compose.onNodeWithTag("create-pick-time").assertIsDisplayed()
+        compose.onNodeWithTag("create-repeat-weekly").assertIsDisplayed()
+    }
+
+    @Test
+    fun theIntervalChosenIsWhatTheTaskRepeatsBy() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
+        pickToday()
+        compose.onNodeWithTag("create-repeat-weekly").performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        // Catch-up rather than a single step: a weekly task completed after
+        // three missed weeks is due next week, not three weeks ago.
+        assertEquals("++1w", created?.second?.repeater)
+        assertEquals(LocalDate.now(), created?.second?.date)
+    }
+
+    @Test
+    fun aRepeaterTypedByHandIsAnsweredWhileItIsBeingTyped() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
+        pickToday()
+        // The row of intervals is wider than the screen, and the chip that
+        // takes a repeater of its own sits at the end of it.
+        compose.onNodeWithTag("create-repeat-custom").performScrollTo().performClick()
+        compose.onNodeWithTag("create-repeat-dialog").assertIsDisplayed()
+        compose.onNodeWithTag("create-repeat-field").performTextReplacement("weekly")
+
+        // A word is not a repeater, and the field says so before the task has
+        // been composed rather than after the core has refused it.
+        compose.onNodeWithTag("create-repeat-set").assertIsNotEnabled()
+
+        compose.onNodeWithTag("create-repeat-field").performTextReplacement("+007d")
+        compose.onNodeWithTag("create-repeat-set").assertIsEnabled().performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        // What comes back is what goes into the file, which is the check as
+        // well as the answer.
+        assertEquals("+7d", created?.second?.repeater)
+    }
+
+    @Test
+    fun theHourChosenOnTheClockIsWhatTheTaskIsHeldAt() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
+        pickToday()
+        compose.onNodeWithTag("create-pick-time").performClick()
+        compose.onNodeWithTag("time-picker").assertIsDisplayed()
+        compose.onNodeWithTag("time-set").performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        // The clock opens at nine for a task that names no hour yet, and
+        // confirming it unchanged is what that offer means.
+        assertEquals(LocalTime.of(9, 0), created?.second?.time)
+    }
+
+    @Test
+    fun anHourTakenOffLeavesTheTaskOnTheWholeDay() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
+        pickToday()
+        compose.onNodeWithTag("create-pick-time").performClick()
+        compose.onNodeWithTag("time-set").performClick()
+        compose.onNodeWithTag("create-clear-time").performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        assertNull(created?.second?.time)
+        assertEquals(LocalDate.now(), created?.second?.date)
+    }
+
+    @Test
+    fun aTaskWithADayAndNothingElseSaidRepeatsNotAtAll() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Ring the dentist")
+        pickToday()
+        compose.onNodeWithTag("create-save").performClick()
+
+        assertNull(created?.second?.repeater)
+        assertNull(created?.second?.time)
     }
 
     @Test
@@ -186,6 +287,24 @@ class TaskCreatorTest {
 
         compose.onNodeWithText(string(R.string.create_heading_support)).assertIsDisplayed()
         compose.onNodeWithText(string(R.string.create_body_support)).assertIsDisplayed()
+    }
+
+    /**
+     * Choose today in the calendar the screen opens with nothing chosen in.
+     *
+     * Today rather than a fixed day: the picker draws the month it opens on,
+     * and a date in another month would have to be navigated to.
+     *
+     * A cell of the calendar carries the whole date as its text -- "Sunday,
+     * August 23, 2026" -- and today's carries "Today" ahead of it, which is
+     * the one label that names a cell without naming a date. The day number
+     * the cell shows is not in the semantics at all, so it cannot be clicked
+     * by what it reads as.
+     */
+    private fun pickToday() {
+        compose.onNodeWithTag("create-pick-date").performClick()
+        compose.onNodeWithText("Today", substring = true, useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("date-set").performClick()
     }
 
     private fun string(id: Int): String = compose.activity.getString(id)

@@ -2,12 +2,15 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +27,7 @@ import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TimestampType
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.temporal.WeekFields
 import java.util.Locale
 
@@ -188,6 +192,47 @@ internal fun DateChoice(
     ) {
         DatePicker(state = state)
     }
+}
+
+/**
+ * The clock, as a dialog over whatever asked for it.
+ *
+ * Wrapped in a dialog by hand, which is what Material's own guide for time
+ * pickers gives: the picker is a composable, and the dialog around it is the
+ * caller's. Whether it is drawn as a twelve- or a twenty-four-hour clock is
+ * the phone's setting, which is what the picker's state reads when it is not
+ * told otherwise.
+ *
+ * Shared with the screen that writes a new task, the same way the calendar
+ * above it is: the hour an entry is held at is one question, asked of a task
+ * in the notes and of one being typed.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TimeChoice(initial: LocalTime, onDismiss: () -> Unit, onPicked: (LocalTime) -> Unit) {
+    val state = rememberTimePickerState(
+        initialHour = initial.hour,
+        initialMinute = initial.minute,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = { onPicked(LocalTime.of(state.hour, state.minute)) },
+                modifier = Modifier.testTag("time-set"),
+            ) {
+                Text(stringResource(R.string.date_set))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("time-cancel")) {
+                Text(stringResource(R.string.date_cancel))
+            }
+        },
+        text = { TimePicker(state = state) },
+        modifier = Modifier.testTag("time-picker"),
+    )
 }
 
 /**
