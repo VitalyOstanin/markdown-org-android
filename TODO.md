@@ -293,9 +293,15 @@ The listing was written against the IzzyOnDroid policy, read on 2026-08-10
 metadata with a short description, a full description, an icon and
 screenshots; an APK signed with the developer's release key, carrying neither
 `debuggable` nor `testOnly`, published on the releases page; at most 30 MB per
-application, against the 24.8 MB the last build weighs; an OSI licence, which
+application, against the 27.1 MB the last build weighs; an OSI licence, which
 MIT is; no proprietary component, tracker or analytics, of which the
 application has none.
+
+That store is out of scope as of 2026-08-25, and the listing outlives it: the
+same metadata is what any store asks for. The policy also states that they are
+"strongly opposed to apps which are fully or in part created by generative AI
+tools", and this project was written with such a tool, so a request to include
+it would be filed against a rule it does not meet.
 
 The icon is rendered from the launcher vector by `tools/store-icon.sh` rather
 than drawn a second time. The screenshots were taken on the emulator, in both
@@ -314,9 +320,9 @@ submitted — these rules change often, and the numbers most of all.
 |---|-----------------------------|------------------------------------------------------------------------------------------------------------------------|
 | 1 | Google Play                 | a one-off developer fee, an AAB rather than an APK, Play App Signing, a data-safety declaration, a target API level no older than the current floor, and — for a personal account opened recently — a closed test with a number of testers over a number of days before production is unlocked |
 | 2 | F-Droid                     | no fee and no account: a metadata file in their repository, a build from source on their own machines, and no proprietary dependency. Their build would have to reproduce the NDK and Rust toolchain this project pins |
-| 3 | IzzyOnDroid                 | the lightest of them: a repository that publishes signed APKs on its releases page is enough, and the store tracks the tags. Closest to how the project already publishes |
-| 4 | RuStore                     | a Russian developer account; takes an APK, which is what the build already produces |
-| 5 | Huawei AppGallery           | an account and their own review; no Google Play Services in the application, which this one does not use anyway |
+| 3 | IzzyOnDroid                 | technically the lightest — a repository publishing signed APKs on its releases page is enough — but ruled out by the policy above |
+| 4 | RuStore                     | an account through VK ID, an individual one included; identity is verified only when payments are switched on, so a free application needs none. Takes an APK. Permissions are read at review, and all-files access has to be argued for |
+| 5 | Huawei AppGallery           | an individual account with identity verified up front — scans of documents, hours to days — their own review, and a link to a privacy notice. No Google Play Services in the application, which this one does not use anyway |
 | 6 | Amazon Appstore, Galaxy Store | an account each, an APK, and a listing per store |
 
 Two things have to be decided before any of it, and they are the reason this
@@ -333,19 +339,20 @@ is a note rather than a task:
    rather than the review. Until that is answered, F-Droid, IzzyOnDroid and
    RuStore are the reachable ones.
 
-The cheapest first step is IzzyOnDroid: it wants what the build already emits.
-F-Droid is the one worth the work — it is where a notes application of this
-kind is looked for — and the effort there is making the build reproduce on
-their infrastructure, not the paperwork.
+The releases page of this repository is the distribution as of 2026-08-25, and
+no request is filed anywhere. F-Droid stays the one worth the work if that
+changes — it is where a notes application of this kind is looked for — and the
+effort there is making the build reproduce on their infrastructure, not the
+paperwork.
 
-What is left before the request to include it can be filed:
+What any of them would need first:
 
 | № | Step                                                                                        |
 |---|---------------------------------------------------------------------------------------------|
-| 1 | Cut a release that is not a prerelease, so there is a version for a store to track          |
-| 2 | Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for that release      |
+| 1 | Write a privacy notice and publish it somewhere linkable — RuStore and AppGallery both ask for one, and there is none |
+| 2 | Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for the release      |
 | 3 | Decide whether a feature graphic is worth drawing — the listing renders without one          |
-| 4 | File the inclusion request, naming the repository and the tag pattern the APK is published under |
+| 4 | Answer who holds the signing key, below, before publishing the same package in two places   |
 
 ### What F-Droid asks of this project
 

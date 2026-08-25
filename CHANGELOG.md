@@ -8,12 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [\[Unreleased\]](#unreleased)
+- [\[0.1.0\] - 2026-08-25](#010---2026-08-25)
 
 ## [Unreleased]
 
-Everything so far. The application has not been released under a version of
-its own yet: every build published to date is a prerelease of `0.1.0`, tagged
-`v0.1.0-build.<run>` and marked as such on the releases page.
+## [0.1.0] - 2026-08-25
+
+Everything so far. The builds published before this one were prereleases of
+this version, tagged `v0.1.0-build.<run>` and marked as such on the releases
+page.
 
 ### Added
 
