@@ -45,6 +45,23 @@ class ExternalNoteTest {
         assertEquals(ExternalNote.MIME, intent.type)
     }
 
+    /**
+     * The path travels with the URI, for editors that cannot use the URI.
+     *
+     * An editor built around `java.io.File` recovers a path from the URI and
+     * only manages it for providers it knows; this application's is not one
+     * of them, and without the path such an editor refuses the note outright.
+     * The absolute path is what it needs, so the URI is not enough on its own.
+     */
+    @Test
+    fun theNoteAlsoCarriesItsPathForEditorsThatOpenFilesRatherThanStreams() {
+        val note = note()
+
+        val intent = ExternalNote.intentFor(context, note)
+
+        assertEquals(note.absolutePath, intent.getStringExtra("EXTRA_FILEPATH"))
+    }
+
     @Test
     fun theReceivingApplicationMayBothReadAndWriteIt() {
         val intent = ExternalNote.intentFor(context, note())

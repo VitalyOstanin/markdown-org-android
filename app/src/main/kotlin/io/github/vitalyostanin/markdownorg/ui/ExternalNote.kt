@@ -37,6 +37,24 @@ object ExternalNote {
     const val MIME = "text/markdown"
 
     /**
+     * The extra some editors read the note's path from.
+     *
+     * A `content://` URI names a provider and a document within it, and the
+     * receiver is meant to open a stream through the resolver. Editors that
+     * work in terms of `java.io.File` instead try to recover a path from the
+     * URI, and can only do that for the providers they were taught: Markor
+     * matches a handful of prefixes and known authorities and shows "can only
+     * edit local, offline available documents" for everything else, this
+     * application's provider included.
+     *
+     * The path is offered alongside the URI rather than instead of it, so an
+     * editor that reads the stream is unaffected — an extra it does not know
+     * costs it nothing. The name is Markor's, and other applications that
+     * pass files around read the same one.
+     */
+    private const val PATH_EXTRA = "EXTRA_FILEPATH"
+
+    /**
      * The intent that offers [note] for reading and writing.
      *
      * Separate from [open] so the decision can be examined without launching
@@ -54,6 +72,7 @@ object ExternalNote {
 
         return Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, MIME)
+            .putExtra(PATH_EXTRA, note.absolutePath)
             .addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
