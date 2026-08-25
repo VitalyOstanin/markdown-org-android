@@ -56,7 +56,6 @@ import io.github.vitalyostanin.markdownorg.ui.rememberRemindersUi
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -438,7 +437,11 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             // returns to.
             onOpenExternally = {
                 model.select(null)
-                if (!ExternalNote.open(context, File(task.file))) {
+                // The note as it sits on the device: the task names its file
+                // relative to the directory the walk covered, and the two are
+                // only a path once joined.
+                val note = model.noteFile(task)
+                if (note == null || !ExternalNote.open(context, note)) {
                     model.reportOpenFailure()
                 }
             },

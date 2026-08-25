@@ -549,6 +549,32 @@ class AgendaCollectionsTest {
     /** Settings with a remote, so the collection takes part in a sync run. */
     private fun configured() = FakePreferences(remoteUrl = "https://example.test/notes.git")
 
+    /**
+     * A note handed to another application is named by an absolute path.
+     *
+     * A task carries its file relative to the directory that was walked, and
+     * a relative path taken for an absolute one names a file in the root of
+     * the filesystem -- which no editor can open, and which is not the note.
+     */
+    @Test
+    fun theFileOfANoteIsJoinedToTheDirectoryItsCollectionWalked() = runTest(dispatcher) {
+        val model = viewModel()
+        advanceUntilIdle()
+
+        val note = model.noteFile(task(root = WORK, file = "notes.md"))
+
+        assertEquals(File(WORK, "notes.md"), note)
+    }
+
+    /** A collection removed while its tasks were on screen has no directory left. */
+    @Test
+    fun aTaskOfACollectionThatIsGoneNamesNoFile() = runTest(dispatcher) {
+        val model = viewModel()
+        advanceUntilIdle()
+
+        assertNull(model.noteFile(task(root = "/notes/elsewhere", file = "notes.md")))
+    }
+
     private fun viewModel(inUse: FakeCollections = collections): AgendaViewModel = AgendaViewModel(
         collections = inUse,
         stored = store,

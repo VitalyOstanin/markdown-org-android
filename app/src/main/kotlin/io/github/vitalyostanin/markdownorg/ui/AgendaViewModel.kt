@@ -721,6 +721,23 @@ class AgendaViewModel(
     }
 
     /**
+     * Where the note a task sits in actually is, or `null` when that cannot be
+     * said.
+     *
+     * A task carries its file relative to the directory the walk covered --
+     * `notes.md`, not `/home/.../notes.md` -- because that is what the agenda
+     * shows and what an edit addresses, and every writer here joins the two
+     * back together. Anything handing the file to another application has to
+     * do the same: a relative path taken for an absolute one names a file in
+     * the root of the filesystem, which exists nowhere.
+     *
+     * `null` where the collection is gone -- removed while its tasks were
+     * still on screen -- since there is no directory left to join to.
+     */
+    fun noteFile(task: Task): File? =
+        collections.byRoot(task.root)?.let { collection -> File(collection.root, task.file) }
+
+    /**
      * Nothing on the device opened the note.
      *
      * Reported through the same channel as a failed edit, because to the
