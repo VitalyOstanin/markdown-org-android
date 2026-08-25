@@ -187,6 +187,10 @@ Writing to them, one line at a time:
   none, move one to a day chosen outright, or take the line off with `null`. A
   line written from nothing follows the file it goes into: the same weekday
   language, the same inline-code framing, the same indentation;
+- `setPlanningTime(target, keyword, time)` — put an hour on such a date, or
+  take the hour off with `null` and leave the day. The date, the repeater and
+  the warning cookie stay as written; a task carrying no date of that kind is
+  refused, since an hour is a token inside a timestamp;
 - `completeTask(target, today)` — mark done, or move a repeating task to its
   next occurrence and leave it open, following upstream Org-mode's
   `org-auto-repeat-maybe`;

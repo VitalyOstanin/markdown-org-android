@@ -107,6 +107,6 @@ private fun Task.occurrence(): LocalDate? {
     return timestampDate?.let { date -> runCatching { LocalDate.parse(date) }.getOrNull() }
 }
 
-/** The hour the entry is held at, for a series that names one. */
-private fun Task.startTime(): LocalTime? =
+/** The hour the entry is held at, where it names one. */
+internal fun Task.startTime(): LocalTime? =
     timestampTime?.let { time -> runCatching { LocalTime.parse(time) }.getOrNull() }

@@ -776,6 +776,9 @@ class AgendaViewModel(
                 is TaskAction.Plan ->
                     theirEditor.setPlanning(task, action.keyword, action.date)
 
+                is TaskAction.PlanTime ->
+                    theirEditor.setPlanningTime(task, action.keyword, action.time)
+
                 is TaskAction.CancelOccurrence ->
                     theirEditor.cancelOccurrence(task, action.date)
 

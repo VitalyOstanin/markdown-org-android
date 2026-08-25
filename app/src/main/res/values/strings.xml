@@ -316,6 +316,7 @@
     <string name="hint_action_shift">Moves the date of the planning line by one day. The time, the repeater and the warning cookie stay as written, and the weekday is rewritten to match in the language the file uses.</string>
     <string name="hint_action_date">Writes the day chosen in the calendar into the planning line the task already has, or takes that line out of the note. The time, the repeater and the warning cookie stay as written.</string>
     <string name="hint_action_no_date">Writes a planning line the task does not have yet, on the day chosen in the calendar. Spelled the way the file spells its other dates: the same weekday language, and the same framing.</string>
+    <string name="hint_action_hour">Writes the hour into the timestamp the planning line already carries, or takes the hour off and leaves the day. The date, the repeater and the warning cookie stay as written, and an entry with no hour is drawn above the clock rather than at one.</string>
     <string name="hint_action_move_occurrence">Writes a separate entry at the new time, naming the occurrence it stands in for. The series is left exactly as it is, and this day shows the new entry instead of the one the series would have had.</string>
     <string name="hint_action_cancel_occurrence">Adds this day to the list of occurrences the series does not have. The series goes on repeating, and this one day is left out of it.</string>
 
@@ -437,6 +438,9 @@
     <!-- The calendar, for a task that already carries a planning date. -->
     <string name="action_pick_date">Pick a day…</string>
     <string name="action_clear_date">Take it off</string>
+    <!-- The clock, for the date the task carries. -->
+    <string name="action_pick_hour">Pick an hour…</string>
+    <string name="action_clear_hour">All day</string>
     <!-- One occurrence of a repeating entry, as against the series it
          belongs to: this Thursday alone, not every Thursday. -->
     <string name="action_occurrence">Just this occurrence</string>

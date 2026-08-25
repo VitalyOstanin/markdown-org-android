@@ -46,6 +46,14 @@ sealed interface TaskAction {
     data class Plan(val keyword: PlanningKeyword, val date: LocalDate?) : TaskAction
 
     /**
+     * Put an hour on the planning date, or take it off with `null`.
+     *
+     * Only offered where the task carries a date of that kind: an hour is a
+     * token inside a timestamp, and there is none to put it in otherwise.
+     */
+    data class PlanTime(val keyword: PlanningKeyword, val time: LocalTime?) : TaskAction
+
+    /**
      * Take one occurrence out of a repeating entry, leaving the series as it
      * is.
      *

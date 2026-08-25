@@ -51,6 +51,7 @@ import java.util.Locale
 @Composable
 internal fun TaskDates(task: Task, weekStart: WeekStart, onAction: (TaskAction) -> Unit) {
     var picking by rememberSaveable { mutableStateOf<PlanningKeyword?>(null) }
+    var pickingHour by rememberSaveable { mutableStateOf(false) }
     val keyword = task.planningKeyword()
 
     if (keyword != null) {
@@ -89,6 +90,10 @@ internal fun TaskDates(task: Task, weekStart: WeekStart, onAction: (TaskAction) 
         }
     }
 
+    if (keyword != null) {
+        HourRow(keyword, task.startTime(), onAction) { pickingHour = true }
+    }
+
     picking?.let { kind ->
         DateChoice(
             // The day the task already sits on, so a date being moved opens
@@ -104,7 +109,60 @@ internal fun TaskDates(task: Task, weekStart: WeekStart, onAction: (TaskAction) 
             },
         )
     }
+
+    if (pickingHour && keyword != null) {
+        TimeChoice(
+            // The hour the task is held at, so a time being changed opens
+            // where it is. A date with no hour yet opens at the start of a
+            // working day, which is a shorter way from most answers than
+            // midnight is -- the same hour the screen that creates a task
+            // opens on.
+            initial = task.startTime() ?: WORKING_DAY_STARTS,
+            onDismiss = { pickingHour = false },
+            onPicked = { time ->
+                pickingHour = false
+                onAction(TaskAction.PlanTime(keyword, time))
+            },
+        )
+    }
 }
+
+/**
+ * The hour the date is held at, and the way to take it off.
+ *
+ * Only shown for a task that carries a date: an hour is a token inside a
+ * timestamp, and a task with no planning line has none to put it in. Taking
+ * the hour off is offered only where there is one, the same way clearing a
+ * date is -- a button that would do nothing is not a button.
+ */
+@Composable
+private fun HourRow(
+    keyword: PlanningKeyword,
+    hour: LocalTime?,
+    onAction: (TaskAction) -> Unit,
+    onPick: () -> Unit,
+) {
+    HintTooltip(stringResource(R.string.hint_action_hour)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            SheetAction(
+                label = stringResource(R.string.action_pick_hour),
+                tag = "action-pick-hour",
+                modifier = Modifier.weight(1f),
+                onClick = onPick,
+            )
+            if (hour != null) {
+                SheetAction(
+                    label = stringResource(R.string.action_clear_hour),
+                    tag = "action-clear-hour",
+                    modifier = Modifier.weight(1f),
+                ) { onAction(TaskAction.PlanTime(keyword, null)) }
+            }
+        }
+    }
+}
+
+/** Where the clock opens for a date that names no hour yet. */
+private val WORKING_DAY_STARTS: LocalTime = LocalTime.of(9, 0)
 
 /**
  * Which planning line the task carries, and therefore which one can be moved.

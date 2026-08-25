@@ -556,7 +556,7 @@ fn replacement_timestamp(
 
 /// The whitespace-separated tokens between the timestamp's brackets, as
 /// ranges into the line they were read from.
-fn fields(line: &str, whole: Range<usize>) -> Vec<Range<usize>> {
+pub(crate) fn fields(line: &str, whole: Range<usize>) -> Vec<Range<usize>> {
     // The brackets are one byte each, in both families.
     let (start, end) = (whole.start + 1, whole.end - 1);
     let mut fields = Vec::new();
@@ -578,7 +578,7 @@ fn fields(line: &str, whole: Range<usize>) -> Vec<Range<usize>> {
 }
 
 /// Whether the token is a clock time, or a range of two of them.
-fn is_time(field: &str) -> bool {
+pub(crate) fn is_time(field: &str) -> bool {
     let mut halves = field.split('-');
     let Some(first) = halves.next() else {
         return false;

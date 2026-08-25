@@ -302,6 +302,19 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         return record()
     }
 
+    /** Which hour the last call wrote, and on which line -- `null` for one taken off. */
+    var hour: Pair<PlanningKeyword, LocalTime?>? = null
+        private set
+
+    override suspend fun setPlanningTime(
+        task: Task,
+        keyword: PlanningKeyword,
+        time: LocalTime?,
+    ): Result<EditReport> {
+        hour = keyword to time
+        return record()
+    }
+
     /** The occurrence the last call took out of a series. */
     var cancelled: LocalDate? = null
         private set

@@ -29,6 +29,7 @@ import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertFiles as coreRevertFiles
 import uniffi.markdown_org_ffi.setEntry as coreSetEntry
 import uniffi.markdown_org_ffi.setPlanning as coreSetPlanning
+import uniffi.markdown_org_ffi.setPlanningTime as coreSetPlanningTime
 import uniffi.markdown_org_ffi.setPriority as coreSetPriority
 import uniffi.markdown_org_ffi.setStatus as coreSetStatus
 import uniffi.markdown_org_ffi.shiftPlanning as coreShiftPlanning
@@ -129,6 +130,19 @@ interface NotesWriter {
         task: Task,
         keyword: PlanningKeyword,
         date: LocalDate?,
+    ): Result<EditReport>
+
+    /**
+     * Put an hour on a planning date, or take one off with `null`.
+     *
+     * Separate from [setPlanning] because an hour is written into a date that
+     * already exists: a task with no planning line has no timestamp to carry
+     * one, and the core refuses that rather than inventing a day for it.
+     */
+    suspend fun setPlanningTime(
+        task: Task,
+        keyword: PlanningKeyword,
+        time: LocalTime?,
     ): Result<EditReport>
 
     /**
@@ -333,6 +347,16 @@ class NotesEditor internal constructor(
     ): Result<EditReport> = write {
         val outcome = coreSetPlanning(task.target(), keyword, date?.toString())
         outcome.rollback to planningMessage(task.heading, keyword, date)
+    }
+
+    /** Put an hour on a planning date, or take one off. */
+    override suspend fun setPlanningTime(
+        task: Task,
+        keyword: PlanningKeyword,
+        time: LocalTime?,
+    ): Result<EditReport> = write {
+        val outcome = coreSetPlanningTime(task.target(), keyword, time?.toString())
+        outcome.rollback to planningTimeMessage(task.heading, keyword, time)
     }
 
     /** Take one occurrence out of a repeating entry. */
@@ -613,6 +637,21 @@ internal fun planningMessage(heading: String, keyword: PlanningKeyword, date: Lo
         null -> "Take the ${keyword.keyword()} off \"$heading\""
         else -> "Set the ${keyword.keyword()} of \"$heading\" to $date"
     }
+
+/**
+ * Which hour was written, and on which date -- or that it was taken off.
+ *
+ * The hour is spelled the way the notes spell it, `HH:MM`, as every date in
+ * these messages is: the history is read beside the files.
+ */
+internal fun planningTimeMessage(
+    heading: String,
+    keyword: PlanningKeyword,
+    time: LocalTime?,
+): String = when (time) {
+    null -> "Take the hour off the ${keyword.keyword()} of \"$heading\""
+    else -> "Set the ${keyword.keyword()} of \"$heading\" to $time"
+}
 
 /**
  * Which occurrence left the series, and which day it stood on.

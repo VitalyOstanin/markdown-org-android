@@ -35,8 +35,8 @@ pub use entry::{read_entry, set_entry, EntryText};
 pub use index::NotesIndex;
 pub use occurrence::{cancel_occurrence, move_occurrence};
 pub use planning::{
-    canonical_repeater, complete_task, set_planning, shift_planning, CompleteOutcome,
-    PlanningKeyword,
+    canonical_repeater, complete_task, set_planning, set_planning_time, shift_planning,
+    CompleteOutcome, PlanningKeyword,
 };
 pub use sync::{
     adopt_directory, commit_changes, generate_ssh_key, holds_repository, load_ca_bundle,

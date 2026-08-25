@@ -7,7 +7,8 @@
 //! it open rather than closing it.
 
 use markdown_org_ffi::{
-    canonical_repeater, complete_task, set_planning, shift_planning, EditError, PlanningKeyword,
+    canonical_repeater, complete_task, set_planning, set_planning_time, shift_planning, EditError,
+    PlanningKeyword,
 };
 
 mod common;
@@ -796,4 +797,131 @@ fn what_is_not_a_repeater_is_answered_as_none() {
             "{value:?} was taken for a repeater"
         );
     }
+}
+
+#[test]
+fn an_hour_is_put_on_a_date_that_has_none() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        Some("10:00".to_string()),
+    )
+    .expect("set the time");
+
+    assert!(outcome.changed);
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-07-28 Tue 10:00>`");
+}
+
+#[test]
+fn an_hour_replaces_the_one_the_timestamp_carried() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue 10:00 +1w>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        Some("18:30".to_string()),
+    )
+    .expect("set the time");
+
+    // The repeater is the series' own and is not what was asked about.
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-07-28 Tue 18:30 +1w>`");
+}
+
+#[test]
+fn a_range_of_times_is_written_where_one_is_asked_for() {
+    let vault = vault("# TODO Standup\n`SCHEDULED: <2026-07-28 Tue 10:00>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Standup"),
+        PlanningKeyword::Scheduled,
+        Some("10:00-10:15".to_string()),
+    )
+    .expect("set the time");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-07-28 Tue 10:00-10:15>`");
+}
+
+#[test]
+fn taking_the_hour_off_leaves_the_day_and_the_spacing() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue 10:00 +1w>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        None,
+    )
+    .expect("clear the time");
+
+    assert_eq!(outcome.line, "`SCHEDULED: <2026-07-28 Tue +1w>`");
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue +1w>`\n"
+    );
+}
+
+#[test]
+fn a_date_with_no_weekday_takes_its_hour_after_the_day() {
+    let vault = vault("# TODO Write the report\n`DEADLINE: <2026-07-28>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Deadline,
+        Some("09:00".to_string()),
+    )
+    .expect("set the time");
+
+    assert_eq!(outcome.line, "`DEADLINE: <2026-07-28 09:00>`");
+}
+
+#[test]
+fn taking_off_an_hour_that_is_not_there_changes_nothing() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n");
+
+    let outcome = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        None,
+    )
+    .expect("clear the time");
+
+    assert!(!outcome.changed);
+    assert!(outcome.rollback.is_none());
+}
+
+#[test]
+fn a_task_with_no_date_of_that_kind_is_refused() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n");
+
+    let refused = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Deadline,
+        Some("10:00".to_string()),
+    )
+    .expect_err("no deadline to put an hour on");
+
+    assert!(matches!(refused, EditError::Unsupported { .. }));
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n"
+    );
+}
+
+#[test]
+fn a_time_that_is_not_a_time_leaves_the_file_alone() {
+    let vault = vault("# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n");
+
+    let refused = set_planning_time(
+        target(vault.path(), 1, "Write the report"),
+        PlanningKeyword::Scheduled,
+        Some("half past ten".to_string()),
+    )
+    .expect_err("not a time");
+
+    assert!(matches!(refused, EditError::InvalidDate { .. }));
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write the report\n`SCHEDULED: <2026-07-28 Tue>`\n"
+    );
 }

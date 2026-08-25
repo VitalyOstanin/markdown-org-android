@@ -30,6 +30,7 @@ use markdown_org_extract::{
 
 use crate::document::Document;
 use crate::edit::{splice, with_status, write_line, EditError, EditOutcome, EditTarget};
+use crate::occurrence::{fields, is_time, parse_time};
 use crate::undo::FileRollback;
 use crate::TaskType;
 
@@ -181,6 +182,88 @@ pub fn set_planning(
             rollback: None,
         }),
     }
+}
+
+/// Put an hour on a planning date, or take one off.
+///
+/// `time` is `HH:MM`, or `HH:MM-HH:MM` where the entry is held between two
+/// times, and `None` takes the hour off and leaves the day. Separate from
+/// [`set_planning`] because the two answer different questions — which day,
+/// and at what hour of it — and because an hour can only be put on a date
+/// that already exists: an hour is a token inside a timestamp, and a task
+/// with no planning line has no timestamp to put it in.
+///
+/// Everything else the line carries is left as written: the date, the
+/// weekday in whatever language it was spelled, the repeater, the warning
+/// cookie, the keyword and the framing around them. Where the timestamp had
+/// no hour, the new one goes after the weekday, or after the date where there
+/// is no weekday, which is where org-mode reads it from.
+#[uniffi::export]
+pub fn set_planning_time(
+    target: EditTarget,
+    keyword: PlanningKeyword,
+    time: Option<String>,
+) -> Result<EditOutcome, EditError> {
+    // Parsed before the file is opened: a time the caller mistyped must leave
+    // the notes as they were.
+    let time = time.as_deref().map(parse_time).transpose()?;
+
+    let mut document = Document::open(&target)?;
+    let (index, _) = document.heading(&target)?;
+
+    let (line_index, _, parts) = planning_lines(&document, index)
+        .into_iter()
+        .find(|(_, kind, _)| *kind == keyword)
+        .ok_or_else(|| EditError::Unsupported {
+            detail: format!(
+                "{} carries no {} date, and an hour is written into a date",
+                target.heading,
+                keyword.token().trim_end_matches(':'),
+            ),
+        })?;
+
+    let line = document.at(line_index).to_string();
+    let rewritten = rewrite_time(&line, &parts, time.as_deref());
+    write_line(&mut document, line_index, rewritten)
+}
+
+/// The line with its hour replaced, added or taken off.
+///
+/// The tokens are located inside the brackets and edited from the end, so a
+/// replacement of a different width cannot move the range the next one was
+/// found at. Removing takes the whitespace ahead of the token with it, which
+/// is what keeps a line from coming back with two spaces where it had one.
+fn rewrite_time(line: &str, parts: &TimestampParts, time: Option<&str>) -> String {
+    let fields = fields(line, parts.whole.clone());
+    let written = fields
+        .iter()
+        .position(|field| is_time(&line[field.clone()]));
+
+    let edit = match (time, written) {
+        (Some(time), Some(at)) => (fields[at].clone(), time.to_string()),
+        (Some(time), None) => {
+            let after = parts
+                .weekday
+                .clone()
+                .unwrap_or_else(|| parts.date.clone())
+                .end;
+            (after..after, format!(" {time}"))
+        }
+        (None, Some(at)) => {
+            // A time never stands first — the date does — so there is always a
+            // token before it, and the check is for the indexing rather than
+            // for the file.
+            let from = if at > 0 {
+                fields[at - 1].end
+            } else {
+                fields[at].start
+            };
+            (from..fields[at].end, String::new())
+        }
+        (None, None) => return line.to_string(),
+    };
+
+    splice(line, edit.0, &edit.1)
 }
 
 /// Mark a task done, or move it to its next occurrence when it repeats.
