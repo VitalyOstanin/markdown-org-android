@@ -10,7 +10,9 @@
 
 ## Status
 
-Accepted (2026-08-19).
+Accepted (2026-08-19). Amended by ADR-0036 (2026-08-25): where inside the
+receiving file the entry goes is a setting of the collection, and the end of
+the file is one of its two answers.
 
 ## Context
 

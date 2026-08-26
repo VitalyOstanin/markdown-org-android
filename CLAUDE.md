@@ -128,10 +128,9 @@ reasoning.
   group action makes, refused where the note has moved on since. The offer is
   the last tap only, and it is dropped by the next edit. See
   [ADR-0031](docs/adr/0031-every-edit-carries-what-it-takes-to-undo-it.md).
-- A task written from nothing goes to the end of the file its collection names
-  in the settings, at the level that file writes its tasks at. Where it goes is
-  decided once rather than guessed per task, and the end of the file is what
-  keeps two devices' additions merging without a conflict. See
+- A task written from nothing goes to the file its collection names in the
+  settings, at the level that file writes its tasks at. Where it goes is
+  decided once rather than guessed per task. See
   [ADR-0032](docs/adr/0032-a-new-task-goes-to-a-file-the-collection-names.md).
 
 - One occurrence of a repeating entry is cancelled by an `EXDATE` on the
@@ -147,6 +146,16 @@ reasoning.
   moment it is raised. The plan holds two days and is replaced whole whenever a
   note may have moved. See
   [ADR-0034](docs/adr/0034-reminders-are-planned-on-the-device-and-replaced-whole.md).
+
+- Where in a file an entry is written is a setting of the collection: at the
+  start, before the first heading and after whatever stands above it, or at the
+  end, which is what keeps two devices' additions merging without a conflict.
+  The same setting places an entry moved between files, and a collection may
+  name a main file the sheet offers to carry an entry to. What travels is the
+  entry whole — heading, planning lines, property block, text and every heading
+  nested under it — byte for byte, within one collection, with both files
+  written and both taken back by one undo. See
+  [ADR-0036](docs/adr/0036-where-an-entry-is-written-is-the-collections-to-say.md).
 
 - A reminder is answered where it is read: it carries the day it is about and,
   when it names an entry, the address of that entry, so a tap lands on the day

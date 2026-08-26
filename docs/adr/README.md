@@ -67,10 +67,11 @@ so a decision can be followed across the three repositories.
 | 0029 | [An entry is edited here, a file is not](0029-an-entry-is-edited-here-a-file-is-not.md) | Accepted |
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
-| 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted |
+| 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Amended by 0036 |
 | 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted |
 | 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted |
 | 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |
+| 0036 | [Where an entry is written is the collection's to say, and an entry can move between files](0036-where-an-entry-is-written-is-the-collections-to-say.md) | Accepted |
 
 ## Adding a new ADR
 
