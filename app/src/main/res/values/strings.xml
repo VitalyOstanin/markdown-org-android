@@ -147,12 +147,22 @@
     <!-- The same for the page a public key is pasted into. -->
     <string name="settings_ssh_key_page">Where to paste the key</string>
     <string name="settings_notes">Notes directory</string>
-    <!-- The file of this collection that new tasks are appended to. -->
+    <!-- The file of this collection that new tasks are written into. -->
     <string name="settings_inbox">File for new tasks</string>
-    <string name="settings_inbox_support">New tasks are appended to the end of this file, inside the notes directory.</string>
+    <string name="settings_inbox_support">New tasks are written into this file, inside the notes directory.</string>
     <string name="settings_inbox_empty">Name the file new tasks are written to</string>
     <string name="settings_inbox_outside">The file has to be inside the notes directory</string>
     <string name="settings_inbox_markdown">The file has to end in .md, which is what the agenda reads</string>
+    <!-- Where in a file an entry is written: at the top of it or after
+         everything it holds. Read by new tasks and by moved entries alike. -->
+    <string name="settings_write_at">Where entries are written</string>
+    <string name="settings_write_at_support">Applies to a task made here and to an entry moved into another file.</string>
+    <string name="settings_write_at_start">At the start</string>
+    <string name="settings_write_at_end">At the end</string>
+    <!-- The file this collection keeps its entries in, which the sheet of a
+         task offers to carry it to. -->
+    <string name="settings_main">Main file</string>
+    <string name="settings_main_support">Where the sheet of a task offers to move it. Leave empty for a collection with no main file.</string>
     <string name="settings_notes_default">empty: the application\'s own storage</string>
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
     <string name="settings_notes_not_dir">That path is a file, not a directory</string>
@@ -306,6 +316,8 @@
       on the button, and what a tap changes in the file is what is not.
     -->
     <string name="hint_action_edit_entry">Opens the heading\'s own text and the lines under it. The keyword, the priority and the dates are left to the actions above; the edit is written to the file and committed like any other.</string>
+    <string name="hint_action_move_to_main">Carries the heading and everything under it into the main file of this collection, and takes it out of the file it is in now. The text travels unchanged; where it lands is what the collection\'s settings say.</string>
+    <string name="hint_action_move_to_file">Opens the markdown files of this collection to choose from. The move is the same one: the whole entry, into the file you name.</string>
     <string name="hint_action_open_externally">Offers the whole note to a markdown editor of your choosing. What it writes is committed here by the next sync, under a message nobody chose; until then the edit is on this device alone.</string>
     <string name="hint_action_where">The file the task is written in and the line its heading is on, inside the directory of its collection.</string>
     <string name="hint_action_complete">Writes DONE into the heading and commits. The task leaves the agenda and stays in the note.</string>
@@ -375,6 +387,13 @@
          than the task: what opens is the whole file, at whatever place the
          editor decides. -->
     <string name="action_open_externally">Open the note in another app</string>
+    <!-- Carries the whole entry into the file the collection calls its main
+         one. The file is named in the label, because that is the whole of
+         what the tap does. -->
+    <string name="action_move_to_main">Move to %1$s</string>
+    <string name="action_move_to_file">Move to another file…</string>
+    <!-- Leaves the list of files without moving anything. -->
+    <string name="move_dismiss">Cancel</string>
     <!-- The entry editor: the heading's own text and the lines under it. -->
     <string name="action_edit_entry">Edit the text</string>
     <string name="entry_title">The entry</string>

@@ -96,10 +96,16 @@
     <string name="settings_ssh_key_page">Куда вставить ключ</string>
     <string name="settings_notes">Каталог заметок</string>
     <string name="settings_inbox">Файл для новых задач</string>
-    <string name="settings_inbox_support">Новые задачи дописываются в конец этого файла внутри каталога заметок.</string>
+    <string name="settings_inbox_support">Новые задачи пишутся в этот файл внутри каталога заметок.</string>
     <string name="settings_inbox_empty">Укажите файл, в который писать новые задачи</string>
     <string name="settings_inbox_outside">Файл должен быть внутри каталога заметок</string>
     <string name="settings_inbox_markdown">Файл должен оканчиваться на .md — агенда читает только такие</string>
+    <string name="settings_write_at">Куда писать записи</string>
+    <string name="settings_write_at_support">Действует и для новой задачи, и для записи, перенесённой в другой файл.</string>
+    <string name="settings_write_at_start">В начало</string>
+    <string name="settings_write_at_end">В конец</string>
+    <string name="settings_main">Основной файл</string>
+    <string name="settings_main_support">Куда лист действий предлагает перенести задачу. Оставьте пустым, если основного файла нет.</string>
     <string name="settings_notes_default">пусто — собственное хранилище приложения</string>
     <string name="settings_notes_relative">Укажите абсолютный путь, начиная с /</string>
     <string name="settings_notes_not_dir">По этому пути файл, а не каталог</string>
@@ -214,6 +220,8 @@
     <string name="hint_group_cancel">Отметить все записи группы отменёнными, записав ключевое слово в исходную заметку.</string>
 
     <string name="hint_action_edit_entry">Открывает текст самого заголовка и строки под ним. Ключевое слово, приоритет и даты остаются за действиями выше; правка записывается в файл и фиксируется как любая другая.</string>
+    <string name="hint_action_move_to_main">Переносит заголовок и всё, что под ним, в основной файл этой коллекции и убирает из файла, где запись лежит сейчас. Текст переезжает без изменений, место вставки задано настройками коллекции.</string>
+    <string name="hint_action_move_to_file">Открывает список markdown-файлов этой коллекции. Перенос тот же самый: запись целиком, в выбранный файл.</string>
     <string name="hint_action_open_externally">Передаёт заметку целиком выбранному вами редактору markdown. Сделанную там правку это приложение зафиксирует при ближайшей синхронизации, под сообщением, которого никто не выбирал; до тех пор правка есть только на устройстве.</string>
     <string name="hint_action_where">Файл, в котором записана задача, и строка её заголовка — внутри каталога своей коллекции.</string>
     <string name="hint_action_complete">Записывает в заголовок DONE и делает коммит. Задача уходит из повестки и остаётся в заметке.</string>
@@ -264,6 +272,9 @@
     <string name="action_cancel_task">Снять задачу</string>
     <string name="action_reopen">Вернуть в работу</string>
     <string name="action_open_externally">Открыть заметку в другом приложении</string>
+    <string name="action_move_to_main">Перенести в %1$s</string>
+    <string name="action_move_to_file">Перенести в другой файл…</string>
+    <string name="move_dismiss">Отмена</string>
     <string name="action_edit_entry">Править текст</string>
     <string name="entry_title">Запись</string>
     <string name="entry_heading">Заголовок</string>

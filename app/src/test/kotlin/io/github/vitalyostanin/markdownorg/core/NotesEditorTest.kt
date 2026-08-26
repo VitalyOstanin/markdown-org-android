@@ -68,7 +68,7 @@ class NotesEditorTest {
         assertEquals(listOf("Set the priority of \"Task\" to A"), commits)
         // What the note held on either side of it comes back out with the
         // report: without it the screen has nothing to offer an undo from.
-        assertEquals(rollback, report.getOrThrow().rollback)
+        assertEquals(listOf(rollback), report.getOrThrow().rollback)
     }
 
     @Test

@@ -3,11 +3,16 @@
 //! Every other operation in this crate finds a heading and changes it. This
 //! one has no heading to find: what it is given is what the user typed, and
 //! where it goes is a file named in the settings of a collection — the file
-//! that receives new tasks. The entry is appended to the end of it, which is
-//! the one place a write cannot collide with an edit made elsewhere: the notes
-//! live in a git checkout merged line by line, and two devices adding a task
-//! to the same file on the same day merge cleanly as long as neither of them
-//! rewrites what is above.
+//! that receives new tasks.
+//!
+//! Where in that file is the collection's to say as well, because the two
+//! answers are worth different things. The end of the file is the one place a
+//! write cannot collide with an edit made elsewhere: the notes live in a git
+//! checkout merged line by line, and two devices adding a task to the same
+//! file on the same day merge cleanly as long as neither of them rewrites what
+//! is above. The start of it is where a task written today is read tomorrow,
+//! without scrolling past everything written before it — at the cost of that
+//! merge, since two devices then write into the same place.
 //!
 //! What is written follows the file rather than a house style, the same way
 //! [`crate::planning`] writes a date: the heading is written at the level the
@@ -24,6 +29,21 @@ use crate::occurrence::parse_time;
 use crate::planning::{checked_repeater, planning_line, PlanningKeyword, StampTokens};
 use crate::TaskType;
 
+/// Where in the file that receives it an entry goes.
+///
+/// Named as a position in the file rather than as an order of entries: what
+/// is at the top of a note is not the newest of anything, it is simply what a
+/// reader sees first, and a file whose entries were written elsewhere has no
+/// order for this to keep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum WritePosition {
+    /// Before the first heading of the file, after everything that stands
+    /// above it — an introduction, a property block, a YAML front matter.
+    Start,
+    /// After everything the file holds.
+    End,
+}
+
 /// A task to write, as the screen composed it.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct NewTask {
@@ -32,6 +52,8 @@ pub struct NewTask {
     /// The file that receives new tasks, relative to `dir`. It is created
     /// when it is not there yet; the directory above it is not.
     pub file: String,
+    /// Where in that file the entry goes, as the collection has it set.
+    pub at: WritePosition,
     /// The heading's own text, without a keyword or a priority cookie —
     /// those are the two fields below, so that typing one cannot set the
     /// other.
@@ -65,7 +87,7 @@ pub struct NewPlanning {
     pub repeater: Option<String>,
 }
 
-/// Write a new task at the end of the file that receives them.
+/// Write a new task into the file that receives them, where it says.
 ///
 /// Answers with the heading line as it was written and the pair an undo works
 /// from, the same as every other write here — see [`crate::undo`]. `changed`
@@ -117,29 +139,31 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
     let body = body_lines(&task.body)?;
 
     let before = document.text();
-    let entry = opening(&document, heading.clone());
-    append(&mut document, entry);
-    // The heading is the last line of the file, whether or not a blank
-    // separator went in ahead of it.
-    let index = document.len() - 1;
+    let placement = placed(&document, task.at, vec![heading.clone()]);
+    let index = placement.at + placement.offset;
+    document.replace_lines(placement.at..placement.at, placement.lines);
 
+    // What goes under the heading goes under the heading, wherever in the file
+    // that turned out to be: the lines below are written by index rather than
+    // appended, so an entry written at the start does not scatter its planning
+    // line and its body across the end of the file.
+    let mut under = index + 1;
     if let Some((keyword, date, time, repeater)) = planning {
         let tokens = StampTokens {
             time: time.as_deref(),
             repeater: repeater.as_deref(),
         };
         let line = planning_line(&document, index, keyword, date, tokens)?;
-        append(&mut document, vec![line]);
+        document.replace_lines(under..under, vec![line]);
+        under += 1;
     }
     if !body.is_empty() {
         // A blank line between what an operation writes and what the user
         // typed: without it a paragraph runs on from the planning line above
         // it, and the entry editor's own idea of where a body begins is the
         // line after the last blank one.
-        append(
-            &mut document,
-            std::iter::once(String::new()).chain(body).collect(),
-        );
+        let lines = std::iter::once(String::new()).chain(body).collect();
+        document.replace_lines(under..under, lines);
     }
 
     let rollback = document.saved(before)?;
@@ -156,15 +180,91 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
 /// separator belongs between two entries, and one added on every write would
 /// open a gap that grows by a line per task.
 pub(crate) fn opening(document: &Document, heading: String) -> Vec<String> {
-    let last = document.len().checked_sub(1);
-    let closed = last.is_none_or(|index| document.at(index).trim().is_empty());
+    placed(document, WritePosition::End, vec![heading]).lines
+}
 
-    if closed {
-        vec![heading]
-    } else {
-        vec![String::new(), heading]
+/// Where a block of lines goes in a file, and the block as it will be spliced.
+pub(crate) struct Placement {
+    /// The line the block is spliced in at.
+    pub(crate) at: usize,
+    /// The lines asked for, with a blank separator on whichever side of them
+    /// runs into text.
+    pub(crate) lines: Vec<String>,
+    /// Where the first line asked for sits within [`Placement::lines`]: one
+    /// where a separator went in front of it, zero otherwise. The caller
+    /// writes the rest of the entry by index, and the index it needs is the
+    /// heading's rather than the block's.
+    pub(crate) offset: usize,
+}
+
+/// Where `lines` go in `document`, with the blank lines that have to stand
+/// around them.
+///
+/// A separator is added on whichever side runs into text and on neither side
+/// that does not: an entry written under a file already ending in a blank line
+/// gets no second one, and an entry written at the top of an empty file gets
+/// none at all. Without it the heading would run into the text above or the
+/// heading below, and either one is a file that no longer reads as it did.
+pub(crate) fn placed(document: &Document, at: WritePosition, lines: Vec<String>) -> Placement {
+    let index = match at {
+        WritePosition::Start => header_end(document),
+        WritePosition::End => document.len(),
+    };
+    let above = index > 0 && !document.at(index - 1).trim().is_empty();
+    let below = index < document.len() && !document.at(index).trim().is_empty();
+
+    let mut block = Vec::with_capacity(lines.len() + 2);
+    if above {
+        block.push(String::new());
+    }
+    block.extend(lines);
+    if below {
+        block.push(String::new());
+    }
+
+    Placement {
+        at: index,
+        lines: block,
+        offset: usize::from(above),
     }
 }
+
+/// Where the header of the file ends: the line its first heading stands on.
+///
+/// The header is whatever a file opens with before its first entry — a title
+/// paragraph, a property block, a YAML front matter — and an entry written at
+/// the start goes after it rather than above it: a heading put in front of the
+/// title of a note would read as a note of its own, and a note whose first
+/// line stops being its front matter is one no reader of it parses.
+///
+/// A file with no heading at all is header to the end: the entry goes after
+/// everything, which is where the end of the file is too.
+pub(crate) fn header_end(document: &Document) -> usize {
+    (front_matter_end(document)..document.len())
+        .find(|index| parse_heading_line(document.at(*index)).is_some())
+        .unwrap_or_else(|| document.len())
+}
+
+/// The line after a YAML front matter, or the top of the file where there is
+/// none.
+///
+/// Stepped over rather than searched, because a comment inside one begins
+/// with `#` at the start of a line and reads as a heading: an entry written
+/// above such a comment would land inside the front matter. A block that was
+/// opened and never closed is not one, and the file is read from the top.
+fn front_matter_end(document: &Document) -> usize {
+    let opens = document.len() > 0 && document.at(0).trim_end() == FRONT_MATTER;
+    if !opens {
+        return 0;
+    }
+
+    (1..document.len())
+        .find(|index| document.at(*index).trim_end() == FRONT_MATTER)
+        .map_or(0, |index| index + 1)
+}
+
+/// The fence a YAML front matter is written between.
+const FRONT_MATTER: &str = "---";
 
 /// Put `lines` at the end of the document.
 pub(crate) fn append(document: &mut Document, lines: Vec<String>) {

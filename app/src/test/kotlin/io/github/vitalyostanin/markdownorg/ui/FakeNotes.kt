@@ -7,6 +7,7 @@ import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
+import io.github.vitalyostanin.markdownorg.core.MoveReport
 import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsPreferences
@@ -29,6 +30,7 @@ import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.MoveOutcome
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.RevertOutcome
@@ -36,6 +38,7 @@ import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -356,9 +359,40 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
     var created: Pair<String, TaskDraft>? = null
         private set
 
-    override suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport> {
+    /** Where in that file the last creation was told to write it. */
+    var createdAt: WritePosition? = null
+        private set
+
+    override suspend fun createTask(
+        file: String,
+        at: WritePosition,
+        draft: TaskDraft,
+    ): Result<EditReport> {
         created = file to draft
+        createdAt = at
         return record()
+    }
+
+    /** Which file the last move named, and where in it the entry was to go. */
+    var movedTo: Pair<String, WritePosition>? = null
+        private set
+
+    /** What moving an entry answers with. */
+    var moveOutcome: Result<MoveReport> = Result.success(
+        MoveReport(
+            outcome = MoveOutcome(line = "", file = "", rollback = emptyList()),
+            report = EditReport(committed = true),
+        ),
+    )
+
+    override suspend fun moveEntry(
+        task: Task,
+        file: String,
+        at: WritePosition,
+    ): Result<MoveReport> {
+        calls += 1
+        movedTo = file to at
+        return moveOutcome
     }
 
     /** What the last group action was asked to do, and to how many tasks. */
@@ -408,8 +442,11 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
     var undoneEdit: String? = null
         private set
 
-    override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> {
-        undone = listOf(rollback)
+    override suspend fun undoEdit(
+        rollback: List<FileRollback>,
+        heading: String,
+    ): Result<UndoReport> {
+        undone = rollback
         undoneEdit = heading
         return undoOutcome
     }
@@ -419,10 +456,10 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         private set
 
     override suspend fun undoCreation(
-        rollback: FileRollback,
+        rollback: List<FileRollback>,
         heading: String,
     ): Result<UndoReport> {
-        undone = listOf(rollback)
+        undone = rollback
         undoneCreation = heading
         return undoOutcome
     }

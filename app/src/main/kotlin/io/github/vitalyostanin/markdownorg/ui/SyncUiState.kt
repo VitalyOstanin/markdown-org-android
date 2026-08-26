@@ -4,7 +4,8 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
-import io.github.vitalyostanin.markdownorg.core.InboxProblem
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
+import io.github.vitalyostanin.markdownorg.core.NoteFileProblem
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.SyncRun
@@ -13,6 +14,7 @@ import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.EditException
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.SyncException
+import uniffi.markdown_org_ffi.WritePosition
 
 /** What the interface shows about the checkout and the last sync attempt. */
 data class SyncUiState(
@@ -112,6 +114,10 @@ data class SyncForm(
     val name: String = "",
     /** The file it receives new tasks in, relative to its directory. */
     val inbox: String = "",
+    /** Where in a file it writes an entry: at the start of it or at the end. */
+    val writeAt: WritePosition = DEFAULT_WRITE_AT,
+    /** The file it keeps its entries in, empty where it has no main one. */
+    val mainFile: String = "",
     /** A private key is stored, which the form shows no more of than this. */
     val hasKey: Boolean = false,
     /** The public half of a key made here, empty when there is none to offer. */
@@ -138,6 +144,10 @@ data class SyncFormValues(
     val name: String = "",
     /** The file new tasks go into; a file that cannot hold them is refused. */
     val inbox: String = "",
+    /** Where in a file an entry is written: at the start of it or at the end. */
+    val writeAt: WritePosition = DEFAULT_WRITE_AT,
+    /** The file the sheet offers to move an entry to; empty for none. */
+    val mainFile: String = "",
     /** Blank leaves the stored key alone, the way a blank token does. */
     val sshKey: String = "",
     val sshPassphrase: String = "",
@@ -205,10 +215,10 @@ fun CollectionProblem.toMessage(): SyncMessage = when (this) {
 }
 
 /** What to tell the user about a file that cannot receive new tasks. */
-fun InboxProblem.toMessage(): SyncMessage = when (this) {
-    InboxProblem.EMPTY -> SyncMessage(R.string.settings_inbox_empty, failed = true)
-    InboxProblem.OUTSIDE -> SyncMessage(R.string.settings_inbox_outside, failed = true)
-    InboxProblem.NOT_MARKDOWN -> SyncMessage(R.string.settings_inbox_markdown, failed = true)
+fun NoteFileProblem.toMessage(): SyncMessage = when (this) {
+    NoteFileProblem.EMPTY -> SyncMessage(R.string.settings_inbox_empty, failed = true)
+    NoteFileProblem.OUTSIDE -> SyncMessage(R.string.settings_inbox_outside, failed = true)
+    NoteFileProblem.NOT_MARKDOWN -> SyncMessage(R.string.settings_inbox_markdown, failed = true)
 }
 
 /** What to tell the user about an address that cannot be used. */

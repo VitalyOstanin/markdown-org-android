@@ -2,7 +2,9 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.compose.runtime.Immutable
 import io.github.vitalyostanin.markdownorg.core.DEFAULT_DIGEST_TIME
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import uniffi.markdown_org_ffi.WritePosition
 import java.time.LocalTime
 
 /**
@@ -23,6 +25,10 @@ data class SettingsInitial(
     val name: String = "",
     /** The file it receives new tasks in, as it is stored. */
     val inbox: String = "",
+    /** Where in a file it writes an entry, as it is stored. */
+    val writeAt: WritePosition = DEFAULT_WRITE_AT,
+    /** The file it keeps its entries in, as it is stored; empty for none. */
+    val mainFile: String = "",
     val hasToken: Boolean = false,
     /** A private key for an `ssh://` remote is stored, whatever it is. */
     val hasKey: Boolean = false,

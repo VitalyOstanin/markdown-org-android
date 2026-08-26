@@ -83,18 +83,34 @@ impl Document {
     /// a file elsewhere. The one path that does not come from a scan is the
     /// file a collection receives new tasks in, which the user types into the
     /// settings — and that is the case this refusal is for.
+    ///
+    /// The path is also put together component by component rather than
+    /// joined whole, so that `notes.md` and `./notes.md` resolve to one path:
+    /// two documents of the same file are two copies that overwrite each
+    /// other, and an operation reading both would lose whichever it saved
+    /// first.
     fn resolve(dir: &str, file: &str) -> Result<PathBuf, EditError> {
-        let relative = Path::new(file);
-        let climbs = relative
-            .components()
-            .any(|part| matches!(part, Component::ParentDir | Component::RootDir));
-        if climbs {
-            return Err(EditError::NotFound {
-                detail: format!("{file} is outside the notes directory"),
-            });
+        let mut relative = PathBuf::new();
+        for part in Path::new(file).components() {
+            match part {
+                Component::Normal(name) => relative.push(name),
+                Component::CurDir => {}
+                Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                    return Err(EditError::NotFound {
+                        detail: format!("{file} is outside the notes directory"),
+                    })
+                }
+            }
         }
 
         Ok(Path::new(dir).join(relative))
+    }
+
+    /// Where this document is on disk, for an operation working on two of them
+    /// at once: two documents of the same file are two copies, and the one
+    /// saved last is the only one that survives.
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 
     /// Read `file` from under `dir`, or start an empty document where there is

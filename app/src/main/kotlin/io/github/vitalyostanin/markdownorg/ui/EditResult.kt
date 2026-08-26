@@ -20,7 +20,14 @@ data class EditResult(
     val root: String,
     /** The task the edit was aimed at, for the commit the undo makes. */
     val heading: String,
-    val rollback: FileRollback,
+    /**
+     * The notes this edit overwrote, and what they held.
+     *
+     * One of them for every edit but a move, which takes an entry out of one
+     * file and writes it into another: putting that back is putting both
+     * files back, in the order they were written.
+     */
+    val rollback: List<FileRollback>,
     /**
      * The task was written from nothing rather than changed.
      *

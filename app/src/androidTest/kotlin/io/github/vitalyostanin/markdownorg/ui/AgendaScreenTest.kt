@@ -710,7 +710,9 @@ class AgendaScreenTest {
             editResult = EditResult(
                 root = "/notes",
                 heading = "Pay the tax",
-                rollback = FileRollback(file = "notes.md", before = "before", after = "after"),
+                rollback = listOf(
+                    FileRollback(file = "notes.md", before = "before", after = "after"),
+                ),
             ),
             onUndoEdit = { undone += 1 },
         )
@@ -754,7 +756,7 @@ class AgendaScreenTest {
             editResult = EditResult(
                 root = "/notes",
                 heading = "Ring the dentist",
-                rollback = FileRollback(file = "inbox.md", before = "", after = "after"),
+                rollback = listOf(FileRollback(file = "inbox.md", before = "", after = "after")),
                 created = true,
             ),
         )

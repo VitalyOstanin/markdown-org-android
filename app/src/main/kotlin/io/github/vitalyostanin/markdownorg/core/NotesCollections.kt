@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 
 /**
@@ -35,15 +36,50 @@ data class NotesCollection(
      * A file rather than a rule about which file: a new task has no date, no
      * tag and no section to be filed by, and every guess this application
      * could make about where it belongs would be wrong in someone's notes.
-     * The entry is appended to the end of this one — see the core's `create`
-     * module for why the end is the one place a write cannot collide with an
-     * edit made on another device.
      *
      * [DEFAULT_INBOX] until the collection says otherwise, and created by the
      * first task written to it.
      */
     val inbox: String = DEFAULT_INBOX,
+
+    /**
+     * Where in a file this collection writes an entry: at the top of it or
+     * after everything it holds.
+     *
+     * Read by two operations, which is why it belongs to the collection rather
+     * than to either of them: a task written from the agenda, and an entry
+     * moved here from another file. A reader who wants what was written today
+     * at the top wants it in both cases.
+     *
+     * [DEFAULT_WRITE_AT] until the collection says otherwise — including for a
+     * collection stored by a version that had no such setting, whose entries
+     * used to go to the end.
+     */
+    val writeAt: WritePosition = DEFAULT_WRITE_AT,
+
+    /**
+     * The file this collection keeps its entries in, relative to [path], or
+     * empty where none is named.
+     *
+     * Not the same file as [inbox] and not a second one to write new tasks to:
+     * this is where an entry ends up once it is worth keeping, and the sheet
+     * of a task offers to carry it there in one tap. Empty is the answer for a
+     * collection that keeps its notes in many files and has no main one; the
+     * offer is then simply absent.
+     */
+    val mainFile: String = "",
 )
+
+/**
+ * Where a collection writes an entry until it says otherwise.
+ *
+ * The top of the file, which is where what was written today is read tomorrow
+ * without scrolling past everything written before it. The end of the file is
+ * the safer answer for notes edited on two devices at once — see the core's
+ * `create` module, where the merge is described — and a collection kept that
+ * way says so.
+ */
+val DEFAULT_WRITE_AT = WritePosition.START
 
 /**
  * The file a collection receives new tasks in until one is chosen for it.
@@ -55,8 +91,8 @@ data class NotesCollection(
  */
 const val DEFAULT_INBOX = "inbox.md"
 
-/** Why a file cannot be the one a collection receives new tasks in. */
-enum class InboxProblem {
+/** Why a file cannot be one this application writes entries into. */
+enum class NoteFileProblem {
 
     /** Nothing to write to, and nothing to show as the answer. */
     EMPTY,
@@ -76,7 +112,7 @@ enum class InboxProblem {
 }
 
 /**
- * Checks the file a collection is to receive new tasks in.
+ * Checks a file this application is to write entries into.
  *
  * Checked here rather than left to the core, which refuses a path leaving the
  * notes directory when it is asked to write: the settings are where the file
@@ -85,25 +121,56 @@ enum class InboxProblem {
  *
  * Returns `null` when the file can be written to.
  */
-fun inboxProblem(file: String): InboxProblem? {
+fun noteFileProblem(file: String): NoteFileProblem? {
     val named = file.trim()
 
     return when {
-        named.isEmpty() -> InboxProblem.EMPTY
+        named.isEmpty() -> NoteFileProblem.EMPTY
 
         // The same two ways out of the directory the core refuses: an absolute
         // path, and a step above the root of the collection.
         named.startsWith('/') || named.split('/', '\\').any { it == ".." } ->
-            InboxProblem.OUTSIDE
+            NoteFileProblem.OUTSIDE
 
-        !named.endsWith(MARKDOWN, ignoreCase = true) -> InboxProblem.NOT_MARKDOWN
+        !named.endsWith(MARKDOWN, ignoreCase = true) -> NoteFileProblem.NOT_MARKDOWN
 
         else -> null
     }
 }
 
+/**
+ * Checks the file a collection calls its main one.
+ *
+ * The same file in every respect but one: a collection need not have a main
+ * file at all, and an empty field is that answer rather than a mistake. What
+ * it costs is the offer to carry an entry there, which is then not made.
+ */
+fun mainFileProblem(file: String): NoteFileProblem? =
+    file.trim().takeUnless(String::isEmpty)?.let(::noteFileProblem)
+
 /** What the walk behind the agenda reads, and therefore what a task can go into. */
 private const val MARKDOWN = ".md"
+
+/**
+ * The markdown files of a collection, named the way a task names its file.
+ *
+ * Relative to [root] and with forward slashes, which is what the walk behind
+ * the agenda reports and what every call into the core takes. Sorted, so the
+ * list a reader is shown does not depend on the order the filesystem happens
+ * to hand the directory back in.
+ *
+ * The files rather than the files that hold tasks: a note with nothing planned
+ * in it is still a place to file an entry, and it holds no task to be found
+ * by. Directories whose name begins with a dot are left out — `.git` is one,
+ * and the walk behind the agenda skips them too.
+ */
+fun markdownFiles(root: File): List<String> = root
+    .walkTopDown()
+    .onEnter { directory -> !directory.name.startsWith('.') }
+    .filter { file -> file.isFile && file.name.endsWith(MARKDOWN, ignoreCase = true) }
+    .mapNotNull { file -> file.relativeToOrNull(root)?.invariantSeparatorsPath }
+    .sorted()
+    .toList()
 
 /** Why a collection cannot be added, beyond what [notesPathProblem] refuses. */
 enum class CollectionProblem {
@@ -255,6 +322,17 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
                             inbox = preferences.getString(KEY_INBOX + id, null)
                                 ?.takeUnless(String::isBlank)
                                 ?: DEFAULT_INBOX,
+                            // Stored by name rather than by ordinal, so a
+                            // position added to the core in some later version
+                            // cannot renumber what was written here. A name
+                            // this version does not know reads as the default,
+                            // which is what a downgrade needs it to do.
+                            writeAt = preferences.getString(KEY_WRITE_AT + id, null)
+                                ?.let { stored ->
+                                    WritePosition.entries.firstOrNull { it.name == stored }
+                                }
+                                ?: DEFAULT_WRITE_AT,
+                            mainFile = preferences.getString(KEY_MAIN + id, null).orEmpty(),
                         )
                     }
                 }
@@ -269,6 +347,8 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
                 edit.putString(KEY_NAME + collection.id, collection.name)
                 edit.putString(KEY_PATH + collection.id, collection.path)
                 edit.putString(KEY_INBOX + collection.id, collection.inbox)
+                edit.putString(KEY_WRITE_AT + collection.id, collection.writeAt.name)
+                edit.putString(KEY_MAIN + collection.id, collection.mainFile)
             }
             edit.apply()
         }
@@ -279,6 +359,8 @@ class NotesCollectionsStore(context: Context) : NotesCollectionsPreferences {
         const val KEY_NAME = "name."
         const val KEY_PATH = "path."
         const val KEY_INBOX = "inbox."
+        const val KEY_WRITE_AT = "writeAt."
+        const val KEY_MAIN = "main."
 
         /** Not part of an identifier, which is a number. */
         const val SEPARATOR = ','

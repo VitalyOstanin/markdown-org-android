@@ -75,7 +75,27 @@ sealed interface TaskAction {
         val date: LocalDate,
         val time: LocalTime?,
     ) : TaskAction
+
+    /**
+     * Carry the whole entry into another file of the same collection.
+     *
+     * [file] is relative to that collection's directory, which is how every
+     * file this application names is spelled. One action for both ways of
+     * asking — the file the collection calls its main one, and one picked from
+     * the list — because what happens afterwards is the same.
+     */
+    data class MoveToFile(val file: String) : TaskAction
 }
+
+/**
+ * Where the entry on screen can be carried, as the sheet needs it.
+ *
+ * Both halves come from the collection the task belongs to: [mainFile] is what
+ * that collection calls its main file, and [files] is every markdown file in
+ * it. Empty in both when the collection is gone, and the sheet then offers no
+ * move at all — which is also what a sheet driven by a test or a preview gets.
+ */
+data class MoveTargets(val mainFile: String? = null, val files: List<String> = emptyList())
 
 /**
  * The actions a task offers, as a sheet over the agenda.
@@ -93,6 +113,8 @@ fun TaskActionsSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     weekStart: WeekStart = WeekStart.AUTO,
+    /** Where this entry can be carried; see [MoveTargets]. */
+    move: MoveTargets = MoveTargets(),
     onEdit: (() -> Unit)? = null,
     onOpenExternally: (() -> Unit)? = null,
 ) {
@@ -169,6 +191,11 @@ fun TaskActionsSheet(
             // Under the date actions, because they are the same question
             // narrowed: those move the series, these move one of it.
             TaskOccurrence(task, weekStart, onAction)
+
+            // After everything that writes a line of this entry, because this
+            // one writes the entry somewhere else: what the actions above did
+            // travels with it.
+            TaskMove(task, move, onAction)
 
             // The one action that opens a screen rather than writing a line:
             // the heading's own text and the lines under it. Absent when the

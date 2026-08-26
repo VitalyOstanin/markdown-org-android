@@ -8,6 +8,8 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
+import uniffi.markdown_org_ffi.WritePosition
 
 /**
  * What has been typed into the settings form, held together.
@@ -31,6 +33,8 @@ class SyncFormState(
     name: String = "",
     notesPath: String = "",
     inbox: String = "",
+    writeAt: WritePosition = DEFAULT_WRITE_AT,
+    mainFile: String = "",
 ) {
     var url by mutableStateOf(url)
     var branch by mutableStateOf(branch)
@@ -39,6 +43,12 @@ class SyncFormState(
 
     /** The file this collection receives new tasks in, relative to its directory. */
     var inbox by mutableStateOf(inbox)
+
+    /** Where in a file this collection writes an entry. */
+    var writeAt by mutableStateOf(writeAt)
+
+    /** The file this collection keeps its entries in, or empty for none. */
+    var mainFile by mutableStateOf(mainFile)
 
     /** Blank leaves the stored token alone: the form never shows it. */
     var token by mutableStateOf("")
@@ -58,6 +68,8 @@ class SyncFormState(
         notesPath = notesPath,
         name = name,
         inbox = inbox,
+        writeAt = writeAt,
+        mainFile = mainFile,
         sshKey = sshKey,
         sshPassphrase = sshPassphrase,
         dropKey = dropKey,
@@ -72,6 +84,8 @@ class SyncFormState(
                     "name" to form.name,
                     "notesPath" to form.notesPath,
                     "inbox" to form.inbox,
+                    "writeAt" to form.writeAt.name,
+                    "mainFile" to form.mainFile,
                     "token" to form.token,
                     "dropToken" to form.dropToken,
                     "sshKey" to form.sshKey,
@@ -86,6 +100,10 @@ class SyncFormState(
                     name = saved["name"] as? String ?: "",
                     notesPath = saved["notesPath"] as? String ?: "",
                     inbox = saved["inbox"] as? String ?: "",
+                    writeAt = (saved["writeAt"] as? String)
+                        ?.let { stored -> WritePosition.entries.firstOrNull { it.name == stored } }
+                        ?: DEFAULT_WRITE_AT,
+                    mainFile = saved["mainFile"] as? String ?: "",
                 ).apply {
                     token = saved["token"] as? String ?: ""
                     dropToken = saved["dropToken"] as? Boolean ?: false
@@ -106,6 +124,7 @@ class SyncFormState(
  * address rather than keep what was typed for the other.
  */
 @Composable
+@Suppress("LongParameterList")
 fun rememberSyncForm(
     editingId: String,
     url: String,
@@ -113,6 +132,8 @@ fun rememberSyncForm(
     name: String,
     notesPath: String,
     inbox: String,
+    writeAt: WritePosition,
+    mainFile: String,
 ): SyncFormState = rememberSaveable(editingId, saver = SyncFormState.Saver) {
     SyncFormState(
         url = url,
@@ -120,5 +141,7 @@ fun rememberSyncForm(
         name = name,
         notesPath = notesPath,
         inbox = inbox,
+        writeAt = writeAt,
+        mainFile = mainFile,
     )
 }

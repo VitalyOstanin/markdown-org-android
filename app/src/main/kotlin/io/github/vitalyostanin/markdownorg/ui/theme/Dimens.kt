@@ -133,6 +133,15 @@ object Sizes {
      */
     val monthCellGap = 2.dp
 
+    /**
+     * How tall the list of files in the move dialog is allowed to grow.
+     *
+     * About eight rows. A collection of a hundred notes is ordinary, and a
+     * dialog as tall as its list would push its own dismissal off the screen;
+     * past this the list scrolls inside the dialog.
+     */
+    val fileList = 320.dp
+
     /** Width of the `09:00` label on the axis; the tiles start after it. */
     val hourLabel = 40.dp
 

@@ -14,18 +14,21 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 
 /** The form that says where the notes come from. */
@@ -38,6 +41,8 @@ class SyncSettingsScreenTest {
 
     /** The file the collection is to receive new tasks in, as it was saved. */
     private var savedInbox: String? = null
+    private var savedWriteAt: WritePosition? = null
+    private var savedMainFile: String? = null
     private var droppedToken: Boolean? = null
     private var dismissed = false
 
@@ -71,6 +76,55 @@ class SyncSettingsScreenTest {
         showForm()
 
         compose.onNodeWithTag("settings-inbox").performScrollTo().performTextReplacement("inbox")
+
+        compose.onNodeWithText(string(R.string.settings_inbox_markdown)).assertIsDisplayed()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun whereEntriesAreWrittenIsSavedWithTheRest() {
+        showForm()
+
+        // The stored answer is drawn as the chosen chip, and the other one is
+        // one tap away: neither is the absence of the other.
+        compose.onNodeWithTag("settings-write-end").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals(WritePosition.END, savedWriteAt)
+    }
+
+    @Test
+    fun theMainFileIsSavedWithTheRest() {
+        showForm()
+
+        compose.onNodeWithTag("settings-main-file")
+            .performScrollTo()
+            .performTextReplacement("main.md")
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals("main.md", savedMainFile)
+    }
+
+    @Test
+    fun aCollectionMaySaveWithNoMainFileAtAll() {
+        // Unlike the file new tasks go into: a collection that keeps its notes
+        // in many files has no main one, and the sheet then offers no move.
+        showForm(mainFile = "main.md")
+
+        compose.onNodeWithTag("settings-main-file").performScrollTo().performTextClearance()
+        compose.onNodeWithTag("settings-save").performScrollTo().assertIsEnabled()
+        compose.onNodeWithTag("settings-save").performScrollTo().performClick()
+
+        assertEquals("", savedMainFile)
+    }
+
+    @Test
+    fun aMainFileTheAgendaWouldNotReadCannotBeSaved() {
+        showForm()
+
+        compose.onNodeWithTag("settings-main-file")
+            .performScrollTo()
+            .performTextReplacement("main")
 
         compose.onNodeWithText(string(R.string.settings_inbox_markdown)).assertIsDisplayed()
         compose.onNodeWithTag("settings-save").performScrollTo().assertIsNotEnabled()
@@ -531,6 +585,8 @@ class SyncSettingsScreenTest {
         publicKey: String = "",
         knownHost: String = "",
         inbox: String = DEFAULT_INBOX,
+        writeAt: WritePosition = DEFAULT_WRITE_AT,
+        mainFile: String = "",
     ) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -545,10 +601,14 @@ class SyncSettingsScreenTest {
                         knownHost = knownHost,
                         storesLocally = storesLocally,
                         inbox = inbox,
+                        writeAt = writeAt,
+                        mainFile = mainFile,
                     ),
                     onSave = { values ->
                         saved = Triple(values.url, values.branch, values.token)
                         savedInbox = values.inbox
+                        savedWriteAt = values.writeAt
+                        savedMainFile = values.mainFile
                         droppedToken = values.dropToken
                         savedNotesPath = values.notesPath
                         savedKey = values.sshKey

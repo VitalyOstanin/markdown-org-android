@@ -210,6 +210,8 @@ private fun SettingsRoute(
             notesPath = form.notesPath,
             name = form.name,
             inbox = form.inbox,
+            writeAt = form.writeAt,
+            mainFile = form.mainFile,
             hasToken = form.hasToken,
             hasKey = form.hasKey,
             // The state wins over what was read when the screen opened: a key
@@ -228,6 +230,8 @@ private fun SettingsRoute(
                 notesPath = saved.notesPath,
                 name = saved.name,
                 inbox = saved.inbox,
+                writeAt = saved.writeAt,
+                mainFile = saved.mainFile,
                 sshKey = saved.sshKey,
                 sshPassphrase = saved.sshPassphrase,
                 dropKey = saved.dropKey,
@@ -360,6 +364,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     val weekStart by model.weekStart.collectAsStateWithLifecycle()
     val sync by model.syncState.collectAsStateWithLifecycle()
     val selected by model.selected.collectAsStateWithLifecycle()
+    val moveTargets by model.moveTargets.collectAsStateWithLifecycle()
     val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
     val creating by model.creating.collectAsStateWithLifecycle()
     val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
@@ -428,6 +433,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             // The calendar is cut where the agenda's month grid is cut: the
             // reader answered that question once, in the settings.
             weekStart = weekStart,
+            move = moveTargets,
             onEdit = { model.edit(task) },
             // Handled here rather than in the view model: this leaves the
             // application, and what it needs is an activity to launch from,

@@ -4,6 +4,7 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.FIRST_ID
 import io.github.vitalyostanin.markdownorg.core.GroupReport
+import io.github.vitalyostanin.markdownorg.core.MoveReport
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.SyncRun
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
@@ -35,11 +36,13 @@ import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.BulkRefusal
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.MoveOutcome
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RefusalReason
 import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -1385,13 +1388,13 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         val written = rollback("notes.md")
-        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
 
         model.apply(task(heading = "Pay the tax"), TaskAction.Complete)
         advanceUntilIdle()
 
         val result = model.editResult.value
-        assertEquals(written, result?.rollback)
+        assertEquals(listOf(written), result?.rollback)
         // Both halves of the address travel with it: the same relative path
         // occurs in more than one collection, and the undo commits by name.
         assertEquals("/notes", result?.root)
@@ -1417,7 +1420,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         val written = rollback("notes.md")
-        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
         writer.undoOutcome = Result.success(
             UndoReport(
                 outcome = RevertOutcome(
@@ -1446,13 +1449,13 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         val written = rollback("inbox.md")
-        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
 
         model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
         advanceUntilIdle()
 
         val result = model.editResult.value
-        assertEquals(written, result?.rollback)
+        assertEquals(listOf(written), result?.rollback)
         assertEquals("Pay the tax", result?.heading)
         // Marked as a creation, because what the offer takes back is the whole
         // entry rather than a line of one that stays either way -- and the
@@ -1464,11 +1467,98 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun aTaskIsWrittenWhereItsCollectionSaysEntriesGo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        store.collections = store.collections.map { it.copy(writeAt = WritePosition.END) }
+        model.saveSettings(url = "", branch = "", token = "", writeAt = WritePosition.END)
+        advanceUntilIdle()
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        advanceUntilIdle()
+
+        // The setting travels with the write rather than being read inside the
+        // core: the core is given a directory and a file, and where in that
+        // file an entry goes is what the collection was set to.
+        assertEquals(WritePosition.END, writer.createdAt)
+    }
+
+    @Test
+    fun anEntryIsCarriedIntoTheFileTheSheetNamed() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val left = rollback("notes.md")
+        val reached = rollback("main.md")
+        writer.moveOutcome = Result.success(
+            MoveReport(
+                outcome = MoveOutcome(
+                    line = "# TODO Pay the tax",
+                    file = "main.md",
+                    rollback = listOf(left, reached),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+
+        model.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
+        advanceUntilIdle()
+
+        // The file, and the place in it the collection writes entries at.
+        assertEquals("main.md" to WritePosition.START, writer.movedTo)
+        // Both notes come back for the undo: the entry has to go out of the
+        // one it reached as well as back into the one it left.
+        assertEquals(listOf(left, reached), model.editResult.value?.rollback)
+        // Both notes are re-read by name: the entry has to appear in the file
+        // it reached and stop appearing in the file it left.
+        assertEquals(listOf("notes.md", "main.md"), loader.reread)
+    }
+
+    @Test
+    fun undoingAMoveNamesBothNotesAndReadsThemBack() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        val left = rollback("notes.md")
+        val reached = rollback("main.md")
+        writer.moveOutcome = Result.success(
+            MoveReport(
+                outcome = MoveOutcome(
+                    line = "",
+                    file = "main.md",
+                    rollback = listOf(left, reached),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = listOf("notes.md", "main.md"),
+                    skipped = emptyList(),
+                    failed = emptyList(),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
+        advanceUntilIdle()
+        loader.reread.clear()
+
+        model.undoEdit()
+        advanceUntilIdle()
+
+        // Not through the undo of a creation: nothing was written from
+        // nothing, and both files go back to what they held.
+        assertEquals("Pay the tax", writer.undoneEdit)
+        assertEquals(listOf(left, reached), writer.undone)
+        assertEquals(listOf("notes.md", "main.md"), loader.reread)
+    }
+
+    @Test
     fun theUndoOfACreationTakesTheEntryOutRatherThanPuttingALineBack() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         val written = rollback("inbox.md")
-        writer.outcome = Result.success(EditReport(committed = true, rollback = written))
+        writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
         writer.undoOutcome = Result.success(
             UndoReport(
                 outcome = RevertOutcome(
@@ -1497,7 +1587,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         writer.outcome = Result.success(
-            EditReport(committed = true, rollback = rollback("notes.md")),
+            EditReport(committed = true, rollback = listOf(rollback("notes.md"))),
         )
         writer.undoOutcome = Result.success(
             UndoReport(

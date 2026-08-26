@@ -47,16 +47,18 @@ import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.BuildConfig
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.DEFAULT_INBOX
-import io.github.vitalyostanin.markdownorg.core.InboxProblem
+import io.github.vitalyostanin.markdownorg.core.NoteFileProblem
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesPathProblem
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.credentialPages
-import io.github.vitalyostanin.markdownorg.core.inboxProblem
+import io.github.vitalyostanin.markdownorg.core.mainFileProblem
+import io.github.vitalyostanin.markdownorg.core.noteFileProblem
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 
 /**
@@ -104,6 +106,8 @@ fun SyncSettingsScreen(
         name = initial.name,
         notesPath = initial.notesPath,
         inbox = initial.inbox,
+        writeAt = initial.writeAt,
+        mainFile = initial.mainFile,
     )
     // Which collection the confirmation is about, and nothing while there is
     // no dialog up: removing one takes a directory off the agenda, and a
@@ -210,14 +214,17 @@ private data class FormIssues(
      * above — has no empty case that means something: a collection with no
      * receiving file has nowhere to write a task.
      */
-    val inbox: InboxProblem?,
+    val inbox: NoteFileProblem?,
+    /** The main file, which unlike the receiving one may be left unnamed. */
+    val mainFile: NoteFileProblem?,
 ) {
     val remoteRefused: Boolean get() = remote != null && remote != RemoteUrlProblem.EMPTY
 
     val pathRefused: Boolean get() = path != null && path != NotesPathProblem.EMPTY
 
     /** Whether anything on the form stands in the way of saving it. */
-    val refused: Boolean get() = remoteRefused || pathRefused || inbox != null
+    val refused: Boolean get() =
+        remoteRefused || pathRefused || inbox != null || mainFile != null
 }
 
 /**
@@ -236,9 +243,12 @@ private fun rememberFormIssues(form: SyncFormState, storage: StorageUi): FormIss
     val path = remember(form.notesPath, storage.granted, own) {
         notesPathProblem(form.notesPath, own, storage.granted)
     }
-    val inbox = remember(form.inbox) { inboxProblem(form.inbox) }
+    val inbox = remember(form.inbox) { noteFileProblem(form.inbox) }
+    val mainFile = remember(form.mainFile) { mainFileProblem(form.mainFile) }
 
-    return remember(remote, path, inbox) { FormIssues(remote, path, inbox) }
+    return remember(remote, path, inbox, mainFile) {
+        FormIssues(remote, path, inbox, mainFile)
+    }
 }
 
 /**
@@ -250,7 +260,7 @@ private fun rememberFormIssues(form: SyncFormState, storage: StorageUi): FormIss
  * application writes there.
  */
 @Composable
-private fun InboxSection(form: SyncFormState, problem: InboxProblem?) {
+private fun InboxSection(form: SyncFormState, problem: NoteFileProblem?) {
     OutlinedTextField(
         value = form.inbox,
         onValueChange = { form.inbox = it },
@@ -267,10 +277,10 @@ private fun InboxSection(form: SyncFormState, problem: InboxProblem?) {
 }
 
 /** What to say under the field about the file it names. */
-private fun InboxProblem.support() = when (this) {
-    InboxProblem.EMPTY -> R.string.settings_inbox_empty
-    InboxProblem.OUTSIDE -> R.string.settings_inbox_outside
-    InboxProblem.NOT_MARKDOWN -> R.string.settings_inbox_markdown
+private fun NoteFileProblem.support() = when (this) {
+    NoteFileProblem.EMPTY -> R.string.settings_inbox_empty
+    NoteFileProblem.OUTSIDE -> R.string.settings_inbox_outside
+    NoteFileProblem.NOT_MARKDOWN -> R.string.settings_inbox_markdown
 }
 
 /**
@@ -521,6 +531,79 @@ private fun NotesSection(form: SyncFormState, issues: FormIssues, storage: Stora
     )
 
     InboxSection(form = form, problem = issues.inbox)
+
+    WritePositionSection(form = form)
+
+    MainFileSection(form = form, problem = issues.mainFile)
+}
+
+/**
+ * Where in a file this collection writes an entry.
+ *
+ * Two chips rather than a switch, because neither answer is the absence of the
+ * other: at the start is where what was written today is read tomorrow, and at
+ * the end is what two devices editing the same file can both do without a
+ * merge conflict. Read by a task made here and by an entry moved into another
+ * file, which is why it sits with the files rather than with the agenda.
+ */
+@Composable
+private fun WritePositionSection(form: SyncFormState) {
+    Text(
+        text = stringResource(R.string.settings_write_at),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        for (position in WritePosition.entries) {
+            FilterChip(
+                selected = form.writeAt == position,
+                onClick = { form.writeAt = position },
+                label = { Text(stringResource(position.label())) },
+                modifier = Modifier.testTag("settings-write-${position.tag()}"),
+            )
+        }
+    }
+    Text(
+        text = stringResource(R.string.settings_write_at_support),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** What the chip of a position is called. */
+private fun WritePosition.label() = when (this) {
+    WritePosition.START -> R.string.settings_write_at_start
+    WritePosition.END -> R.string.settings_write_at_end
+}
+
+/** What the chip of a position is found by. */
+private fun WritePosition.tag() = when (this) {
+    WritePosition.START -> "start"
+    WritePosition.END -> "end"
+}
+
+/**
+ * The file this collection keeps its entries in.
+ *
+ * Under the receiving file, because the two are the two ends of the same
+ * journey: a task is written into the first and filed into the second. Empty
+ * is an answer — a collection that keeps its notes in many files has no main
+ * one, and the sheet of a task then offers no move to it.
+ */
+@Composable
+private fun MainFileSection(form: SyncFormState, problem: NoteFileProblem?) {
+    OutlinedTextField(
+        value = form.mainFile,
+        onValueChange = { form.mainFile = it },
+        label = { Text(stringResource(R.string.settings_main)) },
+        isError = problem != null,
+        supportingText = {
+            Text(stringResource(problem?.support() ?: R.string.settings_main_support))
+        },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        modifier = Modifier.fillMaxWidth().testTag("settings-main-file"),
+    )
 }
 
 /**

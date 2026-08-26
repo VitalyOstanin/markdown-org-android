@@ -13,6 +13,7 @@ import io.github.vitalyostanin.markdownorg.core.AgendaSource
 import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
 import io.github.vitalyostanin.markdownorg.core.EditReport
 import io.github.vitalyostanin.markdownorg.core.MergedTag
@@ -37,10 +38,12 @@ import io.github.vitalyostanin.markdownorg.core.UiSettings
 import io.github.vitalyostanin.markdownorg.core.UndoReport
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.collectionProblem
-import io.github.vitalyostanin.markdownorg.core.inboxProblem
+import io.github.vitalyostanin.markdownorg.core.mainFileProblem
+import io.github.vitalyostanin.markdownorg.core.markdownFiles
 import io.github.vitalyostanin.markdownorg.core.mergeTagDictionaries
 import io.github.vitalyostanin.markdownorg.core.migratedCollections
 import io.github.vitalyostanin.markdownorg.core.nextCollectionId
+import io.github.vitalyostanin.markdownorg.core.noteFileProblem
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
 import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.core.readDeclaredTags
@@ -48,6 +51,7 @@ import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -61,12 +65,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
+import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.generateSshKey
 import java.io.File
 import java.time.DayOfWeek
@@ -300,6 +306,22 @@ class AgendaViewModel(
      */
     private val _selected = MutableStateFlow<Task?>(null)
     val selected: StateFlow<Task?> = _selected.asStateFlow()
+
+    /**
+     * Where the entry on screen can be carried, for the sheet over it.
+     *
+     * Read from storage rather than from the agenda: the files of a collection
+     * are not the files its tasks are in — a note with nothing planned in it
+     * holds no task and is a perfectly good place to file one. Filled after
+     * the sheet is already up, which is why it is a state of its own: a walk
+     * of the directory is not something to hold a tap for, and a sheet whose
+     * move actions appear a moment later is what a reader sees.
+     */
+    private val _moveTargets = MutableStateFlow(MoveTargets())
+    val moveTargets: StateFlow<MoveTargets> = _moveTargets.asStateFlow()
+
+    /** The walk behind [moveTargets], stopped when another task is tapped. */
+    private var targetsJob: Job? = null
 
     /**
      * Whether the screen that writes a new task is open.
@@ -608,6 +630,22 @@ class AgendaViewModel(
 
     fun select(task: Task?) {
         _selected.value = task
+        _moveTargets.value = MoveTargets()
+        targetsJob?.cancel()
+
+        // A task whose collection is gone is not moved anywhere, and the sheet
+        // simply carries no move: the failure worth reporting is the one the
+        // tap that writes produces, not one about a sheet being opened.
+        val collection = task?.let { collections.byRoot(it.root) } ?: return
+
+        targetsJob = viewModelScope.launch {
+            val files = withContext(Dispatchers.IO) { markdownFiles(File(collection.root)) }
+
+            _moveTargets.value = MoveTargets(
+                mainFile = collection.collection.mainFile.takeUnless(String::isBlank),
+                files = files,
+            )
+        }
     }
 
     /** Which collection the settings screen is about from now on. */
@@ -759,6 +797,14 @@ class AgendaViewModel(
 
         val theirEditor = editorFor(task) ?: return
 
+        // Apart from the rest because it is the one action that writes two
+        // notes: what it hands back is a pair to put back, where every other
+        // action hands back one file.
+        if (action is TaskAction.MoveToFile) {
+            moveEntry(task, theirEditor, action.file)
+            return
+        }
+
         viewModelScope.launch {
             // The other half of what a tap costs, alongside the scan timed in
             // refresh(): the write is one file, but the commit that follows it
@@ -784,10 +830,45 @@ class AgendaViewModel(
 
                 is TaskAction.MoveOccurrence ->
                     theirEditor.moveOccurrence(task, action.occurrence, action.date, action.time)
+
+                // Answered above, before the notes were touched.
+                is TaskAction.MoveToFile -> return@launch
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 
             settle(task, outcome)
+        }
+    }
+
+    /**
+     * Carry the entry into another file of its own collection.
+     *
+     * Where in that file it lands is the collection's own setting, the one a
+     * task written here is placed by: a reader who wants what is new at the
+     * top of a file wants it there however the entry arrived.
+     *
+     * What is settled afterwards names both files: the agenda is rebuilt off a
+     * re-read of the notes that changed, and a move changes two of them.
+     */
+    private fun moveEntry(task: Task, theirEditor: NotesWriter, file: String) {
+        val at = collections.byRoot(task.root)?.collection?.writeAt ?: DEFAULT_WRITE_AT
+
+        viewModelScope.launch {
+            val started = System.nanoTime()
+            val outcome = theirEditor.moveEntry(task, file, at)
+            Log.i(TAG, "the move took ${millisSince(started)} ms")
+
+            // Both notes are named: the entry has to appear in the file it
+            // reached and stop appearing in the file it left, and the held
+            // notes of an unread file would go on showing it in both.
+            settle(
+                Written(
+                    root = task.root,
+                    files = listOf(task.file, file),
+                    heading = task.heading,
+                ),
+                outcome.map { move -> move.report.copy(rollback = move.outcome.rollback) },
+            )
         }
     }
 
@@ -863,12 +944,16 @@ class AgendaViewModel(
         }
 
         viewModelScope.launch {
-            val outcome = target.editor.createTask(target.collection.inbox, draft)
+            val outcome = target.editor.createTask(
+                target.collection.inbox,
+                target.collection.writeAt,
+                draft,
+            )
 
             settle(
                 Written(
                     root = target.root,
-                    file = target.collection.inbox,
+                    files = listOf(target.collection.inbox),
                     heading = draft.title.trim(),
                     created = true,
                 ),
@@ -937,14 +1022,20 @@ class AgendaViewModel(
      */
     private data class Written(
         val root: String?,
-        val file: String,
+        /**
+         * The notes the write changed, which is one for every write but a
+         * move: that one takes an entry out of a file and puts it in another,
+         * and a file left unread would keep showing the entry it no longer
+         * holds.
+         */
+        val files: List<String>,
         val heading: String,
         val created: Boolean = false,
     )
 
     /** What a finished write leaves on the screen, whichever write it was. */
     private suspend fun settle(task: Task, outcome: Result<EditReport>) = settle(
-        Written(root = task.root, file = task.file, heading = task.heading),
+        Written(root = task.root, files = listOf(task.file), heading = task.heading),
         outcome,
     )
 
@@ -966,7 +1057,7 @@ class AgendaViewModel(
                 // line offering it stands. An edit that wrote nothing brings
                 // back no pair and clears the offer: the previous edit's
                 // rollback would restore a note this tap never touched.
-                _editResult.value = report.rollback?.let { rollback ->
+                _editResult.value = report.rollback.takeIf { it.isNotEmpty() }?.let { rollback ->
                     written.root?.let { root ->
                         EditResult(
                             root = root,
@@ -976,15 +1067,17 @@ class AgendaViewModel(
                         )
                     }
                 }
-                // One file changed and it is known which. Saying so is what
-                // keeps the agenda that follows from re-reading every note in
-                // the collection; a failure to re-read is not worth a sentence
-                // on screen, because the next full scan fixes it. Named by
-                // both halves — the same relative path occurs in more than one
+                // Which notes changed is known. Saying so is what keeps the
+                // agenda that follows from re-reading every note in the
+                // collection; a failure to re-read is not worth a sentence on
+                // screen, because the next full scan fixes it. Named by both
+                // halves — the same relative path occurs in more than one
                 // collection.
                 written.root?.let { root ->
-                    agenda.reread(root, written.file).onFailure { failure ->
-                        Log.w(TAG, "the edited note could not be re-read", failure)
+                    written.files.forEach { file ->
+                        agenda.reread(root, file).onFailure { failure ->
+                            Log.w(TAG, "the edited note could not be re-read", failure)
+                        }
                     }
                 }
                 refresh()
@@ -1165,11 +1258,14 @@ class AgendaViewModel(
                         return@fold
                     }
 
-                    // One file went back and it is known which, so the agenda
-                    // is rebuilt off a re-read of that note rather than a walk
-                    // of the collection.
-                    agenda.reread(result.root, result.rollback.file).onFailure { failure ->
-                        Log.w(TAG, "the restored note could not be re-read", failure)
+                    // Which files went back is known, so the agenda is rebuilt
+                    // off a re-read of those notes rather than a walk of the
+                    // collection. Two of them for an undone move, one for
+                    // everything else.
+                    result.rollback.forEach { rollback ->
+                        agenda.reread(result.root, rollback.file).onFailure { failure ->
+                            Log.w(TAG, "the restored note could not be re-read", failure)
+                        }
                     }
                     refresh()
                 },
@@ -1392,6 +1488,8 @@ class AgendaViewModel(
         notesPath: String = editing.collection.path,
         name: String = editing.collection.name,
         inbox: String = editing.collection.inbox,
+        writeAt: WritePosition = editing.collection.writeAt,
+        mainFile: String = editing.collection.mainFile,
         sshKey: String = "",
         sshPassphrase: String = "",
         dropKey: Boolean = false,
@@ -1408,9 +1506,17 @@ class AgendaViewModel(
         // And on the same terms: a collection whose receiving file cannot hold
         // a task is one where the button that writes one has nowhere to go.
         val receiving = inbox.trim()
-        val inboxProblem = inboxProblem(receiving)
-        if (inboxProblem != null) {
-            _syncState.update { it.copy(message = inboxProblem.toMessage()) }
+        noteFileProblem(receiving)?.let { problem ->
+            _syncState.update { it.copy(message = problem.toMessage()) }
+            return
+        }
+
+        // The main file is checked the same way, with one difference: leaving
+        // it unnamed is an answer, and what it costs is the offer to move an
+        // entry there.
+        val main = mainFile.trim()
+        mainFileProblem(main)?.let { problem ->
+            _syncState.update { it.copy(message = problem.toMessage()) }
             return
         }
 
@@ -1457,7 +1563,7 @@ class AgendaViewModel(
             running?.cancelAndJoin()
             _syncState.update { it.copy(running = false) }
 
-            if (!saveDirectory(notesPath, named, receiving)) {
+            if (!saveDirectory(notesPath, Collected(named, receiving, writeAt, main))) {
                 return@launch
             }
 
@@ -1481,7 +1587,7 @@ class AgendaViewModel(
      * the rest untouched, because storing a remote against a directory the
      * notes are not in would clone into the old one.
      */
-    private suspend fun saveDirectory(notesPath: String, named: String, inbox: String): Boolean {
+    private suspend fun saveDirectory(notesPath: String, collected: Collected): Boolean {
         if (moveNotes(notesPath).isFailure) {
             return false
         }
@@ -1489,10 +1595,24 @@ class AgendaViewModel(
         // After the move, and over what the move stored: the two are edits to
         // the same set, and renaming against the set as it was would put the
         // old directory back.
-        reviseEditing(named, inbox)
+        reviseEditing(collected)
 
         return true
     }
+
+    /**
+     * What the form says about the collection itself, apart from its remote.
+     *
+     * One object because they are stored together, in one revision of the set:
+     * passing four values through the save would be four parameters of the
+     * same three types, and a call that swapped two of them would compile.
+     */
+    private data class Collected(
+        val name: String,
+        val inbox: String,
+        val writeAt: WritePosition,
+        val mainFile: String,
+    )
 
     /**
      * Store the address and the credentials, then take up the directory.
@@ -1855,22 +1975,33 @@ class AgendaViewModel(
     }
 
     /**
-     * Give the collection being edited the name [named], if it is another one.
+     * Give the collection being edited what the form says about it.
      *
-     * Nothing but the name changes, so the working copy and the lock over it
-     * are the ones already in use — [CollectionsInUse.use] keeps an entry whose
-     * directory has not moved.
+     * Its directory is not among those settings, so the working copy and the
+     * lock over it are the ones already in use — [CollectionsInUse.use] keeps
+     * an entry whose directory has not moved.
      */
-    private fun reviseEditing(named: String, inbox: String) {
+    private fun reviseEditing(collected: Collected) {
         val collection = editing.collection
-        if (named == collection.name && inbox == collection.inbox) {
+        val revised = collection.copy(
+            name = collected.name,
+            inbox = collected.inbox,
+            writeAt = collected.writeAt,
+            mainFile = collected.mainFile,
+        )
+        if (revised == collection) {
             return
         }
 
         useCollections(
             stored.collections.map { entry ->
                 if (entry.id == collection.id) {
-                    entry.copy(name = named, inbox = inbox)
+                    entry.copy(
+                        name = collected.name,
+                        inbox = collected.inbox,
+                        writeAt = collected.writeAt,
+                        mainFile = collected.mainFile,
+                    )
                 } else {
                     entry
                 }
@@ -1886,6 +2017,8 @@ class AgendaViewModel(
         notesPath = editing.collection.path,
         name = editing.collection.name,
         inbox = editing.collection.inbox,
+        writeAt = editing.collection.writeAt,
+        mainFile = editing.collection.mainFile,
         hasKey = !settings.sshKey.isNullOrBlank(),
         publicKey = settings.sshPublicKey.orEmpty(),
         knownHost = settings.knownHost.orEmpty(),

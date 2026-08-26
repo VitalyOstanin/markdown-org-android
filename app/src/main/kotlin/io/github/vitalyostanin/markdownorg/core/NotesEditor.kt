@@ -7,6 +7,7 @@ import uniffi.markdown_org_ffi.CommitAuthor
 import uniffi.markdown_org_ffi.EditTarget
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.MoveOutcome
 import uniffi.markdown_org_ffi.NewPlanning
 import uniffi.markdown_org_ffi.NewTask
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -14,6 +15,7 @@ import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
+import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.commitChanges
 import uniffi.markdown_org_ffi.holdsRepository
 import java.time.LocalDate
@@ -24,6 +26,7 @@ import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.cancelOccurrence as coreCancelOccurrence
 import uniffi.markdown_org_ffi.completeTask as coreComplete
 import uniffi.markdown_org_ffi.createTask as coreCreateTask
+import uniffi.markdown_org_ffi.moveEntry as coreMoveEntry
 import uniffi.markdown_org_ffi.moveOccurrence as coreMoveOccurrence
 import uniffi.markdown_org_ffi.readEntry as coreReadEntry
 import uniffi.markdown_org_ffi.revertFiles as coreRevertFiles
@@ -47,15 +50,19 @@ data class EditReport(
     val committed: Boolean,
     val commitFailure: Throwable? = null,
     /**
-     * What the note held before this edit and holds after it, or `null` where
+     * What each note held before this edit and holds after it, empty where
      * nothing was written.
      *
      * Carried out of every edit rather than asked for by the ones that offer
      * an undo: which taps are worth offering it for is a decision for the
-     * screen, and an edit that did not bring the pair back could not be given
+     * screen, and an edit that did not bring the pairs back could not be given
      * one later.
+     *
+     * A list because a move is an edit to two notes — the file the entry left
+     * and the file it reached — and putting it back means putting both back.
+     * Every other edit brings back one.
      */
-    val rollback: FileRollback? = null,
+    val rollback: List<FileRollback> = emptyList(),
 )
 
 /**
@@ -104,6 +111,16 @@ data class TaskDraft(
  * does for a single edit.
  */
 data class GroupReport(val outcome: BulkOutcome, val report: EditReport)
+
+/**
+ * What moving an entry did: to the two files, and to the history.
+ *
+ * Apart from [EditReport] because a move is the one write that changes two
+ * notes, and taking it back means putting both of them back. [outcome] carries
+ * that pair and the file the entry now sits in; [report] is the commit half,
+ * which fails apart from the write as it does for a single edit.
+ */
+data class MoveReport(val outcome: MoveOutcome, val report: EditReport)
 
 /** What undoing a group did: which files went back, and whether it committed. */
 data class UndoReport(val outcome: RevertOutcome, val report: EditReport)
@@ -189,13 +206,28 @@ interface NotesWriter {
     suspend fun setEntry(task: Task, title: String, body: String): Result<EditReport>
 
     /**
-     * Write a task that was not in the notes before, at the end of [file].
+     * Write a task that was not in the notes before into [file], at [at].
      *
-     * [file] is named by the collection rather than worked out from the task:
+     * Both are named by the collection rather than worked out from the task:
      * where a new entry belongs is a question this application cannot answer
      * from a title and a date, and the settings are where it is answered once.
      */
-    suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport>
+    suspend fun createTask(file: String, at: WritePosition, draft: TaskDraft): Result<EditReport>
+
+    /**
+     * Carry a task's whole entry into another file of the same collection.
+     *
+     * [file] is relative to the collection's directory, as every file this
+     * application names is, and is created when it is not there yet — the file
+     * a collection calls its main one need not exist before something is filed
+     * into it. [at] is where in that file the entry lands, the setting new
+     * tasks are written by.
+     *
+     * Within one collection, which is what makes it one edit and one commit:
+     * between two of them it would be two checkouts, and a second step that
+     * failed would leave the entry in both or in neither.
+     */
+    suspend fun moveEntry(task: Task, file: String, at: WritePosition): Result<MoveReport>
 
     /**
      * Apply one action to every task of a group.
@@ -221,11 +253,12 @@ interface NotesWriter {
     /**
      * Put back what a single edit overwrote, naming the task in the commit.
      *
-     * The same restore the group undo makes -- one note instead of several --
-     * and it is refused on the same terms: a note written to since the edit is
-     * left as it stands.
+     * The same restore the group undo makes -- the notes of one edit instead
+     * of those of twenty -- and it is refused on the same terms: a note written
+     * to since the edit is left as it stands. A list rather than one file
+     * because a move is an edit to two of them.
      */
-    suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport>
+    suspend fun undoEdit(rollback: List<FileRollback>, heading: String): Result<UndoReport>
 
     /**
      * Take back a task that was just created, naming it in the commit.
@@ -234,7 +267,7 @@ interface NotesWriter {
      * removes an entry: what it puts back is the file as it stood before the
      * task was written into it.
      */
-    suspend fun undoCreation(rollback: FileRollback, heading: String): Result<UndoReport>
+    suspend fun undoCreation(rollback: List<FileRollback>, heading: String): Result<UndoReport>
 
     /**
      * Commit whatever earlier edits left uncommitted.
@@ -324,10 +357,24 @@ class NotesEditor internal constructor(
         }
 
     /** Write a task the notes did not hold, into the file that receives them. */
-    override suspend fun createTask(file: String, draft: TaskDraft): Result<EditReport> = write {
-        val outcome = coreCreateTask(draft.asNewTask(notes.root.absolutePath, file))
+    override suspend fun createTask(
+        file: String,
+        at: WritePosition,
+        draft: TaskDraft,
+    ): Result<EditReport> = write {
+        val outcome = coreCreateTask(draft.asNewTask(notes.root.absolutePath, file, at))
         outcome.rollback to creationMessage(draft.title)
     }
+
+    /** Carry the whole entry into another file of this collection. */
+    override suspend fun moveEntry(
+        task: Task,
+        file: String,
+        at: WritePosition,
+    ): Result<MoveReport> = writing {
+        val outcome = coreMoveEntry(task.target(), file, at)
+        outcome to moveMessage(task.heading, file)
+    }.map { (outcome, report) -> MoveReport(outcome, report) }
 
     /** Move a planning date by whole days. */
     override suspend fun shift(
@@ -414,11 +461,15 @@ class NotesEditor internal constructor(
     override suspend fun undoGroup(rollback: List<FileRollback>): Result<UndoReport> =
         undo(rollback) { outcome -> undoMessage(outcome.restored.size) }
 
-    override suspend fun undoEdit(rollback: FileRollback, heading: String): Result<UndoReport> =
-        undo(listOf(rollback)) { undoEditMessage(heading) }
+    override suspend fun undoEdit(
+        rollback: List<FileRollback>,
+        heading: String,
+    ): Result<UndoReport> = undo(rollback) { undoEditMessage(heading) }
 
-    override suspend fun undoCreation(rollback: FileRollback, heading: String): Result<UndoReport> =
-        undo(listOf(rollback)) { undoCreationMessage(heading) }
+    override suspend fun undoCreation(
+        rollback: List<FileRollback>,
+        heading: String,
+    ): Result<UndoReport> = undo(rollback) { undoCreationMessage(heading) }
 
     /** Restore [rollback], committing what [message] calls it. */
     private suspend fun undo(
@@ -453,7 +504,9 @@ class NotesEditor internal constructor(
      * the commit that precedes the next sync.
      */
     internal suspend fun write(edit: () -> Pair<FileRollback?, String>): Result<EditReport> =
-        writing(edit).map { (rollback, report) -> report.copy(rollback = rollback) }
+        writing(edit).map { (rollback, report) ->
+            report.copy(rollback = listOfNotNull(rollback))
+        }
 
     /**
      * [write] for an edit that has something to say beyond its message.
@@ -479,9 +532,10 @@ class NotesEditor internal constructor(
      * The draft as the core takes it: with the collection it goes to and the
      * file that receives it, and with the date paired to the kind it is.
      */
-    private fun TaskDraft.asNewTask(dir: String, file: String) = NewTask(
+    private fun TaskDraft.asNewTask(dir: String, file: String, at: WritePosition) = NewTask(
         dir = dir,
         file = file,
+        at = at,
         title = title,
         body = body,
         status = status,
@@ -573,6 +627,16 @@ internal fun undoEditMessage(heading: String): String = "Undo the edit of \"$hea
 
 /** What a task written from nothing says it did. */
 internal fun creationMessage(title: String): String = "Create \"${title.trim()}\""
+
+/**
+ * What moving an entry did, as one line of history.
+ *
+ * Names the file it arrived in and not the one it left: the commit shows both
+ * halves of the move as a removal and an addition, and what a reader of the
+ * history wants from the message is where the entry is now.
+ */
+internal fun moveMessage(heading: String, file: String): String =
+    "Move \"${heading.trim()}\" to $file"
 
 /**
  * What taking a new task back did, as one line of history.

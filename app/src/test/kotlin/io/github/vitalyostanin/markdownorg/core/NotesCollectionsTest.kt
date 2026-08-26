@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 
 /**
@@ -199,28 +200,84 @@ class NotesCollectionsTest {
 
     @Test
     fun aFileWithNoNameCannotReceiveTasks() {
-        assertEquals(InboxProblem.EMPTY, inboxProblem("   "))
+        assertEquals(NoteFileProblem.EMPTY, noteFileProblem("   "))
     }
 
     @Test
     fun aFileOutsideTheCollectionIsRefused() {
         // The two ways out the core refuses when it is asked to write: an
         // absolute path, and a step above the root of the collection.
-        assertEquals(InboxProblem.OUTSIDE, inboxProblem("/storage/emulated/0/inbox.md"))
-        assertEquals(InboxProblem.OUTSIDE, inboxProblem("../inbox.md"))
-        assertEquals(InboxProblem.OUTSIDE, inboxProblem("work/../../inbox.md"))
+        assertEquals(NoteFileProblem.OUTSIDE, noteFileProblem("/storage/emulated/0/inbox.md"))
+        assertEquals(NoteFileProblem.OUTSIDE, noteFileProblem("../inbox.md"))
+        assertEquals(NoteFileProblem.OUTSIDE, noteFileProblem("work/../../inbox.md"))
     }
 
     @Test
     fun aFileTheAgendaWouldNotReadIsRefused() {
         // The walk reads *.md: a task written anywhere else would show up on
         // the agenda after the write and be gone at the next full scan.
-        assertEquals(InboxProblem.NOT_MARKDOWN, inboxProblem("inbox.txt"))
-        assertNull(inboxProblem("inbox.MD"))
+        assertEquals(NoteFileProblem.NOT_MARKDOWN, noteFileProblem("inbox.txt"))
+        assertNull(noteFileProblem("inbox.MD"))
     }
 
     @Test
     fun aFileInSideDirectoryOfTheCollectionIsAllowed() {
-        assertNull(inboxProblem("work/inbox.md"))
+        assertNull(noteFileProblem("work/inbox.md"))
+    }
+
+    @Test
+    fun aCollectionWritesAtTheStartOfAFileUntilItSaysOtherwise() {
+        // What a device upgrading from a version that had no such setting
+        // gets: entries at the top of the file, where they are read without
+        // scrolling past everything written before them.
+        assertEquals(WritePosition.START, collection(FIRST_ID, own).writeAt)
+    }
+
+    @Test
+    fun aCollectionNeedNotHaveAMainFile() {
+        // Unlike the file new tasks go into: a collection that keeps its notes
+        // in many files has no main one, and an empty field says so rather
+        // than being a mistake to answer.
+        assertEquals("", collection(FIRST_ID, own).mainFile)
+        assertNull(mainFileProblem("   "))
+        assertNull(mainFileProblem(""))
+    }
+
+    @Test
+    fun aMainFileIsHeldToWhatAnyFileWrittenIntoIsHeldTo() {
+        assertEquals(NoteFileProblem.OUTSIDE, mainFileProblem("../elsewhere.md"))
+        assertEquals(NoteFileProblem.NOT_MARKDOWN, mainFileProblem("main.txt"))
+        assertNull(mainFileProblem("work/main.md"))
+    }
+
+    @Test
+    fun theFilesOfACollectionAreItsMarkdownFilesNamedAsATaskNamesOne() {
+        val root = folder.newFolder("notes")
+        File(root, "b.md").writeText("# B\n")
+        File(root, "a.md").writeText("# A\n")
+        File(root, "notes.txt").writeText("not markdown\n")
+        File(root, "work").mkdirs()
+        File(root, "work/plans.md").writeText("# Plans\n")
+
+        // Sorted, and relative to the collection: that is what a task carries
+        // and what every call into the core takes.
+        assertEquals(listOf("a.md", "b.md", "work/plans.md"), markdownFiles(root))
+    }
+
+    @Test
+    fun theFilesOfACollectionLeaveOutWhatTheWalkDoesNotRead() {
+        val root = folder.newFolder("with-a-repository")
+        File(root, "notes.md").writeText("# Notes\n")
+        File(root, ".git/objects").mkdirs()
+        // A file under `.git` ending in .md is not a note: the walk behind the
+        // agenda does not enter that directory either.
+        File(root, ".git/COMMIT_EDITMSG.md").writeText("# Not a note\n")
+
+        assertEquals(listOf("notes.md"), markdownFiles(root))
+    }
+
+    @Test
+    fun aCollectionWithNoFilesAtAllHasNowhereToMoveAnything() {
+        assertEquals(emptyList<String>(), markdownFiles(folder.newFolder("empty")))
     }
 }

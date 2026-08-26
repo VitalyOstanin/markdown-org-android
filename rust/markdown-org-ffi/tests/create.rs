@@ -9,18 +9,20 @@
 use std::fs;
 
 use markdown_org_ffi::{
-    create_task, revert_files, NewPlanning, NewTask, PlanningKeyword, TaskType,
+    create_task, revert_files, NewPlanning, NewTask, PlanningKeyword, TaskType, WritePosition,
 };
 
 mod common;
 
 use common::{body, vault};
 
-/// A task with nothing set on it but its title, aimed at `notes.md`.
+/// A task with nothing set on it but its title, aimed at the end of
+/// `notes.md`.
 fn task(dir: &tempfile::TempDir, title: &str) -> NewTask {
     NewTask {
         dir: dir.path().display().to_string(),
         file: "notes.md".to_string(),
+        at: WritePosition::End,
         title: title.to_string(),
         body: String::new(),
         status: Some(TaskType::Todo),
@@ -50,6 +52,118 @@ fn the_task_goes_at_the_end_of_the_file() {
     assert_eq!(
         body(vault.path()),
         "# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n\n## TODO Ring the dentist\n"
+    );
+}
+
+/// A task written at the start goes above the entries, under the title.
+#[test]
+fn the_task_goes_before_the_first_heading_when_the_file_says_start() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n");
+
+    let outcome = create_task(NewTask {
+        at: WritePosition::Start,
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(outcome.line, "## TODO Ring the dentist");
+    assert_eq!(
+        body(vault.path()),
+        "## TODO Ring the dentist\n\n# Notes\n\n## TODO Write the report\n"
+    );
+}
+
+/// Everything above the first heading is the header, and the entry goes after
+/// it: a paragraph introducing the note keeps introducing it.
+#[test]
+fn the_header_is_whatever_stands_above_the_first_heading() {
+    let vault = vault("These are my notes.\n\n# TODO Write the report\n");
+
+    create_task(NewTask {
+        at: WritePosition::Start,
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "These are my notes.\n\n# TODO Ring the dentist\n\n# TODO Write the report\n"
+    );
+}
+
+/// A YAML front matter is stepped over whole, comment lines included: a `#` at
+/// the start of one reads as a heading, and an entry written above it would
+/// land inside the front matter and break it.
+#[test]
+fn a_yaml_front_matter_is_stepped_over_rather_than_written_into() {
+    let vault = vault(
+        "---\n# the day this note was started\ntitle: Notes\n---\n\n# TODO Write the report\n",
+    );
+
+    create_task(NewTask {
+        at: WritePosition::Start,
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "---\n# the day this note was started\ntitle: Notes\n---\n\n# TODO Ring the dentist\n\n# TODO Write the report\n"
+    );
+}
+
+/// A file with no heading at all is header to the end, so the start and the
+/// end of it are the same place.
+#[test]
+fn a_file_with_no_heading_takes_the_task_after_everything_it_holds() {
+    let vault = vault("Shopping.\n");
+
+    create_task(NewTask {
+        at: WritePosition::Start,
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(body(vault.path()), "Shopping.\n\n# TODO Ring the dentist\n");
+}
+
+/// The date and the text of a task written at the start stay under its
+/// heading, rather than being written at the end of the file the heading is no
+/// longer at.
+#[test]
+fn what_goes_under_the_heading_follows_it_to_the_start_of_the_file() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n");
+
+    create_task(NewTask {
+        at: WritePosition::Start,
+        body: "Their number is in the drawer.".to_string(),
+        planning: Some(planning(PlanningKeyword::Scheduled, "2026-08-20")),
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "## TODO Ring the dentist\n`SCHEDULED: <2026-08-20 Thu>`\n\nTheir number is in the drawer.\n\n# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n"
+    );
+}
+
+/// A file made by the first task written into it has nothing to be separated
+/// from, wherever the entry is meant to go.
+#[test]
+fn a_file_that_did_not_exist_gets_the_entry_and_no_blank_lines() {
+    let vault = vault("# Notes\n");
+
+    create_task(NewTask {
+        file: "made.md".to_string(),
+        at: WritePosition::Start,
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        fs::read_to_string(vault.path().join("made.md")).expect("read"),
+        "# TODO Ring the dentist\n"
     );
 }
 
