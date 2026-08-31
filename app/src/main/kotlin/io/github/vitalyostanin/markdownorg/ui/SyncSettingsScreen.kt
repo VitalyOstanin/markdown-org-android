@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -114,6 +115,12 @@ fun SyncSettingsScreen(
     // stray tap on a list of chips must not be enough to do it.
     var removing by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // What is being looked for, and what that leaves on the screen. Kept
+    // across a rotation like the fields themselves: a query typed with one
+    // hand is not something to type again because the phone was turned.
+    var query by rememberSaveable { mutableStateOf("") }
+    val match = rememberSettingsMatch(query)
+
     val issues = rememberFormIssues(form, storage)
 
     // The picker runs in another application, and its answer arrives after
@@ -127,62 +134,51 @@ fun SyncSettingsScreen(
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            SettingsHeading(
-                form = form,
-                collections = collections,
-                storesLocally = initial.storesLocally,
-                onKeepLocal = onKeepLocal,
-            )
+        CompositionLocalProvider(LocalSettingsMatch provides match) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                SettingsSearchField(query = query, onQueryChange = { query = it })
 
-            RemoteSection(
-                form = form,
-                problem = issues.remote?.takeIf { issues.remoteRefused },
-                hasToken = initial.hasToken,
-                onOpenPage = onOpenPage,
-            )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    SettingsForm(
+                        initial = initial,
+                        form = form,
+                        issues = issues,
+                        collections = collections,
+                        storage = storage,
+                        onKeepLocal = onKeepLocal,
+                        onCreateKey = onCreateKey,
+                        onOpenPage = onOpenPage,
+                    )
 
-            KeySection(
-                form = form,
-                initial = initial,
-                onCreateKey = onCreateKey,
-                onOpenPage = onOpenPage,
-            )
-
-            NotesSection(form = form, issues = issues, storage = storage)
-
-            Spacer(Modifier.height(Spacing.xs))
-
-            // Only while there is another collection to fall back to: an
-            // agenda over nothing has no way back except a reinstall.
-            if (collections.all.size > 1) {
-                RemoveCollectionButton(onClick = { removing = collections.editingId })
+                    SettingsTail(
+                        collections = collections,
+                        agenda = agenda,
+                        reminders = reminders,
+                        diagnostics = diagnostics,
+                        onRemove = { removing = collections.editingId },
+                        onSave = { onSave(form.values()) },
+                        onDismiss = onDismiss,
+                        // An empty address is not an obstacle any more: the
+                        // form also carries where the notes are kept, and
+                        // notes already on the device need no remote at all. A
+                        // collection with no name is one the filter offers as
+                        // a blank chip.
+                        canSave = !issues.refused &&
+                            (collections.all.isEmpty() || form.name.isNotBlank()),
+                    )
+                }
             }
-
-            AgendaSection(agenda)
-            RemindersSection(reminders)
-
-            DiagnosticsSection(
-                crash = diagnostics.crash,
-                onForgetCrash = diagnostics.onForgetCrash,
-                onOpenLicences = diagnostics.onOpenLicences,
-            )
-
-            FormButtons(
-                onSave = { onSave(form.values()) },
-                onDismiss = onDismiss,
-                // An empty address is not an obstacle any more: the form also
-                // carries where the notes are kept, and notes already on the
-                // device need no remote at all. A collection with no name is
-                // one the filter offers as a blank chip.
-                canSave = !issues.refused && (collections.all.isEmpty() || form.name.isNotBlank()),
-            )
         }
     }
 
@@ -195,6 +191,100 @@ fun SyncSettingsScreen(
             onDismiss = { removing = null },
         )
     }
+}
+
+/**
+ * The fields a collection is set up by: what it is called, where it is fetched
+ * from, what reaches the server, and where its notes are kept.
+ *
+ * All of it is typed into and saved together, which is what separates it from
+ * the tail below: the ticks there take effect where they stand.
+ */
+@Composable
+private fun SettingsForm(
+    initial: SettingsInitial,
+    form: SyncFormState,
+    issues: FormIssues,
+    collections: CollectionsUi,
+    storage: StorageUi,
+    onKeepLocal: () -> Unit,
+    onCreateKey: () -> Unit,
+    onOpenPage: (String) -> Unit,
+) {
+    SettingsHeading(
+        form = form,
+        collections = collections,
+        storesLocally = initial.storesLocally,
+        onKeepLocal = onKeepLocal,
+    )
+
+    RemoteSection(
+        form = form,
+        problem = issues.remote?.takeIf { issues.remoteRefused },
+        hasToken = initial.hasToken,
+        onOpenPage = onOpenPage,
+    )
+
+    KeySection(
+        form = form,
+        initial = initial,
+        onCreateKey = onCreateKey,
+        onOpenPage = onOpenPage,
+    )
+
+    NotesSection(form = form, issues = issues, storage = storage)
+
+    Spacer(Modifier.height(Spacing.xs))
+}
+
+/**
+ * Everything under the fields of the collection, down to the two buttons.
+ *
+ * One function rather than the tail of the screen's own: what stands here is
+ * read rather than filled in — how the agenda is drawn, what is announced,
+ * which build this is — and the form above it is long enough to be worth
+ * ending somewhere.
+ */
+@Composable
+private fun SettingsTail(
+    collections: CollectionsUi,
+    agenda: AgendaUi,
+    reminders: RemindersUi,
+    diagnostics: DiagnosticsUi,
+    onRemove: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+    canSave: Boolean,
+) {
+    // Only while there is another collection to fall back to: an agenda over
+    // nothing has no way back except a reinstall.
+    if (collections.all.size > 1) {
+        Found("settings-collection-remove") {
+            RemoveCollectionButton(onClick = onRemove)
+        }
+    }
+
+    AgendaSection(agenda)
+    RemindersSection(reminders)
+
+    DiagnosticsSection(
+        crash = diagnostics.crash,
+        onForgetCrash = diagnostics.onForgetCrash,
+        onOpenLicences = diagnostics.onOpenLicences,
+    )
+
+    // Said in words rather than left as a blank stretch: a screen that answers
+    // a typo with nothing at all reads as one that broke.
+    if (LocalSettingsMatch.current.nothingFound) {
+        Text(
+            text = stringResource(R.string.settings_search_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("settings-search-empty"),
+        )
+    }
+
+    FormButtons(onSave = onSave, onDismiss = onDismiss, canSave = canSave)
 }
 
 /**
@@ -297,46 +387,60 @@ private fun SettingsHeading(
     storesLocally: Boolean,
     onKeepLocal: () -> Unit,
 ) {
-    Text(
-        text = stringResource(R.string.settings_title),
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-        text = stringResource(
-            if (storesLocally) R.string.settings_local_hint else R.string.settings_hint,
-        ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    // The title and the paragraph under it say what the screen as a whole is
+    // for, which is not an answer to a query: while one is typed the screen is
+    // a list of what was asked for and nothing else.
+    if (!filtering()) {
+        Text(
+            text = stringResource(R.string.settings_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = stringResource(
+                if (storesLocally) R.string.settings_local_hint else R.string.settings_hint,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 
-    CollectionsSection(
-        collections = collections.all,
-        editingId = collections.editingId,
-        onEditCollection = collections.onEdit,
-        onAddCollection = collections.onAdd,
-    )
+    Found("settings-collections") {
+        CollectionsSection(
+            collections = collections.all,
+            editingId = collections.editingId,
+            onEditCollection = collections.onEdit,
+            onAddCollection = collections.onAdd,
+        )
+    }
 
     if (collections.all.isNotEmpty()) {
-        OutlinedTextField(
-            value = form.name,
-            onValueChange = { form.name = it },
-            label = { Text(stringResource(R.string.settings_collection_name)) },
-            supportingText = { Text(stringResource(R.string.settings_collection_name_hint)) },
-            isError = form.name.isBlank(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
-        )
+        Found("settings-collection-name") {
+            OutlinedTextField(
+                value = form.name,
+                onValueChange = { form.name = it },
+                label = { Text(stringResource(R.string.settings_collection_name)) },
+                supportingText = { Text(stringResource(R.string.settings_collection_name_hint)) },
+                isError = form.name.isBlank(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("settings-collection-name"),
+            )
+        }
     }
 
     // Offered while there is no remote and none has been declined: the answer
     // to a first launch that would otherwise keep asking for an address the
     // user has no intention of giving.
     if (!storesLocally && form.url.isBlank()) {
-        HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
-            TextButton(onClick = onKeepLocal, modifier = Modifier.testTag("settings-keep-local")) {
-                Text(stringResource(R.string.settings_keep_local))
+        Found("settings-keep-local") {
+            HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
+                TextButton(
+                    onClick = onKeepLocal,
+                    modifier = Modifier.testTag("settings-keep-local"),
+                ) {
+                    Text(stringResource(R.string.settings_keep_local))
+                }
             }
         }
     }
@@ -426,64 +530,72 @@ private fun RemoteSection(
     hasToken: Boolean,
     onOpenPage: (String) -> Unit,
 ) {
-    OutlinedTextField(
-        value = form.url,
-        onValueChange = { form.url = it },
-        label = { Text(stringResource(R.string.settings_url)) },
-        placeholder = { Text("https://gitlab.com/user/notes.git") },
-        isError = problem != null,
-        // What is wrong with the address, or — while nothing is — what an
-        // address here may be. A field that says nothing until it is wrong
-        // leaves the shape of the answer to be guessed at.
-        supportingText = {
-            Text(stringResource(problem?.toMessage()?.text ?: R.string.settings_url_default))
-        },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth().testTag("settings-url"),
-    )
+    Found("settings-url") {
+        OutlinedTextField(
+            value = form.url,
+            onValueChange = { form.url = it },
+            label = { Text(stringResource(R.string.settings_url)) },
+            placeholder = { Text("https://gitlab.com/user/notes.git") },
+            isError = problem != null,
+            // What is wrong with the address, or — while nothing is — what an
+            // address here may be. A field that says nothing until it is wrong
+            // leaves the shape of the answer to be guessed at.
+            supportingText = {
+                Text(stringResource(problem?.toMessage()?.text ?: R.string.settings_url_default))
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth().testTag("settings-url"),
+        )
+    }
 
-    OutlinedTextField(
-        value = form.branch,
-        onValueChange = { form.branch = it },
-        label = { Text(stringResource(R.string.settings_branch)) },
-        // Supporting text rather than a placeholder: a placeholder is only
-        // drawn while the field has focus, and what an empty field means has
-        // to be readable before touching it.
-        supportingText = { Text(stringResource(R.string.settings_branch_default)) },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
-    )
+    Found("settings-branch") {
+        OutlinedTextField(
+            value = form.branch,
+            onValueChange = { form.branch = it },
+            label = { Text(stringResource(R.string.settings_branch)) },
+            // Supporting text rather than a placeholder: a placeholder is only
+            // drawn while the field has focus, and what an empty field means
+            // has to be readable before touching it.
+            supportingText = { Text(stringResource(R.string.settings_branch_default)) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
+        )
+    }
 
-    OutlinedTextField(
-        value = form.token,
-        onValueChange = { form.token = it },
-        label = { Text(stringResource(R.string.settings_token)) },
-        // The stored token is never read back into the field, so whether one
-        // is saved has to be said in text that is visible without focusing the
-        // field.
-        supportingText = {
-            val kept = R.string.settings_token_kept
-            Text(stringResource(if (hasToken) kept else R.string.settings_token_none))
-        },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth().testTag("settings-token"),
-    )
+    Found("settings-token") {
+        OutlinedTextField(
+            value = form.token,
+            onValueChange = { form.token = it },
+            label = { Text(stringResource(R.string.settings_token)) },
+            // The stored token is never read back into the field, so whether
+            // one is saved has to be said in text that is visible without
+            // focusing the field.
+            supportingText = {
+                val kept = R.string.settings_token_kept
+                Text(stringResource(if (hasToken) kept else R.string.settings_token_none))
+            },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth().testTag("settings-token"),
+        )
+    }
 
     // Where the host above issues one. Only while the address names a host:
     // a directory on the device issues nothing, and a button leading to a
     // page that cannot exist is worse than no button.
     credentialPages(form.url)?.let { pages ->
-        HintTooltip(stringResource(R.string.hint_settings_token_page)) {
-            TextButton(
-                onClick = { onOpenPage(pages.token) },
-                modifier = Modifier.testTag("settings-token-page"),
-            ) {
-                Text(stringResource(R.string.settings_token_page))
+        Found("settings-token-page") {
+            HintTooltip(stringResource(R.string.hint_settings_token_page)) {
+                TextButton(
+                    onClick = { onOpenPage(pages.token) },
+                    modifier = Modifier.testTag("settings-token-page"),
+                ) {
+                    Text(stringResource(R.string.settings_token_page))
+                }
             }
         }
     }
@@ -492,21 +604,26 @@ private fun RemoteSection(
     // means "keep what is stored", and the stored one is never shown to be
     // deleted by hand.
     if (hasToken) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Checkbox(
-                checked = form.dropToken,
-                onCheckedChange = { form.dropToken = it },
-                modifier = Modifier.testTag("settings-token-drop"),
-            )
-            // On the label rather than on the box: a long press over a
-            // checkbox is a press over the thing it toggles, and the line is
-            // what the tick will do when the form is saved.
-            HintTooltip(stringResource(R.string.hint_settings_token_drop)) {
-                Text(
-                    text = stringResource(R.string.settings_token_drop),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+        Found("settings-token-drop") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = form.dropToken,
+                    onCheckedChange = { form.dropToken = it },
+                    modifier = Modifier.testTag("settings-token-drop"),
                 )
+                // On the label rather than on the box: a long press over a
+                // checkbox is a press over the thing it toggles, and the line
+                // is what the tick will do when the form is saved.
+                HintTooltip(stringResource(R.string.hint_settings_token_drop)) {
+                    Text(
+                        text = stringResource(R.string.settings_token_drop),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
@@ -530,11 +647,17 @@ private fun NotesSection(form: SyncFormState, issues: FormIssues, storage: Stora
         onRequestStorage = storage.onRequestPermission,
     )
 
-    InboxSection(form = form, problem = issues.inbox)
+    Found("settings-inbox") {
+        InboxSection(form = form, problem = issues.inbox)
+    }
 
-    WritePositionSection(form = form)
+    Found("settings-write-at") {
+        WritePositionSection(form = form)
+    }
 
-    MainFileSection(form = form, problem = issues.mainFile)
+    Found("settings-main-file") {
+        MainFileSection(form = form, problem = issues.mainFile)
+    }
 }
 
 /**
@@ -621,33 +744,37 @@ private fun NotesDirectorySection(
     onPickNotesDirectory: () -> Unit,
     onRequestStorage: () -> Unit,
 ) {
-    OutlinedTextField(
-        value = form.notesPath,
-        onValueChange = { form.notesPath = it },
-        label = { Text(stringResource(R.string.settings_notes)) },
-        placeholder = { Text("/storage/emulated/0/Documents/notes") },
-        isError = refused,
-        // What is wrong with the path, or — while the field is empty — where
-        // the notes go instead. A filled field that is fine says nothing: the
-        // path is the answer, and a line under it repeating the default would
-        // contradict what is above it.
-        supportingText = notesSupport(problem, form.notesPath)?.let {
-            { Text(stringResource(it)) }
-        },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
-    )
+    Found("settings-notes") {
+        OutlinedTextField(
+            value = form.notesPath,
+            onValueChange = { form.notesPath = it },
+            label = { Text(stringResource(R.string.settings_notes)) },
+            placeholder = { Text("/storage/emulated/0/Documents/notes") },
+            isError = refused,
+            // What is wrong with the path, or — while the field is empty —
+            // where the notes go instead. A filled field that is fine says
+            // nothing: the path is the answer, and a line under it repeating
+            // the default would contradict what is above it.
+            supportingText = notesSupport(problem, form.notesPath)?.let {
+                { Text(stringResource(it)) }
+            },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
+        )
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         // A phone keyboard is a poor way to enter a path — it capitalises,
         // autocorrects and turns `/sdcard` into `/SD card`.
-        HintTooltip(stringResource(R.string.hint_settings_notes_pick)) {
-            TextButton(
-                onClick = onPickNotesDirectory,
-                modifier = Modifier.testTag("settings-notes-pick"),
-            ) {
-                Text(stringResource(R.string.settings_notes_pick))
+        Found("settings-notes-pick") {
+            HintTooltip(stringResource(R.string.hint_settings_notes_pick)) {
+                TextButton(
+                    onClick = onPickNotesDirectory,
+                    modifier = Modifier.testTag("settings-notes-pick"),
+                ) {
+                    Text(stringResource(R.string.settings_notes_pick))
+                }
             }
         }
 
@@ -655,12 +782,14 @@ private fun NotesDirectorySection(
         // button offering what has already been granted, or what would not
         // help, is a button that answers nothing.
         if (problem == NotesPathProblem.NEEDS_PERMISSION) {
-            HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
-                TextButton(
-                    onClick = onRequestStorage,
-                    modifier = Modifier.testTag("settings-notes-grant"),
-                ) {
-                    Text(stringResource(R.string.settings_notes_grant))
+            Found("settings-notes-grant") {
+                HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
+                    TextButton(
+                        onClick = onRequestStorage,
+                        modifier = Modifier.testTag("settings-notes-grant"),
+                    ) {
+                        Text(stringResource(R.string.settings_notes_grant))
+                    }
                 }
             }
         }
@@ -679,29 +808,39 @@ private fun NotesDirectorySection(
  */
 @Composable
 private fun AgendaSection(agenda: AgendaUi) {
+    if (!found(SettingsPart.AGENDA)) {
+        return
+    }
+
     Text(
         text = stringResource(R.string.settings_agenda),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
     )
-    SettingCheck(
-        checked = agenda.grouped,
-        onCheckedChange = agenda.onGroupedChange,
-        tag = "settings-agenda-grouped",
-        label = R.string.settings_agenda_grouped,
-        hint = R.string.hint_settings_agenda_grouped,
-        explanation = R.string.settings_agenda_grouped_hint,
-    )
-    SettingCheck(
-        checked = agenda.monthAsGrid,
-        onCheckedChange = agenda.onMonthAsGridChange,
-        tag = "settings-agenda-month-grid",
-        label = R.string.settings_agenda_month_grid,
-        hint = R.string.hint_settings_agenda_month_grid,
-        explanation = R.string.settings_agenda_month_grid_hint,
-    )
-    WeekStartChoice(agenda.weekStart, agenda.onWeekStartChange)
+    Found("settings-agenda-grouped") {
+        SettingCheck(
+            checked = agenda.grouped,
+            onCheckedChange = agenda.onGroupedChange,
+            tag = "settings-agenda-grouped",
+            label = R.string.settings_agenda_grouped,
+            hint = R.string.hint_settings_agenda_grouped,
+            explanation = R.string.settings_agenda_grouped_hint,
+        )
+    }
+    Found("settings-agenda-month-grid") {
+        SettingCheck(
+            checked = agenda.monthAsGrid,
+            onCheckedChange = agenda.onMonthAsGridChange,
+            tag = "settings-agenda-month-grid",
+            label = R.string.settings_agenda_month_grid,
+            hint = R.string.hint_settings_agenda_month_grid,
+            explanation = R.string.settings_agenda_month_grid_hint,
+        )
+    }
+    Found("settings-week-start") {
+        WeekStartChoice(agenda.weekStart, agenda.onWeekStartChange)
+    }
 }
 
 /**
@@ -757,58 +896,68 @@ private fun DiagnosticsSection(
     onForgetCrash: () -> Unit,
     onOpenLicences: () -> Unit,
 ) {
-    HintTooltip(stringResource(R.string.hint_settings_licences)) {
-        TextButton(onClick = onOpenLicences, modifier = Modifier.testTag("settings-licences")) {
-            Text(stringResource(R.string.settings_licences))
+    Found("settings-licences") {
+        HintTooltip(stringResource(R.string.hint_settings_licences)) {
+            TextButton(onClick = onOpenLicences, modifier = Modifier.testTag("settings-licences")) {
+                Text(stringResource(R.string.settings_licences))
+            }
         }
     }
 
     // What is left of the run that ended in a crash: the trace is the whole of
     // what makes such a report worth anything.
     crash?.let { trace ->
-        HintTooltip(
-            stringResource(R.string.hint_settings_crash),
-            // On the anchor rather than on the line inside it: see HintTooltip.
-            modifier = Modifier.testTag("settings-crash"),
-        ) {
+        Found("settings-crash") {
+            HintTooltip(
+                stringResource(R.string.hint_settings_crash),
+                // On the anchor rather than on the line inside it: see
+                // HintTooltip.
+                modifier = Modifier.testTag("settings-crash"),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_crash),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Text(
-                text = stringResource(R.string.settings_crash),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+                text = trace,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = Sizes.traceHeight)
+                    .verticalScroll(rememberScrollState())
+                    .testTag("settings-crash-trace"),
             )
-        }
-        Text(
-            text = trace,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = Sizes.traceHeight)
-                .verticalScroll(rememberScrollState())
-                .testTag("settings-crash-trace"),
-        )
-        TextButton(onClick = onForgetCrash, modifier = Modifier.testTag("settings-crash-forget")) {
-            Text(stringResource(R.string.settings_crash_forget))
+            TextButton(
+                onClick = onForgetCrash,
+                modifier = Modifier.testTag("settings-crash-forget"),
+            ) {
+                Text(stringResource(R.string.settings_crash_forget))
+            }
         }
     }
 
     // Which build is installed. Two APKs of the same version differ only by
     // the run that produced them, so the code and the commit are here as
     // well: a report about a build nobody can identify cannot be acted on.
-    HintTooltip(
-        stringResource(R.string.hint_settings_version),
-        modifier = Modifier.testTag("settings-version"),
-    ) {
-        Text(
-            text = stringResource(
-                R.string.settings_version,
-                BuildConfig.VERSION_NAME,
-                BuildConfig.VERSION_CODE,
-                BuildConfig.COMMIT,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Found("settings-version") {
+        HintTooltip(
+            stringResource(R.string.hint_settings_version),
+            modifier = Modifier.testTag("settings-version"),
+        ) {
+            Text(
+                text = stringResource(
+                    R.string.settings_version,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                    BuildConfig.COMMIT,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -945,6 +1094,10 @@ private fun SshSection(
 ) {
     var open by rememberSaveable { mutableStateOf(startsOpen) }
 
+    if (!found(SettingsPart.SSH)) {
+        return
+    }
+
     HintTooltip(stringResource(R.string.hint_settings_ssh)) {
         TextButton(
             onClick = { open = !open },
@@ -958,61 +1111,78 @@ private fun SshSection(
         }
     }
 
-    if (!open) {
+    // A query that named something in here opens the section: what was found
+    // is behind the fold, and a heading is not an answer to having searched
+    // for the field under it.
+    if (!open && !filtering()) {
         return
     }
 
-    OutlinedTextField(
-        value = key,
-        onValueChange = onKeyChange,
-        label = { Text(stringResource(R.string.settings_ssh_key)) },
-        supportingText = {
-            val kept = R.string.settings_ssh_key_kept
-            Text(stringResource(if (hasKey) kept else R.string.settings_ssh_key_none))
-        },
-        // Several lines rather than one: a private key is many lines long, and
-        // a field showing one of them says nothing about what was pasted.
-        minLines = 2,
-        maxLines = 4,
-        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth().testTag("settings-ssh-key"),
-    )
+    Found("settings-ssh-key") {
+        OutlinedTextField(
+            value = key,
+            onValueChange = onKeyChange,
+            label = { Text(stringResource(R.string.settings_ssh_key)) },
+            supportingText = {
+                val kept = R.string.settings_ssh_key_kept
+                Text(stringResource(if (hasKey) kept else R.string.settings_ssh_key_none))
+            },
+            // Several lines rather than one: a private key is many lines long,
+            // and a field showing one of them says nothing about what was
+            // pasted.
+            minLines = 2,
+            maxLines = 4,
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth().testTag("settings-ssh-key"),
+        )
+    }
 
-    OutlinedTextField(
-        value = passphrase,
-        onValueChange = onPassphraseChange,
-        label = { Text(stringResource(R.string.settings_ssh_passphrase)) },
-        supportingText = { Text(stringResource(R.string.settings_ssh_passphrase_hint)) },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth().testTag("settings-ssh-passphrase"),
-    )
+    Found("settings-ssh-passphrase") {
+        OutlinedTextField(
+            value = passphrase,
+            onValueChange = onPassphraseChange,
+            label = { Text(stringResource(R.string.settings_ssh_passphrase)) },
+            supportingText = { Text(stringResource(R.string.settings_ssh_passphrase_hint)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth().testTag("settings-ssh-passphrase"),
+        )
+    }
 
     if (hasKey) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Checkbox(
-                checked = dropKey,
-                onCheckedChange = onDropKeyChange,
-                modifier = Modifier.testTag("settings-ssh-key-drop"),
-            )
-            HintTooltip(stringResource(R.string.hint_settings_ssh_key_drop)) {
-                Text(
-                    text = stringResource(R.string.settings_ssh_key_drop),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+        Found("settings-ssh-key-drop") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = dropKey,
+                    onCheckedChange = onDropKeyChange,
+                    modifier = Modifier.testTag("settings-ssh-key-drop"),
                 )
+                HintTooltip(stringResource(R.string.hint_settings_ssh_key_drop)) {
+                    Text(
+                        text = stringResource(R.string.settings_ssh_key_drop),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
 
-    HintTooltip(stringResource(R.string.hint_settings_ssh_create)) {
-        TextButton(onClick = onCreateKey, modifier = Modifier.testTag("settings-ssh-create")) {
-            Text(stringResource(R.string.settings_ssh_create))
+    Found("settings-ssh-create") {
+        HintTooltip(stringResource(R.string.hint_settings_ssh_create)) {
+            TextButton(onClick = onCreateKey, modifier = Modifier.testTag("settings-ssh-create")) {
+                Text(stringResource(R.string.settings_ssh_create))
+            }
         }
     }
 
-    PublicHalf(publicKey = publicKey, knownHost = knownHost, onOpenKeyPage = onOpenKeyPage)
+    Found("settings-ssh-public") {
+        PublicHalf(publicKey = publicKey, knownHost = knownHost, onOpenKeyPage = onOpenKeyPage)
+    }
 }
 
 /**

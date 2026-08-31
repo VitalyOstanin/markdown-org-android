@@ -131,6 +131,9 @@
     <string name="sync_rejected_detail">origin/%1$s holds commits this device does not; sync again to take them first</string>
     <string name="sync_status_unreadable">The checkout could not be read; it was left as it is</string>
 
+    <string name="settings_search">Search the settings</string>
+    <string name="settings_search_clear">Clear</string>
+    <string name="settings_search_empty">Nothing on this screen answers to that.</string>
     <string name="settings_title">Notes repository</string>
     <string name="settings_hint">The repository is cloned into the notes directory below. Syncing takes what the server has and then hands it what was changed here; neither side is ever merged or rewritten.</string>
     <string name="settings_url">Repository URL</string>

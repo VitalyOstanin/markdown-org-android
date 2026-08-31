@@ -165,6 +165,13 @@ reasoning.
   short foreground service. The digest is never an exact alarm. See
   [ADR-0035](docs/adr/0035-a-reminder-is-answered-where-it-is-read.md).
 
+- The settings screen is searched by filtering itself: what a query does not
+  name is not drawn, headings of emptied stretches included, and an empty field
+  is the screen as it always was. What can be found is the list
+  `settingsCatalogue` rather than a property of each composable — an item added
+  to the screen and left out of it is one the search never offers. See
+  [ADR-0037](docs/adr/0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

@@ -48,20 +48,26 @@ import java.time.LocalTime
  */
 @Composable
 internal fun RemindersSection(reminders: RemindersUi) {
+    if (!found(SettingsPart.REMINDERS)) {
+        return
+    }
+
     Text(
         text = stringResource(R.string.settings_reminders),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
     )
-    SettingCheck(
-        checked = reminders.enabled,
-        onCheckedChange = reminders.onEnabledChange,
-        tag = "settings-reminders-enabled",
-        label = R.string.settings_reminders_enabled,
-        hint = R.string.hint_settings_reminders_enabled,
-        explanation = R.string.settings_reminders_enabled_hint,
-    )
+    Found("settings-reminders-enabled") {
+        SettingCheck(
+            checked = reminders.enabled,
+            onCheckedChange = reminders.onEnabledChange,
+            tag = "settings-reminders-enabled",
+            label = R.string.settings_reminders_enabled,
+            hint = R.string.hint_settings_reminders_enabled,
+            explanation = R.string.settings_reminders_enabled_hint,
+        )
+    }
     if (!reminders.enabled) {
         return
     }
@@ -83,16 +89,22 @@ internal fun RemindersSection(reminders: RemindersUi) {
             onClick = reminders.onAllowExactAlarms,
         )
     }
-    LeadChoice(reminders.lead, reminders.onLeadChange)
-    SettingCheck(
-        checked = reminders.alsoAtStart,
-        onCheckedChange = reminders.onAlsoAtStartChange,
-        tag = "settings-reminders-at-start",
-        label = R.string.settings_reminders_at_start,
-        hint = R.string.hint_settings_reminders_at_start,
-        explanation = R.string.settings_reminders_at_start_hint,
-    )
-    DigestChoice(reminders.digestAt, reminders.onDigestChange)
+    Found("settings-reminders-lead") {
+        LeadChoice(reminders.lead, reminders.onLeadChange)
+    }
+    Found("settings-reminders-at-start") {
+        SettingCheck(
+            checked = reminders.alsoAtStart,
+            onCheckedChange = reminders.onAlsoAtStartChange,
+            tag = "settings-reminders-at-start",
+            label = R.string.settings_reminders_at_start,
+            hint = R.string.hint_settings_reminders_at_start,
+            explanation = R.string.settings_reminders_at_start_hint,
+        )
+    }
+    Found("settings-reminders-digest") {
+        DigestChoice(reminders.digestAt, reminders.onDigestChange)
+    }
 }
 
 /**

@@ -82,6 +82,9 @@
     <string name="sync_rejected_detail">в origin/%1$s есть коммиты, которых нет на устройстве; синхронизируйте ещё раз, чтобы сначала получить их</string>
     <string name="sync_status_unreadable">Не удалось прочитать рабочую копию; она оставлена как есть</string>
 
+    <string name="settings_search">Поиск по настройкам</string>
+    <string name="settings_search_clear">Очистить</string>
+    <string name="settings_search_empty">На этом экране ничего не найдено.</string>
     <string name="settings_title">Репозиторий заметок</string>
     <string name="settings_hint">Репозиторий клонируется в указанный ниже каталог заметок. Синхронизация забирает изменения с сервера и отдаёт ему то, что изменено здесь; слияние и перезапись истории не выполняются ни с одной стороны.</string>
     <string name="settings_url">Адрес репозитория</string>

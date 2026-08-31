@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A field at the head of the settings screen that filters it: what a query does
+  not name is not drawn, headings of emptied stretches included, and an empty
+  field is the screen as it always was. Case and `ё` are folded, a heading that
+  matches carries the whole stretch under it, and the section folded away under
+  "Access over SSH" opens while a query is active.
+
 ## [0.1.0] - 2026-08-25
 
 Everything so far. The builds published before this one were prereleases of

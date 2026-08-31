@@ -32,6 +32,7 @@ the emulator.
 - [Telling the reader what is coming](#telling-the-reader-what-is-coming)
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
+- [Finding a setting](#finding-a-setting)
 - [Collections](#collections)
 - [Tags](#tags)
 - [What a sync does with the checkout](#what-a-sync-does-with-the-checkout)
@@ -484,6 +485,31 @@ What the phone cannot do is make the account and the repository — that is the
 server's own sign-up, and it is a browser page like any other. The pages the
 form links to are opened as the user, in whatever browser the device has; the
 application sends nothing to them and reads nothing back.
+
+## Finding a setting
+
+The settings of a collection are one scrolling column, several screenfuls long,
+and the field at its head shortens it. What is typed is compared against what
+each item is read by — its label, the line under it, the labels of its chips —
+and what does not answer is not drawn, headings of emptied stretches included.
+An empty field is the screen as it always was.
+
+| № | What                        | How it behaves                                                                                       |
+|---|-----------------------------|--------------------------------------------------------------------------------------------------------|
+| 1 | What is compared            | The label of an item and the text under it, in the language the screen is drawn in                       |
+| 2 | Case and `ё`                | Both folded: `Начало` finds `начало`, and `недёли` finds `недели`                                        |
+| 3 | A heading that matches      | Carries the whole stretch under it — asking for "reminders" is asking for all of them                    |
+| 4 | The section folded away     | Opens while a query is active: what was found is behind the fold                                         |
+| 5 | What is not compared        | The values typed into fields, and the line behind a long press                                           |
+| 6 | Saving from under a query   | Saves everything that was typed, including into fields the query hid                                     |
+
+What can be found is the list `settingsCatalogue` in
+`ui/SettingsSearch.kt`, held apart from the composables that draw the screen: a
+heading is drawn before the items under it, so whether a stretch survived the
+query has to be answerable before it starts drawing. An item added to the screen
+and left out of that list is one the search never offers, which two tests hold
+against — one over the catalogue itself, one over the screen. The decision is in
+[ADR-0037](docs/adr/0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md).
 
 ## Collections
 
