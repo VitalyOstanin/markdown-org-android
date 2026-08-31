@@ -66,6 +66,19 @@ class TaskCreatorSizeTest(private val screen: Screen) {
         }
     }
 
+    @Test
+    fun theButtonsBesideThePhraseKeepTheirLabels() {
+        // Three things share that row — the field, Speak and Fill in — and the
+        // field takes what the two buttons leave. A label wrapped in two is
+        // the row having run out of width, which is where a third control
+        // would first show.
+        show()
+
+        for (button in PHRASE_BUTTONS) {
+            assertEquals("$button wraps its label", 1, linesOf(button))
+        }
+    }
+
     private fun show() {
         compose.setContent {
             // The screen itself opens as a Dialog — a window of its own, which
@@ -92,6 +105,13 @@ class TaskCreatorSizeTest(private val screen: Screen) {
                                 state = remember { NewTaskState(PAIR.first().id) },
                                 collections = PAIR,
                                 weekStart = WeekStart.AUTO,
+                                // The context handed in above is one made for
+                                // a language rather than the activity, and the
+                                // recogniser is reached through the activity.
+                                // Nothing here presses the button that would
+                                // open one: what is being measured is how the
+                                // chips lay out.
+                                dictation = { _, _ -> false },
                             )
                         }
                     }
@@ -128,6 +148,9 @@ class TaskCreatorSizeTest(private val screen: Screen) {
             "create-kind-scheduled",
             "create-kind-deadline",
         )
+
+        /** The two buttons of the phrase row, which share it with the field. */
+        val PHRASE_BUTTONS = listOf("create-phrase-speak", "create-phrase-parse")
 
         val PAIR = listOf(
             NotesCollection(

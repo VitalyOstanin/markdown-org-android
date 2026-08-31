@@ -432,9 +432,13 @@
          refines what the earlier ones left. -->
     <string name="create_phrase">Say it in one phrase</string>
     <string name="create_phrase_parse">Fill in</string>
+    <string name="create_phrase_speak">Speak</string>
+    <string name="create_phrase_prompt">Say the task in one phrase</string>
+    <string name="create_phrase_unheard">This phone has nothing to recognise speech with — type the phrase instead.</string>
     <string name="hint_create_phrase">"call the doctor tomorrow at 15:00, every week" — reads a date, an hour, a repeater and a priority out of the sentence and fills the fields below with them; whatever the rules do not understand is added to the heading. Nothing is written to the notes — the fields are yours to correct first. A second phrase refines what the first left: "at 16:00" moves the hour and keeps everything else.</string>
     <string name="create_heading_support">What the task says. The keyword, the priority and the date are chosen below and written around it.</string>
     <string name="create_body_support">The lines that go under the heading. Optional: a task is a heading, and the text under it is what it needs explaining.</string>
+    <string name="hint_create_phrase_speak">Opens whatever the phone recognises speech with and adds what it heard to the field, without touching the fields below — press Fill in when the sentence reads right. The language is the one the phone is set to; both grammars are read either way.</string>
     <string name="hint_create_cancel">Leaves without writing anything. Nothing reaches the notes until Create.</string>
     <string name="hint_create_save">Writes the task at the end of the collection\'s file and commits. Unavailable while the heading is empty: the core refuses to write a heading that says nothing.</string>
     <string name="hint_create_collection">Which set of notes takes the task. The file it is appended to is the inbox of that collection, named at the foot of the screen.</string>

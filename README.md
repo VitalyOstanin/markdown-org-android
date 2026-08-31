@@ -522,6 +522,22 @@ refined draft comes back, and the accumulating is the core's rather than the
 client's. The decision is in
 [ADR-0038](docs/adr/0038-a-phrase-fills-the-screen-and-the-core-reads-it.md).
 
+The sentence can be spoken instead of typed. `Speak` opens whatever the phone
+recognises speech with — the application the keyboard's microphone key opens —
+and what it heard joins what the field holds; this application asks for no
+microphone permission and runs no recognition of its own.
+
+| № | What                          | How it behaves                                                                                     |
+|---|-------------------------------|--------------------------------------------------------------------------------------------------|
+| 1 | Where the text lands          | In the phrase field, read by the same `Fill in` — a misheard word is one line to correct           |
+| 2 | Speaking twice                | Joins what is in the field: a sentence can be said in two goes                                     |
+| 3 | Language                      | The one the phone is set to; the intent names none, and both grammars are read either way          |
+| 4 | A phone with no recogniser    | The field says so and the sentence is typed; the button is drawn on every phone                     |
+| 5 | A cancelled or silent attempt | Leaves the field as it was                                                                          |
+
+The decision is in
+[ADR-0039](docs/adr/0039-the-phone-listens-and-the-field-holds-what-it-heard.md).
+
 ## Finding a setting
 
 The settings of a collection are one scrolling column, several screenfuls long,

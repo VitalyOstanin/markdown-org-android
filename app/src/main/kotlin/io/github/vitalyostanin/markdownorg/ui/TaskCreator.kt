@@ -201,6 +201,7 @@ fun TaskCreator(
     modifier: Modifier = Modifier,
     weekStart: WeekStart = WeekStart.AUTO,
     today: LocalDate = LocalDate.now(),
+    dictation: Dictation = rememberSystemDictation(),
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -228,6 +229,7 @@ fun TaskCreator(
                     collections = collections,
                     weekStart = weekStart,
                     today = today,
+                    dictation = dictation,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -273,6 +275,7 @@ internal fun CreatorFields(
     weekStart: WeekStart,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
+    dictation: Dictation = rememberSystemDictation(),
 ) {
     Column(
         modifier = modifier
@@ -282,7 +285,7 @@ internal fun CreatorFields(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         ReceivingCollection(state, collections)
-        SpokenPhrase(state, today)
+        SpokenPhrase(state, today, dictation)
 
         // A line under the field rather than a tooltip on it: inside a text
         // field a long press belongs to selecting text.
@@ -342,10 +345,20 @@ internal fun CreatorFields(
  * The refining is the core's to do, and what it is handed is the draft the
  * screen currently shows, so a field corrected by hand is the field the next
  * phrase refines rather than one the screen quietly merges over.
+ *
+ * The sentence can be spoken as well as typed, and speaking only fills this
+ * field: what the phone heard is read by the same button, so a word it got
+ * wrong is corrected in one line rather than across the nine fields it would
+ * otherwise have been scattered into.
  */
 @Composable
-private fun SpokenPhrase(state: NewTaskState, today: LocalDate) {
+private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dictation) {
     var phrase by rememberSaveable { mutableStateOf("") }
+    // Said once the phone has answered that it cannot listen, and kept until
+    // the next attempt: a line under the field rather than a message that
+    // goes away on its own, because what to do instead is to type here.
+    var unheard by rememberSaveable { mutableStateOf(false) }
+    val prompt = stringResource(R.string.create_phrase_prompt)
 
     // The label carries the invitation, so the section costs one row rather
     // than two: everything under it is the form the phrase fills, and a
@@ -359,17 +372,42 @@ private fun SpokenPhrase(state: NewTaskState, today: LocalDate) {
             value = phrase,
             onValueChange = { phrase = it },
             label = { Text(stringResource(R.string.create_phrase)) },
+            supportingText = if (unheard) {
+                { Text(stringResource(R.string.create_phrase_unheard)) }
+            } else {
+                null
+            },
+            isError = unheard,
             singleLine = true,
             modifier = Modifier
                 .weight(1f)
                 .withoutAutofill()
                 .testTag("create-phrase"),
         )
+        HintTooltip(stringResource(R.string.hint_create_phrase_speak)) {
+            TextButton(
+                onClick = {
+                    // What was heard joins what is already in the field rather
+                    // than replacing it: the sentence may be said in two goes,
+                    // and a word corrected by hand before speaking again is
+                    // not worth losing.
+                    unheard = !dictation.listen(prompt) { heard ->
+                        phrase = listOf(phrase.trim(), heard.trim())
+                            .filter { it.isNotEmpty() }
+                            .joinToString(" ")
+                    }
+                },
+                modifier = Modifier.testTag("create-phrase-speak"),
+            ) {
+                Text(stringResource(R.string.create_phrase_speak))
+            }
+        }
         HintTooltip(stringResource(R.string.hint_create_phrase)) {
             TextButton(
                 onClick = {
                     state.fill(refinePhrase(state.phraseDraft(), phrase, phraseLocales(), "$today"))
                     phrase = ""
+                    unheard = false
                 },
                 enabled = phrase.isNotBlank(),
                 modifier = Modifier.testTag("create-phrase-parse"),

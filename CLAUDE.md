@@ -182,6 +182,15 @@ reasoning.
   written until Create. See
   [ADR-0038](docs/adr/0038-a-phrase-fills-the-screen-and-the-core-reads-it.md).
 
+- That phrase can be spoken. The listening belongs to whatever the phone
+  recognises speech with, asked through `ACTION_RECOGNIZE_SPEECH`, so this
+  application holds no microphone permission and runs no recognition of its
+  own. What was heard joins the phrase field and is read by the same button a
+  typed sentence is, the language is the phone's rather than the screen's, and
+  a phone with nothing to answer the intent says so in the field instead of
+  losing the button. See
+  [ADR-0039](docs/adr/0039-the-phone-listens-and-the-field-holds-what-it-heard.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

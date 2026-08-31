@@ -47,6 +47,20 @@
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <!--
+        Asking whether anything on the phone recognises speech. From Android 11
+        an application sees only the packages it declares an interest in, and
+        without this the question is answered "nothing" on a phone that has a
+        recogniser — the button would then refuse to open one that is there.
+        No permission of ours records anything: the activity that listens is
+        the one holding the microphone.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MarkdownOrgApp"
         android:allowBackup="false"

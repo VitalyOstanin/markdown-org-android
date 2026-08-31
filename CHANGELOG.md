@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to, and nothing is written until Create — a sentence read wrong is a screen to
   correct.
 
+- That phrase can be spoken rather than typed. `Speak` opens whatever the phone
+  recognises speech with — the application behind the keyboard's microphone key
+  — and what it heard joins the field, to be read by the same button a typed
+  sentence is: a misheard word is one line to correct rather than nine fields.
+  This application asks for no microphone permission and recognises nothing
+  itself. The language is the one the phone is set to, a second attempt joins
+  what the first left, and a phone with nothing to listen with says so in the
+  field instead of hiding the button.
+
 - A field at the head of the settings screen that filters it: what a query does
   not name is not drawn, headings of emptied stretches included, and an empty
   field is the screen as it always was. Case and `ё` are folded, a heading that
