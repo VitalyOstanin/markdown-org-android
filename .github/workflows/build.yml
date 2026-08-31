@@ -228,6 +228,14 @@ jobs:
         # The version comes from tools/versions.env, like every other tool
         # here: this job decrypts the signing key a few steps further down,
         # and "whatever was published last" is not something to run beside it.
+        #
+        # The token is the run's own, and it is here because binstall asks
+        # api.github.com where the release lives: unauthenticated, that
+        # question shares a per-runner rate limit with everything else on the
+        # machine and comes back 403, which fails the build for no reason of
+        # ours.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall --no-confirm "cargo-ndk@${CARGO_NDK_VERSION}"
 
       - name: Cache the Rust build
