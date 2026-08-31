@@ -107,8 +107,8 @@ class TaskCreatorTest {
 
         pickToday()
 
-        compose.onNodeWithTag("create-pick-time").assertIsDisplayed()
-        compose.onNodeWithTag("create-repeat-weekly").assertIsDisplayed()
+        compose.onNodeWithTag("create-pick-time").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("create-repeat-weekly").performScrollTo().assertIsDisplayed()
 
         // The last of the intervals ends no further right than the rest of the
         // page: a row that scrolls sideways would put the chip taking a
@@ -131,7 +131,7 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
         pickToday()
-        compose.onNodeWithTag("create-repeat-weekly").performClick()
+        compose.onNodeWithTag("create-repeat-weekly").performScrollTo().performClick()
         compose.onNodeWithTag("create-save").performClick()
 
         // Catch-up rather than a single step: a weekly task completed after
@@ -171,7 +171,7 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
         pickToday()
-        compose.onNodeWithTag("create-pick-time").performClick()
+        compose.onNodeWithTag("create-pick-time").performScrollTo().performClick()
         compose.onNodeWithTag("time-picker").assertIsDisplayed()
         compose.onNodeWithTag("time-set").performClick()
         compose.onNodeWithTag("create-save").performClick()
@@ -187,9 +187,9 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-title").performTextReplacement("Water the plants")
         pickToday()
-        compose.onNodeWithTag("create-pick-time").performClick()
+        compose.onNodeWithTag("create-pick-time").performScrollTo().performClick()
         compose.onNodeWithTag("time-set").performClick()
-        compose.onNodeWithTag("create-clear-time").performClick()
+        compose.onNodeWithTag("create-clear-time").performScrollTo().performClick()
         compose.onNodeWithTag("create-save").performClick()
 
         assertNull(created?.second?.time)
@@ -224,8 +224,9 @@ class TaskCreatorTest {
 
         // The file is a setting of the collection rather than a field here,
         // and a task written into a note nobody expected is one they will look
-        // for.
-        compose.onNodeWithText("Written at the end of inbox.md").assertIsDisplayed()
+        // for. Scrolled to: it stands at the foot of a form several screenfuls
+        // long.
+        compose.onNodeWithText("Written at the end of inbox.md").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -245,7 +246,7 @@ class TaskCreatorTest {
 
         // The file named at the foot follows the choice, because it is that
         // collection's own.
-        compose.onNodeWithText("Written at the end of work.md").assertIsDisplayed()
+        compose.onNodeWithText("Written at the end of work.md").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("create-title").performTextReplacement("Write the report")
         compose.onNodeWithTag("create-save").performClick()
         assertEquals("2", created?.first)

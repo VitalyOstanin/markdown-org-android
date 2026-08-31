@@ -73,6 +73,7 @@ so a decision can be followed across the three repositories.
 | 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |
 | 0036 | [Where an entry is written is the collection's to say, and an entry can move between files](0036-where-an-entry-is-written-is-the-collections-to-say.md) | Accepted |
 | 0037 | [The settings are searched by filtering the screen they are on](0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md) | Accepted |
+| 0038 | [A phrase fills the creation screen, and the core is what reads it](0038-a-phrase-fills-the-screen-and-the-core-reads-it.md) | Accepted |
 
 ## Adding a new ADR
 

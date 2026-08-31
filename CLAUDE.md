@@ -172,6 +172,16 @@ reasoning.
   to the screen and left out of it is one the search never offers. See
   [ADR-0037](docs/adr/0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md).
 
+- A task can be said in one phrase instead of filled field by field. The rules
+  that read it are the core's (`refine_entry`), so the phone and the editor
+  extension understand a sentence the same way; the client only carries the
+  draft across. What is handed over is what the screen shows and what comes back
+  replaces it, so a second phrase refines the first and a field corrected by
+  hand is the one it adds to — merging fields on this side would end in
+  disagreeing with the rules about which of them a phrase named. Nothing is
+  written until Create. See
+  [ADR-0038](docs/adr/0038-a-phrase-fills-the-screen-and-the-core-reads-it.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

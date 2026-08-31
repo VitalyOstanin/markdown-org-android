@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
@@ -43,11 +44,14 @@ import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
+import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.canonicalRepeater
+import uniffi.markdown_org_ffi.refinePhrase
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 /**
  * What is being typed into the creation screen.
@@ -91,6 +95,43 @@ class NewTaskState(collectionId: String) {
 
     /** The repeater to write (`++1w`), `null` for a task that happens once. */
     var repeater by mutableStateOf<String?>(null)
+
+    /**
+     * The fields a phrase reads, as the core holds them.
+     *
+     * What is currently on the screen rather than what the last phrase left:
+     * a phrase refines the draft it is handed, and the person may have
+     * corrected a field between two of them.
+     *
+     * The keyword travels only beside a date. The screen answers which kind a
+     * date would be whether or not one is chosen, and handing that answer over
+     * on its own would tell the core a planning line was named when nothing
+     * was said about one.
+     */
+    fun phraseDraft(): PhraseDraft = PhraseDraft(
+        heading = title,
+        priority = priority,
+        keyword = day?.let { keyword },
+        date = day?.toString(),
+        time = time?.format(DateTimeFormatter.ofPattern("HH:mm")),
+        repeater = repeater,
+    )
+
+    /**
+     * Take the fields a phrase filled.
+     *
+     * The keyword is kept as it stands where the phrase named no date: the
+     * screen always shows one of the two, and a phrase that said nothing about
+     * a date has said nothing about which line it would go on either.
+     */
+    fun fill(draft: PhraseDraft) {
+        title = draft.heading
+        priority = draft.priority
+        draft.keyword?.let { keyword = it }
+        day = draft.date?.let(LocalDate::parse)
+        time = draft.time?.let(LocalTime::parse)
+        repeater = draft.repeater
+    }
 
     /** The draft as the writer takes it. */
     fun draft(): TaskDraft = TaskDraft(
@@ -149,7 +190,8 @@ class NewTaskState(collectionId: String) {
  *
  * Where the task goes is not asked as a path: it is the file the chosen
  * collection receives new tasks in, named once in the settings and stated at
- * the foot of the screen. The entry is appended to the end of that file.
+ * the foot of the screen. Where in that file it lands is a setting of the
+ * collection as well.
  */
 @Composable
 fun TaskCreator(
@@ -158,6 +200,7 @@ fun TaskCreator(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     weekStart: WeekStart = WeekStart.AUTO,
+    today: LocalDate = LocalDate.now(),
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -184,6 +227,7 @@ fun TaskCreator(
                     state = state,
                     collections = collections,
                     weekStart = weekStart,
+                    today = today,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -228,6 +272,7 @@ internal fun CreatorFields(
     collections: List<NotesCollection>,
     weekStart: WeekStart,
     modifier: Modifier = Modifier,
+    today: LocalDate = LocalDate.now(),
 ) {
     Column(
         modifier = modifier
@@ -237,6 +282,7 @@ internal fun CreatorFields(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         ReceivingCollection(state, collections)
+        SpokenPhrase(state, today)
 
         // A line under the field rather than a tooltip on it: inside a text
         // field a long press belongs to selecting text.
@@ -278,6 +324,71 @@ internal fun CreatorFields(
         }
     }
 }
+
+/**
+ * One sentence, read into the fields below it.
+ *
+ * The rules live in the core, beside the grammar of the timestamps they
+ * produce, so that this screen and the editor understand a phrase the same
+ * way. They run here on the phone: nothing is sent anywhere, and a phrasing
+ * they do not know stays in the heading rather than being guessed at.
+ *
+ * The fields are filled, not written. What the rules misread is corrected the
+ * way anything typed by hand is, and the notes see none of it until Create.
+ *
+ * The field is emptied once a phrase has been read, because the next thing
+ * said is a new phrase rather than an edit of the last one: a second phrase
+ * refines what the first left — "at 16:00" moves the hour and keeps the rest.
+ * The refining is the core's to do, and what it is handed is the draft the
+ * screen currently shows, so a field corrected by hand is the field the next
+ * phrase refines rather than one the screen quietly merges over.
+ */
+@Composable
+private fun SpokenPhrase(state: NewTaskState, today: LocalDate) {
+    var phrase by rememberSaveable { mutableStateOf("") }
+
+    // The label carries the invitation, so the section costs one row rather
+    // than two: everything under it is the form the phrase fills, and a
+    // heading over the field would push that form off the screen.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = phrase,
+            onValueChange = { phrase = it },
+            label = { Text(stringResource(R.string.create_phrase)) },
+            singleLine = true,
+            modifier = Modifier
+                .weight(1f)
+                .withoutAutofill()
+                .testTag("create-phrase"),
+        )
+        HintTooltip(stringResource(R.string.hint_create_phrase)) {
+            TextButton(
+                onClick = {
+                    state.fill(refinePhrase(state.phraseDraft(), phrase, phraseLocales(), "$today"))
+                    phrase = ""
+                },
+                enabled = phrase.isNotBlank(),
+                modifier = Modifier.testTag("create-phrase-parse"),
+            ) {
+                Text(stringResource(R.string.create_phrase_parse))
+            }
+        }
+    }
+}
+
+/**
+ * Which grammars the core consults.
+ *
+ * Both of them, whichever language the screen is drawn in: a phone set to
+ * English is still spoken to in Russian, and a rule that was not consulted is
+ * a phrase left in the heading. The two grammars do not collide — the words
+ * one of them reads the other does not know.
+ */
+private fun phraseLocales(): String = "ru,en"
 
 /**
  * Which collection receives the task.

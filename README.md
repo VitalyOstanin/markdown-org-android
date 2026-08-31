@@ -32,6 +32,7 @@ the emulator.
 - [Telling the reader what is coming](#telling-the-reader-what-is-coming)
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
+- [Saying a task in one phrase](#saying-a-task-in-one-phrase)
 - [Finding a setting](#finding-a-setting)
 - [Collections](#collections)
 - [Tags](#tags)
@@ -254,6 +255,18 @@ A task that is not in the notes yet is written by one more call:
   it would go into the file, or nothing where it spells none. It is how a
   repeater typed by hand is answered while it is being typed rather than after
   the task has been composed.
+
+A task can be composed out of a sentence rather than field by field:
+
+- `refinePhrase(draft, phrase, locale, today)` — read one more phrase into the
+  draft the screen holds and hand the refined draft back. A field the phrase
+  names replaces what was there, a field it does not name keeps its value, and
+  text the rules do not consume is appended to the heading, which on an empty
+  draft is "whatever is left over is what this task is called". `locale` lists
+  the grammars to consult (`"ru,en"`), and `today` is what "tomorrow" is counted
+  from. Nothing is written: what comes back is shown on the screen, and Create
+  is still what writes it. See
+  [Saying a task in one phrase](#saying-a-task-in-one-phrase).
 
 A group of tasks is answered in one move rather than one at a time:
 
@@ -485,6 +498,29 @@ What the phone cannot do is make the account and the repository — that is the
 server's own sign-up, and it is a browser page like any other. The pages the
 form links to are opened as the user, in whatever browser the device has; the
 application sends nothing to them and reads nothing back.
+
+## Saying a task in one phrase
+
+The creation screen asks for nine things, and a person adding a task knows all
+of them at once. The field at the head of it takes that sentence: "позвонить
+врачу завтра в 15:00, каждую неделю" fills the heading, the day, the hour and
+the repeater, and what is filled in is shown in the ordinary fields, which stay
+editable by hand.
+
+| № | What                       | How it behaves                                                                                        |
+|---|----------------------------|-----------------------------------------------------------------------------------------------------|
+| 1 | Who reads the phrase       | The core, through `refinePhrase`, so the phone and the editor extension read one the same way          |
+| 2 | Language                   | Both grammars are consulted whatever language the screen is drawn in                                  |
+| 3 | A second phrase            | Refines what the first left: the hour moves, the day and the repeater stay                            |
+| 4 | A field corrected by hand  | Is the field the next phrase adds to — what is handed over is what the screen shows                   |
+| 5 | What the rules do not know | Stays in the heading; nothing said is dropped                                                          |
+| 6 | When anything is written   | On Create, as before — a sentence read wrong is a screen to correct, not a file to put back            |
+| 7 | The field afterwards       | Emptied: what is said next is a new phrase, not an edit of the last one                               |
+
+The crossing is `rust/markdown-org-ffi/src/phrase.rs`: a draft goes in, the
+refined draft comes back, and the accumulating is the core's rather than the
+client's. The decision is in
+[ADR-0038](docs/adr/0038-a-phrase-fills-the-screen-and-the-core-reads-it.md).
 
 ## Finding a setting
 

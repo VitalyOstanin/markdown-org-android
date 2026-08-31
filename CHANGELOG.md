@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A phrase at the head of the creation screen. What is said in one sentence —
+  "позвонить врачу завтра в 15:00, каждую неделю" — fills the heading, the day,
+  the hour and the repeater at once, instead of a heading typed with two thumbs,
+  a date picked out of a dialog, an hour picked out of a clock and a repeater
+  chosen from a row of chips. The rules are the core's, so the phone and the
+  editor extension read a phrase the same way, and both grammars are consulted
+  whatever language the phone is set to. A second phrase refines what the first
+  left rather than starting over, a field corrected by hand is the field it adds
+  to, and nothing is written until Create — a sentence read wrong is a screen to
+  correct.
+
 - A field at the head of the settings screen that filters it: what a query does
   not name is not drawn, headings of emptied stretches included, and an empty
   field is the screen as it always was. Case and `ё` are folded, a heading that

@@ -39,11 +39,13 @@ openssl = "0.10"
 # The trait that hands out the raw X509 pointer libgit2 wants; openssl builds
 # its types on it and does not re-export it.
 foreign-types = "0.3"
-# The library API used here (scan_directory, filter_agenda, parse_heading_line)
-# is taken from a released version rather than a git revision: advisories are
-# checked against it, and the VS Code extension pins the same number, so the
-# three clients read one set of notes the same way. The floor is 0.19 because
-# that release is the first to read the exception keys of a repeating series
+# The library API used here (scan_directory, filter_agenda, parse_heading_line,
+# refine_entry) is taken from a released version rather than a git revision:
+# advisories are checked against it, and the VS Code extension pins the same
+# number, so the three clients read one set of notes the same way. The floor is
+# 0.20 because that release is the first to parse a phrase in natural language
+# into the fields of an entry, which the creation screen calls. 0.19 is the
+# first to read the exception keys of a repeating series
 # (EXDATE, SERIES_ID, RECURRENCE_ID) in every form they are written in. Anything
 # below 0.18 does not read them at all: it draws the occurrence that was
 # cancelled, and draws the one that moved twice -- on the day it left and again
@@ -53,7 +55,7 @@ foreign-types = "0.3"
 # and a RECURRENCE_ID written with seconds loses the time it names. A phone
 # disagreeing with the editor over which days a series has is the difference
 # this pin exists to prevent.
-markdown-org-extract = "0.19"
+markdown-org-extract = "0.20"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor
