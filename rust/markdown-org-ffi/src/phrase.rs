@@ -72,11 +72,10 @@ pub fn refine_phrase(
     locale: String,
     today: String,
 ) -> Result<PhraseDraft, EditError> {
-    let reference = NaiveDate::parse_from_str(&today, "%Y-%m-%d").map_err(|error| {
-        EditError::InvalidDate {
+    let reference =
+        NaiveDate::parse_from_str(&today, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
             detail: format!("{today:?}: {error}"),
-        }
-    })?;
+        })?;
 
     let refined = refine_entry(entry_of(draft)?, &phrase, &locale, reference);
     Ok(draft_of(refined))
@@ -89,22 +88,22 @@ fn entry_of(draft: PhraseDraft) -> Result<PhraseEntry, EditError> {
     entry.heading = draft.heading;
 
     if let Some(value) = draft.priority.as_deref() {
-        entry.priority = Some(
-            Priority::parse(value).ok_or_else(|| EditError::InvalidPriority {
-                detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
-            })?,
-        );
+        let priority = Priority::parse(value).ok_or_else(|| EditError::InvalidPriority {
+            detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
+        })?;
+        entry.priority = Some(priority);
     }
     entry.planning = draft.keyword.map(|keyword| match keyword {
         PlanningKeyword::Scheduled => PlanningKind::Scheduled,
         PlanningKeyword::Deadline => PlanningKind::Deadline,
     });
     if let Some(value) = draft.date.as_deref() {
-        entry.date = Some(NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| {
+        let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| {
             EditError::InvalidDate {
                 detail: format!("{value:?}: {error}"),
             }
-        })?);
+        })?;
+        entry.date = Some(date);
     }
     if let Some(value) = draft.time.as_deref() {
         entry.time = Some(NaiveTime::parse_from_str(value, "%H:%M").map_err(|_| {

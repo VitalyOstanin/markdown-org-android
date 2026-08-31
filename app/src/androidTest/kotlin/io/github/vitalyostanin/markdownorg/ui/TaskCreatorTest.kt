@@ -226,7 +226,8 @@ class TaskCreatorTest {
         // and a task written into a note nobody expected is one they will look
         // for. Scrolled to: it stands at the foot of a form several screenfuls
         // long.
-        compose.onNodeWithText("Written at the end of inbox.md").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Written at the end of inbox.md").performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -246,7 +247,8 @@ class TaskCreatorTest {
 
         // The file named at the foot follows the choice, because it is that
         // collection's own.
-        compose.onNodeWithText("Written at the end of work.md").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Written at the end of work.md").performScrollTo()
+            .assertIsDisplayed()
         compose.onNodeWithTag("create-title").performTextReplacement("Write the report")
         compose.onNodeWithTag("create-save").performClick()
         assertEquals("2", created?.first)
