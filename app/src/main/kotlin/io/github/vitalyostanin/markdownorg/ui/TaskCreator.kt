@@ -360,13 +360,13 @@ private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dicta
     var unheard by rememberSaveable { mutableStateOf(false) }
     val prompt = stringResource(R.string.create_phrase_prompt)
 
-    // The label carries the invitation, so the section costs one row rather
-    // than two: everything under it is the form the phrase fills, and a
-    // heading over the field would push that form off the screen.
-    Row(
+    // The field takes the width and the two buttons stand under it. Beside it
+    // they leave a column narrow enough to set its own label over three lines
+    // -- one button did fit, and the second is what turned the invitation into
+    // a stack of words on a phone held upright.
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         OutlinedTextField(
             value = phrase,
@@ -380,39 +380,47 @@ private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dicta
             isError = unheard,
             singleLine = true,
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .withoutAutofill()
                 .testTag("create-phrase"),
         )
-        HintTooltip(stringResource(R.string.hint_create_phrase_speak)) {
-            TextButton(
-                onClick = {
-                    // What was heard joins what is already in the field rather
-                    // than replacing it: the sentence may be said in two goes,
-                    // and a word corrected by hand before speaking again is
-                    // not worth losing.
-                    unheard = !dictation.listen(prompt) { heard ->
-                        phrase = listOf(phrase.trim(), heard.trim())
-                            .filter { it.isNotEmpty() }
-                            .joinToString(" ")
-                    }
-                },
-                modifier = Modifier.testTag("create-phrase-speak"),
-            ) {
-                Text(stringResource(R.string.create_phrase_speak))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HintTooltip(stringResource(R.string.hint_create_phrase_speak)) {
+                TextButton(
+                    onClick = {
+                        // What was heard joins what is already in the field
+                        // rather than replacing it: the sentence may be said
+                        // in two goes, and a word corrected by hand before
+                        // speaking again is not worth losing.
+                        unheard = !dictation.listen(prompt) { heard ->
+                            phrase = listOf(phrase.trim(), heard.trim())
+                                .filter { it.isNotEmpty() }
+                                .joinToString(" ")
+                        }
+                    },
+                    modifier = Modifier.testTag("create-phrase-speak"),
+                ) {
+                    Text(stringResource(R.string.create_phrase_speak))
+                }
             }
-        }
-        HintTooltip(stringResource(R.string.hint_create_phrase)) {
-            TextButton(
-                onClick = {
-                    state.fill(refinePhrase(state.phraseDraft(), phrase, phraseLocales(), "$today"))
-                    phrase = ""
-                    unheard = false
-                },
-                enabled = phrase.isNotBlank(),
-                modifier = Modifier.testTag("create-phrase-parse"),
-            ) {
-                Text(stringResource(R.string.create_phrase_parse))
+            HintTooltip(stringResource(R.string.hint_create_phrase)) {
+                TextButton(
+                    onClick = {
+                        state.fill(
+                            refinePhrase(state.phraseDraft(), phrase, phraseLocales(), "$today"),
+                        )
+                        phrase = ""
+                        unheard = false
+                    },
+                    enabled = phrase.isNotBlank(),
+                    modifier = Modifier.testTag("create-phrase-parse"),
+                ) {
+                    Text(stringResource(R.string.create_phrase_parse))
+                }
             }
         }
     }

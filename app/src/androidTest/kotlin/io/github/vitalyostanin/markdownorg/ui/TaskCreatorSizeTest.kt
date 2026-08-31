@@ -14,16 +14,20 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,16 +71,28 @@ class TaskCreatorSizeTest(private val screen: Screen) {
     }
 
     @Test
-    fun theButtonsBesideThePhraseKeepTheirLabels() {
-        // Three things share that row — the field, Speak and Fill in — and the
-        // field takes what the two buttons leave. A label wrapped in two is
-        // the row having run out of width, which is where a third control
-        // would first show.
+    fun theButtonsUnderThePhraseKeepTheirLabels() {
         show()
 
         for (button in PHRASE_BUTTONS) {
             assertEquals("$button wraps its label", 1, linesOf(button))
         }
+    }
+
+    @Test
+    fun thePhraseFieldKeepsTheWidthOfTheForm() {
+        // The buttons stand under the field rather than beside it, and this is
+        // why: with both of them in its row the field was left a column narrow
+        // enough to set its own label over three lines. The buttons' labels
+        // were still one line apiece, so a test of them alone said nothing.
+        show()
+
+        val field = compose.onNodeWithTag("create-phrase").getUnclippedBoundsInRoot().width
+
+        assertTrue(
+            "the phrase field is $field wide on a screen of ${screen.size.width}",
+            field > screen.size.width * 0.8f,
+        )
     }
 
     private fun show() {
@@ -149,7 +165,7 @@ class TaskCreatorSizeTest(private val screen: Screen) {
             "create-kind-deadline",
         )
 
-        /** The two buttons of the phrase row, which share it with the field. */
+        /** The two buttons under the phrase field. */
         val PHRASE_BUTTONS = listOf("create-phrase-speak", "create-phrase-parse")
 
         val PAIR = listOf(

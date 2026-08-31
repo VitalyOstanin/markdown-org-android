@@ -57,6 +57,11 @@ the package manager, with the query declared in the manifest — the field says
 so and the sentence is typed instead. A button that appears on some phones and
 not on others is a difference nothing on the screen explains.
 
+Both buttons stand under the field rather than beside it. One of them fit in
+that row; two left the field a column narrow enough to set its own label over
+three lines on a phone held upright, which is the invitation to speak turned
+into a stack of words.
+
 ## Consequences
 
 The recogniser is another application, and what it costs — accuracy, a network

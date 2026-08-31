@@ -522,10 +522,11 @@ refined draft comes back, and the accumulating is the core's rather than the
 client's. The decision is in
 [ADR-0038](docs/adr/0038-a-phrase-fills-the-screen-and-the-core-reads-it.md).
 
-The sentence can be spoken instead of typed. `Speak` opens whatever the phone
-recognises speech with — the application the keyboard's microphone key opens —
-and what it heard joins what the field holds; this application asks for no
-microphone permission and runs no recognition of its own.
+The sentence can be spoken instead of typed. `Speak`, under the field beside
+`Fill in`, opens whatever the phone recognises speech with — the application the
+keyboard's microphone key opens — and what it heard joins what the field holds;
+this application asks for no microphone permission and runs no recognition of
+its own.
 
 | № | What                          | How it behaves                                                                                     |
 |---|-------------------------------|--------------------------------------------------------------------------------------------------|
