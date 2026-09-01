@@ -48,6 +48,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   says otherwise — so the line contradicted the setting and the file both, for
   every collection that had never been told anything.
 
+- Settings that take one answer out of a few are lists now rather than rows of
+  chips: where a week begins, how long before a timed entry it is announced,
+  and which end of the file an entry is written at. A row of chips paid a line
+  of the screen for every answer that did not fit the width, and on a phone
+  held upright "Воскресенья" was squeezed until its word broke into a column of
+  single letters.
+
+- The line that used to stand under a setting has moved into the tooltip its
+  label already carried. Eight of them on a column of thirty settings spent a
+  screenful of height on text that is read once, and both halves are now read
+  the same way — by holding the setting's name.
+
+- Where an entry is written now says what it is the start and the end of: "at
+  the start of the file" rather than "at the start".
+
 ## [0.1.0] - 2026-08-25
 
 Everything so far. The builds published before this one were prereleases of

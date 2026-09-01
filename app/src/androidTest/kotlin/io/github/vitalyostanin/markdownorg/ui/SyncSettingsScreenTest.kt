@@ -85,9 +85,10 @@ class SyncSettingsScreenTest {
     fun whereEntriesAreWrittenIsSavedWithTheRest() {
         showForm()
 
-        // The stored answer is drawn as the chosen chip, and the other one is
-        // one tap away: neither is the absence of the other.
-        compose.onNodeWithTag("settings-write-end").performScrollTo().performClick()
+        // The stored answer is named in place and the other one is a tap
+        // away in the list: neither is the absence of the other.
+        compose.onNodeWithTag("settings-write-at").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-write-end").performClick()
         compose.onNodeWithTag("settings-save").performScrollTo().performClick()
 
         assertEquals(WritePosition.END, savedWriteAt)

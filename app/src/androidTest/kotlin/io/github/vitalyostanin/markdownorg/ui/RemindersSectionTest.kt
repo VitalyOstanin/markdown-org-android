@@ -48,16 +48,17 @@ class RemindersSectionTest {
     }
 
     /**
-     * The chip at the far end is reached the way the reader reaches it —
-     * [performScrollTo] on the chip itself, since the section as a whole is
-     * longer than a screen even though its chips now wrap rather than scroll.
+     * The answer is reached the way the reader reaches it: the list is
+     * scrolled to and opened, and the entry is pressed in the menu that opens
+     * over the screen rather than scrolled to in its own right.
      */
     @Test
-    fun theChosenLeadTimeIsReportedAsTheChipThatWasPressed() {
+    fun theChosenLeadTimeIsReportedAsTheEntryThatWasPressed() {
         var chosen: ReminderLead? = null
         show(RemindersUi(enabled = true, onLeadChange = { chosen = it }))
 
-        compose.onNodeWithTag(ReminderLead.HOUR.testTag).performScrollTo().performClick()
+        compose.onNodeWithTag("settings-reminders-lead").performScrollTo().performClick()
+        compose.onNodeWithTag(ReminderLead.HOUR.testTag).performClick()
 
         assertEquals(ReminderLead.HOUR, chosen)
     }

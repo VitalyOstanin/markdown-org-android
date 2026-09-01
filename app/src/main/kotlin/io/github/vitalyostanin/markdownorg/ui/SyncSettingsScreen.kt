@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -671,35 +672,25 @@ private fun NotesSection(form: SyncFormState, issues: FormIssues, storage: Stora
  */
 @Composable
 private fun WritePositionSection(form: SyncFormState) {
-    Text(
-        text = stringResource(R.string.settings_write_at),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        for (position in WritePosition.entries) {
-            FilterChip(
-                selected = form.writeAt == position,
-                onClick = { form.writeAt = position },
-                label = { Text(stringResource(position.label())) },
-                modifier = Modifier.testTag("settings-write-${position.tag()}"),
-            )
-        }
-    }
-    Text(
-        text = stringResource(R.string.settings_write_at_support),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    SettingChoice(
+        current = form.writeAt,
+        options = WritePosition.entries,
+        onChange = { form.writeAt = it },
+        tag = "settings-write-at",
+        label = stringResource(R.string.settings_write_at),
+        hint = stringResource(R.string.settings_write_at_support),
+        optionLabel = { stringResource(it.label()) },
+        optionTag = { "settings-write-${it.tag()}" },
     )
 }
 
-/** What the chip of a position is called. */
+/** What a position is called where it is chosen. */
 private fun WritePosition.label() = when (this) {
     WritePosition.START -> R.string.settings_write_at_start
     WritePosition.END -> R.string.settings_write_at_end
 }
 
-/** What the chip of a position is found by. */
+/** What the entry of a position is found by. */
 private fun WritePosition.tag() = when (this) {
     WritePosition.START -> "start"
     WritePosition.END -> "end"
@@ -844,42 +835,27 @@ private fun AgendaSection(agenda: AgendaUi) {
 }
 
 /**
- * Which weekday a week is read as beginning on: three chips rather than a
- * tick, because the answer has three values and the middle one — whatever the
- * phone says — is not the absence of the other two.
+ * Which weekday a week is read as beginning on: a list rather than a tick,
+ * because the answer has three values and the middle one — whatever the phone
+ * says — is not the absence of the other two.
  *
  * Unlike the ticks above it this one costs a scan: where a week starts is
  * applied by the core, so the agenda is asked again rather than redrawn.
  */
 @Composable
-private fun WeekStartChoice(current: WeekStart, onChange: (WeekStart) -> Unit) {
-    HintTooltip(stringResource(R.string.hint_settings_week_start)) {
-        Text(
-            text = stringResource(R.string.settings_week_start),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("settings-week-start"),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        WeekStart.entries.forEach { option ->
-            FilterChip(
-                selected = option == current,
-                onClick = { onChange(option) },
-                label = { Text(stringResource(option.labelRes)) },
-                modifier = Modifier.testTag(option.testTag),
-            )
-        }
-    }
-    Text(
-        text = stringResource(R.string.settings_week_start_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+internal fun WeekStartChoice(current: WeekStart, onChange: (WeekStart) -> Unit) {
+    SettingChoice(
+        current = current,
+        options = WeekStart.entries,
+        onChange = onChange,
+        tag = "settings-week-start",
+        label = stringResource(R.string.settings_week_start),
+        hint = settingHint(
+            R.string.settings_week_start_hint,
+            R.string.hint_settings_week_start,
+        ),
+        optionLabel = { stringResource(it.labelRes) },
+        optionTag = { it.testTag },
     )
 }
 

@@ -108,43 +108,27 @@ internal fun RemindersSection(reminders: RemindersUi) {
 }
 
 /**
- * How long before a timed entry it is announced: five chips, because the
+ * How long before a timed entry it is announced: a list of five, because the
  * answer is a habit rather than a number worth typing.
  *
- * The row wraps: five chips of translated words do not fit one line of the
- * narrowest screen, and a choice past the edge of a row that scrolls is one
- * the reader never learns is there. Wrapping spends a second line instead,
- * which this screen scrolls through anyway.
+ * A list rather than a row of chips: five translated words never fit one line
+ * of a phone held upright, and the row that held them spent two lines of a
+ * screen that already runs to five of them.
  */
 @Composable
 internal fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit) {
-    HintTooltip(stringResource(R.string.hint_settings_reminders_lead)) {
-        Text(
-            text = stringResource(R.string.settings_reminders_lead),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-    FlowRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("settings-reminders-lead"),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        ReminderLead.entries.forEach { option ->
-            FilterChip(
-                selected = option == current,
-                onClick = { onChange(option) },
-                label = { Text(stringResource(option.labelRes)) },
-                modifier = Modifier.testTag(option.testTag),
-            )
-        }
-    }
-    Text(
-        text = stringResource(R.string.settings_reminders_lead_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    SettingChoice(
+        current = current,
+        options = ReminderLead.entries,
+        onChange = onChange,
+        tag = "settings-reminders-lead",
+        label = stringResource(R.string.settings_reminders_lead),
+        hint = settingHint(
+            R.string.settings_reminders_lead_hint,
+            R.string.hint_settings_reminders_lead,
+        ),
+        optionLabel = { stringResource(it.labelRes) },
+        optionTag = { it.testTag },
     )
 }
 
@@ -165,7 +149,12 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
     val use24Hour = use24Hour()
     val locale = LocalLocale.current.platformLocale
 
-    HintTooltip(stringResource(R.string.hint_settings_reminders_digest)) {
+    HintTooltip(
+        settingHint(
+            R.string.settings_reminders_digest_hint,
+            R.string.hint_settings_reminders_digest,
+        ),
+    ) {
         Text(
             text = stringResource(R.string.settings_reminders_digest),
             style = MaterialTheme.typography.bodyMedium,
@@ -178,11 +167,6 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
     ) {
         Text(timeLabel(current, locale, use24Hour))
     }
-    Text(
-        text = stringResource(R.string.settings_reminders_digest_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
     if (picking) {
         val state = rememberTimePickerState(
             initialHour = current.hour,
@@ -249,11 +233,15 @@ private fun AccessNotice(
 }
 
 /**
- * One tick of a settings section: the box, its label and the line under it.
+ * One tick of a settings section: the box and its label.
  *
  * Shared by this section and the agenda one — the two draw the same control,
  * and a second copy of it would drift the moment either grew a tooltip the
  * other did not.
+ *
+ * The line that used to stand under the box now travels in the tooltip: five
+ * of these ticks on one column of thirty settings spent a screenful of height
+ * on text nobody reads twice.
  */
 @Composable
 internal fun SettingCheck(
@@ -271,7 +259,7 @@ internal fun SettingCheck(
             modifier = Modifier.testTag(tag),
         )
         // On the label rather than on the box, as with the other ticks here.
-        HintTooltip(stringResource(hint)) {
+        HintTooltip(settingHint(explanation, hint)) {
             Text(
                 text = stringResource(label),
                 style = MaterialTheme.typography.bodyMedium,
@@ -279,9 +267,4 @@ internal fun SettingCheck(
             )
         }
     }
-    Text(
-        text = stringResource(explanation),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }

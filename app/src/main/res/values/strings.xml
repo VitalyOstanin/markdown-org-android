@@ -160,12 +160,12 @@
          everything it holds. Read by new tasks and by moved entries alike. -->
     <string name="settings_write_at">Where entries are written</string>
     <string name="settings_write_at_support">Applies to a task made here and to an entry moved into another file.</string>
-    <string name="settings_write_at_start">At the start</string>
-    <string name="settings_write_at_end">At the end</string>
+    <string name="settings_write_at_start">At the start of the file</string>
+    <string name="settings_write_at_end">At the end of the file</string>
     <!-- The file this collection keeps its entries in, which the sheet of a
          task offers to carry it to. -->
     <string name="settings_main">Main file</string>
-    <string name="settings_main_support">Where the sheet of a task offers to move it. Leave empty for a collection with no main file.</string>
+    <string name="settings_main_support">Where the sheet of a task offers to move it from the file it is in now — usually the one new tasks are written to. Leave empty for a collection with no main file.</string>
     <string name="settings_notes_default">empty: the application\'s own storage</string>
     <string name="settings_notes_relative">Enter an absolute path, starting with /</string>
     <string name="settings_notes_not_dir">That path is a file, not a directory</string>
