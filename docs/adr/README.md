@@ -75,6 +75,7 @@ so a decision can be followed across the three repositories.
 | 0037 | [The settings are searched by filtering the screen they are on](0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md) | Accepted |
 | 0038 | [A phrase fills the creation screen, and the core is what reads it](0038-a-phrase-fills-the-screen-and-the-core-reads-it.md) | Accepted |
 | 0039 | [The phone does the listening, and the field holds what it heard](0039-the-phone-listens-and-the-field-holds-what-it-heard.md) | Accepted |
+| 0040 | [An entry carries the moment it was written at, and the caller names it](0040-an-entry-carries-the-moment-it-was-written-at.md) | Accepted |
 
 ## Adding a new ADR
 

@@ -1004,6 +1004,7 @@ class AgendaViewModel(
                 target.collection.inbox,
                 target.collection.writeAt,
                 draft,
+                clock(),
             )
 
             settle(

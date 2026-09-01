@@ -19,7 +19,9 @@ import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.commitChanges
 import uniffi.markdown_org_ffi.holdsRepository
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
@@ -211,8 +213,18 @@ interface NotesWriter {
      * Both are named by the collection rather than worked out from the task:
      * where a new entry belongs is a question this application cannot answer
      * from a title and a date, and the settings are where it is answered once.
+     *
+     * [now] is marked under the heading as the moment the entry was written
+     * at, to the minute, and is taken here for the reason [complete] takes the
+     * day: the clock belongs to the caller, so that a test can say what time
+     * it is.
      */
-    suspend fun createTask(file: String, at: WritePosition, draft: TaskDraft): Result<EditReport>
+    suspend fun createTask(
+        file: String,
+        at: WritePosition,
+        draft: TaskDraft,
+        now: LocalDateTime,
+    ): Result<EditReport>
 
     /**
      * Carry a task's whole entry into another file of the same collection.
@@ -361,8 +373,9 @@ class NotesEditor internal constructor(
         file: String,
         at: WritePosition,
         draft: TaskDraft,
+        now: LocalDateTime,
     ): Result<EditReport> = write {
-        val outcome = coreCreateTask(draft.asNewTask(notes.root.absolutePath, file, at))
+        val outcome = coreCreateTask(draft.asNewTask(notes.root.absolutePath, file, at, now))
         outcome.rollback to creationMessage(draft.title)
     }
 
@@ -532,10 +545,18 @@ class NotesEditor internal constructor(
      * The draft as the core takes it: with the collection it goes to and the
      * file that receives it, and with the date paired to the kind it is.
      */
-    private fun TaskDraft.asNewTask(dir: String, file: String, at: WritePosition) = NewTask(
+    private fun TaskDraft.asNewTask(
+        dir: String,
+        file: String,
+        at: WritePosition,
+        now: LocalDateTime,
+    ) = NewTask(
         dir = dir,
         file = file,
         at = at,
+        // To the minute, without the seconds `toString` spells out where the
+        // clock has any: what the core parses is `YYYY-MM-DDTHH:MM`.
+        created = now.truncatedTo(ChronoUnit.MINUTES).toString(),
         title = title,
         body = body,
         status = status,

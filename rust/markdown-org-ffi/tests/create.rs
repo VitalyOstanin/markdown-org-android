@@ -18,6 +18,10 @@ use common::{body, vault};
 
 /// A task with nothing set on it but its title, aimed at the end of
 /// `notes.md`.
+///
+/// No creation mark: the cases that are about where an entry lands read
+/// easier without a line none of them is asking about, and the ones that are
+/// about the mark name the moment themselves.
 fn task(dir: &tempfile::TempDir, title: &str) -> NewTask {
     NewTask {
         dir: dir.path().display().to_string(),
@@ -28,6 +32,7 @@ fn task(dir: &tempfile::TempDir, title: &str) -> NewTask {
         status: Some(TaskType::Todo),
         priority: None,
         planning: None,
+        created: None,
     }
 }
 
@@ -520,4 +525,85 @@ fn undoing_the_first_task_of_a_file_leaves_it_empty_rather_than_gone() {
 
     let written = fs::read_to_string(vault.path().join("inbox.md")).expect("read");
     assert_eq!(written, "");
+}
+
+/// The day the entry was written on is marked under the heading, above the
+/// date it is planned for.
+#[test]
+fn the_day_it_was_written_on_stands_above_the_day_it_is_planned_for() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n");
+
+    create_task(NewTask {
+        planning: Some(planning(PlanningKeyword::Scheduled, "2026-09-02")),
+        created: Some("2026-09-01T14:01".to_string()),
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "# Notes\n\n## TODO Write the report\n`SCHEDULED: <2026-08-19 Wed>`\n\n\
+         ## TODO Ring the dentist\n`CREATED: [2026-09-01 Tue 14:01]`\n\
+         `SCHEDULED: <2026-09-02 Wed>`\n"
+    );
+}
+
+/// A file that writes its dates bare gets a bare line, and one that writes
+/// them without a weekday gets no weekday: the mark follows the file the same
+/// way a planning line does.
+#[test]
+fn the_created_line_is_spelled_the_way_the_file_spells_its_dates() {
+    let vault = vault("# Notes\n\n## TODO Write the report\nSCHEDULED: <2026-08-19>\n");
+
+    create_task(NewTask {
+        created: Some("2026-09-01T14:01".to_string()),
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "# Notes\n\n## TODO Write the report\nSCHEDULED: <2026-08-19>\n\n\
+         ## TODO Ring the dentist\nCREATED: [2026-09-01 14:01]\n"
+    );
+}
+
+/// Russian weekdays in the file mean a Russian weekday in the mark, for the
+/// reason a planning line takes one: a note is written in one language.
+#[test]
+fn a_file_written_in_russian_gets_a_russian_weekday() {
+    let vault = vault("# Заметки\n\n## TODO Написать отчёт\n`SCHEDULED: <2026-08-19 Ср>`\n");
+
+    create_task(NewTask {
+        created: Some("2026-09-01T14:01".to_string()),
+        ..task(&vault, "Позвонить врачу")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "# Заметки\n\n## TODO Написать отчёт\n`SCHEDULED: <2026-08-19 Ср>`\n\n\
+         ## TODO Позвонить врачу\n`CREATED: [2026-09-01 Вт 14:01]`\n"
+    );
+}
+
+/// A moment that is not one leaves the file exactly as it was, the same as
+/// every other value read before the file is opened. A date without an hour is
+/// among them: the mark carries the minute it was written at.
+#[test]
+fn a_creation_moment_that_is_not_one_writes_nothing() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n");
+
+    let outcome = create_task(NewTask {
+        created: Some("the first of September".to_string()),
+        ..task(&vault, "Ring the dentist")
+    });
+    let dateless = create_task(NewTask {
+        created: Some("2026-09-01".to_string()),
+        ..task(&vault, "Ring the dentist")
+    });
+
+    assert!(outcome.is_err());
+    assert!(dateless.is_err());
+    assert_eq!(body(vault.path()), "# Notes\n\n## TODO Write the report\n");
 }

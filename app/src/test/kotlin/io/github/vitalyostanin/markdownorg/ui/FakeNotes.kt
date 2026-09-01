@@ -42,6 +42,7 @@ import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -363,13 +364,19 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
     var createdAt: WritePosition? = null
         private set
 
+    /** The moment the last creation was told the entry was written at. */
+    var createdOn: LocalDateTime? = null
+        private set
+
     override suspend fun createTask(
         file: String,
         at: WritePosition,
         draft: TaskDraft,
+        now: LocalDateTime,
     ): Result<EditReport> {
         created = file to draft
         createdAt = at
+        createdOn = now
         return record()
     }
 

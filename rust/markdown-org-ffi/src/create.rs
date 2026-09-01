@@ -19,14 +19,16 @@
 //! file writes its tasks at, and a planning line is spelled the way the file
 //! spells the ones it already has.
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use markdown_org_extract::{parse_heading_line, Priority};
 
 use crate::document::Document;
 use crate::edit::{keyword_of, EditError, EditOutcome};
 use crate::entry::body_lines;
 use crate::occurrence::parse_time;
-use crate::planning::{checked_repeater, planning_line, PlanningKeyword, StampTokens};
+use crate::planning::{
+    checked_repeater, created_line, planning_line, PlanningKeyword, StampTokens,
+};
 use crate::TaskType;
 
 /// Where in the file that receives it an entry goes.
@@ -66,6 +68,18 @@ pub struct NewTask {
     pub priority: Option<String>,
     /// The date the task is planned for, if any.
     pub planning: Option<NewPlanning>,
+    /// The moment the entry is being written at, `YYYY-MM-DDTHH:MM`, which is
+    /// marked under the heading as org-mode's expiry convention has it.
+    /// `None` writes no such line.
+    ///
+    /// To the minute rather than to the day: entries written the same day are
+    /// told apart by when they were written, which a date alone cannot say.
+    ///
+    /// Taken from the caller rather than read off the clock here, for the
+    /// reason every other date in this crate is: the same call has to write
+    /// the same file, and a test that could not name the moment would have
+    /// nothing to compare against.
+    pub created: Option<String>,
 }
 
 /// A date on a new task, and everything the timestamp around it carries.
@@ -129,6 +143,18 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
         })
         .transpose()?;
 
+    let created = task
+        .created
+        .as_deref()
+        .map(|moment| {
+            NaiveDateTime::parse_from_str(moment, "%Y-%m-%dT%H:%M").map_err(|error| {
+                EditError::InvalidDate {
+                    detail: format!("{moment:?}: {error}"),
+                }
+            })
+        })
+        .transpose()?;
+
     let mut document = Document::read_or_empty(&task.dir, &task.file)?;
     let heading = heading_line(
         entry_level(&document),
@@ -148,6 +174,14 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
     // appended, so an entry written at the start does not scatter its planning
     // line and its body across the end of the file.
     let mut under = index + 1;
+    // Above the planning line, which is the order org-mode's expiry convention
+    // writes them in and the order `planning` steps over them in: what the
+    // entry is is stated before what it is planned for.
+    if let Some(moment) = created {
+        let line = created_line(&document, index, moment)?;
+        document.replace_lines(under..under, vec![line]);
+        under += 1;
+    }
     if let Some((keyword, date, time, repeater)) = planning {
         let tokens = StampTokens {
             time: time.as_deref(),

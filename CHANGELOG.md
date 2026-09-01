@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The moment an entry was written at is marked under its heading, as org-mode's
+  expiry convention writes it: `CREATED: [2026-09-01 Tue 14:01]`, inactive
+  brackets so that no agenda shows the mark as a date to keep. To the minute,
+  because that is what tells two entries written the same day apart. Every way
+  of writing an entry on the phone leaves the mark — the form, a typed phrase, a
+  spoken one — and the line is spelled the way the file spells the dates it
+  already holds: bare where they are bare, in Russian where they are in Russian,
+  without a weekday where they carry none.
+
 - A phrase at the head of the creation screen. What is said in one sentence —
   "позвонить врачу завтра в 15:00, каждую неделю" — fills the heading, the day,
   the hour and the repeater at once, instead of a heading typed with two thumbs,

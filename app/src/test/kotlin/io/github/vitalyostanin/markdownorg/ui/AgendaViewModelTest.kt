@@ -1484,6 +1484,22 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun theMomentTheEntryIsWrittenAtTravelsWithIt() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        advanceUntilIdle()
+
+        // From this model's clock rather than the device's, for the reason
+        // every other date here comes from it: a test that could not say what
+        // time it is would have nothing to compare against, and a screen shown
+        // over midnight would otherwise mark yesterday. To the minute, because
+        // that is what tells apart two entries written the same day.
+        assertEquals(NOON, writer.createdOn)
+    }
+
+    @Test
     fun anEntryIsCarriedIntoTheFileTheSheetNamed() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()

@@ -20,7 +20,7 @@
 //! * upstream also shifts plain timestamps in the task's body; this
 //!   application only moves the planning lines under the heading.
 
-use chrono::{Datelike, Duration, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime};
 use markdown_org_extract::locale::RU_WEEKDAY_MAPPINGS;
 use markdown_org_extract::timestamp::parse_repeater;
 use markdown_org_extract::{
@@ -536,6 +536,64 @@ pub(crate) fn planning_line(
         written.into_iter().flatten().collect::<Vec<_>>().join(" ")
     );
     let body = format!("{} {stamp}", keyword.token());
+
+    Ok(if fenced {
+        format!("{indent}`{body}`")
+    } else {
+        format!("{indent}{body}")
+    })
+}
+
+/// The `CREATED` line to write under a heading just added, spelled the way
+/// this file spells the lines that stand in the same block.
+///
+/// Inactive brackets rather than the angle ones a planning date takes: the
+/// entry was created at that moment, it is not held at it, and org-mode's
+/// expiry convention writes such a stamp as `[...]` so that no agenda shows
+/// it.
+///
+/// The spelling is drawn from the same sample a planning line follows, which
+/// is what keeps a note written without weekdays, or without the inline-code
+/// framing, from acquiring either through a task written on the phone.
+pub(crate) fn created_line(
+    document: &Document,
+    index: usize,
+    moment: NaiveDateTime,
+) -> Result<String, EditError> {
+    let date = moment.date();
+    if !(1000..=9999).contains(&date.year()) {
+        return Err(EditError::InvalidDate {
+            detail: format!("{date} is outside the four-digit years timestamps are written in"),
+        });
+    }
+
+    let sample = sample_planning(document, index);
+    let indent = sample.as_ref().map_or("", |(line, _)| {
+        &line[..line.len() - line.trim_start().len()]
+    });
+    let fenced = sample
+        .as_ref()
+        .is_none_or(|(line, _)| line.trim_start().starts_with('`'));
+    let weekday = match &sample {
+        Some((line, parts)) => parts.weekday.clone().map(|range| {
+            weekday_like(&line[range], date).unwrap_or_else(|_| date.weekday().to_string())
+        }),
+        None => Some(date.weekday().to_string()),
+    };
+
+    // With the hour, unlike a planning date, which carries one only where the
+    // entry is held at a time: two entries written the same day are told apart
+    // by the minute they were written at, and a day alone cannot do that.
+    let written = [
+        Some(date.format("%Y-%m-%d").to_string()),
+        weekday,
+        Some(moment.format("%H:%M").to_string()),
+    ];
+    let stamp = format!(
+        "[{}]",
+        written.into_iter().flatten().collect::<Vec<_>>().join(" ")
+    );
+    let body = format!("{CREATED} {stamp}");
 
     Ok(if fenced {
         format!("{indent}`{body}`")

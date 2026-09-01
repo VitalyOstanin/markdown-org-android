@@ -191,6 +191,14 @@ reasoning.
   losing the button. See
   [ADR-0039](docs/adr/0039-the-phone-listens-and-the-field-holds-what-it-heard.md).
 
+- Every entry written here carries the moment it was written at:
+  `CREATED: [2026-09-01 Tue 14:01]` under the heading, above the planning line,
+  in inactive brackets so that no agenda reads it as a date to keep. To the
+  minute, which is what tells two entries of one day apart. The moment comes
+  from the caller rather than a clock read in the core, and the line is spelled
+  the way the file spells the dates it already holds. See
+  [ADR-0040](docs/adr/0040-an-entry-carries-the-moment-it-was-written-at.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the
