@@ -49,6 +49,16 @@ data class AgendaActions(
     val onUndoEdit: () -> Unit = {},
     /** Open the screen that writes a task the notes do not hold yet. */
     val onCreate: () -> Unit = {},
+    /**
+     * Write a task out of one spoken sentence, without the screen.
+     *
+     * What the recogniser handed over, as it was said. Reading it into fields
+     * is the model's, so that a phrase said here and a phrase typed on the
+     * creation screen are read by the same rules.
+     */
+    val onDictated: (String) -> Unit = {},
+    /** Say that the phone has nothing to recognise speech with. */
+    val onDictationUnavailable: () -> Unit = {},
     val onEditIssueShown: () -> Unit = {},
     val onGroupResultShown: () -> Unit = {},
     val onEditResultShown: () -> Unit = {},

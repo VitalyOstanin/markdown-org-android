@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -101,6 +102,7 @@ fun AgendaScreen(
     editResult: EditResult? = null,
     filters: AgendaFilters = AgendaFilters(),
     actions: AgendaActions = AgendaActions(),
+    dictation: Dictation = rememberSystemDictation(),
 ) {
     // What an edit answered with, if it could not be made. A snackbar rather
     // than the banner: it is about the tap that was just made, it goes away on
@@ -167,8 +169,11 @@ fun AgendaScreen(
                 filters = filters,
                 actions = actions,
             )
-            CreateButton(
+            WritingButtons(
                 onCreate = actions.onCreate,
+                onDictated = actions.onDictated,
+                onUnheard = actions.onDictationUnavailable,
+                dictation = dictation,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(Spacing.lg),
@@ -181,13 +186,90 @@ fun AgendaScreen(
 }
 
 /**
- * The one control that writes rather than reads, kept away from the ones that
+ * The two controls that write rather than read, kept away from the ones that
  * do.
  *
  * At the corner rather than in the header: the header holds five controls
  * about what is on screen, and a sixth that changes the notes would be the
- * only one among them that does. Where it goes is the collection's own
- * setting, so the button asks nothing before opening the screen.
+ * only one among them that does.
+ *
+ * The microphone stands over the plus and is the smaller of the two, which is
+ * how Material sets a second action beside a main one. Both are within a
+ * thumb's reach of the corner the hand already holds; a microphone put beside
+ * the plus instead would sit towards the middle of the screen, further from
+ * that thumb and over the bottom row of the agenda.
+ */
+@Composable
+private fun WritingButtons(
+    onCreate: () -> Unit,
+    onDictated: (String) -> Unit,
+    onUnheard: () -> Unit,
+    dictation: Dictation,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        DictateButton(
+            onDictated = onDictated,
+            onUnheard = onUnheard,
+            dictation = dictation,
+        )
+        CreateButton(onCreate = onCreate)
+    }
+}
+
+/**
+ * Saying an entry instead of writing one out.
+ *
+ * A phrase said here is written the moment the recogniser hands it over: what
+ * it turned into is on the agenda behind the line that reports it, and that
+ * line offers to take it back. Two actions rather than the five the creation
+ * screen takes — the point of the button is that a task thought of while
+ * walking is recorded before it is forgotten.
+ *
+ * A phone with nothing to listen with says so where the entry would have been
+ * reported, and the plus below is what to use instead.
+ */
+@Composable
+private fun DictateButton(
+    onDictated: (String) -> Unit,
+    onUnheard: () -> Unit,
+    dictation: Dictation,
+    modifier: Modifier = Modifier,
+) {
+    val prompt = stringResource(R.string.create_phrase_prompt)
+
+    Box(modifier) {
+        HintTooltip(stringResource(R.string.hint_agenda_dictate)) {
+            SmallFloatingActionButton(
+                onClick = {
+                    // False is a phone with no recogniser on it: nothing
+                    // opened, nothing will be heard, and the line that says so
+                    // is the model's to raise -- the same one an edit that
+                    // could not be made uses.
+                    if (!dictation.listen(prompt) { heard -> onDictated(heard) }) {
+                        onUnheard()
+                    }
+                },
+                modifier = Modifier.testTag("agenda-dictate"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_mic),
+                    contentDescription = stringResource(R.string.agenda_dictate),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Writing an entry out field by field, on a screen of its own.
+ *
+ * Where it goes is the collection's own setting, so the button asks nothing
+ * before opening the screen.
  */
 @Composable
 private fun CreateButton(onCreate: () -> Unit, modifier: Modifier = Modifier) {

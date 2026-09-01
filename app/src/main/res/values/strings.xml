@@ -78,6 +78,8 @@
     <string name="agenda_edit_undo_skipped">The note had changed and was left as it is</string>
     <!-- A task was written from nothing, and the same line offers to take it out again. -->
     <string name="agenda_create_done">The task has been written</string>
+    <string name="agenda_dictate">Say a task</string>
+    <string name="agenda_dictate_failed">What was said could not be read</string>
     <!-- Heading of the band, drawn under every day of a week or a month. -->
     <string name="agenda_section_timed">At a set time</string>
     <string name="agenda_section_untimed">All-day &amp; upcoming</string>
@@ -294,7 +296,8 @@
     <string name="hint_sync_now">Fetch from the server, then hand it what was committed here. Nothing is merged: notes that moved on both sides are reported rather than resolved.</string>
     <string name="hint_sync_unavailable">No collection has a server yet. The notes are kept on this device until one is given an address in the settings.</string>
     <string name="hint_open_settings">The collections, the directory each of them reads and the server it syncs with.</string>
-    <string name="hint_agenda_create">Writes a task at the end of the file the collection receives new ones in, named in the settings. The keyword, the priority and the date are chosen on the screen it opens.</string>
+    <string name="hint_agenda_create">Writes a task into the file the collection receives new ones in; the file and which end of it is used are named in the settings. The keyword, the priority and the date are chosen on the screen it opens.</string>
+    <string name="hint_agenda_dictate">Opens whatever the phone recognises speech with and writes what was said as a task straight away, with no screen in between: "call the doctor tomorrow at 15:00" is read by the same rules a typed phrase is. A line at the foot offers to take the entry back. The language is the one the phone is set to; both grammars are read either way.</string>
     <string name="hint_step_back">One span back: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
     <string name="hint_step_forward">One span forward: a day, a week or a month, whichever is on screen. The plan can also be dragged sideways by its heading.</string>
     <string name="hint_show_today">Back to the day being lived through.</string>

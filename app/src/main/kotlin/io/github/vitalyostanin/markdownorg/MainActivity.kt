@@ -401,24 +401,7 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             currentTag = currentTag,
             onTagChange = model::setTag,
         ),
-        actions = AgendaActions(
-            onSync = model::syncNow,
-            onOpenSettings = onOpenSettings,
-            onTaskClick = model::select,
-            onTakeRemote = model::takeRemoteNotes,
-            onSettleAndSync = model::settleAndSync,
-            onTrustHost = model::trustHost,
-            onStep = model::stepBy,
-            onShowToday = model::showToday,
-            onShowDay = model::showDay,
-            onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
-            onUndoGroup = model::undoGroup,
-            onUndoEdit = model::undoEdit,
-            onCreate = model::startCreating,
-            onEditIssueShown = model::editIssueShown,
-            onGroupResultShown = model::groupResultShown,
-            onEditResultShown = model::editResultShown,
-        ),
+        actions = agendaActions(model, onOpenSettings),
     )
 
     // Over the agenda rather than instead of it: the list is the context for
@@ -475,3 +458,31 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
         )
     }
 }
+
+/**
+ * What the agenda does, each entry a method of the model behind it.
+ *
+ * Kept apart from the screen it belongs to for its length alone: naming the
+ * state the agenda reads and naming what it does are two readings, and the two
+ * together ran past what fits on a screen.
+ */
+private fun agendaActions(model: AgendaViewModel, onOpenSettings: () -> Unit) = AgendaActions(
+    onSync = model::syncNow,
+    onOpenSettings = onOpenSettings,
+    onTaskClick = model::select,
+    onTakeRemote = model::takeRemoteNotes,
+    onSettleAndSync = model::settleAndSync,
+    onTrustHost = model::trustHost,
+    onStep = model::stepBy,
+    onShowToday = model::showToday,
+    onShowDay = model::showDay,
+    onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
+    onUndoGroup = model::undoGroup,
+    onUndoEdit = model::undoEdit,
+    onCreate = model::startCreating,
+    onDictated = model::createFromPhrase,
+    onDictationUnavailable = model::reportNoRecogniser,
+    onEditIssueShown = model::editIssueShown,
+    onGroupResultShown = model::groupResultShown,
+    onEditResultShown = model::editResultShown,
+)

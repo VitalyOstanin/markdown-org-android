@@ -69,16 +69,20 @@ import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Adoption
 import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.FileRollback
+import uniffi.markdown_org_ffi.PhraseDraft
+import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.generateSshKey
+import uniffi.markdown_org_ffi.refinePhrase
 import java.io.File
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
@@ -922,6 +926,58 @@ class AgendaViewModel(
     /** The creation screen was left without writing anything. */
     fun cancelCreating() {
         _creating.value = false
+    }
+
+    /**
+     * Write a task out of one spoken sentence, without opening a screen.
+     *
+     * The sentence goes through the same rules the creation screen reads a
+     * typed phrase with, so "позвонить врачу завтра в 15:00" becomes the same
+     * entry either way. Where it lands is the first collection: the button is
+     * for the task thought of while walking, and a question about which of the
+     * collections it belongs to would be the screen this button exists to
+     * avoid — a task written into the wrong one is moved from its own sheet.
+     *
+     * What the rules leave over becomes the heading; a sentence they consume
+     * entirely is kept as the heading as it was said, because an entry without
+     * one is not written at all and what was heard is better than nothing.
+     */
+    fun createFromPhrase(phrase: String) {
+        val said = phrase.trim()
+        if (said.isEmpty()) {
+            return
+        }
+
+        val target = collections.entries.firstOrNull()
+        if (target == null) {
+            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
+            return
+        }
+
+        val read = runCatching {
+            refinePhrase(EMPTY_PHRASE, said, PHRASE_LOCALES, "${clock().toLocalDate()}")
+        }.getOrElse { error ->
+            Log.w(TAG, "the phrase could not be read", error)
+            _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
+            return
+        }
+
+        createTask(
+            target.collection.id,
+            TaskDraft(
+                title = read.heading.ifBlank { said },
+                priority = read.priority,
+                keyword = read.keyword ?: PlanningKeyword.SCHEDULED,
+                date = read.date?.let(LocalDate::parse),
+                time = read.time?.let(LocalTime::parse),
+                repeater = read.repeater,
+            ),
+        )
+    }
+
+    /** Say that this phone has nothing to recognise speech with. */
+    fun reportNoRecogniser() {
+        _editIssue.value = SyncMessage(R.string.create_phrase_unheard, failed = true)
     }
 
     /**
@@ -2280,6 +2336,26 @@ class AgendaViewModel(
     companion object {
         /** Where the failures the screen does not spell out are written. */
         private const val TAG = "Agenda"
+
+        /**
+         * Which grammars a spoken phrase is read against.
+         *
+         * Both of them, whatever the phone is set to: the recogniser answers
+         * in the language being spoken rather than the language of the screen,
+         * and a phrase said in Russian on a phone kept in English is the case
+         * this exists for. The creation screen consults the same pair.
+         */
+        private const val PHRASE_LOCALES = "ru,en"
+
+        /** A draft that has been told nothing, for a phrase read from scratch. */
+        private val EMPTY_PHRASE = PhraseDraft(
+            heading = "",
+            priority = null,
+            keyword = null,
+            date = null,
+            time = null,
+            repeater = null,
+        )
 
         /**
          * How much text an entry may hold and still be edited here.

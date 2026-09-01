@@ -40,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matches carries the whole stretch under it, and the section folded away under
   "Access over SSH" opens while a query is active.
 
+- A microphone in the corner of the agenda, over the plus. A task said to it
+  is written the moment the recogniser hands the sentence over — "позвонить
+  врачу завтра в 15:00" becomes a heading, a day and an hour without a screen
+  in between, and the line at the foot offers to take it back. Two actions
+  rather than the five the creation screen takes, which is what a task thought
+  of while walking has time for. The sentence goes through the rules a typed
+  phrase does, so both ways of saying the same thing read the same; a phone
+  with nothing to listen with says so and leaves the plus to write with.
+
 ### Fixed
 
 - The line at the foot of the creation screen now names where the task is
