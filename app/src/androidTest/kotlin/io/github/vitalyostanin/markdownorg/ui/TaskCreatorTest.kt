@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -24,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.WritePosition
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -226,7 +229,8 @@ class TaskCreatorTest {
         // and a task written into a note nobody expected is one they will look
         // for. Scrolled to: it stands at the foot of a form several screenfuls
         // long.
-        compose.onNodeWithText("Written at the end of inbox.md").performScrollTo()
+        compose.onNodeWithText(string(R.string.create_goes_to_start, "inbox.md"))
+            .performScrollTo()
             .assertIsDisplayed()
     }
 
@@ -247,7 +251,8 @@ class TaskCreatorTest {
 
         // The file named at the foot follows the choice, because it is that
         // collection's own.
-        compose.onNodeWithText("Written at the end of work.md").performScrollTo()
+        compose.onNodeWithText(string(R.string.create_goes_to_start, "work.md"))
+            .performScrollTo()
             .assertIsDisplayed()
         compose.onNodeWithTag("create-title").performTextReplacement("Write the report")
         compose.onNodeWithTag("create-save").performClick()
@@ -328,6 +333,16 @@ class TaskCreatorTest {
 
     private fun string(id: Int): String = compose.activity.getString(id)
 
+    private fun string(id: Int, value: String): String = compose.activity.getString(id, value)
+
+    @Test
+    fun theFootNamesTheEndWhenTheCollectionWritesThere() {
+        show(listOf(collection("1", "Personal", "inbox.md", WritePosition.END)))
+
+        compose.onNodeWithTag("create-target").performScrollTo()
+            .assertTextEquals(string(R.string.create_goes_to_end, "inbox.md"))
+    }
+
     private fun show(collections: List<NotesCollection> = PAIR) {
         compose.setContent {
             MarkdownOrgTheme {
@@ -342,11 +357,17 @@ class TaskCreatorTest {
 
     private companion object {
 
-        fun collection(id: String, name: String, inbox: String) = NotesCollection(
+        fun collection(
+            id: String,
+            name: String,
+            inbox: String,
+            writeAt: WritePosition = DEFAULT_WRITE_AT,
+        ) = NotesCollection(
             id = id,
             name = name,
             path = "/notes/$name",
             inbox = inbox,
+            writeAt = writeAt,
         )
 
         /** Two collections, each receiving new tasks in a file of its own. */

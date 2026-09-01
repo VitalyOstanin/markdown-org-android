@@ -298,7 +298,8 @@
     <string name="create_scheduled">Дата начала</string>
     <string name="create_deadline">Срок</string>
     <string name="create_date_none">Без даты</string>
-    <string name="create_goes_to">Пишется в конец файла %1$s</string>
+    <string name="create_goes_to_start">Пишется в начало файла %1$s</string>
+    <string name="create_goes_to_end">Пишется в конец файла %1$s</string>
     <string name="create_phrase">Скажите одной фразой</string>
     <string name="create_phrase_parse">Заполнить</string>
     <string name="create_phrase_speak">Сказать</string>

@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matches carries the whole stretch under it, and the section folded away under
   "Access over SSH" opens while a query is active.
 
+### Fixed
+
+- The line at the foot of the creation screen now names where the task is
+  actually going. It read "written at the end" whatever the collection's write
+  position said, and that position is the start of the file until a collection
+  says otherwise — so the line contradicted the setting and the file both, for
+  every collection that had never been told anything.
+
 ## [0.1.0] - 2026-08-25
 
 Everything so far. The builds published before this one were prereleases of

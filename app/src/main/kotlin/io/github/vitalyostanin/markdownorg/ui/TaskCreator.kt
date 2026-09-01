@@ -47,6 +47,7 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
+import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.canonicalRepeater
 import uniffi.markdown_org_ffi.refinePhrase
 import java.time.LocalDate
@@ -318,8 +319,12 @@ internal fun CreatorFields(
         // is a setting of the collection, and a task written into a note the
         // user did not expect is a task they will look for.
         collections.firstOrNull { it.id == state.collectionId }?.let { collection ->
+            val goesTo = when (collection.writeAt) {
+                WritePosition.START -> R.string.create_goes_to_start
+                WritePosition.END -> R.string.create_goes_to_end
+            }
             Text(
-                text = stringResource(R.string.create_goes_to, collection.inbox),
+                text = stringResource(goesTo, collection.inbox),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.testTag("create-target"),
