@@ -179,7 +179,7 @@
     <string name="settings_keep_local">Keep the notes on this device only</string>
     <string name="settings_ssh">Access over SSH</string>
     <string name="settings_ssh_key">Private key</string>
-    <string name="settings_ssh_key_kept">A key is stored. Leave this empty to keep it.</string>
+    <string name="settings_ssh_key_kept">A key is stored. Leave this empty to leave it unchanged.</string>
     <string name="settings_ssh_key_none">Paste a key, or make one below.</string>
     <string name="settings_ssh_key_drop">Forget the stored key</string>
     <string name="settings_ssh_passphrase">Key passphrase</string>
@@ -349,7 +349,7 @@
     <string name="hint_settings_token_drop">Deletes the stored token when the form is saved. A private repository stops syncing until another one is entered.</string>
     <string name="hint_settings_ssh">The private key, its passphrase and the fingerprint of the server. Only an ssh:// address uses any of it.</string>
     <string name="hint_settings_ssh_key_drop">Deletes the stored private key when the form is saved.</string>
-    <string name="hint_settings_ssh_create">Makes an ed25519 key on this device and keeps the private half here. The public half appears below, for pasting into the server.</string>
+    <string name="hint_settings_ssh_create">Makes an ed25519 key on this device and keeps the private key here. The public key appears below, for pasting into the server.</string>
     <string name="hint_settings_ssh_copy">Puts the public key on the clipboard. It is of no use on the phone: the server is where it goes.</string>
     <!-- The two links out of the form. Both open the browser of the device at
          the host the address names, which is the half of the setup that
@@ -395,7 +395,7 @@
 
     <string name="help_url_what">The repository this collection is fetched from and pushed to — an https:// or ssh:// address, or the path of a repository on this device. An empty field keeps the notes here and sends them nowhere.</string>
     <string name="help_url_why">The address decides which credential is used: https:// is authenticated by the access token below, ssh:// by the private key. Changing it moves nothing — the directory of notes stays as it is, and the next sync is against the new server.</string>
-    <string name="help_url_example">https://gitlab.com/user/notes.git fetches over https and asks for a token. ssh://git@gitlab.com/user/notes.git uses the key of this device instead, and asks for nothing once the public half of it is on the server.</string>
+    <string name="help_url_example">https://gitlab.com/user/notes.git fetches over https and asks for a token. ssh://git@gitlab.com/user/notes.git uses the key of this device instead, and asks for nothing once its public key is on the server.</string>
 
     <string name="help_branch_what">Which branch of the repository is read and written. An empty field follows whatever the server calls its default.</string>
     <string name="help_branch_why">The notes are only ever fast-forwarded: a branch that has moved on the server and on the phone at once is not merged here, and the sync stops with a notice instead. A branch of the phone\'s own keeps two devices out of the same commits.</string>
@@ -405,15 +405,15 @@
     <string name="help_token_why">Without one, a private repository is neither fetched nor pushed. The token also carries what is allowed: one issued for reading alone fetches the notes and fails at the first push, which arrives as a sync error rather than as a word about permissions.</string>
     <string name="help_token_example">On GitLab the token is made under Settings → Access Tokens with the scope write_repository; on GitHub it is a fine-grained token with Contents set to read and write. The button under the field opens that page for the host the address names.</string>
 
-    <string name="help_ssh_key_what">The private half of the key an ssh:// address is authenticated by, in OpenSSH format. It is kept on this device and never leaves it. A key made by the button below fills this in by itself.</string>
-    <string name="help_ssh_key_why">An ssh:// address uses the key and never looks at the token above. Nothing is fetched until the public half is added to the account on the server: the server refuses the connection, and the sync reports it as a failed authentication.</string>
-    <string name="help_ssh_key_example">The key is created here, its public half copied and pasted into GitLab under Settings → SSH Keys, and the address written as ssh://git@gitlab.com/user/notes.git. Nothing is asked at sync time after that.</string>
+    <string name="help_ssh_key_what">The private key an ssh:// address is authenticated by, in OpenSSH format. It is kept on this device and never leaves it. A key made by the button below fills this in by itself.</string>
+    <string name="help_ssh_key_why">An ssh:// address uses the key and never looks at the token above. Nothing is fetched until the public key is added to the account on the server: the server refuses the connection, and the sync reports it as a failed authentication.</string>
+    <string name="help_ssh_key_example">The key is created here, its public key copied and pasted into GitLab under Settings → SSH Keys, and the address written as ssh://git@gitlab.com/user/notes.git. Nothing is asked at sync time after that.</string>
 
     <string name="help_ssh_passphrase_what">The passphrase of the private key above, for a key that was created with one. A key made on this device has none, and the field stays empty.</string>
     <string name="help_ssh_passphrase_why">An encrypted key cannot be read without it, and a sync that cannot read the key fails with an authentication error rather than asking for anything. What is typed here is kept on this device beside the key itself.</string>
     <string name="help_ssh_passphrase_example">A key made on a laptop by ssh-keygen under a passphrase and pasted into the field above needs that passphrase typed here once. A key made by the button below is stored unencrypted and needs nothing.</string>
 
-    <string name="help_ssh_public_why">The public half is what the server is told to trust, and it is added on the server rather than here. Until it is, an ssh:// address is refused at the first sync: a key that exists only on the phone means nothing to the host.</string>
+    <string name="help_ssh_public_why">The public key is what the server is told to trust, and it is added on the server rather than here. Until it is, an ssh:// address is refused at the first sync: a key that exists only on the phone means nothing to the host.</string>
     <string name="help_ssh_public_example">The key is copied, the page of the host is opened by the button beside it, and the line is pasted into GitLab under Settings → SSH Keys. The fingerprint shown under the key is the server\'s own, remembered at the first connection and compared at every one after it.</string>
 
     <string name="help_notes_what">The directory whose markdown files this collection reads and writes. An empty field means the application\'s own storage, which no other application on the phone can open.</string>
@@ -427,7 +427,7 @@
     <string name="help_inbox_example">inbox.md takes what is captured during the day. In the evening the entries are moved into the files they belong to from the sheet of the task, which offers the main file named below.</string>
 
     <string name="help_write_at_what">Whether a new entry is written at the top of the file or added at its end. Read by a task made here and by an entry moved into another file.</string>
-    <string name="help_write_at_why">At the start is what is read first the next morning, without scrolling. At the end is what two devices writing into one file can both do: git merges two additions at the end of a file far more often than two at its top.</string>
+    <string name="help_write_at_why">At the start is what is read first the next morning, without scrolling. At the end is what two devices writing into one file can both do: two additions at the end of a file come together without hand-sorting far more often than two at its top — where branches are merged at all, on a computer.</string>
     <string name="help_write_at_example">A phone capturing a dozen tasks a day into inbox.md writes at the start and reads them from the top. A file a laptop appends to as well is set to the end, and the additions of both land under one another.</string>
 
     <string name="help_main_file_why">Without a main file, an entry moved out of the file for new tasks has its target typed by hand every time. Named here, that file is what the sheet of a task offers first, and the usual move costs one press.</string>
@@ -439,7 +439,7 @@
 
     <string name="help_reminders_enabled_example">A meeting at 15:00 with an hour of lead time is announced at 14:00, and the digest at 09:00 names what the day holds without an hour. With this off, both stay in the notes and neither reaches the screen.</string>
 
-    <string name="help_reminders_lead_example">An hour before a meeting at 15:00 is a notification at 14:00 — time to leave. Five minutes suits a call taken where one is sitting already, and "at the moment" announces it at 15:00 itself.</string>
+    <string name="help_reminders_lead_example">An hour before a meeting at 15:00 is a notification at 14:00 — time to leave. Five minutes suits a call taken where one is sitting already, and "At the moment" announces it at 15:00 itself.</string>
 
     <string name="help_reminders_at_start_example">A meeting at 15:00 with an hour of lead time: one notification at 14:00 to get ready and another at 15:00 to start. With this off, only the one at 14:00 is raised.</string>
 
@@ -518,8 +518,8 @@
     <string name="create_body_support">The lines that go under the heading. Optional: a task is a heading, and the text under it is what it needs explaining.</string>
     <string name="hint_create_phrase_speak">Opens whatever the phone recognises speech with and adds what it heard to the field, without touching the fields below — press Fill in when the sentence reads right. The language is the one the phone is set to; both grammars are read either way.</string>
     <string name="hint_create_cancel">Leaves without writing anything. Nothing reaches the notes until Create.</string>
-    <string name="hint_create_save">Writes the task at the end of the collection\'s file and commits. Unavailable while the heading is empty: the core refuses to write a heading that says nothing.</string>
-    <string name="hint_create_collection">Which set of notes takes the task. The file it is appended to is the inbox of that collection, named at the foot of the screen.</string>
+    <string name="hint_create_save">Writes the task into the collection\'s file for new tasks and commits — at the start or at the end, as the collection is set. Unavailable while the heading is empty: the core refuses to write a heading that says nothing.</string>
+    <string name="hint_create_collection">Which set of notes takes the task. The file it is written into is the file for new tasks of that collection, named at the foot of the screen.</string>
     <string name="hint_create_keyword">The word the heading starts with. TODO is what the agenda plans for; DONE and CANCELLED write a task already closed; without one the heading is a note, shown where its date falls. The words are the format and stay as they are in every language.</string>
     <string name="hint_create_priority">The [#A] cookie of the heading. A, B and C are what org-mode uses out of the box, and a new task carries none unless it is said otherwise; the sheet of the task offers the rest of the scale once it is in the notes.</string>
     <string name="hint_create_date">Which planning line is written: SCHEDULED for the day the work starts, DEADLINE for the day it is due. Without a chosen day no planning line is written at all, and the task shows up in the flat list of tasks rather than on a date.</string>
