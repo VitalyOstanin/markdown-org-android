@@ -199,6 +199,14 @@ reasoning.
   the way the file spells the dates it already holds. See
   [ADR-0040](docs/adr/0040-an-entry-carries-the-moment-it-was-written-at.md).
 
+- A setting that needs explaining carries a mark beside its name, and the mark
+  opens a screen of its own: what the setting does, why the answer matters, and
+  one case told with names and numbers. Twenty of the thirty items on the
+  settings screen carry it; the ones whose label is the whole answer keep the
+  tooltip they had, and a label never has both. What the screen says is searched
+  as text of the setting it belongs to. See
+  [ADR-0041](docs/adr/0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

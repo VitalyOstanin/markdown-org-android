@@ -33,6 +33,7 @@ the emulator.
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
 - [Saying a task in one phrase](#saying-a-task-in-one-phrase)
+- [What a setting is for](#what-a-setting-is-for)
 - [Finding a setting](#finding-a-setting)
 - [Collections](#collections)
 - [Tags](#tags)
@@ -539,6 +540,30 @@ its own.
 The decision is in
 [ADR-0039](docs/adr/0039-the-phone-listens-and-the-field-holds-what-it-heard.md).
 
+## What a setting is for
+
+Twenty of the thirty items of the settings screen carry a mark beside their
+name, and the mark opens a screen about that one setting: its name, what it
+does, why the answer matters, and one case told with names and numbers. The
+screen is drawn over the form, so an address half typed is still there on the
+way back.
+
+| № | What                       | How it behaves                                                                                       |
+|---|----------------------------|------------------------------------------------------------------------------------------------------|
+| 1 | Where the mark is drawn    | Beside the label of a setting, and inside the outline of a field                                       |
+| 2 | What it opens              | Four texts: the name, what it does, why it matters, one case                                           |
+| 3 | Where the first text is from | The line the tooltip carried before this; the other two are written for the screen                   |
+| 4 | The ten without a mark     | Their label is the whole answer — the system picker, forgetting a key, which weekday a week starts on  |
+| 5 | What those ten kept        | The tooltip they had, held open by a long press on the label                                           |
+| 6 | Leaving the screen         | Back, or the button at its head; what was typed into the form is untouched                             |
+
+What is explained is the list `settingHelp` in `ui/SettingHelp.kt`, keyed by the
+same tags the search catalogue uses, so an item is explained, searched and drawn
+under one name. A setting added to the screen has to be given an explanation or
+listed among the ones that answer for themselves; `SettingHelpTest` holds the two
+lists against each other. The decision is in
+[ADR-0041](docs/adr/0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md).
+
 ## Finding a setting
 
 The settings of a collection are one scrolling column, several screenfuls long,
@@ -553,8 +578,9 @@ An empty field is the screen as it always was.
 | 2 | Case and `ё`                | Both folded: `Начало` finds `начало`, and `недёли` finds `недели`                                        |
 | 3 | A heading that matches      | Carries the whole stretch under it — asking for "reminders" is asking for all of them                    |
 | 4 | The section folded away     | Opens while a query is active: what was found is behind the fold                                         |
-| 5 | What is not compared        | The values typed into fields, and the line behind a long press                                           |
-| 6 | Saving from under a query   | Saves everything that was typed, including into fields the query hid                                     |
+| 5 | The screen behind the mark  | Searched as text of its own item: a case remembered and a label forgotten still finds the setting        |
+| 6 | What is not compared        | The values typed into fields, and the line behind a long press                                           |
+| 7 | Saving from under a query   | Saves everything that was typed, including into fields the query hid                                     |
 
 What can be found is the list `settingsCatalogue` in
 `ui/SettingsSearch.kt`, held apart from the composables that draw the screen: a

@@ -374,6 +374,80 @@
     <string name="hint_settings_save">Writes the fields into the settings of this collection. The notes are read again straight away, and the server is only contacted by a sync.</string>
     <string name="hint_settings_cancel">Leaves the form without writing anything. What was typed is lost; what was stored stays.</string>
 
+    <!--
+      The screen behind the mark beside a setting's name. Three questions in
+      the order a setting is understood in: what it does, why the answer
+      matters, and one case told with names and numbers. The first of the
+      three is the line the tooltip used to carry, so nothing written for the
+      tooltip is written a second time here.
+    -->
+    <string name="setting_help_open">What this setting is for</string>
+    <string name="setting_help_close">Back</string>
+    <string name="setting_help_what">What it does</string>
+    <string name="setting_help_why">Why it matters</string>
+    <string name="setting_help_example">For example</string>
+
+    <string name="help_collections_why">The collection chosen here is the one every field below belongs to. An address or a token typed while the wrong chip is picked is written into that other collection, and the mistake is only seen at the next sync.</string>
+    <string name="help_collections_example">Notes kept at home and notes kept for work are two collections. The agenda draws both together, each row marked with a colour of its own; the form is switched between them by the chips, and the token of one is never sent to the host of the other.</string>
+
+    <string name="help_keep_local_why">A local collection is fetched from nowhere and pushed nowhere: the notes are the files on this device and no more. What is written here does not reach another device, and a phone that is lost takes them with it.</string>
+    <string name="help_keep_local_example">A first launch with no repository ready: the notes stay in the directory below and the agenda works as it does. An address is filled in a week later, and the files already there become the first commit.</string>
+
+    <string name="help_url_what">The repository this collection is fetched from and pushed to — an https:// or ssh:// address, or the path of a repository on this device. An empty field keeps the notes here and sends them nowhere.</string>
+    <string name="help_url_why">The address decides which credential is used: https:// is authenticated by the access token below, ssh:// by the private key. Changing it moves nothing — the directory of notes stays as it is, and the next sync is against the new server.</string>
+    <string name="help_url_example">https://gitlab.com/user/notes.git fetches over https and asks for a token. ssh://git@gitlab.com/user/notes.git uses the key of this device instead, and asks for nothing once the public half of it is on the server.</string>
+
+    <string name="help_branch_what">Which branch of the repository is read and written. An empty field follows whatever the server calls its default.</string>
+    <string name="help_branch_why">The notes are only ever fast-forwarded: a branch that has moved on the server and on the phone at once is not merged here, and the sync stops with a notice instead. A branch of the phone\'s own keeps two devices out of the same commits.</string>
+    <string name="help_branch_example">A repository whose default is main needs nothing here. A phone set to notes-phone writes into that branch alone, and the laptop merges it into main whenever it likes.</string>
+
+    <string name="help_token_what">What an https:// address is authenticated by: a personal access token issued by the host, not the password of the account. A stored token is never shown again, and an empty field keeps the one that is stored.</string>
+    <string name="help_token_why">Without one, a private repository is neither fetched nor pushed. The token also carries what is allowed: one issued for reading alone fetches the notes and fails at the first push, which arrives as a sync error rather than as a word about permissions.</string>
+    <string name="help_token_example">On GitLab the token is made under Settings → Access Tokens with the scope write_repository; on GitHub it is a fine-grained token with Contents set to read and write. The button under the field opens that page for the host the address names.</string>
+
+    <string name="help_ssh_key_what">The private half of the key an ssh:// address is authenticated by, in OpenSSH format. It is kept on this device and never leaves it. A key made by the button below fills this in by itself.</string>
+    <string name="help_ssh_key_why">An ssh:// address uses the key and never looks at the token above. Nothing is fetched until the public half is added to the account on the server: the server refuses the connection, and the sync reports it as a failed authentication.</string>
+    <string name="help_ssh_key_example">The key is created here, its public half copied and pasted into GitLab under Settings → SSH Keys, and the address written as ssh://git@gitlab.com/user/notes.git. Nothing is asked at sync time after that.</string>
+
+    <string name="help_ssh_passphrase_what">The passphrase of the private key above, for a key that was created with one. A key made on this device has none, and the field stays empty.</string>
+    <string name="help_ssh_passphrase_why">An encrypted key cannot be read without it, and a sync that cannot read the key fails with an authentication error rather than asking for anything. What is typed here is kept on this device beside the key itself.</string>
+    <string name="help_ssh_passphrase_example">A key made on a laptop by ssh-keygen under a passphrase and pasted into the field above needs that passphrase typed here once. A key made by the button below is stored unencrypted and needs nothing.</string>
+
+    <string name="help_ssh_public_why">The public half is what the server is told to trust, and it is added on the server rather than here. Until it is, an ssh:// address is refused at the first sync: a key that exists only on the phone means nothing to the host.</string>
+    <string name="help_ssh_public_example">The key is copied, the page of the host is opened by the button beside it, and the line is pasted into GitLab under Settings → SSH Keys. The fingerprint shown under the key is the server\'s own, remembered at the first connection and compared at every one after it.</string>
+
+    <string name="help_notes_what">The directory whose markdown files this collection reads and writes. An empty field means the application\'s own storage, which no other application on the phone can open.</string>
+    <string name="help_notes_why">Every markdown file under this directory joins the agenda, so a directory holding the whole of Documents is read slowly and shows entries that were never meant for it. A directory outside the application\'s own storage is also unreadable until access to all files is granted below.</string>
+    <string name="help_notes_example">/storage/emulated/0/Documents/notes holds the files a laptop syncs by git as well, and a cable reaches them without this application. A directory under Downloads works too — together with every markdown file that happens to be in it.</string>
+
+    <string name="help_notes_grant_why">Android hands an application its own storage and nothing else. Without this permission a directory chosen anywhere else is read as empty: the agenda shows nothing and reports no error, because from where it stands there is nothing to report.</string>
+    <string name="help_notes_grant_example">The notes are kept in Documents/notes so a computer can reach them over a cable. The permission is granted once, on the screen of the platform, and the agenda fills the next time the notes are read.</string>
+
+    <string name="help_inbox_why">Everything written from the agenda — typed, dictated or said as a phrase — goes into this one file, so what was captured on the phone is found in one place rather than spread over the notes. A file that does not exist yet is created at the first task.</string>
+    <string name="help_inbox_example">inbox.md takes what is captured during the day. In the evening the entries are moved into the files they belong to from the sheet of the task, which offers the main file named below.</string>
+
+    <string name="help_write_at_what">Whether a new entry is written at the top of the file or added at its end. Read by a task made here and by an entry moved into another file.</string>
+    <string name="help_write_at_why">At the start is what is read first the next morning, without scrolling. At the end is what two devices writing into one file can both do: git merges two additions at the end of a file far more often than two at its top.</string>
+    <string name="help_write_at_example">A phone capturing a dozen tasks a day into inbox.md writes at the start and reads them from the top. A file a laptop appends to as well is set to the end, and the additions of both land under one another.</string>
+
+    <string name="help_main_file_why">Without a main file, an entry moved out of the file for new tasks has its target typed by hand every time. Named here, that file is what the sheet of a task offers first, and the usual move costs one press.</string>
+    <string name="help_main_file_example">New tasks land in inbox.md while the main file is tasks.md: an entry captured in the morning is moved into tasks.md from its sheet, and the file for new tasks stays short enough to read.</string>
+
+    <string name="help_agenda_grouped_example">A day holding a meeting at 10:00, two tasks with no hour and one overdue since Monday: grouped, it reads as three headings with their counts and their menus; ungrouped, as four rows in the same order, with the height of the headings given back to them.</string>
+
+    <string name="help_agenda_month_grid_example">A month planned unevenly: the calendar shows at a glance that the second week is full and the third is empty, and a day is tapped to read what is on it. The list says the same in headings, one for every day that holds anything, and takes a scroll to say it.</string>
+
+    <string name="help_reminders_enabled_example">A meeting at 15:00 with an hour of lead time is announced at 14:00, and the digest at 09:00 names what the day holds without an hour. With this off, both stay in the notes and neither reaches the screen.</string>
+
+    <string name="help_reminders_lead_example">An hour before a meeting at 15:00 is a notification at 14:00 — time to leave. Five minutes suits a call taken where one is sitting already, and "at the moment" announces it at 15:00 itself.</string>
+
+    <string name="help_reminders_at_start_example">A meeting at 15:00 with an hour of lead time: one notification at 14:00 to get ready and another at 15:00 to start. With this off, only the one at 14:00 is raised.</string>
+
+    <string name="help_reminders_digest_example">The digest at 09:00 says the day holds three entries without an hour, one deadline inside its warning window and two entries overdue. The meeting at 15:00 is not in it: an entry with an hour is announced ahead of that hour, by itself.</string>
+
+    <string name="help_crash_why">The trace names the place the run stopped in, which is the whole of what makes a report worth acting on. It stays on the device until the button under it forgets it, and nothing of it is sent anywhere by itself.</string>
+    <string name="help_crash_example">The application closes while a month is being drawn. The trace is copied from here into an issue at the project page, together with the version and the commit from the line at the foot of this screen.</string>
+
     <!-- The licence screen. -->
     <string name="hint_licence_card">What the component is, the licence it is under and what in this application uses it. Press to read the full text.</string>
     <string name="hint_licences_close">Back to the settings.</string>

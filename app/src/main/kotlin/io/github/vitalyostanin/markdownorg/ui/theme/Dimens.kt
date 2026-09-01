@@ -68,6 +68,9 @@ object Sizes {
     /** The dot that carries a collection's colour, at the head of a row. */
     val collectionDot = 6.dp
 
+    /** The mark beside a setting's name that opens what the setting is for. */
+    val helpMark = 18.dp
+
     /**
      * How much of a collection's name a chip shows before it is cut.
      *

@@ -104,6 +104,19 @@ class SettingsSearchTest {
     }
 
     @Test
+    fun `a word said only on the screen behind a setting finds it`() {
+        // What a setting is for is written on a screen of its own, and the
+        // reader looks for the setting by what was read there — "inbox.md",
+        // "a token issued by the host" — rather than by the words of a label.
+        val match = settingsMatch("needle") { id ->
+            if (id == R.string.help_token_example) "needle" else "something else"
+        }
+
+        assertTrue(match.shows("settings-token"))
+        assertFalse(match.shows("settings-url"))
+    }
+
+    @Test
     fun `every part of the screen holds items`() {
         // A part with nothing in it is a heading the search would draw over an
         // empty stretch of screen.

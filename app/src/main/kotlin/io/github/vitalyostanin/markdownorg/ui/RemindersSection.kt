@@ -64,8 +64,6 @@ internal fun RemindersSection(reminders: RemindersUi) {
             onCheckedChange = reminders.onEnabledChange,
             tag = "settings-reminders-enabled",
             label = R.string.settings_reminders_enabled,
-            hint = R.string.hint_settings_reminders_enabled,
-            explanation = R.string.settings_reminders_enabled_hint,
         )
     }
     if (!reminders.enabled) {
@@ -98,8 +96,6 @@ internal fun RemindersSection(reminders: RemindersUi) {
             onCheckedChange = reminders.onAlsoAtStartChange,
             tag = "settings-reminders-at-start",
             label = R.string.settings_reminders_at_start,
-            hint = R.string.hint_settings_reminders_at_start,
-            explanation = R.string.settings_reminders_at_start_hint,
         )
     }
     Found("settings-reminders-digest") {
@@ -123,10 +119,6 @@ internal fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit)
         onChange = onChange,
         tag = "settings-reminders-lead",
         label = stringResource(R.string.settings_reminders_lead),
-        hint = settingHint(
-            R.string.settings_reminders_lead_hint,
-            R.string.hint_settings_reminders_lead,
-        ),
         optionLabel = { stringResource(it.labelRes) },
         optionTag = { it.testTag },
     )
@@ -149,18 +141,10 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
     val use24Hour = use24Hour()
     val locale = LocalLocale.current.platformLocale
 
-    HintTooltip(
-        settingHint(
-            R.string.settings_reminders_digest_hint,
-            R.string.hint_settings_reminders_digest,
-        ),
-    ) {
-        Text(
-            text = stringResource(R.string.settings_reminders_digest),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    SettingLabel(
+        label = stringResource(R.string.settings_reminders_digest),
+        tag = "settings-reminders-digest",
+    )
     OutlinedButton(
         onClick = { picking = true },
         modifier = Modifier.testTag("settings-reminders-digest"),
@@ -249,8 +233,6 @@ internal fun SettingCheck(
     onCheckedChange: (Boolean) -> Unit,
     tag: String,
     @StringRes label: Int,
-    @StringRes hint: Int,
-    @StringRes explanation: Int,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Checkbox(
@@ -258,13 +240,8 @@ internal fun SettingCheck(
             onCheckedChange = onCheckedChange,
             modifier = Modifier.testTag(tag),
         )
-        // On the label rather than on the box, as with the other ticks here.
-        HintTooltip(settingHint(explanation, hint)) {
-            Text(
-                text = stringResource(label),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        // Beside the label rather than beside the box: what the mark opens is
+        // about the setting, and the box is about its answer.
+        SettingLabel(label = stringResource(label), tag = tag)
     }
 }

@@ -274,7 +274,12 @@ internal fun settingsMatch(query: String, text: (Int) -> String): SettingsMatch 
 
     return SettingsMatch.of(
         settingsCatalogue.filter { item ->
-            item.part in wholeParts || item.texts.any { folded(text(it)).contains(needle) }
+            // The screen behind the mark counts as text of the item: a setting
+            // is looked for by what it is for at least as often as by its
+            // name, and the case told there is the part that says what it is
+            // for in words the reader would use.
+            val texts = item.texts + settingHelp[item.tag]?.texts.orEmpty()
+            item.part in wholeParts || texts.any { folded(text(it)).contains(needle) }
         },
     )
 }

@@ -1,8 +1,10 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -122,65 +124,70 @@ fun SyncSettingsScreen(
     var query by rememberSaveable { mutableStateOf("") }
     val match = rememberSettingsMatch(query)
 
+    // Which setting is being read about, and nothing while the screen is being
+    // filled in. The tag rather than the explanation itself: what a saveable
+    // holds across a rotation is a string, and the catalogue is what turns it
+    // back into the four texts.
+    var explaining by rememberSaveable { mutableStateOf<String?>(null) }
+
     val issues = rememberFormIssues(form, storage)
 
-    // The picker runs in another application, and its answer arrives after
-    // this composition was rebuilt — so it lands in the field here rather than
-    // being passed as an initial value, which is read once.
-    LaunchedEffect(storage.picked) {
-        storage.picked?.let {
-            form.notesPath = it
-            storage.onPickedTaken()
-        }
-    }
+    TakePickedPath(storage, form)
 
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        CompositionLocalProvider(LocalSettingsMatch provides match) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    Box(modifier = modifier.fillMaxSize()) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            CompositionLocalProvider(
+                LocalSettingsMatch provides match,
+                LocalSettingHelp provides { tag -> explaining = tag },
             ) {
-                SettingsSearchField(query = query, onQueryChange = { query = it })
-
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    SettingsForm(
-                        initial = initial,
-                        form = form,
-                        issues = issues,
-                        collections = collections,
-                        storage = storage,
-                        onKeepLocal = onKeepLocal,
-                        onCreateKey = onCreateKey,
-                        onOpenPage = onOpenPage,
-                    )
+                    SettingsSearchField(query = query, onQueryChange = { query = it })
 
-                    SettingsTail(
-                        collections = collections,
-                        agenda = agenda,
-                        reminders = reminders,
-                        diagnostics = diagnostics,
-                        onRemove = { removing = collections.editingId },
-                        onSave = { onSave(form.values()) },
-                        onDismiss = onDismiss,
-                        // An empty address is not an obstacle any more: the
-                        // form also carries where the notes are kept, and
-                        // notes already on the device need no remote at all. A
-                        // collection with no name is one the filter offers as
-                        // a blank chip.
-                        canSave = !issues.refused &&
-                            (collections.all.isEmpty() || form.name.isNotBlank()),
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        SettingsForm(
+                            initial = initial,
+                            form = form,
+                            issues = issues,
+                            collections = collections,
+                            storage = storage,
+                            onKeepLocal = onKeepLocal,
+                            onCreateKey = onCreateKey,
+                            onOpenPage = onOpenPage,
+                        )
+
+                        SettingsTail(
+                            collections = collections,
+                            agenda = agenda,
+                            reminders = reminders,
+                            diagnostics = diagnostics,
+                            onRemove = { removing = collections.editingId },
+                            onSave = { onSave(form.values()) },
+                            onDismiss = onDismiss,
+                            // An empty address is not an obstacle any more: the
+                            // form also carries where the notes are kept, and
+                            // notes already on the device need no remote at all. A
+                            // collection with no name is one the filter offers as
+                            // a blank chip.
+                            canSave = !issues.refused &&
+                                (collections.all.isEmpty() || form.name.isNotBlank()),
+                        )
+                    }
                 }
             }
         }
+
+        SettingHelpOverlay(explaining) { explaining = null }
     }
 
     removing?.let { id ->
@@ -191,6 +198,40 @@ fun SyncSettingsScreen(
             },
             onDismiss = { removing = null },
         )
+    }
+}
+
+/**
+ * The path the system picker handed back, put into the field it belongs to.
+ *
+ * The picker runs in another application and its answer arrives after this
+ * composition was rebuilt, so it lands in the field here rather than being
+ * passed as an initial value — which is read once, before there is an answer.
+ */
+@Composable
+private fun TakePickedPath(storage: StorageUi, form: SyncFormState) {
+    LaunchedEffect(storage.picked) {
+        storage.picked?.let {
+            form.notesPath = it
+            storage.onPickedTaken()
+        }
+    }
+}
+
+/**
+ * What a setting is for, drawn over the form rather than in place of it.
+ *
+ * The fields are typed into and not yet saved, and a screen that took their
+ * place would take what was typed with it. Back closes this one before the
+ * settings, since the handler registered last is the one asked first. A tag
+ * with no explanation behind it draws nothing: it cannot be reached from the
+ * screen, since the mark that sets it is only drawn where there is one.
+ */
+@Composable
+private fun SettingHelpOverlay(tag: String?, onDismiss: () -> Unit) {
+    tag?.let { settingHelp[it] }?.let { help ->
+        BackHandler(onBack = onDismiss)
+        SettingHelpScreen(help = help, onDismiss = onDismiss)
     }
 }
 
@@ -363,6 +404,7 @@ private fun InboxSection(form: SyncFormState, problem: NoteFileProblem?) {
         },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        trailingIcon = { SettingHelpMark("settings-inbox") },
         modifier = Modifier.fillMaxWidth().testTag("settings-inbox"),
     )
 }
@@ -435,13 +477,14 @@ private fun SettingsHeading(
     // user has no intention of giving.
     if (!storesLocally && form.url.isBlank()) {
         Found("settings-keep-local") {
-            HintTooltip(stringResource(R.string.hint_settings_keep_local)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
                     onClick = onKeepLocal,
                     modifier = Modifier.testTag("settings-keep-local"),
                 ) {
                     Text(stringResource(R.string.settings_keep_local))
                 }
+                SettingHelpMark("settings-keep-local")
             }
         }
     }
@@ -547,6 +590,7 @@ private fun RemoteSection(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            trailingIcon = { SettingHelpMark("settings-url") },
             modifier = Modifier.fillMaxWidth().testTag("settings-url"),
         )
     }
@@ -562,6 +606,7 @@ private fun RemoteSection(
             supportingText = { Text(stringResource(R.string.settings_branch_default)) },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            trailingIcon = { SettingHelpMark("settings-branch") },
             modifier = Modifier.fillMaxWidth().testTag("settings-branch"),
         )
     }
@@ -581,6 +626,7 @@ private fun RemoteSection(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = { SettingHelpMark("settings-token") },
             modifier = Modifier.fillMaxWidth().testTag("settings-token"),
         )
     }
@@ -678,7 +724,6 @@ private fun WritePositionSection(form: SyncFormState) {
         onChange = { form.writeAt = it },
         tag = "settings-write-at",
         label = stringResource(R.string.settings_write_at),
-        hint = stringResource(R.string.settings_write_at_support),
         optionLabel = { stringResource(it.label()) },
         optionTag = { "settings-write-${it.tag()}" },
     )
@@ -716,6 +761,7 @@ private fun MainFileSection(form: SyncFormState, problem: NoteFileProblem?) {
         },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        trailingIcon = { SettingHelpMark("settings-main-file") },
         modifier = Modifier.fillMaxWidth().testTag("settings-main-file"),
     )
 }
@@ -751,6 +797,7 @@ private fun NotesDirectorySection(
             },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            trailingIcon = { SettingHelpMark("settings-notes") },
             modifier = Modifier.fillMaxWidth().testTag("settings-notes"),
         )
     }
@@ -774,14 +821,13 @@ private fun NotesDirectorySection(
         // help, is a button that answers nothing.
         if (problem == NotesPathProblem.NEEDS_PERMISSION) {
             Found("settings-notes-grant") {
-                HintTooltip(stringResource(R.string.hint_settings_notes_grant)) {
-                    TextButton(
-                        onClick = onRequestStorage,
-                        modifier = Modifier.testTag("settings-notes-grant"),
-                    ) {
-                        Text(stringResource(R.string.settings_notes_grant))
-                    }
+                TextButton(
+                    onClick = onRequestStorage,
+                    modifier = Modifier.testTag("settings-notes-grant"),
+                ) {
+                    Text(stringResource(R.string.settings_notes_grant))
                 }
+                SettingHelpMark("settings-notes-grant")
             }
         }
     }
@@ -815,8 +861,6 @@ private fun AgendaSection(agenda: AgendaUi) {
             onCheckedChange = agenda.onGroupedChange,
             tag = "settings-agenda-grouped",
             label = R.string.settings_agenda_grouped,
-            hint = R.string.hint_settings_agenda_grouped,
-            explanation = R.string.settings_agenda_grouped_hint,
         )
     }
     Found("settings-agenda-month-grid") {
@@ -825,8 +869,6 @@ private fun AgendaSection(agenda: AgendaUi) {
             onCheckedChange = agenda.onMonthAsGridChange,
             tag = "settings-agenda-month-grid",
             label = R.string.settings_agenda_month_grid,
-            hint = R.string.hint_settings_agenda_month_grid,
-            explanation = R.string.settings_agenda_month_grid_hint,
         )
     }
     Found("settings-week-start") {
@@ -850,12 +892,12 @@ internal fun WeekStartChoice(current: WeekStart, onChange: (WeekStart) -> Unit) 
         onChange = onChange,
         tag = "settings-week-start",
         label = stringResource(R.string.settings_week_start),
+        optionLabel = { stringResource(it.labelRes) },
+        optionTag = { it.testTag },
         hint = settingHint(
             R.string.settings_week_start_hint,
             R.string.hint_settings_week_start,
         ),
-        optionLabel = { stringResource(it.labelRes) },
-        optionTag = { it.testTag },
     )
 }
 
@@ -884,17 +926,14 @@ private fun DiagnosticsSection(
     // what makes such a report worth anything.
     crash?.let { trace ->
         Found("settings-crash") {
-            HintTooltip(
-                stringResource(R.string.hint_settings_crash),
-                // On the anchor rather than on the line inside it: see
-                // HintTooltip.
-                modifier = Modifier.testTag("settings-crash"),
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.settings_crash),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("settings-crash"),
                 )
+                SettingHelpMark("settings-crash")
             }
             Text(
                 text = trace,
@@ -987,12 +1026,13 @@ private fun CollectionsSection(
 
     // On the heading rather than on each chip: the chips already carry a name
     // apiece, and what needs saying is what picking one of them changes.
-    HintTooltip(stringResource(R.string.hint_settings_collection)) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(R.string.settings_collections),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
+        SettingHelpMark("settings-collections")
     }
     Row(
         modifier = Modifier
@@ -1109,6 +1149,7 @@ private fun SshSection(
             minLines = 2,
             maxLines = 4,
             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            trailingIcon = { SettingHelpMark("settings-ssh-key") },
             modifier = Modifier.fillMaxWidth().testTag("settings-ssh-key"),
         )
     }
@@ -1122,6 +1163,7 @@ private fun SshSection(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = { SettingHelpMark("settings-ssh-passphrase") },
             modifier = Modifier.fillMaxWidth().testTag("settings-ssh-passphrase"),
         )
     }
@@ -1184,14 +1226,13 @@ private fun PublicHalf(publicKey: String?, knownHost: String?, onOpenKeyPage: ((
             modifier = Modifier.fillMaxWidth().testTag("settings-ssh-public"),
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            HintTooltip(stringResource(R.string.hint_settings_ssh_copy)) {
-                TextButton(
-                    onClick = { clipboard.setText(AnnotatedString(line)) },
-                    modifier = Modifier.testTag("settings-ssh-copy"),
-                ) {
-                    Text(stringResource(R.string.settings_ssh_copy))
-                }
+            TextButton(
+                onClick = { clipboard.setText(AnnotatedString(line)) },
+                modifier = Modifier.testTag("settings-ssh-copy"),
+            ) {
+                Text(stringResource(R.string.settings_ssh_copy))
             }
+            SettingHelpMark("settings-ssh-public")
 
             // Beside the copy rather than under it: the two are one move —
             // take the key, open the page it goes into — and the page is of

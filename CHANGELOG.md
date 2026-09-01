@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A mark beside the name of a setting, opening a screen about that one setting:
+  what it does, why the answer matters, and one case told with names and
+  numbers — which token scope a push needs, what a branch of the phone's own
+  keeps two devices out of, what the digest at nine names and what it leaves to
+  the entry with an hour. Twenty of the thirty items of the screen carry it; the
+  ten whose label is the whole answer keep the tooltip they had. What the screen
+  says is searched as text of its own setting, so a case remembered and a label
+  forgotten still finds it. The explanation used to be a tooltip held open by a
+  long press — a gesture nothing announced, over a line sized for a glance.
+
 - The moment an entry was written at is marked under its heading, as org-mode's
   expiry convention writes it: `CREATED: [2026-09-01 Tue 14:01]`, inactive
   brackets so that no agenda shows the mark as a date to keep. To the minute,
