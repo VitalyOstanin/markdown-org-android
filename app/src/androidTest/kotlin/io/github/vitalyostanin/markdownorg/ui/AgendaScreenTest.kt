@@ -726,6 +726,40 @@ class AgendaScreenTest {
     }
 
     @Test
+    fun theLineThatReportsAnEditLiftsTheButtonsRatherThanCoveringThem() {
+        // The line spans the width and stands at the bottom, which is the
+        // corner the plus and the microphone are in. Covered, the offer to
+        // undo takes away the control the person reaches for next.
+        showAgenda(
+            AgendaLayout.LIST,
+            editResult = EditResult(
+                root = "/notes",
+                heading = "Pay the tax",
+                rollback = listOf(
+                    FileRollback(file = "notes.md", before = "before", after = "after"),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText(string(R.string.agenda_edit_done)).assertIsDisplayed()
+        compose.waitForIdle()
+
+        val line = compose.onNodeWithText(string(R.string.agenda_edit_done)).fetchSemanticsNode()
+        val plus = compose.onNodeWithTag("agenda-create").fetchSemanticsNode()
+        val microphone = compose.onNodeWithTag("agenda-dictate").fetchSemanticsNode()
+        val lineTop = line.positionInRoot.y
+
+        assertTrue(
+            "the line covers the plus",
+            plus.positionInRoot.y + plus.size.height <= lineTop,
+        )
+        assertTrue(
+            "the line covers the microphone",
+            microphone.positionInRoot.y + microphone.size.height <= lineTop,
+        )
+    }
+
+    @Test
     fun theCornerOfThePlanOffersToWriteATaskThatIsNotInIt() {
         var asked = 0
         showAgenda(AgendaLayout.LIST, onCreate = { asked += 1 })

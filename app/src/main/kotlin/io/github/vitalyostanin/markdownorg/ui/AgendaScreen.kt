@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -59,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
@@ -159,6 +161,17 @@ fun AgendaScreen(
         }
     }
 
+    // How far the writing buttons stand above the bottom edge: the height of
+    // the line the snackbar draws, and nothing when there is no line. Measured
+    // rather than assumed, because a message of two rows is taller than one of
+    // a single row. Kept in pixels, which is what the measurement arrives in.
+    var lineHeight by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val lift by animateDpAsState(
+        with(density) { lineHeight.toDp() },
+        label = "writing-buttons-lift",
+    )
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             AgendaBody(
@@ -176,11 +189,19 @@ fun AgendaScreen(
                 dictation = dictation,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(Spacing.lg),
+                    .padding(Spacing.lg)
+                    .padding(bottom = lift),
             )
-            // Over the button rather than beside it: what a snackbar says is
-            // about the tap just made, and it is gone in a few seconds.
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+            // The line spans the width, so the buttons rise by its height for
+            // as long as it stands rather than being covered by it: an offer
+            // to undo that hides the plus takes away the control the person
+            // reaches for next.
+            SnackbarHost(
+                snackbar,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { size -> lineHeight = size.height },
+            )
         }
     }
 }
