@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import uniffi.markdown_org_ffi.BulkAction
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
 import java.time.LocalDate
@@ -180,6 +181,58 @@ class CommitMessageTest {
                 LocalDate.of(2026, 8, 27),
                 null,
             ),
+        )
+    }
+
+    @Test
+    fun aGroupEditNamesTheActionAndHowManyItTouched() {
+        assertEquals(
+            "Move 3 overdue tasks to today",
+            groupMessage(BulkAction.MOVE_TO_TODAY, 3),
+        )
+        assertEquals("Drop the date of 2 tasks", groupMessage(BulkAction.DROP_PLANNING, 2))
+        assertEquals("Cancel 4 tasks", groupMessage(BulkAction.CANCEL, 4))
+    }
+
+    @Test
+    fun aGroupOfOneIsNotPluralised() {
+        assertEquals("Cancel 1 task", groupMessage(BulkAction.CANCEL, 1))
+        assertEquals("Undo the group edit of 1 note", undoMessage(1))
+    }
+
+    @Test
+    fun anUndoneGroupSaysHowManyNotesWentBack() {
+        assertEquals("Undo the group edit of 5 notes", undoMessage(5))
+    }
+
+    @Test
+    fun anEntryMovedToAnotherFileNamesBoth() {
+        assertEquals(
+            "Move \"Pay rent\" to inbox.md",
+            moveMessage("  Pay rent  ", "inbox.md"),
+        )
+    }
+
+    @Test
+    fun anEntryChangedByPhraseSaysSoWithoutRepeatingTheSentence() {
+        // The sentence is the request, not the outcome: a phrase that moved a
+        // day and set a priority would read as neither in the history.
+        assertEquals("Change \"English\" by phrase", phraseMessage("English"))
+    }
+
+    @Test
+    fun anHourWrittenNamesTheKeywordAndTheHour() {
+        assertEquals(
+            "Set the SCHEDULED of \"English\" to 18:00",
+            planningTimeMessage("English", PlanningKeyword.SCHEDULED, LocalTime.of(18, 0)),
+        )
+    }
+
+    @Test
+    fun anHourTakenOffSaysTheHourWentRatherThanNamingOne() {
+        assertEquals(
+            "Take the hour off the DEADLINE of \"Report\"",
+            planningTimeMessage("Report", PlanningKeyword.DEADLINE, null),
         )
     }
 }
