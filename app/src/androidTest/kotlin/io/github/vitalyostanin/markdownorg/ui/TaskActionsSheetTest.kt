@@ -3,6 +3,8 @@ package io.github.vitalyostanin.markdownorg.ui
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.MarkdownOrgTheme
@@ -449,7 +452,7 @@ class TaskActionsSheetTest {
         compose.onNodeWithTag("action-edit-entry").assertDoesNotExist()
     }
 
-    private fun show(task: Task) {
+    private fun show(task: Task, dictation: Dictation = Dictation { _, _ -> true }) {
         compose.setContent {
             MarkdownOrgTheme {
                 TaskActionsSheet(
@@ -458,10 +461,73 @@ class TaskActionsSheetTest {
                     onDismiss = {},
                     onEdit = { edits += 1 },
                     onOpenExternally = { opened += 1 },
+                    dictation = dictation,
                 )
             }
         }
     }
 
     private fun string(id: Int, vararg args: Any): String = compose.activity.getString(id, *args)
+
+    // --- changing the entry by phrase --------------------------------------
+
+    @Test
+    fun thePhraseIsHandedOverOnlyOnceThereIsOne() {
+        show(task())
+
+        // An empty field has nothing to apply: the sentence is what the rules
+        // are given, and an empty one would name no field at all.
+        compose.onNodeWithTag("action-phrase-apply").performScrollTo().assertIsNotEnabled()
+
+        compose.onNodeWithTag("action-phrase").performScrollTo().performTextInput("на пятницу")
+
+        compose.onNodeWithTag("action-phrase-apply").assertIsEnabled()
+    }
+
+    @Test
+    fun whatWasTypedReachesTheActionAndLeavesTheFieldEmpty() {
+        show(task())
+
+        compose.onNodeWithTag("action-phrase")
+            .performScrollTo()
+            .performTextInput("отметь выполненной")
+        compose.onNodeWithTag("action-phrase-apply").performClick()
+
+        assertEquals(listOf<TaskAction>(TaskAction.Phrase("отметь выполненной")), actions)
+        // Emptied, because the sheet closes on an action: a field left filled
+        // would offer the same sentence again the next time it opens.
+        compose.onNodeWithTag("action-phrase-apply").assertIsNotEnabled()
+    }
+
+    @Test
+    fun whatWasHeardJoinsWhatTheFieldAlreadyHolds() {
+        // A sentence may be said in two goes, and a word corrected by hand
+        // before speaking again is not worth losing.
+        show(
+            task(),
+            dictation = Dictation { _, onSpoken ->
+                onSpoken("в 16:00")
+                true
+            },
+        )
+
+        compose.onNodeWithTag("action-phrase")
+            .performScrollTo()
+            .performTextInput("перенеси на пятницу")
+        compose.onNodeWithTag("action-phrase-speak").performClick()
+        compose.onNodeWithTag("action-phrase-apply").performClick()
+
+        assertEquals(listOf<TaskAction>(TaskAction.Phrase("перенеси на пятницу в 16:00")), actions)
+    }
+
+    @Test
+    fun aPhoneWithNothingToListenWithSaysSoUnderTheField() {
+        show(task(), dictation = Dictation { _, _ -> false })
+
+        compose.onNodeWithTag("action-phrase-speak").performScrollTo().performClick()
+
+        compose.onNodeWithText(string(R.string.create_phrase_unheard)).assertIsDisplayed()
+        // And nothing was handed over: there is no sentence to apply.
+        assertEquals(emptyList<TaskAction>(), actions)
+    }
 }

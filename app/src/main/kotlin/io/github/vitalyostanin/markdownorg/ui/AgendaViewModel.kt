@@ -821,6 +821,15 @@ class AgendaViewModel(
 
                 is TaskAction.Priority -> theirEditor.setPriority(task, action.value)
 
+                is TaskAction.Phrase -> {
+                    // Read before anything is written, and refused here rather
+                    // than in the core: what the phrase failed at is said in
+                    // the language of the screen, which the core does not
+                    // speak.
+                    val draft = phraseFor(action.said) ?: return@launch
+                    theirEditor.applyPhrase(task, draft)
+                }
+
                 is TaskAction.Shift -> theirEditor.shift(task, action.keyword, action.days)
 
                 is TaskAction.Plan ->
@@ -973,6 +982,50 @@ class AgendaViewModel(
                 repeater = read.repeater,
             ),
         )
+    }
+
+    /**
+     * What the rules make of a phrase said about an entry that exists, or
+     * `null` when there is nothing to apply.
+     *
+     * Three ways of coming back empty-handed, each said in its own words: the
+     * rules refused the sentence, a word of it was not understood — and then
+     * nothing is changed, because applying the half that was understood would
+     * move a field nobody named — or the sentence named no field at all.
+     */
+    private fun phraseFor(said: String): PhraseDraft? {
+        val phrase = said.trim()
+        if (phrase.isEmpty()) {
+            return null
+        }
+
+        val read = runCatching {
+            refinePhrase(EMPTY_PHRASE, phrase, PHRASE_LOCALES, "${clock().toLocalDate()}")
+        }.getOrElse { error ->
+            Log.w(TAG, "the phrase could not be read", error)
+            _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
+            return null
+        }
+
+        if (read.heading.isNotBlank()) {
+            _editIssue.value = SyncMessage(
+                R.string.agenda_phrase_leftover,
+                detail = Detail.Verbatim(read.heading),
+                failed = true,
+            )
+            return null
+        }
+        val named = read.status != null ||
+            read.priority != null ||
+            read.date != null ||
+            read.time != null ||
+            read.repeater != null ||
+            read.cleared.isNotEmpty()
+        if (!named) {
+            _editIssue.value = SyncMessage(R.string.agenda_phrase_nothing, failed = true)
+            return null
+        }
+        return read
     }
 
     /** Say that this phone has nothing to recognise speech with. */
@@ -2356,6 +2409,8 @@ class AgendaViewModel(
             date = null,
             time = null,
             repeater = null,
+            status = null,
+            cleared = emptyList(),
         )
 
         /**

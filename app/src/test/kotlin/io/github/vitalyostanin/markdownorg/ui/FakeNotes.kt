@@ -31,6 +31,7 @@ import uniffi.markdown_org_ffi.BulkOutcome
 import uniffi.markdown_org_ffi.EntryText
 import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.MoveOutcome
+import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RepoStatus
 import uniffi.markdown_org_ffi.RevertOutcome
@@ -316,6 +317,15 @@ class FakeWriter(var outcome: Result<EditReport> = Result.success(EditReport(com
         time: LocalTime?,
     ): Result<EditReport> {
         hour = keyword to time
+        return record()
+    }
+
+    /** What the last phrase edit was handed, for asserting on what it read. */
+    var phrase: PhraseDraft? = null
+        private set
+
+    override suspend fun applyPhrase(task: Task, draft: PhraseDraft): Result<EditReport> {
+        phrase = draft
         return record()
     }
 

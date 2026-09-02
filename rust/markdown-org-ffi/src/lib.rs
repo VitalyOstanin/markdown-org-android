@@ -36,7 +36,7 @@ pub use edit::{set_priority, set_status, EditError, EditOutcome, EditTarget};
 pub use entry::{read_entry, set_entry, EntryText};
 pub use index::NotesIndex;
 pub use occurrence::{cancel_occurrence, move_occurrence};
-pub use phrase::{refine_phrase, PhraseDraft};
+pub use phrase::{apply_phrase, refine_phrase, PhraseDraft, PhraseField};
 pub use planning::{
     canonical_repeater, complete_task, set_planning, set_planning_time, shift_planning,
     CompleteOutcome, PlanningKeyword,

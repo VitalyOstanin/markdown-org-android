@@ -10,6 +10,7 @@ import uniffi.markdown_org_ffi.FileRollback
 import uniffi.markdown_org_ffi.MoveOutcome
 import uniffi.markdown_org_ffi.NewPlanning
 import uniffi.markdown_org_ffi.NewTask
+import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Task
@@ -24,6 +25,7 @@ import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.abs
+import uniffi.markdown_org_ffi.applyPhrase as coreApplyPhrase
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
 import uniffi.markdown_org_ffi.cancelOccurrence as coreCancelOccurrence
 import uniffi.markdown_org_ffi.completeTask as coreComplete
@@ -150,6 +152,15 @@ interface NotesWriter {
         keyword: PlanningKeyword,
         date: LocalDate?,
     ): Result<EditReport>
+
+    /**
+     * Apply what a phrase said to a task that already exists.
+     *
+     * One operation rather than one per field: a sentence naming a day, an
+     * hour and a priority is one edit, one commit and one undo, where three
+     * calls would be three of each.
+     */
+    suspend fun applyPhrase(task: Task, draft: PhraseDraft): Result<EditReport>
 
     /**
      * Put an hour on a planning date, or take one off with `null`.
@@ -354,6 +365,12 @@ class NotesEditor internal constructor(
     override suspend fun setPriority(task: Task, priority: String?): Result<EditReport> = write {
         val outcome = coreSetPriority(task.target(), priority)
         outcome.rollback to priorityMessage(task.heading, priority)
+    }
+
+    /** Apply the fields a phrase named, in one write and one commit. */
+    override suspend fun applyPhrase(task: Task, draft: PhraseDraft): Result<EditReport> = write {
+        val outcome = coreApplyPhrase(task.target(), draft)
+        outcome.rollback to phraseMessage(task.heading)
     }
 
     /** Read the text of an entry for editing. */
@@ -679,6 +696,15 @@ internal fun statusMessage(heading: String, status: TaskType?): String = when (s
     null -> "Clear the keyword on \"$heading\""
     else -> "Set \"$heading\" to ${status.keyword()}"
 }
+
+/**
+ * What an edit made by phrase says it did.
+ *
+ * The sentence itself is not in the message: it is the user's own words, and a
+ * commit history is not where they were meant to end up. What changed is
+ * visible in the diff, which is where a reader of the history looks anyway.
+ */
+internal fun phraseMessage(heading: String): String = "Change \"$heading\" by phrase"
 
 internal fun priorityMessage(heading: String, priority: String?): String = when (priority) {
     null -> "Drop the priority of \"$heading\""

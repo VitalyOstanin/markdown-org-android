@@ -596,7 +596,7 @@ pub(crate) fn is_time(field: &str) -> bool {
 
 /// Whether the token is a repeater: org-mode's three kinds, and the units the
 /// extractor reads.
-fn is_repeater(field: &str) -> bool {
+pub(crate) fn is_repeater(field: &str) -> bool {
     let Some(rest) = field
         .strip_prefix("++")
         .or_else(|| field.strip_prefix(".+"))

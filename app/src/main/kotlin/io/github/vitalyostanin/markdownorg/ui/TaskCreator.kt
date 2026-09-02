@@ -116,6 +116,11 @@ class NewTaskState(collectionId: String) {
         date = day?.toString(),
         time = time?.format(DateTimeFormatter.ofPattern("HH:mm")),
         repeater = repeater,
+        // Neither belongs to a task being written: the keyword of a new one is
+        // TODO whatever the phrase says, and a field of an entry that does not
+        // exist yet cannot be emptied.
+        status = null,
+        cleared = emptyList(),
     )
 
     /**

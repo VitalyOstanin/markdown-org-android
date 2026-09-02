@@ -207,6 +207,14 @@ reasoning.
   as text of the setting it belongs to. See
   [ADR-0041](docs/adr/0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md).
 
+- An entry that exists is changed by a sentence as well: the sheet a tap on a
+  row opens begins with a phrase field and a microphone, above the buttons. The
+  whole sentence is one bridge operation, `apply_phrase`, so three changes are
+  one write, one commit and one line of undo. A phrase the rules did not
+  consume in full changes nothing and the leftover is named on screen; so is a
+  phrase that named no field. See
+  [ADR-0042](docs/adr/0042-an-entry-is-changed-by-one-phrase-in-one-write.md).
+
 ## Working on the core
 
 - Tests come with the change, not after it. The core has unit tests beside the

@@ -269,6 +269,17 @@ A task can be composed out of a sentence rather than field by field:
   is still what writes it. See
   [Saying a task in one phrase](#saying-a-task-in-one-phrase).
 
+An entry that already exists is changed the same way:
+
+- `applyPhrase(target, draft)` — apply the fields a phrase named to the entry
+  `target` names, in one write and one commit. The keyword, the priority, the
+  day, the hour and the repeater all at once, and a field the phrase said to
+  empty is emptied; the operations underneath are the ones the buttons use, so
+  a phrase cannot write a line no button could. A draft whose heading is not
+  empty is refused: text the rules did not consume has nowhere to go in an
+  entry that has a heading already. See
+  [ADR-0042](docs/adr/0042-an-entry-is-changed-by-one-phrase-in-one-write.md).
+
 A group of tasks is answered in one move rather than one at a time:
 
 - `applyToGroup(dir, targets, action, today)` — move every task of the group

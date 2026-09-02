@@ -181,23 +181,34 @@ pub fn set_priority(
     }
 
     edit_heading(target, |line, heading| {
-        match (&heading.priority, priority.as_deref()) {
-            (Some(token), Some(value)) => splice(line, token.range.clone(), &format!("[#{value}]")),
-            (Some(token), None) => {
-                let gap_end = skip_spaces(line, token.range.end);
-                splice(line, token.range.start..gap_end, "")
-            }
-            // The cookie follows the keyword and precedes the title.
-            (None, Some(value)) => {
-                let at = heading.status.as_ref().map_or_else(
-                    || body_start(line, heading.level),
-                    |token| skip_spaces(line, token.range.end),
-                );
-                splice(line, at..at, &format!("[#{value}] "))
-            }
-            (None, None) => line.to_string(),
-        }
+        with_priority(line, heading, priority.as_deref())
     })
+}
+
+/// The heading line with its priority cookie set to `priority`, or cleared by
+/// `None`.
+///
+/// Shared with the phrase editor, which sets the cookie as one part of a
+/// larger edit rather than through [`set_priority`]. The value is expected to
+/// be a valid priority already: the caller checks it before the file is
+/// opened, so an invalid one cannot leave a half-written line behind.
+pub(crate) fn with_priority(line: &str, heading: &HeadingLine, priority: Option<&str>) -> String {
+    match (&heading.priority, priority) {
+        (Some(token), Some(value)) => splice(line, token.range.clone(), &format!("[#{value}]")),
+        (Some(token), None) => {
+            let gap_end = skip_spaces(line, token.range.end);
+            splice(line, token.range.start..gap_end, "")
+        }
+        // The cookie follows the keyword and precedes the title.
+        (None, Some(value)) => {
+            let at = heading.status.as_ref().map_or_else(
+                || body_start(line, heading.level),
+                |token| skip_spaces(line, token.range.end),
+            );
+            splice(line, at..at, &format!("[#{value}] "))
+        }
+        (None, None) => line.to_string(),
+    }
 }
 
 /// Read the file, hand the heading line to `rewrite`, write the result back.

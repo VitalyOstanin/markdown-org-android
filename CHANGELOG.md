@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An entry is changed by saying what to change. The sheet a tap on a row opens
+  now begins with a field and a microphone: "перенеси на пятницу в 16:00 и
+  сделай срочной" moves the day, the hour and the priority at once, where the
+  buttons under it are three taps and two dialogs of choice. A phrase can also
+  say the keyword — "отметь выполненной", "в работу" — and empty a field:
+  "убрать дату", "убрать время", "без повтора", "без приоритета". One write,
+  one commit and one undo for the whole sentence.
+  A word the rules do not know changes nothing at all and is named instead:
+  applying the half that was understood would move a field nobody meant to
+  name. The rules are the core's, and read both grammars whatever language the
+  phone is set to.
+
 - A mark beside the name of a setting, opening a screen about that one setting:
   what it does, why the answer matters, and one case told with names and
   numbers — which token scope a push needs, what a branch of the phone's own

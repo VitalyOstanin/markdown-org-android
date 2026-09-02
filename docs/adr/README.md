@@ -77,6 +77,7 @@ so a decision can be followed across the three repositories.
 | 0039 | [The phone does the listening, and the field holds what it heard](0039-the-phone-listens-and-the-field-holds-what-it-heard.md) | Accepted |
 | 0040 | [An entry carries the moment it was written at, and the caller names it](0040-an-entry-carries-the-moment-it-was-written-at.md) | Accepted |
 | 0041 | [A setting explains itself on a screen behind a mark, and the obvious ones say nothing](0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md) | Accepted |
+| 0042 | [An entry is changed by one phrase, in one write](0042-an-entry-is-changed-by-one-phrase-in-one-write.md) | Accepted |
 
 ## Adding a new ADR
 

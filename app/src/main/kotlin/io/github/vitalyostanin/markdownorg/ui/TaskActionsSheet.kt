@@ -12,9 +12,16 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -77,6 +84,15 @@ sealed interface TaskAction {
     ) : TaskAction
 
     /**
+     * Change several fields at once by saying what to change.
+     *
+     * [said] is the sentence as it was typed or heard; the rules that read it
+     * live in the core, and what they make of it is applied to this entry in
+     * one write.
+     */
+    data class Phrase(val said: String) : TaskAction
+
+    /**
      * Carry the whole entry into another file of the same collection.
      *
      * [file] is relative to that collection's directory, which is how every
@@ -117,6 +133,7 @@ fun TaskActionsSheet(
     move: MoveTargets = MoveTargets(),
     onEdit: (() -> Unit)? = null,
     onOpenExternally: (() -> Unit)? = null,
+    dictation: Dictation = rememberSystemDictation(),
 ) {
     // Opened whole rather than half way up. What the sheet holds depends on the
     // task -- a dated one carries two rows of date actions on top of the rest --
@@ -139,32 +156,12 @@ fun TaskActionsSheet(
                 .padding(bottom = Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                text = task.heading,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.testTag("action-heading"),
-            )
-            // The date the row could only count towards. A row says how far
-            // off the day is -- "in 1 day" -- and the day itself was nowhere
-            // in the sheet the tap opens, so a reader who wanted the date had
-            // to put the sheet away and press the row again, long. The wording
-            // is the one the long press uses, so the two agree.
-            taskDateLine(task)?.let { line ->
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("action-date"),
-                )
-            }
-            HintTooltip(stringResource(R.string.hint_action_where)) {
-                Text(
-                    text = "${task.file}:${task.line}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            }
+            SheetHeader(task)
+
+            // Ahead of the buttons because it can say what several of them
+            // say at once: "перенеси на пятницу в 16:00 и сделай срочной" is
+            // three of the actions below, in one sentence and one write.
+            SpokenEdit(onAction, dictation)
 
             CompletionAction(task, onAction)
 
@@ -221,6 +218,113 @@ fun TaskActionsSheet(
                     hint = stringResource(R.string.hint_action_open_externally),
                     onClick = onOpenExternally,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * What the sheet says the entry is: its heading, the day it stands on and
+ * where in the notes it lives.
+ *
+ * The date is there because the row a tap comes from counts days -- "in 1
+ * day" -- and never names the day itself; a reader who wanted it had to put
+ * the sheet away and press the row again, long. The wording is the one that
+ * long press uses, so the two agree.
+ */
+@Composable
+private fun SheetHeader(task: Task) {
+    Text(
+        text = task.heading,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.testTag("action-heading"),
+    )
+    taskDateLine(task)?.let { line ->
+        Text(
+            text = line,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("action-date"),
+        )
+    }
+    HintTooltip(stringResource(R.string.hint_action_where)) {
+        Text(
+            text = "${task.file}:${task.line}",
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
+}
+
+/**
+ * The sentence that changes the entry, typed or spoken.
+ *
+ * The same shape the creation screen uses for a phrase: a field, a button that
+ * listens, and a button that hands what is in the field to the rules. What was
+ * heard joins what is already there rather than replacing it, so a sentence
+ * said in two goes is one sentence.
+ */
+@Composable
+private fun SpokenEdit(onAction: (TaskAction) -> Unit, dictation: Dictation) {
+    var phrase by rememberSaveable { mutableStateOf("") }
+    // Said once the phone has answered that it cannot listen, and kept until
+    // the next attempt: a line under the field rather than a message that goes
+    // away on its own, because what to do instead is to type here.
+    var unheard by rememberSaveable { mutableStateOf(false) }
+    val prompt = stringResource(R.string.action_phrase_prompt)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        OutlinedTextField(
+            value = phrase,
+            onValueChange = { phrase = it },
+            label = { Text(stringResource(R.string.action_phrase)) },
+            supportingText = if (unheard) {
+                { Text(stringResource(R.string.create_phrase_unheard)) }
+            } else {
+                null
+            },
+            isError = unheard,
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .withoutAutofill()
+                .testTag("action-phrase"),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HintTooltip(stringResource(R.string.hint_action_phrase_speak)) {
+                TextButton(
+                    onClick = {
+                        unheard = !dictation.listen(prompt) { heard ->
+                            phrase = listOf(phrase.trim(), heard.trim())
+                                .filter { it.isNotEmpty() }
+                                .joinToString(" ")
+                        }
+                    },
+                    modifier = Modifier.testTag("action-phrase-speak"),
+                ) {
+                    Text(stringResource(R.string.action_phrase_speak))
+                }
+            }
+            HintTooltip(stringResource(R.string.hint_action_phrase)) {
+                TextButton(
+                    onClick = {
+                        onAction(TaskAction.Phrase(phrase))
+                        phrase = ""
+                        unheard = false
+                    },
+                    enabled = phrase.isNotBlank(),
+                    modifier = Modifier.testTag("action-phrase-apply"),
+                ) {
+                    Text(stringResource(R.string.action_phrase_apply))
+                }
             }
         }
     }

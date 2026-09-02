@@ -30,7 +30,7 @@ use markdown_org_extract::{
 
 use crate::document::Document;
 use crate::edit::{splice, with_status, write_line, EditError, EditOutcome, EditTarget};
-use crate::occurrence::{fields, is_time, parse_time};
+use crate::occurrence::{fields, is_repeater, is_time, parse_time};
 use crate::undo::FileRollback;
 use crate::TaskType;
 
@@ -44,7 +44,7 @@ pub enum PlanningKeyword {
 }
 
 impl PlanningKeyword {
-    fn token(self) -> &'static str {
+    pub(crate) fn token(self) -> &'static str {
         match self {
             PlanningKeyword::Scheduled => "SCHEDULED:",
             PlanningKeyword::Deadline => "DEADLINE:",
@@ -233,7 +233,7 @@ pub fn set_planning_time(
 /// replacement of a different width cannot move the range the next one was
 /// found at. Removing takes the whitespace ahead of the token with it, which
 /// is what keeps a line from coming back with two spaces where it had one.
-fn rewrite_time(line: &str, parts: &TimestampParts, time: Option<&str>) -> String {
+pub(crate) fn rewrite_time(line: &str, parts: &TimestampParts, time: Option<&str>) -> String {
     let fields = fields(line, parts.whole.clone());
     let written = fields
         .iter()
@@ -253,6 +253,58 @@ fn rewrite_time(line: &str, parts: &TimestampParts, time: Option<&str>) -> Strin
             // A time never stands first — the date does — so there is always a
             // token before it, and the check is for the indexing rather than
             // for the file.
+            let from = if at > 0 {
+                fields[at - 1].end
+            } else {
+                fields[at].start
+            };
+            (from..fields[at].end, String::new())
+        }
+        (None, None) => return line.to_string(),
+    };
+
+    splice(line, edit.0, &edit.1)
+}
+
+/// The line with its repeater replaced, added or taken off.
+///
+/// Written the same way [`rewrite_time`] writes an hour, and for the same
+/// reason: the token is located inside the brackets, so a replacement of a
+/// different width cannot move what comes after it. A repeater that was not
+/// there goes after the hour — or after the weekday, or the date — which puts
+/// it ahead of a warning cookie, where org-mode reads it from.
+pub(crate) fn rewrite_repeater(
+    line: &str,
+    parts: &TimestampParts,
+    repeater: Option<&str>,
+) -> String {
+    let fields = fields(line, parts.whole.clone());
+    let written = fields
+        .iter()
+        .position(|field| is_repeater(&line[field.clone()]));
+
+    let edit = match (repeater, written) {
+        (Some(repeater), Some(at)) => (fields[at].clone(), repeater.to_string()),
+        (Some(repeater), None) => {
+            let after = fields
+                .iter()
+                .rev()
+                .find(|field| is_time(&line[(*field).clone()]))
+                .map(|field| field.end)
+                .unwrap_or_else(|| {
+                    parts
+                        .weekday
+                        .clone()
+                        .unwrap_or_else(|| parts.date.clone())
+                        .end
+                });
+            (after..after, format!(" {repeater}"))
+        }
+        (None, Some(at)) => {
+            // The whitespace ahead of the token goes with it: taken on its own
+            // it would leave two spaces where there was one. A repeater never
+            // stands first — the date does — so there is always a token before
+            // it, and the check is for the indexing rather than for the file.
             let from = if at > 0 {
                 fields[at - 1].end
             } else {
@@ -662,7 +714,7 @@ fn remove_planning(
 
 /// Whether the line holds the keyword, its timestamp and nothing else worth
 /// keeping -- indentation and the inline-code framing aside.
-fn holds_only(line: &str, keyword: PlanningKeyword, parts: &TimestampParts) -> bool {
+pub(crate) fn holds_only(line: &str, keyword: PlanningKeyword, parts: &TimestampParts) -> bool {
     let bare = bare_start(line);
     let after_keyword = line.len() - bare.len() + keyword.token().len();
 
