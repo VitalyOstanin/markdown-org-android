@@ -708,7 +708,7 @@
     "usedBy": [
       {
         "name": "markdown-org-extract",
-        "version": "0.20.0",
+        "version": "0.21.0",
         "url": "https://github.com/VitalyOstanin/markdown-org-extract"
       }
     ]
