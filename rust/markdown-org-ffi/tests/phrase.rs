@@ -264,8 +264,8 @@ fn a_phrase_that_named_no_field_is_refused() {
 fn a_phrase_that_says_what_the_entry_says_writes_nothing() {
     let vault = vault(ENTRY);
 
-    let outcome = apply_phrase(target(vault.path(), 1, "Позвонить врачу"), said("в работу"))
-        .expect("edit");
+    let outcome =
+        apply_phrase(target(vault.path(), 1, "Позвонить врачу"), said("в работу")).expect("edit");
 
     assert!(!outcome.changed);
     assert!(outcome.rollback.is_none(), "nothing to take back");
@@ -303,7 +303,10 @@ fn the_fields_a_phrase_emptied_travel_back_in_the_draft() {
     // a second phrase would otherwise lose it.
     let draft = said("убрать дату и без приоритета");
 
-    assert_eq!(draft.cleared, vec![PhraseField::Date, PhraseField::Priority]);
+    assert_eq!(
+        draft.cleared,
+        vec![PhraseField::Date, PhraseField::Priority]
+    );
     assert!(draft.date.is_none());
     assert!(draft.priority.is_none());
 }
