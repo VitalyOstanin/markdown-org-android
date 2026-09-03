@@ -11,16 +11,19 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
+import io.github.vitalyostanin.markdownorg.core.ClosingOutcome
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsStore
 import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
 import io.github.vitalyostanin.markdownorg.core.ReminderChannels
 import io.github.vitalyostanin.markdownorg.core.ReminderEntry
 import io.github.vitalyostanin.markdownorg.core.ReminderIntent
+import io.github.vitalyostanin.markdownorg.core.ReminderNotifications
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.RunningWork
 import io.github.vitalyostanin.markdownorg.core.TimedReminder
 import io.github.vitalyostanin.markdownorg.core.byRoot
+import io.github.vitalyostanin.markdownorg.core.closingOutcome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -156,7 +159,7 @@ class ReminderCompletionService : Service() {
         work.started(startId)
         scope.launch {
             try {
-                complete(reminder.entry, reminder.starts.toLocalDate())
+                complete(reminder)
             } finally {
                 // Only when nothing else is still running: the piece that
                 // finishes first would otherwise take the foreground state
@@ -189,21 +192,35 @@ class ReminderCompletionService : Service() {
      * the plan and the press. An entry no longer where it was said to be is
      * one this does nothing about — there is no screen here to ask.
      */
-    private suspend fun complete(entry: ReminderEntry, day: LocalDate) {
+    private suspend fun complete(reminder: TimedReminder) {
         val scheduler = ReminderScheduler.of(this)
-        val read = scheduler.read(day).onFailure { failure ->
+        val read = scheduler.read(reminder.starts.toLocalDate()).onFailure { failure ->
             Log.w(TAG, "the day the reminder was for could not be read", failure)
         }
-        val task = read.getOrNull()?.let { holding -> holding.find(entry) }
-
-        if (task == null) {
-            Log.i(TAG, "the entry was no longer where the reminder said it was")
-        } else {
-            val collections = DeviceCollections(this, NotesCollectionsStore(this).collections)
-
-            collections.byRoot(task.root)?.editor
-                ?.complete(task, LocalDate.now())
+        val task = read.getOrNull()?.let { holding -> holding.find(reminder.entry) }
+        val editor = task?.let { found ->
+            DeviceCollections(this, NotesCollectionsStore(this).collections)
+                .byRoot(found.root)
+                ?.editor
+        }
+        val written = task?.let { found ->
+            editor?.complete(found, LocalDate.now())
                 ?.onFailure { failed -> Log.w(TAG, "the entry could not be closed", failed) }
+        }
+        val outcome = closingOutcome(
+            read = read,
+            found = task != null,
+            inACollection = editor != null,
+            written = written,
+        )
+
+        if (outcome != ClosingOutcome.CLOSED) {
+            // In place of the notification the press took down. Every failure
+            // here otherwise looks like the success — the reminder gone, the
+            // entry still open — and is found out by opening the agenda days
+            // later.
+            Log.w(TAG, "the reminder was answered and the entry is still open: $outcome")
+            ReminderNotifications.showNotClosed(this, reminder, outcome)
         }
         scheduler.replan()
             .onFailure { failure -> Log.w(TAG, "the plan was not made again", failure) }
@@ -237,7 +254,17 @@ class ReminderCompletionService : Service() {
             // because ending the process would be a crash out of a button
             // press.
             runCatching { context.startForegroundService(intent) }
-                .onFailure { refused -> Log.w(TAG, "the closing service was refused", refused) }
+                .onFailure { refused ->
+                    Log.w(TAG, "the closing service was refused", refused)
+                    // The reminder has already been taken down by the press,
+                    // and nothing was even started: said here, because there
+                    // is no service to say it.
+                    ReminderNotifications.showNotClosed(
+                        context,
+                        reminder,
+                        ClosingOutcome.REFUSED,
+                    )
+                }
         }
 
         /** The notification the service itself stands behind. */

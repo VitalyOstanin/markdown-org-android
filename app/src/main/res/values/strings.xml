@@ -90,6 +90,7 @@
     <string name="phrase_changes">Changed: %1$s</string>
     <!-- The note moved on between the edit and the undo, so it stands as it is. -->
     <string name="agenda_edit_undo_skipped">The note had changed and was left as it is</string>
+    <string name="agenda_edit_undo_partial">Part of the edit went back; the rest had changed and was left as it is</string>
     <!-- A task was written from nothing, and the same line offers to take it out again. -->
     <string name="agenda_create_done">The task has been written</string>
     <string name="agenda_dictate">Say a task</string>
@@ -226,6 +227,11 @@
     <!-- Whether the reader is told what is coming, and on what terms. -->
     <string name="settings_reminders">Reminders</string>
     <string name="reminders_plan_failed">The reminders were not planned again</string>
+    <string name="reminder_close_unreadable">The notes could not be read, so the entry is still open</string>
+    <string name="reminder_close_gone">The entry is no longer where the reminder said it was</string>
+    <string name="reminder_close_collection_gone">The collection the entry was in is no longer on this device</string>
+    <string name="reminder_close_not_written">The entry could not be written, so it is still open</string>
+    <string name="reminder_close_refused">The entry could not be closed from the notification</string>
     <string name="settings_reminders_enabled">Tell me what is coming</string>
     <string name="settings_reminders_enabled_hint">An entry held at an hour is announced ahead of it; a day with dated entries and deadlines is announced once, in a digest.</string>
     <string name="settings_reminders_lead">Announce a timed entry</string>

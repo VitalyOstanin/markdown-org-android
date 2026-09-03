@@ -1406,6 +1406,16 @@ class AgendaViewModel(
                         _editIssue.value = SyncMessage(R.string.agenda_edit_undo_skipped)
                         return@fold
                     }
+                    val left = undone.outcome.skipped + undone.outcome.failed
+                    if (left.isNotEmpty()) {
+                        // An undone move puts two files back — the note the
+                        // entry left and the one it arrived in. One of them
+                        // returning and the other not leaves the entry in both
+                        // notes or in neither, which is worth a line rather
+                        // than the silence of a successful undo.
+                        Log.w(TAG, "part of the edit was not put back: $left")
+                        _editIssue.value = SyncMessage(R.string.agenda_edit_undo_partial)
+                    }
 
                     // Which files went back is known, so the agenda is rebuilt
                     // off a re-read of those notes rather than a walk of the

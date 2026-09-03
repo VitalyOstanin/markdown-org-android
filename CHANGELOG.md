@@ -36,6 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds it, and the count the alarms are cancelled by is kept in step with what
   the platform holds.
 
+- The "Готово" button on a reminder says when it did not work. The
+  notification goes down as the button is pressed — one that stays up reads as
+  a press that did nothing — and everything after that used to be silent: an
+  entry moved on another device, a collection removed since the reminder was
+  planned, a note that could not be written, a service the platform would not
+  start. All four looked exactly like success, and the entry left open was
+  found days later by opening the agenda. A notice now takes the reminder's
+  place, in its own words for each of them and opening the entry it is about.
+
+- An undo that only half went back is no longer reported as done. Undoing a
+  move puts two notes back — the one the entry left and the one it arrived in
+  — and one of them returning while the other had changed left the entry in
+  both notes or in neither, under a line saying the edit had been taken back.
+  The screen now says that part of it stayed as it was, as it already did for
+  a group action.
+
 - Reminders that stop arriving now leave a trace. The part of the application
   that has no screen — the receiver woken by an alarm, the one woken by a
   restart, the service behind the "Готово" button — asked for a plan and threw

@@ -1642,6 +1642,40 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun anUndoneMoveThatOnlyHalfWentBackSaysSo() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        // A move writes two files — the one the entry left and the one it
+        // arrived in — so its undo has two to put back.
+        writer.outcome = Result.success(
+            EditReport(
+                committed = true,
+                rollback = listOf(rollback("notes.md"), rollback("inbox.md")),
+            ),
+        )
+        writer.undoOutcome = Result.success(
+            UndoReport(
+                outcome = RevertOutcome(
+                    restored = listOf("notes.md"),
+                    skipped = emptyList(),
+                    failed = listOf("inbox.md"),
+                ),
+                report = EditReport(committed = true),
+            ),
+        )
+        model.apply(task(), TaskAction.Complete)
+        advanceUntilIdle()
+
+        model.undoEdit()
+        advanceUntilIdle()
+
+        // One file back and the other not is the entry standing in both notes
+        // or in neither — reported as an undo that worked, it is a state the
+        // reader has no reason to go looking for.
+        assertEquals(R.string.agenda_edit_undo_partial, model.editIssue.value?.text)
+    }
+
+    @Test
     fun aBandOfNotesWithUnnamedFilesIsRefusedBeforeItReachesTheCore() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()

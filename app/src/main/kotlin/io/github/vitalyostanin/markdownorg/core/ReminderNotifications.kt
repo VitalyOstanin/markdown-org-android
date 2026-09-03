@@ -58,6 +58,35 @@ object ReminderNotifications {
     }
 
     /**
+     * The reminder that was answered and could not be closed.
+     *
+     * Raised in place of the one the press took down, under the same number,
+     * so the drawer holds one line about the entry rather than two. Without
+     * it every failure looks like the success: the reminder is gone and the
+     * entry is still open, which is found out days later by opening the
+     * agenda.
+     *
+     * No buttons on it. The one that was pressed did not work, and offering
+     * it again from here would ask the reader to find out by pressing whether
+     * this time is different; the notification opens the entry instead.
+     */
+    fun showNotClosed(context: Context, reminder: TimedReminder, outcome: ClosingOutcome) {
+        val said = outcome.said ?: return
+
+        raise(
+            context = context,
+            id = idOf(reminder.entry),
+            channel = ReminderChannels.TIMED,
+            title = reminder.entry.heading,
+            text = context.getString(said),
+            target = AgendaTarget(
+                day = reminder.starts.toLocalDate(),
+                entry = reminder.entry,
+            ),
+        )
+    }
+
+    /**
      * What the day holds, or nothing when it holds none of it.
      *
      * A digest of three zeroes is a notification saying there is nothing to
