@@ -45,6 +45,7 @@
 use std::ops::Range;
 
 use chrono::{NaiveDate, NaiveTime};
+use markdown_org_extract::timestamp::parse_repeater;
 use markdown_org_extract::{parse_heading_line, TimestampParts};
 
 use crate::create::{append, opening};
@@ -594,19 +595,13 @@ pub(crate) fn is_time(field: &str) -> bool {
         .all(|half| NaiveTime::parse_from_str(half, "%H:%M").is_ok())
 }
 
-/// Whether the token is a repeater: org-mode's three kinds, and the units the
-/// extractor reads.
+/// Whether the token is a repeater.
+///
+/// Asked of the extractor rather than answered here: a second reading of the
+/// same syntax is a second set of answers to keep in step, and this one was
+/// already out of step -- it took `+0d` for a repeater the extractor refuses,
+/// missed the working-day `+1wd` it reads, and cut the unit off by byte,
+/// which a unit typed in another alphabet is not a whole number of.
 pub(crate) fn is_repeater(field: &str) -> bool {
-    let Some(rest) = field
-        .strip_prefix("++")
-        .or_else(|| field.strip_prefix(".+"))
-        .or_else(|| field.strip_prefix('+'))
-    else {
-        return false;
-    };
-
-    let (value, unit) = rest.split_at(rest.len().saturating_sub(1));
-    !value.is_empty()
-        && value.chars().all(|c| c.is_ascii_digit())
-        && matches!(unit, "h" | "d" | "w" | "m" | "y")
+    parse_repeater(field).is_some()
 }

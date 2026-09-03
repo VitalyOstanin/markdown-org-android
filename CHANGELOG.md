@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A repeater is read the one way the extractor reads it. The app kept a second
+  reading of the same syntax for the token inside a timestamp, and the two had
+  drifted apart: it took the working-day `+1wd` for no repeater at all, so an
+  occurrence moved out of such a series carried the series' own repeat into the
+  entry that replaces it, and it cut the unit off the step by byte, which a
+  unit typed on a keyboard left in Russian is not a whole number of — a phrase
+  said over an entry holding `+1н` took the whole edit down. The question is
+  now put to the extractor.
+
 - Two things happening at once no longer cost a reminder or a write. A fetch
   landing while an edit is being written, or two "Готово" buttons answered a
   second apart, used to run two walks over one working copy: whichever finished

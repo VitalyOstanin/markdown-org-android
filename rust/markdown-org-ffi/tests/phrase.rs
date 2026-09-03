@@ -310,3 +310,22 @@ fn the_fields_a_phrase_emptied_travel_back_in_the_draft() {
     assert!(draft.date.is_none());
     assert!(draft.priority.is_none());
 }
+
+#[test]
+fn a_repeater_is_written_beside_a_step_whose_unit_the_format_does_not_read() {
+    // "+1н" is a Russian keyboard's "+1w": not a repeater, so the phrase adds
+    // one instead of replacing it. The check for a repeater used to cut the
+    // token between the bytes of the letter and take the edit down with it.
+    let vault = vault("# TODO Позвонить врачу\n`SCHEDULED: <2026-09-01 Вт 15:00 +1н>`\n");
+
+    apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("каждую неделю"),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Позвонить врачу\n`SCHEDULED: <2026-09-01 Вт 15:00 +1w +1н>`\n"
+    );
+}

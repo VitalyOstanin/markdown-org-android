@@ -395,3 +395,26 @@ fn a_moved_occurrence_can_be_put_back() {
     assert_eq!(reverted.restored, ["notes.md"]);
     assert_eq!(body(vault.path()), SERIES);
 }
+
+#[test]
+fn a_working_day_series_leaves_its_repeater_behind_too() {
+    // The extractor reads `+1wd` as a repeater, and the replacement must come
+    // out of the series the same way any other one does: this is the unit
+    // written with two letters, which a check of its own reads as none.
+    let vault = vault("# TODO Standup\n`SCHEDULED: <2026-08-06 Thu 09:00 +1wd>`\n");
+
+    move_occurrence(
+        target(vault.path(), 1, "Standup"),
+        "2026-08-07".to_string(),
+        "2026-08-10".to_string(),
+        Some("10:00".to_string()),
+        "9f2c".to_string(),
+    )
+    .expect("move");
+
+    assert!(
+        body(vault.path()).contains("`SCHEDULED: <2026-08-10 Mon 10:00>`"),
+        "{}",
+        body(vault.path())
+    );
+}
