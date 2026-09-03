@@ -39,7 +39,7 @@ object AgendaAddress {
      */
     fun unpack(intent: Intent?): AgendaTarget? {
         val day = intent?.getStringExtra(EXTRA_DAY)
-            ?.let { text -> runCatching { LocalDate.parse(text) }.getOrNull() }
+            ?.let(::statedDate)
             ?: return null
         val file = intent.getStringExtra(EXTRA_FILE)
         val heading = intent.getStringExtra(EXTRA_HEADING)

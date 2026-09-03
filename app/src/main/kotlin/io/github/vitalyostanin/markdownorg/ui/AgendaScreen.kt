@@ -72,6 +72,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.AssumedDay
 import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.ui.theme.LocalAgendaColors
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
@@ -317,11 +318,16 @@ private fun EditNotice(
     // names several fields at once, and without this the reader has to open
     // the note to see which of them were heard.
     val listed = editResult?.changes?.takeIf { it.isNotEmpty() }?.let { phraseChangesText(it) }
+    // Why the entry sits on a day nobody named: an hour said on its own goes
+    // to today or to tomorrow depending on the minute it was said at, and the
+    // entry alone does not say which of the two happened.
+    val chosen = editResult?.assumedDay?.let { assumedDayText(it) }
     LaunchedEffect(editResult) {
         if (editResult != null) {
             val done = if (editResult.created) created else edited
+            val lines = listOfNotNull(done, listed, chosen)
             val answered = snackbar.showSnackbar(
-                message = listed?.let { "$done\n$it" } ?: done,
+                message = lines.joinToString("\n"),
                 actionLabel = undo,
                 withDismissAction = true,
             )
@@ -371,6 +377,27 @@ private fun phraseChangesText(changes: List<PhraseChange>): String {
     }
 
     return stringResource(R.string.phrase_changes, named.joinToString(", "))
+}
+
+/**
+ * The day a created task was given, and the grounds it was given it on.
+ *
+ * Both are said, because the grounds are what makes the day right: an hour of
+ * three in the afternoon said at four is tomorrow's three, and an entry shown
+ * on tomorrow with no word about it reads as the hour having been misheard.
+ */
+@Composable
+private fun assumedDayText(assumed: AssumedDay): String {
+    val locale = LocalLocale.current.platformLocale
+    val use24Hour = use24Hour()
+    val day = statedDateLabel(assumed.date.toString(), locale)
+    val hour = assumed.hour?.let { timeLabel(it, locale, use24Hour) }
+
+    return when {
+        hour == null -> stringResource(R.string.create_day_assumed_repeat, day)
+        assumed.passed -> stringResource(R.string.create_day_assumed_tomorrow, hour, day)
+        else -> stringResource(R.string.create_day_assumed_today, hour, day)
+    }
 }
 
 /** One value of one field, written the way the reader reads that kind of value. */

@@ -27,6 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An hour written with one digit no longer costs the reminder. A note may
+  hold `9:00` -- org-mode writes it that way, and so does anyone typing a
+  timestamp by hand -- and the plan read the hour strictly, dropped what it
+  could not read, and said nothing: the notification simply never came. The
+  date and the hour a note states are now read in one place, leniently enough
+  for the shorter hour and strictly enough that `2026-02-30` is not a date;
+  that also takes down the crash a day the calendar does not have caused under
+  the sheet of date actions, where the reading had no guard at all.
+
+- A task said with an hour and no day is written for the day that hour next
+  comes round on. The rules read "позвонить врачу в 15:00" as an hour and
+  nothing else, a planning line cannot hold an hour without a day, and the
+  hour was dropped on the way to the file -- the entry arrived as a bare
+  heading, with no screen in between for the loss to show on. It is written
+  for today while the hour is still ahead and for tomorrow once it has gone
+  by; a repeat said without a day starts today. The line that says the task
+  was written says which day it was given and on what grounds.
+
 - A repeater is read the one way the extractor reads it. The app kept a second
   reading of the same syntax for the token inside a timestamp, and the two had
   drifted apart: it took the working-day `+1wd` for no repeater at all, so an

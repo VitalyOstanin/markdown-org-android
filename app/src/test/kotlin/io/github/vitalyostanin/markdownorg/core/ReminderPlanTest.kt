@@ -224,6 +224,26 @@ class ReminderPlanTest {
         assertEquals(at("08:15"), plan.first().at)
     }
 
+    /**
+     * The extractor keeps the hour as the note writes it, and a note may write
+     * it with one digit. The plan used to drop such an entry without a word:
+     * the strict reading threw, the failure was swallowed, and the reminder
+     * simply never came.
+     */
+    @Test
+    fun `an hour written with one digit is still announced`() {
+        val plan = planReminders(
+            days = listOf(day(date = TODAY, scheduledTimed = listOf(task(time = "9:00")))),
+            choices = on(),
+            now = at("07:00"),
+        )
+
+        val timed = plan.filterIsInstance<TimedReminder>()
+        assertEquals(1, timed.size)
+        assertEquals(at("08:45"), timed.single().at)
+        assertEquals(at("09:00"), timed.single().starts)
+    }
+
     private fun on(
         leadMinutes: Int = DEFAULT_LEAD_MINUTES,
         alsoAtStart: Boolean = false,

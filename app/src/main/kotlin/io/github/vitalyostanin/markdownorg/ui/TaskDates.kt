@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.statedDate
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -100,7 +101,7 @@ internal fun TaskDates(task: Task, weekStart: WeekStart, onAction: (TaskAction) 
             // where it is rather than in whatever month today falls in. A task
             // with no date of its own opens on the current month with nothing
             // selected, and the calendar cannot be confirmed until a day is.
-            initial = task.timestampDate?.let(LocalDate::parse),
+            initial = statedDate(task.timestampDate),
             weekStart = weekStart,
             onDismiss = { picking = null },
             onPicked = { date ->

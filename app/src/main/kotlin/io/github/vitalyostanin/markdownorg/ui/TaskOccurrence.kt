@@ -9,6 +9,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.statedDate
+import io.github.vitalyostanin.markdownorg.core.statedTime
 import uniffi.markdown_org_ffi.Task
 import java.time.LocalDate
 import java.time.LocalTime
@@ -104,9 +106,8 @@ private fun Task.occurrence(): LocalDate? {
         return null
     }
 
-    return timestampDate?.let { date -> runCatching { LocalDate.parse(date) }.getOrNull() }
+    return statedDate(timestampDate)
 }
 
 /** The hour the entry is held at, where it names one. */
-internal fun Task.startTime(): LocalTime? =
-    timestampTime?.let { time -> runCatching { LocalTime.parse(time) }.getOrNull() }
+internal fun Task.startTime(): LocalTime? = statedTime(timestampTime)

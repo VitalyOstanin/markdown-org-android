@@ -93,6 +93,14 @@
     <string name="agenda_edit_undo_partial">Part of the edit went back; the rest had changed and was left as it is</string>
     <!-- A task was written from nothing, and the same line offers to take it out again. -->
     <string name="agenda_create_done">The task has been written</string>
+    <!--
+      A task was said with an hour or a repeat and no day, so it was given
+      one: the next time that hour comes round, which the line states along
+      with the day itself.
+    -->
+    <string name="create_day_assumed_today">No day was said: %1$s is still ahead, so this is today, %2$s</string>
+    <string name="create_day_assumed_tomorrow">No day was said: %1$s has gone by today, so this is tomorrow, %2$s</string>
+    <string name="create_day_assumed_repeat">No day was said, so the repeat starts today, %1$s</string>
     <string name="agenda_dictate">Say a task</string>
     <string name="agenda_dictate_failed">What was said could not be read</string>
     <!-- Heading of the band, drawn under every day of a week or a month. -->

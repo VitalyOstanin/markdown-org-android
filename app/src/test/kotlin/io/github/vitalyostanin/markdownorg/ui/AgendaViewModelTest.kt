@@ -1483,6 +1483,80 @@ class AgendaViewModelTest {
         assertEquals(listOf("inbox.md"), loader.reread)
     }
 
+    /**
+     * The rules of the phrase set an hour without a day, and a planning line
+     * cannot hold one. The hour used to be dropped between the draft and the
+     * file; it is given the next day that hour comes round on instead.
+     */
+    @Test
+    fun anHourSaidWithNoDayIsWrittenForTheDayItStillComesRoundOn() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(15, 0)))
+        advanceUntilIdle()
+
+        // Noon on this clock, so three in the afternoon is still ahead.
+        assertEquals(NOON.toLocalDate(), writer.created?.second?.date)
+        assertEquals(LocalTime.of(15, 0), writer.created?.second?.time)
+    }
+
+    @Test
+    fun anHourAlreadyPastIsWrittenForTomorrow() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)))
+        advanceUntilIdle()
+
+        assertEquals(NOON.toLocalDate().plusDays(1), writer.created?.second?.date)
+    }
+
+    /**
+     * The day was chosen rather than asked for, so the line that says the task
+     * was written says which day and on what grounds -- an entry on tomorrow
+     * with no word about it reads as the hour having been misheard.
+     */
+    @Test
+    fun theLineOnScreenSaysWhichDayWasChosenAndWhy() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        writer.outcome = Result.success(
+            EditReport(committed = true, rollback = listOf(rollback("inbox.md"))),
+        )
+
+        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)))
+        advanceUntilIdle()
+
+        val assumed = model.editResult.value?.assumedDay
+        assertEquals(NOON.toLocalDate().plusDays(1), assumed?.date)
+        assertEquals(LocalTime.of(9, 0), assumed?.hour)
+        assertEquals(true, assumed?.passed)
+    }
+
+    /** A task that named its own day is written for it, and nothing is said. */
+    @Test
+    fun aDayThatWasNamedIsLeftAloneAndNotExplained() = runTest(dispatcher) {
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+        writer.outcome = Result.success(
+            EditReport(committed = true, rollback = listOf(rollback("inbox.md"))),
+        )
+
+        model.createTask(
+            FIRST_ID,
+            TaskDraft(
+                title = "Позвонить врачу",
+                date = LocalDate.of(2026, 8, 1),
+                time = LocalTime.of(9, 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 8, 1), writer.created?.second?.date)
+        assertNull(model.editResult.value?.assumedDay)
+    }
+
     @Test
     fun aTaskIsWrittenWhereItsCollectionSaysEntriesGo() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())

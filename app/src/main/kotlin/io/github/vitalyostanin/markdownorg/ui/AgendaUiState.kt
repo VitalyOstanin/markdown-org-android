@@ -5,6 +5,8 @@ import androidx.annotation.StringRes
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.MergedTag
 import io.github.vitalyostanin.markdownorg.core.fileMatchesTag
+import io.github.vitalyostanin.markdownorg.core.statedDate
+import io.github.vitalyostanin.markdownorg.core.statedTime
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Task
 import java.io.File
@@ -406,7 +408,7 @@ fun AgendaResult.toDays(labels: Map<String, CollectionLabel> = emptyMap()): List
             // A date the core wrote and this side could not read is not worth
             // dropping the day over: the entries are still the entries, and a
             // heading with no date above them says as much as it can.
-            date = runCatching { LocalDate.parse(day.date) }.getOrNull(),
+            date = statedDate(day.date),
             sections = AgendaSections(
                 overdue = day.overdue.map { it.toAgendaRow(labels) },
                 timed = day.scheduledTimed.map { it.toAgendaRow(labels) },
@@ -464,8 +466,8 @@ private fun Task.rowTime(): RowTime {
     val stated = timestampTime
 
     return when {
-        stated != null -> runCatching { LocalTime.parse(stated) }
-            .fold({ RowTime.Clock(it) }, { RowTime.Verbatim(stated) })
+        stated != null ->
+            statedTime(stated)?.let(RowTime::Clock) ?: RowTime.Verbatim(stated)
 
         // A date that has passed replaces the empty time column: without it an
         // overdue row would say how many days late it is but not since when.
@@ -477,5 +479,5 @@ private fun Task.rowTime(): RowTime {
 
 /** The date of the task, when it states one that reads as a date. */
 private fun Task.slippedFrom(): RowTime.Since? = timestampDate
-    ?.let { stated -> runCatching { LocalDate.parse(stated) }.getOrNull() }
+    ?.let(::statedDate)
     ?.let(RowTime::Since)

@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import io.github.vitalyostanin.markdownorg.core.AssumedDay
 import uniffi.markdown_org_ffi.FileRollback
 
 /**
@@ -46,4 +47,15 @@ data class EditResult(
      * were heard.
      */
     val changes: List<PhraseChange> = emptyList(),
+    /**
+     * The day a created task was given because nothing named one, and why
+     * that day.
+     *
+     * `null` for every write that named its own day, and for one that needed
+     * none. A day chosen for the reader is a day the reader has to be told
+     * about: an hour said on its own is written for today or for tomorrow
+     * depending on the minute it was said at, and the entry alone does not
+     * say which of the two happened.
+     */
+    val assumedDay: AssumedDay? = null,
 )

@@ -15,7 +15,6 @@ import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ReminderActions
 import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.Task
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.absoluteValue
@@ -120,7 +119,7 @@ object ReminderNotifications {
             // The day it counted, with nothing picked out within it: the
             // digest is about all of them, and the screen it opens is where
             // the reader chooses which.
-            target = runCatching { LocalDate.parse(day.date) }.getOrNull()
+            target = statedDate(day.date)
                 ?.let { date -> AgendaTarget(day = date, entry = null) },
         )
     }

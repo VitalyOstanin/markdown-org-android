@@ -54,6 +54,9 @@
     <string name="agenda_edit_undo_skipped">Заметка изменилась и оставлена как есть</string>
     <string name="agenda_edit_undo_partial">Часть правки вернулась, остальное изменилось и оставлено как есть</string>
     <string name="agenda_create_done">Задача записана</string>
+    <string name="create_day_assumed_today">День не назван: %1$s сегодня ещё впереди — запись на сегодня, %2$s</string>
+    <string name="create_day_assumed_tomorrow">День не назван: %1$s сегодня уже прошло — запись на завтра, %2$s</string>
+    <string name="create_day_assumed_repeat">День не назван, повтор начинается сегодня — %1$s</string>
     <string name="agenda_dictate">Сказать задачу</string>
     <string name="agenda_dictate_failed">Сказанное не удалось разобрать</string>
     <string name="agenda_section_timed">Ко времени</string>

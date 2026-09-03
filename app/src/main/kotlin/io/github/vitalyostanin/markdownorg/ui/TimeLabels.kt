@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
+import io.github.vitalyostanin.markdownorg.core.statedDate
+import io.github.vitalyostanin.markdownorg.core.statedTime
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -114,16 +116,14 @@ internal fun syncedAtLabel(at: Long): String? {
  * has something else in that place.
  */
 internal fun statedDateLabel(stated: String, locale: Locale): String =
-    runCatching { LocalDate.parse(stated) }
-        .fold({ dateFormatter(locale).format(it) }, { stated })
+    statedDate(stated)?.let { dateFormatter(locale).format(it) } ?: stated
 
 private fun dateFormatter(locale: Locale): DateTimeFormatter =
     DateTimeFormatter.ofPattern(localizedPattern(FormatStyle.SHORT, null, locale), locale)
 
 /** A time the note states, on the clock of the reader; as written when it is not one. */
 internal fun statedTimeLabel(stated: String, locale: Locale, use24Hour: Boolean): String =
-    runCatching { LocalTime.parse(stated) }
-        .fold({ timeLabel(it, locale, use24Hour) }, { stated })
+    statedTime(stated)?.let { timeLabel(it, locale, use24Hour) } ?: stated
 
 /**
  * The date an overdue row slipped from, read against the date it slipped

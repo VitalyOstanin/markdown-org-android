@@ -7,7 +7,6 @@ import android.content.Intent
 import android.util.Log
 import io.github.vitalyostanin.markdownorg.ReminderReceiver
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.math.absoluteValue
@@ -238,7 +237,7 @@ object ReminderIntent {
         val day = intent.getStringExtra(EXTRA_DAY)
 
         if (day != null) {
-            return runCatching { DigestReminder(at = at, day = LocalDate.parse(day)) }.getOrNull()
+            return statedDate(day)?.let { date -> DigestReminder(at = at, day = date) }
         }
         val file = intent.getStringExtra(EXTRA_FILE) ?: return null
         val heading = intent.getStringExtra(EXTRA_HEADING) ?: return null

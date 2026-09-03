@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.AgendaSource
+import io.github.vitalyostanin.markdownorg.core.AssumedDay
 import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
@@ -37,6 +38,7 @@ import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UiSettings
 import io.github.vitalyostanin.markdownorg.core.UndoReport
+import io.github.vitalyostanin.markdownorg.core.assumedDay
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.collectionProblem
 import io.github.vitalyostanin.markdownorg.core.mainFileProblem
@@ -46,11 +48,14 @@ import io.github.vitalyostanin.markdownorg.core.migratedCollections
 import io.github.vitalyostanin.markdownorg.core.nextCollectionId
 import io.github.vitalyostanin.markdownorg.core.noteFileProblem
 import io.github.vitalyostanin.markdownorg.core.notesPathProblem
+import io.github.vitalyostanin.markdownorg.core.onItsDay
 import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.core.readDeclaredTags
 import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
+import io.github.vitalyostanin.markdownorg.core.statedDate
+import io.github.vitalyostanin.markdownorg.core.statedTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +89,6 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
@@ -1000,8 +1004,8 @@ class AgendaViewModel(
                 title = read.heading.ifBlank { said },
                 priority = read.priority,
                 keyword = read.keyword ?: PlanningKeyword.SCHEDULED,
-                date = read.date?.let(LocalDate::parse),
-                time = read.time?.let(LocalTime::parse),
+                date = statedDate(read.date),
+                time = statedTime(read.time),
                 repeater = read.repeater,
             ),
         )
@@ -1076,11 +1080,15 @@ class AgendaViewModel(
         }
 
         viewModelScope.launch {
+            val now = clock()
+            // An hour or a repeat said without a day gets one, rather than
+            // being dropped on the way to a planning line that cannot hold it.
+            val assumed = draft.assumedDay(now)
             val outcome = target.editor.createTask(
                 target.collection.inbox,
                 target.collection.writeAt,
-                draft,
-                clock(),
+                draft.onItsDay(now),
+                now,
             )
 
             settle(
@@ -1089,6 +1097,7 @@ class AgendaViewModel(
                     files = listOf(target.collection.inbox),
                     heading = draft.title.trim(),
                     created = true,
+                    assumedDay = assumed,
                 ),
                 outcome,
             )
@@ -1170,6 +1179,11 @@ class AgendaViewModel(
          * button that was pressed.
          */
         val changes: List<PhraseChange> = emptyList(),
+        /**
+         * The day a created task was given where what was said named none,
+         * with the grounds for it; `null` for every other write.
+         */
+        val assumedDay: AssumedDay? = null,
     )
 
     /** What a finished write leaves on the screen, whichever write it was. */
@@ -1213,6 +1227,7 @@ class AgendaViewModel(
                             rollback = rollback,
                             created = written.created,
                             changes = written.changes,
+                            assumedDay = written.assumedDay,
                         )
                     }
                 }

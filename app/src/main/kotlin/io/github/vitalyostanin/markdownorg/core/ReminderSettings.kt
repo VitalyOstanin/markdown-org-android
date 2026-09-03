@@ -2,7 +2,6 @@ package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
 import java.time.LocalTime
-import java.time.format.DateTimeParseException
 
 /**
  * What the reader chose about being told what is coming.
@@ -76,11 +75,7 @@ class ReminderSettings(context: Context) : ReminderPreferences {
      * A value written by a newer version, or one edited by hand, reads as the
      * default rather than as a crash on the first plan.
      */
-    private fun readTime(value: String): LocalTime = try {
-        LocalTime.parse(value)
-    } catch (_: DateTimeParseException) {
-        DEFAULT_DIGEST_TIME
-    }
+    private fun readTime(value: String): LocalTime = statedTime(value) ?: DEFAULT_DIGEST_TIME
 
     private companion object {
         const val FILE = "reminders"

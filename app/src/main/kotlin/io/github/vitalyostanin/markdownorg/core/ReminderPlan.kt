@@ -122,10 +122,8 @@ private fun moment(day: Day, task: Task, now: ZonedDateTime): Pair<Task, ZonedDa
     if (task.taskType == TaskType.DONE || task.taskType == TaskType.CANCELLED) {
         return null
     }
-    val time = task.timestampTime ?: return null
-    val starts = runCatching {
-        LocalDate.parse(day.date).atTime(LocalTime.parse(time)).atZone(now.zone)
-    }.getOrNull()
+    val time = statedTime(task.timestampTime) ?: return null
+    val starts = statedDate(day.date)?.atTime(time)?.atZone(now.zone)
 
     return starts?.let { task to it }
 }
