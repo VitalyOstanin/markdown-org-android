@@ -45,6 +45,28 @@ class ReplanningTest {
         assertTrue("no plan was made by the scheduler given", alarms.await() >= 1)
     }
 
+    @Test
+    fun `a plan that could not be made reaches the caller who asked for it`() {
+        val seen = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+
+        Replanning.request(
+            ReminderScheduler(
+                agenda = UnreadableAgenda(),
+                preferences = FixedChoices(),
+                alarms = CountedAlarms(),
+            ),
+        ) { failure -> seen.set(failure) }
+
+        val deadline = System.nanoTime() + WAIT.toNanos()
+        while (System.nanoTime() < deadline && seen.get() == null) {
+            Thread.sleep(SLICE)
+        }
+
+        // The screen that changed a setting is the one place where there is
+        // somebody to tell; the log is what the rest of the callers get.
+        assertTrue("nothing was said about the notes that could not be read", seen.get() != null)
+    }
+
     private fun scheduler(alarms: AlarmHolder) = ReminderScheduler(
         agenda = EmptyAgenda(),
         preferences = FixedChoices(),
@@ -92,6 +114,23 @@ class ReplanningTest {
         ): Result<AgendaResult> = Result.success(
             AgendaResult(days = emptyList(), tasks = emptyList(), stats = agenda().stats),
         )
+
+        override suspend fun reread(root: String, file: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun invalidate() = Unit
+    }
+
+    /** Notes that cannot be read, which is a plan that cannot be made. */
+    private class UnreadableAgenda : AgendaLoader {
+
+        override suspend fun load(
+            scope: Scope,
+            today: LocalDate,
+            shown: LocalDate?,
+            zone: ZoneId,
+            includeDone: Boolean,
+            weekStart: DayOfWeek?,
+        ): Result<AgendaResult> = Result.failure(java.io.IOException("the directory is not there"))
 
         override suspend fun reread(root: String, file: String): Result<Unit> = Result.success(Unit)
 

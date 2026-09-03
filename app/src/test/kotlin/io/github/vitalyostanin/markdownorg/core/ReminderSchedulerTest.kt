@@ -137,6 +137,25 @@ class ReminderSchedulerTest {
     }
 
     @Test
+    fun `alarms the platform refuses come back as a failure`() = runTest {
+        val result = scheduler(StandingAgenda(), RefusedAlarms()).replan()
+
+        // Placing an alarm is a call into the platform, and the platform of a
+        // vendor answers it however it likes. Declared as returning a Result,
+        // this used to let such an answer past the type and out of the
+        // coroutine, where the only handler left is the one that ends the
+        // process.
+        assertTrue("the refusal was not reported as a failure", result.isFailure)
+    }
+
+    @Test
+    fun `dropping the alarms is covered by the same failure`() = runTest {
+        val result = scheduler(StandingAgenda(), RefusedAlarms(), choices(enabled = false)).replan()
+
+        assertTrue("the refusal was not reported as a failure", result.isFailure)
+    }
+
+    @Test
     fun `the alarms are replaced away from the thread that asked for the plan`() = runTest {
         val alarms = HeldAlarms()
 
@@ -282,6 +301,16 @@ class ReminderSchedulerTest {
         override suspend fun reread(root: String, file: String): Result<Unit> = Result.success(Unit)
 
         override suspend fun invalidate() = Unit
+    }
+
+    /** A platform that will hold no alarm at all, however it is asked. */
+    private class RefusedAlarms : AlarmHolder {
+
+        override fun replace(plan: List<PlannedReminder>) = throw IllegalStateException("refused")
+
+        override fun cancelAll() = throw IllegalStateException("refused")
+
+        override fun holdAside(key: Int, reminder: PlannedReminder) = Unit
     }
 
     /** The platform's alarms, as a list. */

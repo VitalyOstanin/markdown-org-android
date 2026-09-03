@@ -51,17 +51,23 @@ class ReminderScheduler(
      * screen to report to — a broadcast after a fetch, the boot of the phone —
      * and the alarms held are left alone rather than dropped, so a directory
      * momentarily unreadable does not cost the reader the day's reminders.
+     * Quiet here means "returned rather than shown": what the caller does
+     * with the answer is the caller's own, and every one of them says
+     * something about it.
      */
     suspend fun replan(): Result<Unit> = withContext(io) {
         val choices = preferences.choices
         if (!choices.enabled) {
-            alarms.cancelAll()
-
-            return@withContext Result.success(Unit)
+            // Under `runCatching` like the rest: holding the alarms is a call
+            // into the platform, and a platform that refuses it answers with
+            // an exception. Left outside, that exception would leave a
+            // function declared as returning a Result by being thrown out of
+            // it — into a coroutine whose only handler ends the process.
+            return@withContext runCatching { alarms.cancelAll() }
         }
         val now = clock()
 
-        days(now).map { days ->
+        days(now).mapCatching { days ->
             alarms.replace(planReminders(days, choices, now, horizon))
         }
     }

@@ -36,6 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds it, and the count the alarms are cancelled by is kept in step with what
   the platform holds.
 
+- Reminders that stop arriving now leave a trace. The part of the application
+  that has no screen — the receiver woken by an alarm, the one woken by a
+  restart, the service behind the "Готово" button — asked for a plan and threw
+  the answer away, so a directory that could not be read, a nine-second budget
+  that ran out and a refused alarm all looked the same from outside: nothing
+  arrives, and the log says nothing either. Each of them is now written down
+  with its cause, an alarm the platform refuses to make exact among them — the
+  reminder still comes, within the hour instead of at its minute, and now says
+  so. A choice about the reminders that could not be planned is answered on the
+  settings screen itself rather than only in the log.
+
 - An edit no longer plans the reminders on the frame it was tapped on. A full
   plan is hundreds of calls into the platform — one to cancel and one to place
   for every alarm held — and they ran wherever the plan was asked for: after

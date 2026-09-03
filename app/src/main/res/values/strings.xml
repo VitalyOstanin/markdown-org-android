@@ -225,6 +225,7 @@
     <string name="settings_week_start_hint">Where the calendar is cut into rows, and how the week span is grouped.</string>
     <!-- Whether the reader is told what is coming, and on what terms. -->
     <string name="settings_reminders">Reminders</string>
+    <string name="reminders_plan_failed">The reminders were not planned again</string>
     <string name="settings_reminders_enabled">Tell me what is coming</string>
     <string name="settings_reminders_enabled_hint">An entry held at an hour is announced ahead of it; a day with dated entries and deadlines is announced once, in a digest.</string>
     <string name="settings_reminders_lead">Announce a timed entry</string>

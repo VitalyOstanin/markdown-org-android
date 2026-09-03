@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import io.github.vitalyostanin.markdownorg.core.DigestReminder
 import io.github.vitalyostanin.markdownorg.core.ReminderChannels
 import io.github.vitalyostanin.markdownorg.core.ReminderIntent
@@ -35,6 +36,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
                 is DigestReminder -> scheduler.read(reminder.day)
                     .onSuccess { day -> ReminderNotifications.showDigest(app, day) }
+                    .onFailure { failure -> Log.w(TAG, "the digest could not be read", failure) }
 
                 // A broadcast that carries none of it, which is not this
                 // application's alarm. The plan below is made all the same:
@@ -42,6 +44,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 null -> Unit
             }
             scheduler.replan()
+                .onFailure { failure -> Log.w(TAG, "the plan was not made again", failure) }
         }
     }
 }
@@ -66,7 +69,10 @@ class ReminderRestartReceiver : BroadcastReceiver() {
         val app = context.applicationContext
 
         ReminderChannels.declare(app)
-        inTheBackground(this, app) { scheduler -> scheduler.replan() }
+        inTheBackground(this, app) { scheduler ->
+            scheduler.replan()
+                .onFailure { failure -> Log.w(TAG, "the plan was not made again", failure) }
+        }
     }
 }
 
@@ -88,7 +94,19 @@ private fun inTheBackground(
 
     CoroutineScope(Dispatchers.IO).launch {
         try {
-            withTimeoutOrNull(BUDGET) { work(ReminderScheduler.of(context)) }
+            // Both outcomes are written down. Nothing here has a screen, so
+            // the reminders failing looks from the outside like reminders
+            // that stopped arriving: without these two lines there is nothing
+            // to tell a directory that could not be read from a budget that
+            // ran out, days later when the question is asked.
+            val done = withTimeoutOrNull(BUDGET) {
+                runCatching { work(ReminderScheduler.of(context)) }
+                    .onFailure { failure -> Log.w(TAG, "the reminder work failed", failure) }
+            }
+
+            if (done == null) {
+                Log.w(TAG, "the reminder work outstayed its ${BUDGET / 1000} seconds")
+            }
         } finally {
             pending.finish()
         }
@@ -97,3 +115,5 @@ private fun inTheBackground(
 
 /** How long the work after `onReceive` is given. */
 private const val BUDGET = 9_000L
+
+private const val TAG = "Reminders"

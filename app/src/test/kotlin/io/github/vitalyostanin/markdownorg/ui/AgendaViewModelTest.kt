@@ -44,6 +44,7 @@ import uniffi.markdown_org_ffi.Scope
 import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.WritePosition
 import java.io.File
+import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -1832,6 +1833,24 @@ class AgendaViewModelTest {
         assertEquals(listOf("Someday"), ready.sections.untimed.map { it.task.heading })
     }
 
+    @Test
+    fun `a plan that could not be made is said on the settings screen`() = runTest(dispatcher) {
+        val model = viewModel(
+            FakeSyncer(),
+            notesChanged = { onFailure -> onFailure(IOException("the directory is not there")) },
+        )
+        advanceUntilIdle()
+
+        model.replanReminders()
+        advanceUntilIdle()
+
+        // A switch that planned nothing is otherwise indistinguishable from
+        // one that worked: the reminders simply do not arrive, days later.
+        val message = model.syncState.value.message
+        assertEquals(R.string.reminders_plan_failed, message?.text)
+        assertTrue("the message does not read as a failure", message?.failed == true)
+    }
+
     /**
      * The model over one collection, which is what a device that has not been
      * set up past the first directory works with.
@@ -1839,7 +1858,11 @@ class AgendaViewModelTest {
      * The stand-ins are the ones the assertions read, so the collection is
      * built around them rather than the other way round.
      */
-    private fun viewModel(syncer: FakeSyncer, mainFile: String = ""): AgendaViewModel {
+    private fun viewModel(
+        syncer: FakeSyncer,
+        mainFile: String = "",
+        notesChanged: ((Throwable) -> Unit) -> Unit = {},
+    ): AgendaViewModel {
         // Stored to match the area the assertions read, so a test that starts
         // from another directory says so in one place.
         store.collections = listOf(
@@ -1865,6 +1888,7 @@ class AgendaViewModelTest {
             ownNotes = own,
             sample = testWording,
             storageGranted = { granted },
+            notesChanged = notesChanged,
             clock = { moment },
             io = dispatcher,
         )

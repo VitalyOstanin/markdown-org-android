@@ -191,7 +191,10 @@ class ReminderCompletionService : Service() {
      */
     private suspend fun complete(entry: ReminderEntry, day: LocalDate) {
         val scheduler = ReminderScheduler.of(this)
-        val task = scheduler.read(day).getOrNull()?.let { holding -> holding.find(entry) }
+        val read = scheduler.read(day).onFailure { failure ->
+            Log.w(TAG, "the day the reminder was for could not be read", failure)
+        }
+        val task = read.getOrNull()?.let { holding -> holding.find(entry) }
 
         if (task == null) {
             Log.i(TAG, "the entry was no longer where the reminder said it was")
@@ -203,6 +206,7 @@ class ReminderCompletionService : Service() {
                 ?.onFailure { failed -> Log.w(TAG, "the entry could not be closed", failed) }
         }
         scheduler.replan()
+            .onFailure { failure -> Log.w(TAG, "the plan was not made again", failure) }
     }
 
     /**

@@ -20,6 +20,10 @@ import kotlinx.coroutines.launch
  * about would take effect at the next fetch instead of at once"), and this is
  * where that is made true.
  *
+ * A failure is written to the log wherever this is asked for, and told to
+ * the caller as well when there is one to tell: a switch on a settings screen
+ * that planned nothing looks exactly like one that worked.
+ *
  * One run at a time, the last request winning: the plan is made whole from the
  * choices as they stand, so an earlier run has nothing to contribute and two
  * of them at once are two walks of the notes racing to replace the same
@@ -43,7 +47,7 @@ object Replanning {
      * it; the callers with nothing to hold use the overload below.
      */
     @Synchronized
-    fun request(scheduler: ReminderScheduler) {
+    fun request(scheduler: ReminderScheduler, onFailure: (Throwable) -> Unit = {}) {
         val previous = running
 
         running = scope.launch {
@@ -51,8 +55,10 @@ object Replanning {
             // this run will hold, and both writing at once is the interleaving
             // `PlanSlots` exists to prevent.
             previous?.cancelAndJoinQuietly()
-            scheduler.replan()
-                .onFailure { failure -> Log.w(TAG, "the reminders could not be planned", failure) }
+            scheduler.replan().onFailure { failure ->
+                Log.w(TAG, "the reminders could not be planned", failure)
+                onFailure(failure)
+            }
         }
     }
 
@@ -61,6 +67,8 @@ object Replanning {
      *
      * A receiver woken by the platform is a few milliseconds of process with
      * nothing held in it, so the index this opens is the only one there is.
+     * Nothing is told beyond the log either: there is no screen behind such a
+     * caller.
      */
     fun request(context: Context) = request(ReminderScheduler.of(context.applicationContext))
 
@@ -69,5 +77,5 @@ object Replanning {
         join()
     }
 
-    private const val TAG = "markdown-org"
+    private const val TAG = "Replanning"
 }

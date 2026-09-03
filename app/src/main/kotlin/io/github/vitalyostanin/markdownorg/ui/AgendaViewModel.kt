@@ -117,9 +117,11 @@ class AgendaViewModel(
      *
      * Returns at once and takes a coroutine of its own where it is built: the
      * screen that reported an edit is not what the walk that follows should
-     * belong to.
+     * belong to. What it is handed is what to do when the walk fails — the
+     * log is written wherever the plan is made, and this is for the screen
+     * that asked and is still there to be told.
      */
-    private val notesChanged: () -> Unit = {},
+    private val notesChanged: (onFailure: (Throwable) -> Unit) -> Unit = {},
     /** The wall clock, taken as a parameter so a test can move it by hand. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
     /**
@@ -1561,7 +1563,7 @@ class AgendaViewModel(
      * reporting, and a walk belonging to this model would stop when the model
      * does — with the edit written and nothing announcing it.
      */
-    private fun notesMayHaveMoved() = notesChanged()
+    private fun notesMayHaveMoved() = notesChanged {}
 
     /**
      * Plan the reminders again, over the index this model already holds.
@@ -1570,8 +1572,23 @@ class AgendaViewModel(
      * to the notes, but it is a change to what is announced out of them. It
      * comes through here so that the walk uses the index of the agenda rather
      * than opening every collection a second time.
+     *
+     * Unlike an edit, this one is answered on screen when it fails: the
+     * reader has just moved a switch, and a switch that planned nothing is
+     * otherwise indistinguishable from one that worked — until the reminders
+     * fail to arrive, days later.
      */
-    fun replanReminders() = notesChanged()
+    fun replanReminders() = notesChanged { failure ->
+        _syncState.update {
+            it.copy(
+                message = SyncMessage(
+                    R.string.reminders_plan_failed,
+                    detail = failure.message?.let(Detail::Verbatim),
+                    failed = true,
+                ),
+            )
+        }
+    }
 
     /**
      * Fetch and fast-forward every collection that has a remote, then rebuild
@@ -2536,7 +2553,7 @@ class AgendaViewModel(
                     // One walk at a time and the newest request winning, so
                     // that an edit and a choice made a moment apart do not
                     // race to replace the same alarms.
-                    notesChanged = { Replanning.request(reminders) },
+                    notesChanged = { onFailure -> Replanning.request(reminders, onFailure) },
                 )
             }
         }

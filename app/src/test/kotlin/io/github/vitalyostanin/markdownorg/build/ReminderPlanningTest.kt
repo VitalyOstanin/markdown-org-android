@@ -54,4 +54,22 @@ class ReminderPlanningTest {
             asking.isEmpty(),
         )
     }
+
+    @Test
+    fun everyPlanMadeInTheBackgroundSaysWhenItFailed() {
+        val main = root.resolve("app/src/main/kotlin/io/github/vitalyostanin/markdownorg")
+        val silent = main.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> file.readText().contains(".replan()") }
+            .filter { file -> !file.readText().contains("onFailure") }
+            .map { it.name }
+            .toList()
+
+        assertTrue(
+            "these files ask for a plan and drop the answer — the reminders stopping is then " +
+                "a silence with nothing in the log to tell one cause from another:\n" +
+                silent.joinToString("\n") { "  $it" },
+            silent.isEmpty(),
+        )
+    }
 }

@@ -160,6 +160,7 @@
     <string name="settings_week_start_hint">Определяет, по каким дням режется календарь и как группируется неделя.</string>
     <!-- Сообщать ли читателю о том, что впереди, и на каких условиях. -->
     <string name="settings_reminders">Напоминания</string>
+    <string name="reminders_plan_failed">Напоминания не удалось запланировать заново</string>
     <string name="settings_reminders_enabled">Сообщать о том, что впереди</string>
     <string name="settings_reminders_enabled_hint">О записи, назначенной на час, сообщается заранее; о дне с датами и сроками — один раз, сводкой.</string>
     <string name="settings_reminders_lead">Сообщать о записи ко времени</string>

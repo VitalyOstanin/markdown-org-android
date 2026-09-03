@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import io.github.vitalyostanin.markdownorg.ReminderReceiver
 import java.time.Instant
 import java.time.LocalDate
@@ -139,6 +140,11 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         // all.
         val scheduled = heldExactly(reminder, exact) && runCatching {
             alarms?.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, waiting)
+        }.onFailure { refusal ->
+            // Written down because the reminder still arrives, only within
+            // the hour rather than at its minute: a complaint that it came
+            // late is otherwise unanswerable from the log.
+            Log.w(TAG, "the exact alarm was refused, the reminder will be inexact", refusal)
         }.isSuccess
 
         if (!scheduled) {
@@ -175,6 +181,8 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
 
         /** Where the numbering of the plan's alarms starts. */
         const val REQUEST_BASE = 1000
+
+        const val TAG = "ReminderAlarms"
     }
 }
 
