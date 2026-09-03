@@ -54,7 +54,7 @@ so a decision can be followed across the three repositories.
 | 0016 | [The release is shrunk, and the APK is read back to check it](0016-shrink-the-release-and-read-the-apk-back.md) | Accepted |
 | 0017 | [A repository is opened whoever the platform says owns its directory](0017-open-a-repository-the-platform-owns.md) | Accepted |
 | 0018 | [Edits go back to the remote as a fast-forward push, or not at all](0018-edits-go-back-as-a-fast-forward-push.md) | Accepted |
-| 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Amended by 0024 |
+| 0019 | [The directory holds the notes, and git is added to it](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) | Accepted, amended by 0024 |
 | 0020 | [SSH remotes, with the server pinned by its host key](0020-ssh-remotes-with-a-pinned-host-key.md) | Accepted |
 | 0021 | [A group is one rewrite per file, and it can be put back](0021-a-group-is-one-rewrite-and-can-be-put-back.md) | Accepted |
 | 0022 | [Several collections, one agenda](0022-several-collections-one-agenda.md) | Accepted |
@@ -67,7 +67,7 @@ so a decision can be followed across the three repositories.
 | 0029 | [An entry is edited here, a file is not](0029-an-entry-is-edited-here-a-file-is-not.md) | Accepted |
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
-| 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Amended by 0036 |
+| 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted, amended by 0036 |
 | 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted |
 | 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted |
 | 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |

@@ -33,6 +33,7 @@ the emulator.
 - [Where the notes live](#where-the-notes-live)
 - [Setting it up from the phone alone](#setting-it-up-from-the-phone-alone)
 - [Saying a task in one phrase](#saying-a-task-in-one-phrase)
+- [Changing an entry by saying what to change](#changing-an-entry-by-saying-what-to-change)
 - [What a setting is for](#what-a-setting-is-for)
 - [Finding a setting](#finding-a-setting)
 - [Collections](#collections)
@@ -550,6 +551,28 @@ its own.
 
 The decision is in
 [ADR-0039](docs/adr/0039-the-phone-listens-and-the-field-holds-what-it-heard.md).
+
+## Changing an entry by saying what to change
+
+An entry that already exists changes the way a new one is written: in one
+sentence. The sheet a tap on a row opens begins with a field and a microphone,
+above the buttons — "перенеси на пятницу в 16:00 и сделай срочной" moves the
+day, the hour and the priority at once, where the buttons under it are three
+taps and two dialogs of choice. The buttons stay for the single change, which
+is one tap and needs no sentence.
+
+| № | What                          | How it behaves                                                                              |
+|---|-------------------------------|---------------------------------------------------------------------------------------------|
+| 1 | Who reads the phrase          | The core, through `applyPhrase`, so the phone and the editor extension read one the same way |
+| 2 | The keyword                   | Said in the phrase as well: "отметь выполненной", "в работу"                                 |
+| 3 | Emptying a field              | "убрать дату", "убрать время", "без повтора", "без приоритета"                               |
+| 4 | How much is written           | One write, one commit and one line of undo for the whole sentence                            |
+| 5 | What the rules did not read   | Nothing is changed and the leftover is named: applying half of a sentence moves a field nobody meant to name |
+| 6 | A phrase naming no field      | Named the same way, and so is an hour with no day to stand on                                 |
+| 7 | What a phrase can write       | Only what a button could: the operations underneath are the buttons' own                      |
+
+The decision is in
+[ADR-0042](docs/adr/0042-an-entry-is-changed-by-one-phrase-in-one-write.md).
 
 ## What a setting is for
 
