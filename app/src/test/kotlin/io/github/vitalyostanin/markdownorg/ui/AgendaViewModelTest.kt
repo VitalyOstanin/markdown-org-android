@@ -660,6 +660,22 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun theTargetsOfAMoveAreReadWithinTheTest() = runTest(dispatcher) {
+        // The walk over the collection used to run on `Dispatchers.IO`, which
+        // the test scheduler does not drive: `advanceUntilIdle` came back with
+        // the coroutine still suspended, and it resumed onto a main dispatcher
+        // that had been reset by then. The exception that raised surfaced as a
+        // failure of whichever test happened to run next.
+        val model = viewModel(FakeSyncer(), mainFile = "main.md")
+        advanceUntilIdle()
+
+        model.select(task())
+        advanceUntilIdle()
+
+        assertEquals("main.md", model.moveTargets.value.mainFile)
+    }
+
+    @Test
     fun anEntryLongerThanTheScreenCanHoldIsNotOpened() = runTest(dispatcher) {
         // A note whose whole content sits under one heading: a field of that
         // size answers a keystroke in seconds, which is not an editor.
@@ -1823,11 +1839,16 @@ class AgendaViewModelTest {
      * The stand-ins are the ones the assertions read, so the collection is
      * built around them rather than the other way round.
      */
-    private fun viewModel(syncer: FakeSyncer): AgendaViewModel {
+    private fun viewModel(syncer: FakeSyncer, mainFile: String = ""): AgendaViewModel {
         // Stored to match the area the assertions read, so a test that starts
         // from another directory says so in one place.
         store.collections = listOf(
-            NotesCollection(id = FIRST_ID, name = "Notes", path = notes.root.absolutePath),
+            NotesCollection(
+                id = FIRST_ID,
+                name = "Notes",
+                path = notes.root.absolutePath,
+                mainFile = mainFile,
+            ),
         )
 
         return AgendaViewModel(
@@ -1836,6 +1857,7 @@ class AgendaViewModelTest {
                 settings = settings,
                 editor = writer,
                 syncer = syncer,
+                mainFile = mainFile,
             ),
             stored = store,
             agenda = loader,
@@ -1844,6 +1866,7 @@ class AgendaViewModelTest {
             sample = testWording,
             storageGranted = { granted },
             clock = { moment },
+            io = dispatcher,
         )
     }
 

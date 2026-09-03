@@ -261,6 +261,7 @@ class AgendaTagsTest {
         sample = testWording,
         storageGranted = { true },
         clock = { NOON },
+        io = dispatcher,
     )
 
     private companion object {

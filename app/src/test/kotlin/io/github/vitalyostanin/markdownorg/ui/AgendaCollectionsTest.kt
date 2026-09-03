@@ -520,6 +520,7 @@ class AgendaCollectionsTest {
             sample = testWording,
             storageGranted = { true },
             clock = { NOON },
+            io = dispatcher,
         )
         advanceUntilIdle()
 
@@ -584,6 +585,7 @@ class AgendaCollectionsTest {
         sample = testWording,
         storageGranted = { true },
         clock = { NOON },
+        io = dispatcher,
     )
 
     private companion object {

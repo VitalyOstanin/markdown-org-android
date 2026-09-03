@@ -51,6 +51,7 @@ import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
 import io.github.vitalyostanin.markdownorg.core.splitCredentials
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -116,6 +117,16 @@ class AgendaViewModel(
     private val notesChanged: suspend () -> Unit = {},
     /** The wall clock, taken as a parameter so a test can move it by hand. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
+    /**
+     * Where the walks over the notes directory run.
+     *
+     * A parameter rather than `Dispatchers.IO` written into the call, so a test
+     * can put the walk on the scheduler that drives it. Left on the real pool,
+     * the walk outlives the test that started it and resumes onto a main
+     * dispatcher that has already been reset — an exception with no test left
+     * to attribute it to, which then fails whichever test runs next.
+     */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     /**
@@ -643,7 +654,7 @@ class AgendaViewModel(
         val collection = task?.let { collections.byRoot(it.root) } ?: return
 
         targetsJob = viewModelScope.launch {
-            val files = withContext(Dispatchers.IO) { markdownFiles(File(collection.root)) }
+            val files = withContext(io) { markdownFiles(File(collection.root)) }
 
             _moveTargets.value = MoveTargets(
                 mainFile = collection.collection.mainFile.takeUnless(String::isBlank),

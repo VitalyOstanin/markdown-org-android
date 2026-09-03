@@ -552,12 +552,19 @@ class FakeCollections(override var entries: List<CollectionInUse>) : Collections
             name: String = "Notes",
             path: String = "/notes",
             inbox: String = DEFAULT_INBOX,
+            mainFile: String = "",
             area: FakeNotesArea = FakeNotesArea(File(path)),
             settings: FakePreferences = FakePreferences(),
             editor: FakeWriter = FakeWriter(),
             syncer: FakeSyncer = FakeSyncer(),
         ) = CollectionInUse(
-            collection = NotesCollection(id = id, name = name, path = path, inbox = inbox),
+            collection = NotesCollection(
+                id = id,
+                name = name,
+                path = path,
+                inbox = inbox,
+                mainFile = mainFile,
+            ),
             // The stand-in area names a directory that is not on disk, so the
             // path is taken as it is rather than resolved: what matters here
             // is that a task from it carries the same string.
@@ -574,10 +581,12 @@ class FakeCollections(override var entries: List<CollectionInUse>) : Collections
             settings: FakePreferences = FakePreferences(),
             editor: FakeWriter = FakeWriter(),
             syncer: FakeSyncer = FakeSyncer(),
+            mainFile: String = "",
         ) = FakeCollections(
             listOf(
                 entry(
                     path = area.root.absolutePath,
+                    mainFile = mainFile,
                     area = area,
                     settings = settings,
                     editor = editor,
