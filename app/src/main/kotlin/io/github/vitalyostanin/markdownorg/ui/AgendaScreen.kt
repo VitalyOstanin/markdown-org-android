@@ -139,27 +139,7 @@ fun AgendaScreen(
         }
     }
 
-    // The same offer for one tap. A line of its own rather than a shared one
-    // with the group: the two are answered by different undos, and a snackbar
-    // that outlived the state it was raised for would put back the wrong note.
-    val edited = stringResource(R.string.agenda_edit_done)
-    // A task written from nothing says so instead: what the offer takes back
-    // is the whole entry rather than a line of an entry that stays either way.
-    val created = stringResource(R.string.agenda_create_done)
-    LaunchedEffect(editResult) {
-        if (editResult != null) {
-            val answered = snackbar.showSnackbar(
-                message = if (editResult.created) created else edited,
-                actionLabel = undo,
-                withDismissAction = true,
-            )
-            if (answered == SnackbarResult.ActionPerformed) {
-                actions.onUndoEdit()
-            } else {
-                actions.onEditResultShown()
-            }
-        }
-    }
+    EditNotice(editResult, snackbar, undo, actions)
 
     // How far the writing buttons stand above the bottom edge: the height of
     // the line the snackbar draws, and nothing when there is no line. Measured
@@ -313,6 +293,109 @@ private fun CreateButton(onCreate: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * What one tap wrote, with the offer to take it back.
+ *
+ * A line of its own rather than one shared with the group action: the two are
+ * answered by different undos, and a snackbar that outlived the state it was
+ * raised for would put back the wrong note.
+ */
+@Composable
+private fun EditNotice(
+    editResult: EditResult?,
+    snackbar: SnackbarHostState,
+    undo: String,
+    actions: AgendaActions,
+) {
+    val edited = stringResource(R.string.agenda_edit_done)
+    // A task written from nothing says so instead: what the offer takes back
+    // is the whole entry rather than a line of an entry that stays either way.
+    val created = stringResource(R.string.agenda_create_done)
+    // What a phrase changed, named field by field under the line above. Every
+    // other edit says what it did in the button that was pressed; a sentence
+    // names several fields at once, and without this the reader has to open
+    // the note to see which of them were heard.
+    val listed = editResult?.changes?.takeIf { it.isNotEmpty() }?.let { phraseChangesText(it) }
+    LaunchedEffect(editResult) {
+        if (editResult != null) {
+            val done = if (editResult.created) created else edited
+            val answered = snackbar.showSnackbar(
+                message = listed?.let { "$done\n$it" } ?: done,
+                actionLabel = undo,
+                withDismissAction = true,
+            )
+            if (answered == SnackbarResult.ActionPerformed) {
+                actions.onUndoEdit()
+            } else {
+                actions.onEditResultShown()
+            }
+        }
+    }
+}
+
+/**
+ * The fields a phrase changed, as the second line of the snackbar.
+ *
+ * Each field is named by a resource and its values are written the way the
+ * reader's locale writes them -- a date as a date, an hour on the reader's own
+ * clock. The keywords are not translated: `TODO`, `SCHEDULED` and a repeater
+ * are what the file says, and the setting screen states as much where it
+ * explains the keyword of a new task.
+ */
+@Composable
+private fun phraseChangesText(changes: List<PhraseChange>): String {
+    val locale = LocalLocale.current.platformLocale
+    val use24Hour = use24Hour()
+    // A loop rather than `joinToString`: the wording comes from
+    // `stringResource`, which a plain lambda cannot call.
+    val named = mutableListOf<String>()
+    for (change in changes) {
+        val before = phraseValue(change.field, change.before, locale, use24Hour)
+        val after = phraseValue(change.field, change.after, locale, use24Hour)
+        val values = when {
+            before == null && after != null ->
+                stringResource(R.string.phrase_change_added, after)
+
+            after == null && before != null ->
+                stringResource(R.string.phrase_change_cleared, before)
+
+            else -> stringResource(
+                R.string.phrase_change_from_to,
+                before.orEmpty(),
+                after.orEmpty(),
+            )
+        }
+
+        named += stringResource(change.field.wording, values)
+    }
+
+    return stringResource(R.string.phrase_changes, named.joinToString(", "))
+}
+
+/** One value of one field, written the way the reader reads that kind of value. */
+private fun phraseValue(
+    field: PhraseChangedField,
+    value: String?,
+    locale: Locale,
+    use24Hour: Boolean,
+): String? = when {
+    value == null -> null
+    field == PhraseChangedField.DATE -> statedDateLabel(value, locale)
+    field == PhraseChangedField.TIME -> statedTimeLabel(value, locale, use24Hour)
+    else -> value
+}
+
+/** Which resource names this field. */
+private val PhraseChangedField.wording: Int
+    @StringRes get() = when (this) {
+        PhraseChangedField.STATUS -> R.string.phrase_change_status
+        PhraseChangedField.PRIORITY -> R.string.phrase_change_priority
+        PhraseChangedField.PLANNING -> R.string.phrase_change_planning
+        PhraseChangedField.DATE -> R.string.phrase_change_date
+        PhraseChangedField.TIME -> R.string.phrase_change_time
+        PhraseChangedField.REPEATER -> R.string.phrase_change_repeater
+    }
 
 /**
  * What the group action did, as the line the snackbar shows.

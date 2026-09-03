@@ -74,6 +74,20 @@
     <string name="agenda_group_undo_partial">Some notes had changed and were left as they are</string>
     <!-- One tap wrote to a note, and the same line offers to take it back. -->
     <string name="agenda_edit_done">The note has been written</string>
+    <!-- What a phrase changed, field by field, under the line that says the note was written. -->
+    <string name="phrase_change_status">state %1$s</string>
+    <string name="phrase_change_priority">priority %1$s</string>
+    <string name="phrase_change_planning">planning line %1$s</string>
+    <string name="phrase_change_date">date %1$s</string>
+    <string name="phrase_change_time">time %1$s</string>
+    <string name="phrase_change_repeater">repeat %1$s</string>
+    <!-- The two values of one field: what it said, and what it says now. -->
+    <string name="phrase_change_from_to">%1$s → %2$s</string>
+    <!-- The field had nothing in it before, or has nothing in it now. -->
+    <string name="phrase_change_added">%1$s</string>
+    <string name="phrase_change_cleared">%1$s → nothing</string>
+    <!-- The line under "the note has been written", listing the fields it changed. -->
+    <string name="phrase_changes">Changed: %1$s</string>
     <!-- The note moved on between the edit and the undo, so it stands as it is. -->
     <string name="agenda_edit_undo_skipped">The note had changed and was left as it is</string>
     <!-- A task was written from nothing, and the same line offers to take it out again. -->

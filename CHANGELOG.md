@@ -8,9 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [\[Unreleased\]](#unreleased)
+- [\[0.2.0\] - 2026-09-03](#020---2026-09-03)
 - [\[0.1.0\] - 2026-08-25](#010---2026-08-25)
 
 ## [Unreleased]
+
+### Added
+
+- A phrase says what it changed, field by field. "перенеси на пятницу в 16:00
+  и сделай срочной" is three fields at once, and "заметка записана" left the
+  reader to open the note to see whether all three were heard. The line under
+  the screen now names them with both values -- "Изменено: срочность B → A,
+  дата 04.09.2026, время 16:00" -- and a field the phrase emptied is named as
+  emptied. Dates and hours are written the way the reader's locale and clock
+  write them; the keywords are not translated, being what the file says.
+  A field named to the value the entry already carried is not listed: the core
+  reports such a phrase as an edit that wrote nothing, and the line agrees.
+
+## [0.2.0] - 2026-09-03
 
 ### Added
 
@@ -101,6 +116,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phrase does, so both ways of saying the same thing read the same; a phone
   with nothing to listen with says so and leaves the plus to write with.
 
+### Changed
+
+- Settings that take one answer out of a few are lists now rather than rows of
+  chips: where a week begins, how long before a timed entry it is announced,
+  and which end of the file an entry is written at. A row of chips paid a line
+  of the screen for every answer that did not fit the width, and on a phone
+  held upright "Воскресенья" was squeezed until its word broke into a column of
+  single letters.
+
+- The line that used to stand under a setting has moved into the tooltip its
+  label already carried. Eight of them on a column of thirty settings spent a
+  screenful of height on text that is read once, and both halves are now read
+  the same way — by holding the setting's name.
+
+- Where an entry is written now says what it is the start and the end of: "at
+  the start of the file" rather than "at the start".
+
 ### Fixed
 
 - A note handed to another application opens where it stands. The action built
@@ -128,21 +160,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   position said, and that position is the start of the file until a collection
   says otherwise — so the line contradicted the setting and the file both, for
   every collection that had never been told anything.
-
-- Settings that take one answer out of a few are lists now rather than rows of
-  chips: where a week begins, how long before a timed entry it is announced,
-  and which end of the file an entry is written at. A row of chips paid a line
-  of the screen for every answer that did not fit the width, and on a phone
-  held upright "Воскресенья" was squeezed until its word broke into a column of
-  single letters.
-
-- The line that used to stand under a setting has moved into the tooltip its
-  label already carried. Eight of them on a column of thirty settings spent a
-  screenful of height on text that is read once, and both halves are now read
-  the same way — by holding the setting's name.
-
-- Where an entry is written now says what it is the start and the end of: "at
-  the start of the file" rather than "at the start".
 
 ## [0.1.0] - 2026-08-25
 

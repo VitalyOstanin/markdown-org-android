@@ -825,6 +825,10 @@ class AgendaViewModel(
             // refresh(): the write is one file, but the commit that follows it
             // reads the whole working copy, so this grows with the notes too.
             val started = System.nanoTime()
+            // What a phrase changed, worked out against the entry as it stands
+            // now: after the write the note holds the new values, and a phrase
+            // that named three fields would have nothing left to name.
+            var changes: List<PhraseChange> = emptyList()
             val outcome = when (action) {
                 TaskAction.Complete -> theirEditor.complete(task, clock().toLocalDate())
 
@@ -838,6 +842,7 @@ class AgendaViewModel(
                     // the language of the screen, which the core does not
                     // speak.
                     val draft = phraseFor(action.said) ?: return@launch
+                    changes = phraseChanges(task, draft)
                     theirEditor.applyPhrase(task, draft)
                 }
 
@@ -860,7 +865,7 @@ class AgendaViewModel(
             }
             Log.i(TAG, "the edit took ${millisSince(started)} ms")
 
-            settle(task, outcome)
+            settle(task, outcome, changes)
         }
     }
 
@@ -1152,11 +1157,26 @@ class AgendaViewModel(
         val files: List<String>,
         val heading: String,
         val created: Boolean = false,
+        /**
+         * The fields a phrase changed, for a write that was made by saying
+         * one; empty for every other write, which says what it did in the
+         * button that was pressed.
+         */
+        val changes: List<PhraseChange> = emptyList(),
     )
 
     /** What a finished write leaves on the screen, whichever write it was. */
-    private suspend fun settle(task: Task, outcome: Result<EditReport>) = settle(
-        Written(root = task.root, files = listOf(task.file), heading = task.heading),
+    private suspend fun settle(
+        task: Task,
+        outcome: Result<EditReport>,
+        changes: List<PhraseChange> = emptyList(),
+    ) = settle(
+        Written(
+            root = task.root,
+            files = listOf(task.file),
+            heading = task.heading,
+            changes = changes,
+        ),
         outcome,
     )
 
@@ -1185,6 +1205,7 @@ class AgendaViewModel(
                             heading = written.heading,
                             rollback = rollback,
                             created = written.created,
+                            changes = written.changes,
                         )
                     }
                 }

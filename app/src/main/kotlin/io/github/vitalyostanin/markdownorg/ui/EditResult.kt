@@ -36,4 +36,14 @@ data class EditResult(
      * entry out of it — which is the only way this application removes one.
      */
     val created: Boolean = false,
+    /**
+     * What a phrase changed, field by field, for the edits that were made by
+     * saying one.
+     *
+     * Empty for every other edit: a tap on "Move to tomorrow" says what it
+     * did in the button the user pressed, while a sentence names several
+     * fields at once and the reader has no other way of seeing which of them
+     * were heard.
+     */
+    val changes: List<PhraseChange> = emptyList(),
 )

@@ -41,6 +41,16 @@
     <string name="agenda_undo">Вернуть</string>
     <string name="agenda_group_undo_partial">Часть заметок изменилась и оставлена как есть</string>
     <string name="agenda_edit_done">Заметка записана</string>
+    <string name="phrase_change_status">состояние %1$s</string>
+    <string name="phrase_change_priority">срочность %1$s</string>
+    <string name="phrase_change_planning">строка планирования %1$s</string>
+    <string name="phrase_change_date">дата %1$s</string>
+    <string name="phrase_change_time">время %1$s</string>
+    <string name="phrase_change_repeater">повтор %1$s</string>
+    <string name="phrase_change_from_to">%1$s → %2$s</string>
+    <string name="phrase_change_added">%1$s</string>
+    <string name="phrase_change_cleared">%1$s → нет</string>
+    <string name="phrase_changes">Изменено: %1$s</string>
     <string name="agenda_edit_undo_skipped">Заметка изменилась и оставлена как есть</string>
     <string name="agenda_create_done">Задача записана</string>
     <string name="agenda_dictate">Сказать задачу</string>
