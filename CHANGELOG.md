@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A field named to the value the entry already carried is not listed: the core
   reports such a phrase as an edit that wrote nothing, and the line agrees.
 
+### Fixed
+
+- Two things happening at once no longer cost a reminder or a write. A fetch
+  landing while an edit is being written, or two "Готово" buttons answered a
+  second apart, used to run two walks over one working copy: whichever finished
+  first could renumber the alarms while the other was still placing them,
+  leaving reminders that never fire and alarms that nothing cancels. Every
+  working copy is now written under one lock of its own directory, whatever
+  holds it, and the count the alarms are cancelled by is kept in step with what
+  the platform holds.
+
+- A reminder preference changed on the way out of the screen takes effect all
+  the same. The lead time, the hour of the digest and the switch itself are
+  planned again the moment they are chosen, and the walk that plans them used
+  to belong to the screen: leaving it at once wrote the choice down and left
+  the alarms as they were, until the next fetch. The walk now outlives the
+  screen, and a second choice made while the first is still being planned
+  replaces it rather than racing it.
+
 ## [0.2.0] - 2026-09-03
 
 ### Added

@@ -18,6 +18,7 @@ import io.github.vitalyostanin.markdownorg.core.ReminderChannels
 import io.github.vitalyostanin.markdownorg.core.ReminderEntry
 import io.github.vitalyostanin.markdownorg.core.ReminderIntent
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
+import io.github.vitalyostanin.markdownorg.core.RunningWork
 import io.github.vitalyostanin.markdownorg.core.TimedReminder
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import kotlinx.coroutines.CoroutineScope
@@ -129,6 +130,12 @@ class ReminderCompletionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * The presses being answered. Every notification carries the button, so
+     * two of them a second apart run through this service at once.
+     */
+    private val work = RunningWork()
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -146,13 +153,24 @@ class ReminderCompletionService : Service() {
             working(reminder.entry.heading),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE,
         )
+        work.started(startId)
         scope.launch {
-            complete(reminder.entry, reminder.starts.toLocalDate())
-            ServiceCompat.stopForeground(
-                this@ReminderCompletionService,
-                ServiceCompat.STOP_FOREGROUND_REMOVE,
-            )
-            stopSelf(startId)
+            try {
+                complete(reminder.entry, reminder.starts.toLocalDate())
+            } finally {
+                // Only when nothing else is still running: the piece that
+                // finishes first would otherwise take the foreground state
+                // from under the other one, and a `stopSelf` under an older
+                // start id would destroy the service — and with it the replan
+                // that follows the write.
+                work.finished()?.let { newest ->
+                    ServiceCompat.stopForeground(
+                        this@ReminderCompletionService,
+                        ServiceCompat.STOP_FOREGROUND_REMOVE,
+                    )
+                    stopSelf(newest)
+                }
+            }
         }
 
         return START_NOT_STICKY

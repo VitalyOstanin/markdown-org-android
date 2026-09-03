@@ -61,37 +61,53 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
     private val held = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     /**
+     * The numbering, and the rule that keeps it in step with the platform.
+     *
+     * Held apart from the alarms themselves so the rule is unit-tested: what
+     * goes wrong here is an interleaving, not a call to the platform.
+     */
+    private val slots = PlanSlots(
+        object : PlanSlots.HeldCount {
+            override fun read(): Int = held.getInt(KEY_HELD, 0)
+
+            override fun write(count: Int) {
+                held.edit().putInt(KEY_HELD, count).apply()
+            }
+        },
+    )
+
+    /**
      * Whether the alarms are exact is decided here rather than by the caller:
      * the access can be taken away between one plan and the next, and an
      * inexact alarm — delivered within the hour — is what the settings warn
      * about when it is.
      */
     override fun replace(plan: List<PlannedReminder>) {
-        cancelAll()
         if (alarms == null) {
+            cancelAll()
             return
         }
         val exact = ReminderAccess.exactAlarmsAllowed(context)
-        plan.forEachIndexed { index, reminder ->
-            schedule(index, reminder, exact)
-        }
-        held.edit().putInt(KEY_HELD, plan.size).apply()
+        slots.replace(
+            planned = plan.size,
+            cancel = ::drop,
+            place = { index -> schedule(index, plan[index], exact) },
+        )
     }
 
     /** Drop every alarm held, for the reader who switched reminders off. */
-    override fun cancelAll() {
-        val count = held.getInt(KEY_HELD, 0)
-        for (index in 0 until count) {
-            // FLAG_NO_CREATE: an alarm already delivered leaves nothing to
-            // cancel, and building one to cancel it would be the only place
-            // this application ever created it.
-            pending(index, intent = Intent(context, ReminderReceiver::class.java), create = false)
-                ?.let { waiting ->
-                    alarms?.cancel(waiting)
-                    waiting.cancel()
-                }
-        }
-        held.edit().putInt(KEY_HELD, 0).apply()
+    override fun cancelAll() = slots.clear(::drop)
+
+    /** One alarm of the plan, by the number it was scheduled under. */
+    private fun drop(index: Int) {
+        // FLAG_NO_CREATE: an alarm already delivered leaves nothing to
+        // cancel, and building one to cancel it would be the only place
+        // this application ever created it.
+        pending(index, intent = Intent(context, ReminderReceiver::class.java), create = false)
+            ?.let { waiting ->
+                alarms?.cancel(waiting)
+                waiting.cancel()
+            }
     }
 
     /**
@@ -100,9 +116,9 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
      * Numbered above everything the plan uses, so that replacing the plan —
      * which cancels by number, from zero to the count held — leaves it alone.
      */
-    override fun holdAside(key: Int, reminder: PlannedReminder) {
+    override fun holdAside(key: Int, reminder: PlannedReminder) = slots.inTurn {
         if (alarms == null) {
-            return
+            return@inTurn
         }
         schedule(
             index = ASIDE + key.absoluteValue % ASIDE_RANGE,

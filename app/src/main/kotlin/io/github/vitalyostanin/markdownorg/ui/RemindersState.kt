@@ -8,15 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.vitalyostanin.markdownorg.core.ReminderAccess
 import io.github.vitalyostanin.markdownorg.core.ReminderNotifications
-import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.ReminderSettings
-import kotlinx.coroutines.launch
+import io.github.vitalyostanin.markdownorg.core.Replanning
 import java.time.LocalTime
 
 /**
@@ -36,7 +34,6 @@ import java.time.LocalTime
 @Composable
 internal fun rememberRemindersUi(): RemindersUi {
     val context = LocalContext.current.applicationContext
-    val scope = rememberCoroutineScope()
     val settings = remember(context) { ReminderSettings(context) }
 
     var enabled by remember { mutableStateOf(settings.enabled) }
@@ -46,7 +43,11 @@ internal fun rememberRemindersUi(): RemindersUi {
     var allowed by remember { mutableStateOf(ReminderAccess.notificationsAllowed(context)) }
     var exact by remember { mutableStateOf(ReminderAccess.exactAlarmsAllowed(context)) }
 
-    val replan = { scope.launch { ReminderScheduler.of(context).replan() } }
+    // Asked for rather than run here: the walk of the notes outlives this
+    // screen, and a scope belonging to the composition is cancelled the moment
+    // the reader leaves it -- the preference written down and the alarms
+    // unchanged. See `Replanning`.
+    val replan = { Replanning.request(context) }
     val readAccess: (Any?) -> Unit = {
         allowed = ReminderAccess.notificationsAllowed(context)
         exact = ReminderAccess.exactAlarmsAllowed(context)

@@ -2,7 +2,6 @@ package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -16,7 +15,10 @@ import java.time.LocalDate
  * is seeded with a sample, so a fresh install has something to show.
  *
  * This is also the single point where access to that directory is serialised
- * — see [NotesArea.exclusive].
+ * — see [NotesArea.exclusive]. The lock itself is not held here but in
+ * [NotesLocks], keyed by the directory: several areas are built over one
+ * directory, and a lock held inside one of them would serialise that object
+ * rather than the working copy.
  */
 class NotesStore(root: File) : NotesArea {
 
@@ -36,10 +38,8 @@ class NotesStore(root: File) : NotesArea {
 
     override val root: File get() = current
 
-    private val lock = Mutex()
-
     override suspend fun <T> exclusive(block: suspend () -> T): T =
-        lock.withLock { withContext(Dispatchers.IO) { block() } }
+        NotesLocks.of(current).withLock { withContext(Dispatchers.IO) { block() } }
 
     /**
      * Creating it here rather than leaving it to the first scan: a directory
