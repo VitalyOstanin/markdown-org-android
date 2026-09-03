@@ -71,6 +71,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matches carries the whole stretch under it, and the section folded away under
   "Access over SSH" opens while a query is active.
 
+- The hour of a planning date is set and taken off after the fact. A day could
+  be given, moved or cleared, but the hour an entry is held at could only be
+  chosen while the entry was being written — changing one afterwards meant
+  editing the file by hand. The hour goes into the timestamp the line already
+  carries, leaving the date, the weekday in whatever language it was spelled,
+  the repeater and the warning cookie as written; taking it off takes the space
+  ahead of it with it. An entry carrying no planning line of that kind is
+  refused rather than given a day nobody asked for.
+
+- A collection says where its entries go, and an entry can leave the file it
+  went into. The write position is a setting of the collection — the start of
+  the file, after whatever header stands above the first heading, unless the
+  collection says the end — and beside it the collection names a main file, the
+  one an entry is carried into from the sheet. Any other markdown file of the
+  same collection can be named instead, and a file that is not there yet is
+  created. The whole entry travels: the heading, its planning lines, its
+  property block, its text and everything nested under it. The receiving file
+  is written first and a removal that fails takes that write back, so the one
+  outcome the order rules out is the entry standing in neither file; the undo
+  line takes both files back together.
+
 - A microphone in the corner of the agenda, over the plus. A task said to it
   is written the moment the recogniser hands the sentence over — "позвонить
   врачу завтра в 15:00" becomes a heading, a day and an hour without a screen
@@ -81,6 +102,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with nothing to listen with says so and leaves the plus to write with.
 
 ### Fixed
+
+- A note handed to another application opens where it stands. The action built
+  the file out of the path a task carries — which is relative to the directory
+  its collection walked — so the URI pointed at a name in the root of the
+  filesystem, and every editor refused a file that was not there. The failure
+  read as the other application's own. The path also travels beside the URI
+  now, for the editors that recover a path rather than read the stream: Markor
+  refuses a provider it was not taught, and an extra it does not know costs an
+  editor that reads the stream nothing.
+
+- The line that offers to undo an edit no longer covers the buttons that write.
+  It spans the bottom of the agenda, which is the corner the plus and the
+  microphone stand in, so the offer to take an edit back took away the control
+  the hand reaches for next. The buttons now stand above it for as long as it
+  is there.
+
+- The phrase field spans the creation form. A second button beside it left the
+  field about a third of the width on a phone held upright, and the button's
+  own label then broke over three lines; both buttons sit under the field now,
+  aligned to the right.
 
 - The line at the foot of the creation screen now names where the task is
   actually going. It read "written at the end" whatever the collection's write
