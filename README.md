@@ -14,7 +14,10 @@ It is one of three projects reading the same files:
 
 **Status: early.** The Rust core, its Kotlin bindings and a Compose
 application that renders the agenda all build. The agenda syncs over git and
-takes point edits — status, priority, a planning date, completion. Notes are
+edits the notes: the keyword, the priority, a planning date and its hour, an
+occurrence of a series, a whole group in one move, an entry written from a
+sentence or carried into another file — each of them undoable. It raises
+reminders for what is coming, and each edit is one line rewritten. Notes are
 read from a set of collections rather than from a single directory, each with
 its own directory, remote and credentials, shown as one agenda. A collection's
 directory can be one on the device rather than the one the application keeps
@@ -95,6 +98,7 @@ markdown-org-android/
 │   │   ├── src/entry.rs      # the title of a heading and the lines under it
 │   │   ├── src/create.rs     # a task the notes did not hold, written where the collection says
 │   │   ├── src/relocate.rs   # an entry carried from one file of a collection to another
+│   │   ├── src/phrase.rs     # one sentence read into the fields of an entry
 │   │   ├── src/planning.rs   # SCHEDULED and DEADLINE, and completing a repeat
 │   │   ├── src/occurrence.rs # one occurrence of a series: cancelled, or moved
 │   │   ├── src/bulk.rs       # one action over a whole group
@@ -122,6 +126,7 @@ markdown-org-android/
 │   ├── licenses.sh           # collects the notices; --check fails on a stale one
 │   ├── check-apk.sh          # reads a built APK back: did shrinking keep the core reachable
 │   ├── store-icon.sh         # renders the launcher vector as the listing's icon.png
+│   ├── release-notes.sh      # the CHANGELOG section of one version, for the release body
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── fastlane/metadata/android/    # the store listing: descriptions, icon, screenshots
@@ -146,10 +151,12 @@ the extractor stays free to change its internals and only this crate has to
 follow. Reading the notes:
 
 - `scan(dir, options)` — walk a directory, return every task found;
-- `scanAgenda(dir, scope, currentDate, date, timezone, includeDone, weekStart, options)` —
-  walk it and return the agenda for a day, week, month, the grid that month is
-  drawn on, or the flat task list. `weekStart` names the weekday a week begins
-  on: the core reads no locale of its own and takes Monday when told nothing,
+- `scanAgenda(dir, query, options)` — walk it and return the agenda for a day,
+  week, month, the grid that month is drawn on, or the flat task list. The
+  `query` is an `AgendaQuery`: the scope, what the caller calls today, the day
+  the window is drawn around, the time zone, whether what is done is listed,
+  and the weekday a week begins on. The last two of those are optional; the
+  core reads no locale of its own and takes Monday when told no `weekStart`,
   so the application says what the phone's settings answer.
 
 Both walk the directory on every call, which is the right shape for the first
@@ -162,8 +169,8 @@ agenda and the wrong one for the agendas after an edit. For those there is
   from it. Named by both halves: the same relative path occurs in more than one
   collection;
 - `rescan()` — walk the directories again, replacing everything held;
-- `agenda(scope, currentDate, timezone, includeDone)` — build an agenda from
-  what is held, walking nothing.
+- `agenda(query)` — build an agenda from what is held, walking nothing, out of
+  the same `AgendaQuery` a walk is asked with.
 
 The index notices no change it was not told about. An edit names the file it
 wrote; a sync and a change of directory drop everything, because a
@@ -576,7 +583,7 @@ The decision is in
 
 ## What a setting is for
 
-Twenty of the thirty items of the settings screen carry a mark beside their
+Twenty of the thirty-two items of the settings screen carry a mark beside their
 name, and the mark opens a screen about that one setting: its name, what it
 does, why the answer matters, and one case told with names and numbers. The
 screen is drawn over the form, so an address half typed is still there on the
@@ -587,8 +594,8 @@ way back.
 | 1 | Where the mark is drawn    | Beside the label of a setting, and inside the outline of a field                                       |
 | 2 | What it opens              | Four texts: the name, what it does, why it matters, one case                                           |
 | 3 | Where the first text is from | The line the tooltip carried before this; the other two are written for the screen                   |
-| 4 | The ten without a mark     | Their label is the whole answer — the system picker, forgetting a key, which weekday a week starts on  |
-| 5 | What those ten kept        | The tooltip they had, held open by a long press on the label                                           |
+| 4 | The twelve without a mark  | Their label is the whole answer — the system picker, forgetting a key, which weekday a week starts on  |
+| 5 | What those twelve kept     | The tooltip they had, held open by a long press on the label                                           |
 | 6 | Leaving the screen         | Back, or the button at its head; what was typed into the form is untouched                             |
 
 What is explained is the list `settingHelp` in `ui/SettingHelp.kt`, keyed by the
@@ -780,16 +787,17 @@ Output:
 | 1 | `rust/jniLibs/<abi>/libmarkdown_org_ffi.so`   | loaded by the application        |
 | 2 | `generated/uniffi/markdown_org_ffi/*.kt`      | the Kotlin surface               |
 
-Library sizes, release, stripped:
+Library sizes, release, stripped, as the published APK carries them
+(`v0.1.0-build.96`):
 
 | № | ABI         | Size     |
 |---|-------------|----------|
-| 1 | `arm64-v8a` | 10.76 MB |
-| 2 | `x86_64`    | 11.56 MB |
+| 1 | `arm64-v8a` | 11.29 MB |
+| 2 | `x86_64`    | 12.22 MB |
 
 Most of that is vendored: libgit2 and the TLS stack it syncs over are built
 into the library because neither is present on an Android device. The APK
-carries both ABIs and comes to around 31 MB.
+carries both ABIs and comes to around 26 MB.
 
 The order in `build-core.sh` is not incidental. UniFFI keeps the interface
 metadata in the library's symbol table, so the bindings must be generated
@@ -987,10 +995,12 @@ documentation comes across as KDoc. Errors are a sealed class:
 val agenda = try {
     scanAgenda(
         dir = notesDir.absolutePath,
-        scope = Scope.DAY,
-        currentDate = "2026-03-02",
-        timezone = "Europe/Moscow",
-        includeDone = false,
+        query = AgendaQuery(
+            scope = Scope.DAY,
+            currentDate = "2026-03-02",
+            timezone = "Europe/Moscow",
+            includeDone = false,
+        ),
         options = Options(),
     )
 } catch (e: ExtractException.InvalidDirectory) {
