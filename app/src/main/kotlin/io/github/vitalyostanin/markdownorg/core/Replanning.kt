@@ -32,14 +32,18 @@ object Replanning {
     private var running: Job? = null
 
     /**
-     * Plan the reminders again, from the choices as they now stand.
+     * Plan the reminders again, by the scheduler the caller already has.
      *
      * Returns at once: the walk outlives the screen that asked for it, and
      * nothing on screen waits for it.
+     *
+     * A scheduler rather than a context, because building one opens an index
+     * of the notes of its own — the walk of every collection that the screen
+     * asking for this has already paid for once. A caller holding one passes
+     * it; the callers with nothing to hold use the overload below.
      */
     @Synchronized
-    fun request(context: Context) {
-        val app = context.applicationContext
+    fun request(scheduler: ReminderScheduler) {
         val previous = running
 
         running = scope.launch {
@@ -47,10 +51,18 @@ object Replanning {
             // this run will hold, and both writing at once is the interleaving
             // `PlanSlots` exists to prevent.
             previous?.cancelAndJoinQuietly()
-            ReminderScheduler.of(app).replan()
+            scheduler.replan()
                 .onFailure { failure -> Log.w(TAG, "the reminders could not be planned", failure) }
         }
     }
+
+    /**
+     * The same, for a caller with no scheduler of its own.
+     *
+     * A receiver woken by the platform is a few milliseconds of process with
+     * nothing held in it, so the index this opens is the only one there is.
+     */
+    fun request(context: Context) = request(ReminderScheduler.of(context.applicationContext))
 
     private suspend fun Job.cancelAndJoinQuietly() {
         cancel()

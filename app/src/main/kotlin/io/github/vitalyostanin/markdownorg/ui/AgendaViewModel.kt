@@ -28,6 +28,7 @@ import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.ReminderSettings
 import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
+import io.github.vitalyostanin.markdownorg.core.Replanning
 import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
 import io.github.vitalyostanin.markdownorg.core.SyncPreferences
@@ -113,8 +114,12 @@ class AgendaViewModel(
      * it to be exercised at all. What is passed in shares this walk's index,
      * so the reading it does costs the days it asks for rather than the
      * collection.
+     *
+     * Returns at once and takes a coroutine of its own where it is built: the
+     * screen that reported an edit is not what the walk that follows should
+     * belong to.
      */
-    private val notesChanged: suspend () -> Unit = {},
+    private val notesChanged: () -> Unit = {},
     /** The wall clock, taken as a parameter so a test can move it by hand. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
     /**
@@ -1551,12 +1556,22 @@ class AgendaViewModel(
     /**
      * Say that the notes are as they now are, without waiting for the answer.
      *
-     * Its own coroutine because what listens walks the notes: a screen that
-     * waited for that would hold the edit it has just finished reporting.
+     * What listens walks the notes, and it does so away from here: a screen
+     * that waited for that would hold the edit it has just finished
+     * reporting, and a walk belonging to this model would stop when the model
+     * does — with the edit written and nothing announcing it.
      */
-    private fun notesMayHaveMoved() {
-        viewModelScope.launch { notesChanged() }
-    }
+    private fun notesMayHaveMoved() = notesChanged()
+
+    /**
+     * Plan the reminders again, over the index this model already holds.
+     *
+     * For the settings screen: a choice about the reminders is not a change
+     * to the notes, but it is a change to what is announced out of them. It
+     * comes through here so that the walk uses the index of the agenda rather
+     * than opening every collection a second time.
+     */
+    fun replanReminders() = notesChanged()
 
     /**
      * Fetch and fast-forward every collection that has a remote, then rebuild
@@ -2518,7 +2533,10 @@ class AgendaViewModel(
                     // application is still running when the user comes back
                     // from it.
                     storageGranted = { StorageAccess.granted(application) },
-                    notesChanged = { reminders.replan() },
+                    // One walk at a time and the newest request winning, so
+                    // that an edit and a choice made a moment apart do not
+                    // race to replace the same alarms.
+                    notesChanged = { Replanning.request(reminders) },
                 )
             }
         }

@@ -14,7 +14,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.vitalyostanin.markdownorg.core.ReminderAccess
 import io.github.vitalyostanin.markdownorg.core.ReminderNotifications
 import io.github.vitalyostanin.markdownorg.core.ReminderSettings
-import io.github.vitalyostanin.markdownorg.core.Replanning
 import java.time.LocalTime
 
 /**
@@ -23,8 +22,9 @@ import java.time.LocalTime
  * Every change is written down and then planned again, rather than saved on
  * leaving the screen: the plan is what the choices are for, and a lead time
  * changed and forgotten about would take effect at the next fetch instead of
- * at once. Planning is a walk of the notes, so it goes to a coroutine and the
- * switch does not wait for it.
+ * at once. Planning is a walk of the notes, so [replan] is asked for and not
+ * waited on — and it is passed in rather than made here, because the walk it
+ * saves is the one the agenda already made.
  *
  * The two accesses are read again whenever this screen comes back to the
  * front. They are granted in screens of the platform — one of them reachable
@@ -32,7 +32,7 @@ import java.time.LocalTime
  * is missing has to go when it is granted, however the reader granted it.
  */
 @Composable
-internal fun rememberRemindersUi(): RemindersUi {
+internal fun rememberRemindersUi(replan: () -> Unit): RemindersUi {
     val context = LocalContext.current.applicationContext
     val settings = remember(context) { ReminderSettings(context) }
 
@@ -43,11 +43,6 @@ internal fun rememberRemindersUi(): RemindersUi {
     var allowed by remember { mutableStateOf(ReminderAccess.notificationsAllowed(context)) }
     var exact by remember { mutableStateOf(ReminderAccess.exactAlarmsAllowed(context)) }
 
-    // Asked for rather than run here: the walk of the notes outlives this
-    // screen, and a scope belonging to the composition is cancelled the moment
-    // the reader leaves it -- the preference written down and the alarms
-    // unchanged. See `Replanning`.
-    val replan = { Replanning.request(context) }
     val readAccess: (Any?) -> Unit = {
         allowed = ReminderAccess.notificationsAllowed(context)
         exact = ReminderAccess.exactAlarmsAllowed(context)

@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.core
 import io.github.vitalyostanin.markdownorg.ui.agenda
 import io.github.vitalyostanin.markdownorg.ui.day
 import io.github.vitalyostanin.markdownorg.ui.task
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +20,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.concurrent.Executors
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * Which days the plan is made from, and what is held when it cannot be made.
@@ -132,16 +136,77 @@ class ReminderSchedulerTest {
         assertFalse("an empty agenda is not an answer about that day", read.isSuccess)
     }
 
+    @Test
+    fun `the alarms are replaced away from the thread that asked for the plan`() = runTest {
+        val alarms = HeldAlarms()
+
+        onItsOwnThread { io -> scheduler(StandingAgenda(), alarms, io = io).replan() }
+
+        // Every alarm of the plan is two calls into the platform, and a full
+        // plan is scheduled after every edit: done where `replan` was called
+        // from, that is the frame the edit was tapped on.
+        assertEquals(ALARMS_THREAD, alarms.replacedOn)
+    }
+
+    @Test
+    fun `dropping the alarms also happens away from that thread`() = runTest {
+        val alarms = HeldAlarms()
+
+        onItsOwnThread { io ->
+            scheduler(StandingAgenda(), alarms, choices(enabled = false), io = io).replan()
+        }
+
+        assertEquals(ALARMS_THREAD, alarms.cancelledOn)
+    }
+
+    @Test
+    fun `the choices are read away from that thread too`() = runTest {
+        val chosen = Chosen(choices())
+
+        onItsOwnThread { io ->
+            ReminderScheduler(
+                agenda = StandingAgenda(),
+                preferences = chosen,
+                alarms = HeldAlarms(),
+                horizon = Duration.ofDays(2),
+                clock = { now },
+                io = io,
+            ).replan()
+        }
+
+        // The first read of a preference reads its file, which is a read off
+        // storage wherever it happens.
+        assertEquals(ALARMS_THREAD, chosen.readOn)
+    }
+
+    /**
+     * Run [block] with a dispatcher of one named thread, so what a call ran on
+     * can be told from the name it left behind.
+     */
+    private suspend fun onItsOwnThread(block: suspend (CoroutineContext) -> Unit) {
+        val executor = Executors.newSingleThreadExecutor { work ->
+            Thread(work, ALARMS_THREAD)
+        }
+
+        try {
+            block(executor.asCoroutineDispatcher())
+        } finally {
+            executor.shutdown()
+        }
+    }
+
     private fun scheduler(
         agenda: StandingAgenda,
         alarms: AlarmHolder = HeldAlarms(),
         choices: ReminderChoices = choices(),
+        io: CoroutineContext = EmptyCoroutineContext,
     ) = ReminderScheduler(
         agenda = agenda,
         preferences = Chosen(choices),
         alarms = alarms,
         horizon = Duration.ofDays(2),
         clock = { now },
+        io = io,
     )
 
     private fun choices(enabled: Boolean = true) = ReminderChoices(
@@ -152,8 +217,15 @@ class ReminderSchedulerTest {
 
     /** The preferences as a value, which is all the scheduler reads of them. */
     private class Chosen(private val held: ReminderChoices) : ReminderPreferences {
+
+        var readOn: String? = null
+
         override var enabled: Boolean
-            get() = held.enabled
+            get() {
+                readOn = Thread.currentThread().name
+
+                return held.enabled
+            }
             set(_) = Unit
         override var leadMinutes: Int
             get() = held.leadMinutes
@@ -221,16 +293,28 @@ class ReminderSchedulerTest {
 
         val aside = mutableListOf<PlannedReminder>()
 
+        var replacedOn: String? = null
+
+        var cancelledOn: String? = null
+
         override fun replace(plan: List<PlannedReminder>) {
             held = plan
+            replacedOn = Thread.currentThread().name
         }
 
         override fun cancelAll() {
             cancelled += 1
+            cancelledOn = Thread.currentThread().name
         }
 
         override fun holdAside(key: Int, reminder: PlannedReminder) {
             aside += reminder
         }
+    }
+
+    private companion object {
+
+        /** The name given to the dispatcher the alarms are expected to run on. */
+        const val ALARMS_THREAD = "alarms-of-the-test"
     }
 }

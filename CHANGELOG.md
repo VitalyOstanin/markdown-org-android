@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds it, and the count the alarms are cancelled by is kept in step with what
   the platform holds.
 
+- An edit no longer plans the reminders on the frame it was tapped on. A full
+  plan is hundreds of calls into the platform — one to cancel and one to place
+  for every alarm held — and they ran wherever the plan was asked for: after
+  every edit, from the screen that made it, and from the settings screen on
+  every switch. The plan is now made away from the screen, and the settings
+  screen plans by the index the agenda already holds rather than opening every
+  collection again: three switches in a row used to be three walks of the
+  notes, seconds each on a phone that keeps a thousand of them.
+
 - A reminder preference changed on the way out of the screen takes effect all
   the same. The lead time, the hour of the digest and the switch itself are
   planned again the moment they are chosen, and the walk that plans them used

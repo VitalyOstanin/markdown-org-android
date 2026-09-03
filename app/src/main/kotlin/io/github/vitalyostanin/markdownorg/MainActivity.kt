@@ -187,7 +187,7 @@ private fun SettingsRoute(
     val weekStart by model.weekStart.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
-    val reminders = rememberRemindersUi()
+    val reminders = rememberRemindersUi(replan = model::replanReminders)
 
     // Read once per opening, so a save followed by a reopen shows what was
     // stored — and again when the form is pointed at another collection, whose

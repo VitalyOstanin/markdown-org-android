@@ -1,11 +1,14 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.Scope
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Keeps what the platform holds in step with what the notes say.
@@ -28,6 +31,17 @@ class ReminderScheduler(
     private val alarms: AlarmHolder,
     private val horizon: Duration = HORIZON,
     private val clock: () -> ZonedDateTime = { ZonedDateTime.now() },
+    /**
+     * Where the plan is made, which is not where it is asked for.
+     *
+     * Everything `replan` does touches storage or the platform: the choices
+     * are a preference file, and each entry of the plan is a `PendingIntent`
+     * and a call to the alarm manager — a full plan is hundreds of binder
+     * transactions. Asked for after an edit and from the settings screen, both
+     * of which run on the main thread, that is the frame the reader is
+     * looking at. A parameter so a test can name the thread it expects.
+     */
+    private val io: CoroutineContext = Dispatchers.IO,
 ) {
 
     /**
@@ -38,16 +52,16 @@ class ReminderScheduler(
      * and the alarms held are left alone rather than dropped, so a directory
      * momentarily unreadable does not cost the reader the day's reminders.
      */
-    suspend fun replan(): Result<Unit> {
+    suspend fun replan(): Result<Unit> = withContext(io) {
         val choices = preferences.choices
         if (!choices.enabled) {
             alarms.cancelAll()
 
-            return Result.success(Unit)
+            return@withContext Result.success(Unit)
         }
         val now = clock()
 
-        return days(now).map { days ->
+        days(now).map { days ->
             alarms.replace(planReminders(days, choices, now, horizon))
         }
     }
