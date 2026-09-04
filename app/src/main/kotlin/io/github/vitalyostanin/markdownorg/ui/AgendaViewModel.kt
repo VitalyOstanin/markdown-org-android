@@ -94,6 +94,26 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
 
+/**
+ * What the screens read from and what they ask for.
+ *
+ * One model per process, holding the agenda itself: the scan of the notes, the
+ * state it is drawn from, and the clock that moves it over midnight. The rest
+ * is held by four classes it composes, each answering a question of its own:
+ *
+ *  * [PlanView] -- how much of the plan is on screen and how it is drawn;
+ *  * [RowFilters] -- which of the scanned rows are shown;
+ *  * [EntryEdits] -- what a tap writes into the notes and what it answers;
+ *  * [NotesSettings] -- where the notes live and what they are synced with.
+ *
+ * They are separate classes rather than sections of one because each of them
+ * is a different kind of work: two redraw what is in hand, one writes files,
+ * one talks to a remote. The screens still read everything through this model,
+ * so a composable reaches one object and the split stays an internal one.
+ *
+ * What this class keeps for itself is what the four have in common: the scan,
+ * the collections in use, and the rule that a write is followed by a read.
+ */
 class AgendaViewModel(
     /** The collections in use, each with the working copy that belongs to it. */
     private val collections: CollectionsInUse,
@@ -206,177 +226,159 @@ class AgendaViewModel(
     /** An entry a notification named, waiting for the agenda that holds it. */
     private var awaited: EntryAddress? = null
 
-    /** The collections whose rows the filter is keeping off the screen. */
-    private var hidden: Set<String> = emptySet()
+    /**
+     * Which of the rows a scan produced are on screen: the collection chips
+     * and the tag. Held by [RowFilters], and read through the properties
+     * below for the reason the view settings are.
+     */
+    private val filters = RowFilters()
+
+    val tags: StateFlow<List<MergedTag>> get() = filters.tags
+    val currentTag: StateFlow<String?> get() = filters.currentTag
+    val collectionFilter: StateFlow<List<CollectionChoice>> get() = filters.collectionFilter
 
     /**
-     * The tags the collections declare, merged, as of the last scan.
-     *
-     * Read with the notes rather than watched: the file arrives with a sync
-     * like the notes around it, and a scan is what follows a sync.
+     * How much of the plan is on screen and how it is drawn: the layout, the
+     * span, the sections, the calendar, the first weekday and the date the
+     * plan is asked around. Held by [PlanView], and read through the
+     * properties below so that the screen keeps asking this model for what it
+     * draws.
      */
-    private val _tags = MutableStateFlow<List<MergedTag>>(emptyList())
-    val tags: StateFlow<List<MergedTag>> = _tags.asStateFlow()
+    private val view = PlanView(ui, clock, ::refresh)
+
+    val layout: StateFlow<AgendaLayout> get() = view.layout
+    val span: StateFlow<AgendaSpan> get() = view.span
+    val grouped: StateFlow<Boolean> get() = view.grouped
+    val monthAsGrid: StateFlow<Boolean> get() = view.monthAsGrid
+    val weekStart: StateFlow<WeekStart> get() = view.weekStart
+    val anchor: StateFlow<LocalDate?> get() = view.anchor
 
     /**
-     * The tag the agenda is narrowed to, or null while it is not narrowed.
-     *
-     * Not stored between launches, for the reason the collection filter is not:
-     * an agenda missing half its tasks with no memory of why is worse than one
-     * that starts whole.
+     * The settings screen: where a collection's notes live and what they are
+     * synced with. Held by [NotesSettings], which is where every operation of
+     * that screen lives; the agenda reads its state and asks it for a sync.
      */
-    private val _currentTag = MutableStateFlow<String?>(null)
-    val currentTag: StateFlow<String?> = _currentTag.asStateFlow()
+    private val settingsScreen = NotesSettings(
+        collections = collections,
+        stored = stored,
+        agenda = agenda,
+        ownNotes = ownNotes,
+        storageGranted = storageGranted,
+        scope = viewModelScope,
+        io = io,
+        editingId = { _editingId.value },
+        onCollectionSet = { set -> _collectionSet.value = set },
+        onCollections = ::useCollections,
+        rescan = ::refresh,
+        onNotesMoved = ::notesMayHaveMoved,
+    )
+
+    val syncState: StateFlow<SyncUiState> get() = settingsScreen.syncState
+
+    fun syncNow() = settingsScreen.syncNow()
+
+    fun keepNotesLocal() = settingsScreen.keepNotesLocal()
+
+    fun settleAndSync() = settingsScreen.settleAndSync()
+
+    fun takeRemoteNotes() = settingsScreen.takeRemoteNotes()
+
+    fun trustHost() = settingsScreen.trustHost()
+
+    fun createSshKey() = settingsScreen.createSshKey()
+
+    fun currentSettings(): SyncForm = settingsScreen.currentSettings()
+
+    /** See [NotesSettings.saveSettings], which is where the work is done. */
+    @Suppress("LongParameterList")
+    fun saveSettings(
+        url: String,
+        branch: String,
+        token: String,
+        dropToken: Boolean = false,
+        notesPath: String = settingsScreen.collection.path,
+        name: String = settingsScreen.collection.name,
+        inbox: String = settingsScreen.collection.inbox,
+        writeAt: WritePosition = settingsScreen.collection.writeAt,
+        mainFile: String = settingsScreen.collection.mainFile,
+        sshKey: String = "",
+        sshPassphrase: String = "",
+        dropKey: Boolean = false,
+    ) = settingsScreen.saveSettings(
+        url = url,
+        branch = branch,
+        token = token,
+        dropToken = dropToken,
+        notesPath = notesPath,
+        name = name,
+        inbox = inbox,
+        writeAt = writeAt,
+        mainFile = mainFile,
+        sshKey = sshKey,
+        sshPassphrase = sshPassphrase,
+        dropKey = dropKey,
+    )
 
     /**
-     * The filter over the agenda, empty while there is one collection.
-     *
-     * Not stored between launches: it hides tasks, and a device that opens on
-     * an agenda missing half of them with no memory of why is worse off than
-     * one that starts with everything shown.
+     * What a tap on a row writes into the notes, and what it answers with:
+     * one entry or a whole band of them, and the way back from either. Held by
+     * [EntryEdits]; the properties below are what the screen reads.
      */
-    private val _collectionFilter = MutableStateFlow<List<CollectionChoice>>(emptyList())
-    val collectionFilter: StateFlow<List<CollectionChoice>> = _collectionFilter.asStateFlow()
+    private val edits = EntryEdits(
+        collections = collections,
+        agenda = agenda,
+        editing = { editing },
+        phrases = phrases,
+        clock = clock,
+        scope = viewModelScope,
+        io = io,
+        rescan = ::refresh,
+        onNotesMoved = ::notesMayHaveMoved,
+    )
 
-    /**
-     * Kept apart from [state] so switching the layout redraws without going
-     * back through Loading — the data is the same, only its shape changes.
-     * Read from the stored preference, so the agenda opens the way it was
-     * left rather than always on the hour axis.
-     */
-    private val _layout = MutableStateFlow(ui.layout)
-    val layout: StateFlow<AgendaLayout> = _layout.asStateFlow()
+    val editIssue: StateFlow<SyncMessage?> get() = edits.editIssue
+    val groupResult: StateFlow<GroupResult?> get() = edits.groupResult
+    val editResult: StateFlow<EditResult?> get() = edits.editResult
+    val selected: StateFlow<Task?> get() = edits.selected
+    val moveTargets: StateFlow<MoveTargets> get() = edits.moveTargets
+    val creating: StateFlow<Boolean> get() = edits.creating
+    val editedEntry: StateFlow<EntryDraft?> get() = edits.editedEntry
 
-    /**
-     * How much of the plan is asked for, read from the stored preference for
-     * the same reason as the layout: a span chosen yesterday is the one the
-     * screen opens on today.
-     *
-     * Unlike the layout, changing it costs a scan — the core groups the tasks
-     * against the span, and a week is not something the day agenda on screen
-     * can be regrouped into.
-     */
-    private val _span = MutableStateFlow(ui.span)
-    val span: StateFlow<AgendaSpan> = _span.asStateFlow()
+    fun editIssueShown() = edits.editIssueShown()
 
-    /**
-     * Whether the day is drawn under its section headings.
-     *
-     * Costs no scan, like the layout: the sections are already in hand and the
-     * setting decides whether they announce themselves.
-     */
-    private val _grouped = MutableStateFlow(ui.grouped)
-    val grouped: StateFlow<Boolean> = _grouped.asStateFlow()
+    fun select(task: Task?) = edits.select(task)
 
-    /**
-     * Whether the month is read as a calendar or as the list of its days.
-     *
-     * Costs no scan either: the same month is in hand, and this decides which
-     * of the two readings of it is drawn.
-     */
-    private val _monthAsGrid = MutableStateFlow(ui.monthAsGrid)
-    val monthAsGrid: StateFlow<Boolean> = _monthAsGrid.asStateFlow()
+    fun noteFile(task: Task): File? = edits.noteFile(task)
 
-    /**
-     * Which weekday a week is read as beginning on.
-     *
-     * Unlike the two above it, this one costs a scan: where a week starts is
-     * the core's to apply — it groups the week span and cuts the calendar into
-     * rows — so a changed answer is a different agenda, not a different
-     * drawing of the same one.
-     */
-    private val _weekStart = MutableStateFlow(ui.weekStart)
-    val weekStart: StateFlow<WeekStart> = _weekStart.asStateFlow()
+    fun reportOpenFailure() = edits.reportOpenFailure()
 
-    /**
-     * Which date the plan is asked around, or `null` for whatever day it is.
-     *
-     * `null` rather than today's date written down at launch: a phone is left
-     * running over midnight, and a date taken once would keep showing yesterday
-     * until something reset it. Not stored either — a step away from today is
-     * an act of looking something up, and an application reopened tomorrow
-     * opens on tomorrow.
-     */
-    private val _anchor = MutableStateFlow<LocalDate?>(null)
-    val anchor: StateFlow<LocalDate?> = _anchor.asStateFlow()
+    fun apply(task: Task, action: TaskAction) = edits.apply(task, action)
 
-    private val _syncState = MutableStateFlow(SyncUiState())
-    val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
+    fun edit(task: Task) = edits.edit(task)
 
-    /**
-     * The last edit that could not be made, until it has been shown.
-     *
-     * A channel of its own rather than the sync banner: that line reports the
-     * state of the checkout, and "the task could not be changed" is about a
-     * tap the user just made. Sharing one slot meant an edit failure sat under
-     * the header until the next sync, and displaced the checkout it describes.
-     */
-    private val _editIssue = MutableStateFlow<SyncMessage?>(null)
-    val editIssue: StateFlow<SyncMessage?> = _editIssue.asStateFlow()
+    fun cancelEdit() = edits.cancelEdit()
 
-    /**
-     * What the last group action did, until it has been shown.
-     *
-     * Apart from [editIssue] because it is not an issue: it carries what to
-     * undo, and the undo is what makes acting on twenty notes at once
-     * something a user can risk.
-     */
-    private val _groupResult = MutableStateFlow<GroupResult?>(null)
-    val groupResult: StateFlow<GroupResult?> = _groupResult.asStateFlow()
+    fun startCreating() = edits.startCreating()
 
-    /**
-     * What the last single edit did, until it has been shown.
-     *
-     * Apart from [editIssue] for the reason [groupResult] is: it is not an
-     * issue but an offer, and the offer is what makes a tap on a sheet of
-     * eight actions something a user can risk.
-     */
-    private val _editResult = MutableStateFlow<EditResult?>(null)
-    val editResult: StateFlow<EditResult?> = _editResult.asStateFlow()
+    fun cancelCreating() = edits.cancelCreating()
 
-    /**
-     * The task whose actions are open, if any.
-     *
-     * Held here rather than in the composition so it survives a rebuild of
-     * the agenda: an edit refreshes the list underneath the sheet.
-     */
-    private val _selected = MutableStateFlow<Task?>(null)
-    val selected: StateFlow<Task?> = _selected.asStateFlow()
+    fun createFromPhrase(phrase: String) = edits.createFromPhrase(phrase)
 
-    /**
-     * Where the entry on screen can be carried, for the sheet over it.
-     *
-     * Read from storage rather than from the agenda: the files of a collection
-     * are not the files its tasks are in — a note with nothing planned in it
-     * holds no task and is a perfectly good place to file one. Filled after
-     * the sheet is already up, which is why it is a state of its own: a walk
-     * of the directory is not something to hold a tap for, and a sheet whose
-     * move actions appear a moment later is what a reader sees.
-     */
-    private val _moveTargets = MutableStateFlow(MoveTargets())
-    val moveTargets: StateFlow<MoveTargets> = _moveTargets.asStateFlow()
+    fun reportNoRecogniser() = edits.reportNoRecogniser()
 
-    /** The walk behind [moveTargets], stopped when another task is tapped. */
-    private var targetsJob: Job? = null
+    fun createTask(collectionId: String, draft: TaskDraft) = edits.createTask(collectionId, draft)
 
-    /**
-     * Whether the screen that writes a new task is open.
-     *
-     * A flag rather than a draft: what is being typed belongs to the screen,
-     * which keeps it across a rotation itself. What the model has to know is
-     * that the screen is up — the agenda under it is rebuilt while it stands.
-     */
-    private val _creating = MutableStateFlow(false)
-    val creating: StateFlow<Boolean> = _creating.asStateFlow()
+    fun saveEntry(title: String, body: String) = edits.saveEntry(title, body)
 
-    /**
-     * The entry whose text is open for editing, if any.
-     *
-     * Held here for the reason [selected] is: the write that ends the editing
-     * rebuilds the agenda underneath it.
-     */
-    private val _editedEntry = MutableStateFlow<EntryDraft?>(null)
-    val editedEntry: StateFlow<EntryDraft?> = _editedEntry.asStateFlow()
+    fun applyToGroup(rows: List<AgendaRow>, action: BulkAction) = edits.applyToGroup(rows, action)
+
+    fun undoGroup() = edits.undoGroup()
+
+    fun groupResultShown() = edits.groupResultShown()
+
+    fun undoEdit() = edits.undoEdit()
+
+    fun editResultShown() = edits.editResultShown()
 
     /**
      * The work in flight, so a new request can supersede it.
@@ -387,7 +389,6 @@ class AgendaViewModel(
      * inside it leaves a window between the two.
      */
     private var refreshJob: Job? = null
-    private var syncJob: Job? = null
 
     /**
      * The date the agenda on screen was grouped against — what "overdue" was
@@ -438,136 +439,24 @@ class AgendaViewModel(
             useDirectories()
             refresh()
         }
-        readCheckout()
+        settingsScreen.readCheckout()
     }
 
-    fun setLayout(layout: AgendaLayout) {
-        _layout.value = layout
-        ui.layout = layout
-    }
+    fun setLayout(layout: AgendaLayout) = view.setLayout(layout)
 
-    /** Draw the day under its section headings, or as one list. */
-    fun setGrouped(grouped: Boolean) {
-        _grouped.value = grouped
-        ui.grouped = grouped
-    }
+    fun setGrouped(grouped: Boolean) = view.setGrouped(grouped)
 
-    /**
-     * Draw the month as a calendar, or as the list the week uses.
-     *
-     * No scan follows, unlike [setSpan]: both readings are of the same month
-     * the core has already answered with, and which of them is drawn is the
-     * screen's decision alone.
-     */
-    fun setMonthAsGrid(asGrid: Boolean) {
-        if (asGrid == _monthAsGrid.value) return
+    fun setMonthAsGrid(asGrid: Boolean) = view.setMonthAsGrid(asGrid)
 
-        _monthAsGrid.value = asGrid
-        ui.monthAsGrid = asGrid
-        // The two readings of a month are no longer the same answer read two
-        // ways: the calendar is asked for the whole weeks it draws, the list
-        // for the month alone. Only the month is affected, and only while it
-        // is the span on screen -- switching this from the day view changes
-        // what the next month will ask for and nothing that is drawn now.
-        if (_span.value == AgendaSpan.MONTH) {
-            refresh()
-        }
-    }
+    fun setWeekStart(start: WeekStart) = view.setWeekStart(start)
 
-    /**
-     * Read a week as beginning on another weekday.
-     *
-     * A scan follows wherever the choice is visible: the calendar is cut into
-     * weeks by the core, and so is the week span itself, so neither can be
-     * redrawn from the answer already in hand.
-     */
-    fun setWeekStart(start: WeekStart) {
-        if (start == _weekStart.value) return
+    fun setSpan(span: AgendaSpan) = view.setSpan(span)
 
-        _weekStart.value = start
-        ui.weekStart = start
-        if (_span.value == AgendaSpan.WEEK ||
-            (_span.value == AgendaSpan.MONTH && _monthAsGrid.value)
-        ) {
-            refresh()
-        }
-    }
+    fun stepBy(steps: Int) = view.stepBy(steps)
 
-    /**
-     * The weekday a week begins on, for the spans drawn in weeks.
-     *
-     * The core takes a fixed Monday when it is told nothing, and reads no
-     * locale to do better: it is a library with one answer per input, and the
-     * phone is what knows how its owner reads a calendar. The setting answers,
-     * and its own default is the system locale.
-     */
-    private fun weekStart(): DayOfWeek = _weekStart.value.resolve()
+    fun showDay(date: LocalDate) = view.showDay(date)
 
-    /**
-     * Ask the core for another span of the plan.
-     *
-     * A scan follows, because the grouping is the core's: a week is the same
-     * notes read against seven dates, and the day already on screen carries
-     * neither the other six nor the tasks that have no date at all. The one on
-     * screen stays up while it runs — see [refresh].
-     */
-    fun setSpan(span: AgendaSpan) {
-        if (span == _span.value) {
-            return
-        }
-
-        _span.value = span
-        ui.span = span
-        refresh()
-    }
-
-    /**
-     * Move the plan [steps] spans away from where it stands: a day at a time
-     * under the day span, a week under the week, a month under the month.
-     *
-     * The step follows the span rather than always being a day, because the
-     * span is what is on screen: stepping a week agenda by one day would answer
-     * with six of the same seven days and read as nothing having happened. The
-     * flat list of tasks has no dates to step through and stays where it is.
-     *
-     * Costs a scan, like [setSpan]: the grouping into overdue, timed and
-     * untimed is the core's, and it is made against the date asked for.
-     */
-    fun stepBy(steps: Int) {
-        if (steps == 0 || !_span.value.hasDays) {
-            return
-        }
-
-        val from = _anchor.value ?: clock().toLocalDate()
-        val moved = when (_span.value) {
-            AgendaSpan.WEEK -> from.plusWeeks(steps.toLong())
-            AgendaSpan.MONTH -> from.plusMonths(steps.toLong())
-            else -> from.plusDays(steps.toLong())
-        }
-        // Back to following the clock rather than pinned to today's date: a
-        // step back to today should leave the screen as it was before the first
-        // step forward, midnight included.
-        _anchor.value = moved.takeIf { it != clock().toLocalDate() }
-        refresh()
-    }
-
-    /**
-     * Show one day, whatever span was on screen.
-     *
-     * What a cell of the month calendar asks for. Both the anchor and the span
-     * move, and a scan follows for the reason [setSpan] takes one: a day is a
-     * different grouping of the notes, not a slice of the month already in
-     * hand. The anchor is cleared when the day asked for is today, so the plan
-     * goes back to following the clock — the same rule [stepBy] keeps.
-     */
-    fun showDay(date: LocalDate) {
-        _anchor.value = date.takeIf { it != clock().toLocalDate() }
-        if (_span.value != AgendaSpan.DAY) {
-            _span.value = AgendaSpan.DAY
-            ui.span = AgendaSpan.DAY
-        }
-        refresh()
-    }
+    fun showToday() = view.showToday()
 
     /**
      * Open the day an entry falls on, with the entry itself picked out.
@@ -576,39 +465,22 @@ class AgendaViewModel(
      * rather than by what it says: two headings can read alike, and the copy
      * the agenda puts in a day carries the line of the original. The address
      * is held until a day holding it has been read, because the scan is
-     * asynchronous — there is no sheet to open over an agenda still being
+     * asynchronous -- there is no sheet to open over an agenda still being
      * built, and a day the entry has since left simply leaves it unopened.
      */
     fun showEntry(date: LocalDate, root: String?, file: String, line: UInt) {
         awaited = EntryAddress(root = root, file = file, line = line)
-        showDay(date)
-    }
-
-    /** Back to the day being lived through, from wherever the plan was moved to. */
-    fun showToday() {
-        if (_anchor.value == null) {
-            return
-        }
-
-        _anchor.value = null
-        refresh()
+        view.showDay(date)
     }
 
     /**
      * Show or hide the rows of one collection.
      *
      * Answers on the spot, without a scan: the notes have not changed, only
-     * how much of them is on screen. Turning the last collection off is
-     * allowed and leaves the agenda empty — the chips stay up, and the way
-     * back is the same tap.
+     * how much of them is on screen.
      */
     fun setCollectionShown(id: String, shown: Boolean) {
-        hidden = if (shown) hidden - id else hidden + id
-        _collectionFilter.update { choices ->
-            choices.map { choice ->
-                if (choice.label.id == id) choice.copy(shown = shown) else choice
-            }
-        }
+        filters.setCollectionShown(id, shown)
         reshow()
     }
 
@@ -619,7 +491,7 @@ class AgendaViewModel(
      * file a row came from, which the rows already carry.
      */
     fun setTag(tag: String?) {
-        _currentTag.value = tag
+        filters.setTag(tag)
         reshow()
     }
 
@@ -634,7 +506,7 @@ class AgendaViewModel(
      */
     private fun reshow() {
         val full = scanned ?: return
-        val shown = full.showing(hidden).tagged(_currentTag.value, _tags.value)
+        val shown = filters.apply(full)
         _state.update { current ->
             when (current) {
                 is AgendaUiState.Ready -> current.copy(days = shown)
@@ -657,31 +529,13 @@ class AgendaViewModel(
         val ready = _state.value as? AgendaUiState.Ready ?: return
 
         awaited = null
-        _selected.value = ready.days
-            .asSequence()
-            .flatMap { day -> day.sections.run { overdue + timed + untimed }.asSequence() }
-            .map(AgendaRow::task)
-            .firstOrNull(address::names)
-    }
-
-    fun select(task: Task?) {
-        _selected.value = task
-        _moveTargets.value = MoveTargets()
-        targetsJob?.cancel()
-
-        // A task whose collection is gone is not moved anywhere, and the sheet
-        // simply carries no move: the failure worth reporting is the one the
-        // tap that writes produces, not one about a sheet being opened.
-        val collection = task?.let { collections.byRoot(it.root) } ?: return
-
-        targetsJob = viewModelScope.launch {
-            val files = withContext(io) { markdownFiles(File(collection.root)) }
-
-            _moveTargets.value = MoveTargets(
-                mainFile = collection.collection.mainFile.takeUnless(String::isBlank),
-                files = files,
-            )
-        }
+        edits.select(
+            ready.days
+                .asSequence()
+                .flatMap { day -> day.sections.run { overdue + timed + untimed }.asSequence() }
+                .map(AgendaRow::task)
+                .firstOrNull(address::names),
+        )
     }
 
     /** Which collection the settings screen is about from now on. */
@@ -711,7 +565,7 @@ class AgendaViewModel(
 
         val problem = collectionProblem(added.name, added.path, existing)
         if (problem != null) {
-            _syncState.update { it.copy(message = problem.toMessage()) }
+            settingsScreen.say(problem.toMessage())
             return
         }
 
@@ -783,687 +637,8 @@ class AgendaViewModel(
         }
         if (refused.isNotEmpty()) {
             Log.w(TAG, "directories could not be used: ${refused.map { it.collection.path }}")
-            _syncState.update {
-                it.copy(message = SyncMessage(R.string.settings_notes_failed, failed = true))
-            }
+            settingsScreen.say(SyncMessage(R.string.settings_notes_failed, failed = true))
         }
-    }
-
-    /** The edit failure has been shown, so it is not shown again. */
-    fun editIssueShown() {
-        _editIssue.value = null
-    }
-
-    /**
-     * Where the note a task sits in actually is, or `null` when that cannot be
-     * said.
-     *
-     * A task carries its file relative to the directory the walk covered --
-     * `notes.md`, not `/home/.../notes.md` -- because that is what the agenda
-     * shows and what an edit addresses, and every writer here joins the two
-     * back together. Anything handing the file to another application has to
-     * do the same: a relative path taken for an absolute one names a file in
-     * the root of the filesystem, which exists nowhere.
-     *
-     * `null` where the collection is gone -- removed while its tasks were
-     * still on screen -- since there is no directory left to join to.
-     */
-    fun noteFile(task: Task): File? =
-        collections.byRoot(task.root)?.let { collection -> File(collection.root, task.file) }
-
-    /**
-     * Nothing on the device opened the note.
-     *
-     * Reported through the same channel as a failed edit, because to the
-     * reader it is the same kind of event: the tap did not do what it said.
-     */
-    fun reportOpenFailure() {
-        _editIssue.value = SyncMessage(R.string.open_externally_failed, failed = true)
-    }
-
-    /**
-     * Apply an action to the selected task, then rebuild the agenda.
-     *
-     * The sheet closes first: every action writes to the file and commits,
-     * and leaving the sheet up over a list that is being rebuilt reads as the
-     * tap not having registered.
-     */
-    fun apply(task: Task, action: TaskAction) {
-        _selected.value = null
-
-        val theirEditor = editorFor(task) ?: return
-
-        // Apart from the rest because it is the one action that writes two
-        // notes: what it hands back is a pair to put back, where every other
-        // action hands back one file.
-        if (action is TaskAction.MoveToFile) {
-            moveEntry(task, theirEditor, action.file)
-            return
-        }
-
-        viewModelScope.launch {
-            // The other half of what a tap costs, alongside the scan timed in
-            // refresh(): the write is one file, but the commit that follows it
-            // reads the whole working copy, so this grows with the notes too.
-            val started = System.nanoTime()
-            // What a phrase changed, worked out against the entry as it stands
-            // now: after the write the note holds the new values, and a phrase
-            // that named three fields would have nothing left to name.
-            var changes: List<PhraseChange> = emptyList()
-            val outcome = when (action) {
-                TaskAction.Complete -> theirEditor.complete(task, clock().toLocalDate())
-
-                is TaskAction.Status -> theirEditor.setStatus(task, action.status)
-
-                is TaskAction.Priority -> theirEditor.setPriority(task, action.value)
-
-                is TaskAction.Phrase -> {
-                    // Read before anything is written, and refused here rather
-                    // than in the core: what the phrase failed at is said in
-                    // the language of the screen, which the core does not
-                    // speak.
-                    val draft = phraseFor(action.said) ?: return@launch
-                    changes = phraseChanges(task, draft)
-                    theirEditor.applyPhrase(task, draft)
-                }
-
-                is TaskAction.Shift -> theirEditor.shift(task, action.keyword, action.days)
-
-                is TaskAction.Plan ->
-                    theirEditor.setPlanning(task, action.keyword, action.date)
-
-                is TaskAction.PlanTime ->
-                    theirEditor.setPlanningTime(task, action.keyword, action.time)
-
-                is TaskAction.CancelOccurrence ->
-                    theirEditor.cancelOccurrence(task, action.date)
-
-                is TaskAction.MoveOccurrence ->
-                    theirEditor.moveOccurrence(task, action.occurrence, action.date, action.time)
-
-                // Answered above, before the notes were touched.
-                is TaskAction.MoveToFile -> return@launch
-            }
-            Log.i(TAG, "the edit took ${millisSince(started)} ms")
-
-            settle(task, outcome, changes)
-        }
-    }
-
-    /**
-     * Carry the entry into another file of its own collection.
-     *
-     * Where in that file it lands is the collection's own setting, the one a
-     * task written here is placed by: a reader who wants what is new at the
-     * top of a file wants it there however the entry arrived.
-     *
-     * What is settled afterwards names both files: the agenda is rebuilt off a
-     * re-read of the notes that changed, and a move changes two of them.
-     */
-    private fun moveEntry(task: Task, theirEditor: NotesWriter, file: String) {
-        val at = collections.byRoot(task.root)?.collection?.writeAt ?: DEFAULT_WRITE_AT
-
-        viewModelScope.launch {
-            val started = System.nanoTime()
-            val outcome = theirEditor.moveEntry(task, file, at)
-            Log.i(TAG, "the move took ${millisSince(started)} ms")
-
-            // Both notes are named: the entry has to appear in the file it
-            // reached and stop appearing in the file it left, and the held
-            // notes of an unread file would go on showing it in both.
-            settle(
-                Written(
-                    root = task.root,
-                    files = listOf(task.file, file),
-                    heading = task.heading,
-                ),
-                outcome.map { move -> move.report.copy(rollback = move.outcome.rollback) },
-            )
-        }
-    }
-
-    /**
-     * Open the text of a task's entry: its heading and the lines under it.
-     *
-     * Read before the screen is shown rather than by the screen itself, so a
-     * file that has moved on says so where every other refusal is said, and
-     * the editor never opens over text it could not write back.
-     */
-    fun edit(task: Task) {
-        _selected.value = null
-
-        val theirEditor = editorFor(task) ?: return
-
-        viewModelScope.launch {
-            theirEditor.readEntry(task).fold(
-                onSuccess = { text ->
-                    // A note whose whole content sits under one heading turns
-                    // the body into a file, and a field of that size is not
-                    // slow but unusable: a run measured six seconds for one
-                    // keystroke at 676 KB. Past the threshold the note goes to
-                    // an editor built for it.
-                    if (text.body.length > BODY_LIMIT) {
-                        _editIssue.value = SyncMessage(R.string.entry_too_long, failed = true)
-                    } else {
-                        _editedEntry.value = EntryDraft(task, text.title, text.body)
-                    }
-                },
-                onFailure = { error ->
-                    Log.w(TAG, "the entry could not be read", error)
-                    _editIssue.value = error.toEditMessage()
-                },
-            )
-        }
-    }
-
-    /** The editing screen was left without writing anything. */
-    fun cancelEdit() {
-        _editedEntry.value = null
-    }
-
-    /** Open the screen that writes a task the notes do not hold yet. */
-    fun startCreating() {
-        // The sheet of another task has nothing to do with a new one, and two
-        // things over the agenda at once is one too many.
-        _selected.value = null
-        _creating.value = true
-    }
-
-    /** The creation screen was left without writing anything. */
-    fun cancelCreating() {
-        _creating.value = false
-    }
-
-    /**
-     * Write a task out of one spoken sentence, without opening a screen.
-     *
-     * The sentence goes through the same rules the creation screen reads a
-     * typed phrase with, so "позвонить врачу завтра в 15:00" becomes the same
-     * entry either way. Where it lands is the first collection: the button is
-     * for the task thought of while walking, and a question about which of the
-     * collections it belongs to would be the screen this button exists to
-     * avoid — a task written into the wrong one is moved from its own sheet.
-     *
-     * What the rules leave over becomes the heading; a sentence they consume
-     * entirely is kept as the heading as it was said, because an entry without
-     * one is not written at all and what was heard is better than nothing.
-     */
-    fun createFromPhrase(phrase: String) {
-        val said = phrase.trim()
-        if (said.isEmpty()) {
-            return
-        }
-
-        val target = collections.entries.firstOrNull()
-        if (target == null) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
-            return
-        }
-
-        val read = runCatching {
-            phrases.refine(EMPTY_PHRASE, said, clock().toLocalDate())
-        }.getOrElse { error ->
-            Log.w(TAG, "the phrase could not be read", error)
-            _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
-            return
-        }
-
-        createTask(
-            target.collection.id,
-            TaskDraft(
-                title = read.heading.ifBlank { said },
-                priority = read.priority,
-                keyword = read.keyword ?: PlanningKeyword.SCHEDULED,
-                date = statedDate(read.date),
-                time = statedTime(read.time),
-                repeater = read.repeater,
-            ),
-        )
-    }
-
-    /**
-     * What the rules make of a phrase said about an entry that exists, or
-     * `null` when there is nothing to apply.
-     *
-     * Three ways of coming back empty-handed, each said in its own words: the
-     * rules refused the sentence, a word of it was not understood — and then
-     * nothing is changed, because applying the half that was understood would
-     * move a field nobody named — or the sentence named no field at all.
-     */
-    private fun phraseFor(said: String): PhraseDraft? {
-        val phrase = said.trim()
-        if (phrase.isEmpty()) {
-            return null
-        }
-
-        val read = runCatching {
-            phrases.refine(EMPTY_PHRASE, phrase, clock().toLocalDate())
-        }.getOrElse { error ->
-            Log.w(TAG, "the phrase could not be read", error)
-            _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
-            return null
-        }
-
-        if (read.heading.isNotBlank()) {
-            _editIssue.value = SyncMessage(
-                R.string.agenda_phrase_leftover,
-                detail = Detail.Verbatim(read.heading),
-                failed = true,
-            )
-            return null
-        }
-        val named = read.status != null ||
-            read.priority != null ||
-            read.date != null ||
-            read.time != null ||
-            read.repeater != null ||
-            read.cleared.isNotEmpty()
-        if (!named) {
-            _editIssue.value = SyncMessage(R.string.agenda_phrase_nothing, failed = true)
-            return null
-        }
-        return read
-    }
-
-    /** Say that this phone has nothing to recognise speech with. */
-    fun reportNoRecogniser() {
-        _editIssue.value = SyncMessage(R.string.create_phrase_unheard, failed = true)
-    }
-
-    /**
-     * Write a new task into the file the chosen collection receives them in.
-     *
-     * The screen closes first, for the reason the editing one does: what
-     * follows is a write and a rebuilt agenda, and a screen left standing over
-     * it reads as the task not having been created.
-     */
-    fun createTask(collectionId: String, draft: TaskDraft) {
-        _creating.value = false
-
-        // A collection removed while the screen stood over the agenda has
-        // nothing to write to.
-        val target = collections.entries.firstOrNull { it.collection.id == collectionId }
-        if (target == null) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
-            refresh()
-            return
-        }
-
-        viewModelScope.launch {
-            val now = clock()
-            // An hour or a repeat said without a day gets one, rather than
-            // being dropped on the way to a planning line that cannot hold it.
-            val assumed = draft.assumedDay(now)
-            val outcome = target.editor.createTask(
-                target.collection.inbox,
-                target.collection.writeAt,
-                draft.onItsDay(now),
-                now,
-            )
-
-            settle(
-                Written(
-                    root = target.root,
-                    files = listOf(target.collection.inbox),
-                    heading = draft.title.trim(),
-                    created = true,
-                    assumedDay = assumed,
-                ),
-                outcome,
-            )
-        }
-    }
-
-    /**
-     * Write the edited entry back, then rebuild the agenda.
-     *
-     * The screen closes first, for the reason the sheet does: what follows is
-     * a write and a rebuilt list, and a screen left standing over it reads as
-     * the save not having registered.
-     */
-    fun saveEntry(title: String, body: String) {
-        val draft = _editedEntry.value ?: return
-        _editedEntry.value = null
-
-        val theirEditor = editorFor(draft.task) ?: return
-
-        viewModelScope.launch {
-            val started = System.nanoTime()
-            val outcome = theirEditor.setEntry(draft.task, title, body)
-            Log.i(TAG, "the entry took ${millisSince(started)} ms")
-
-            settle(draft.task, outcome)
-        }
-    }
-
-    /**
-     * Which editor writes the collection a task came from, or nothing and a
-     * reason on screen.
-     *
-     * The collection the task came from rather than the one being edited in
-     * the settings: the agenda shows several at once, and writing to the wrong
-     * directory would edit whatever note happens to sit at the same relative
-     * path there. A task read out of a file whose name is not UTF-8 names a
-     * path that does not exist, so every edit would come back as "file not
-     * found" — refused here with a reason instead.
-     */
-    private fun editorFor(task: Task): NotesWriter? {
-        if (!task.isEditable()) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
-            return null
-        }
-
-        // A collection removed while its tasks were still on screen has
-        // nothing to write to.
-        val theirEditor = collections.byRoot(task.root)?.editor
-        if (theirEditor == null) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
-            refresh()
-        }
-
-        return theirEditor
-    }
-
-    /**
-     * Which note a finished write changed, and what it was.
-     *
-     * One object rather than four arguments, and the reason there are four at
-     * all: a write is settled the same way whether it edited a task the agenda
-     * showed or wrote one that was not there — and the second has no task to
-     * read the file and the heading off.
-     */
-    private data class Written(
-        val root: String?,
-        /**
-         * The notes the write changed, which is one for every write but a
-         * move: that one takes an entry out of a file and puts it in another,
-         * and a file left unread would keep showing the entry it no longer
-         * holds.
-         */
-        val files: List<String>,
-        val heading: String,
-        val created: Boolean = false,
-        /**
-         * The fields a phrase changed, for a write that was made by saying
-         * one; empty for every other write, which says what it did in the
-         * button that was pressed.
-         */
-        val changes: List<PhraseChange> = emptyList(),
-        /**
-         * The day a created task was given where what was said named none,
-         * with the grounds for it; `null` for every other write.
-         */
-        val assumedDay: AssumedDay? = null,
-    )
-
-    /** What a finished write leaves on the screen, whichever write it was. */
-    private suspend fun settle(
-        task: Task,
-        outcome: Result<EditReport>,
-        changes: List<PhraseChange> = emptyList(),
-    ) = settle(
-        Written(
-            root = task.root,
-            files = listOf(task.file),
-            heading = task.heading,
-            changes = changes,
-        ),
-        outcome,
-    )
-
-    /** The same, for a write that changed a note no task on screen names. */
-    private suspend fun settle(written: Written, outcome: Result<EditReport>) {
-        outcome.fold(
-            onSuccess = { report ->
-                // The note has been written either way. A commit that did not
-                // happen is said so in its own words — reported as a failed
-                // edit, it would send the user to tap again over a file that
-                // has already changed, and that second attempt comes back as
-                // "the file has changed".
-                report.commitFailure?.let { failure ->
-                    Log.w(TAG, "the edit was written but not committed", failure)
-                }
-                _editIssue.value = report.commitFailure
-                    ?.let { SyncMessage(R.string.edit_not_committed, failed = true) }
-                // What it takes to put this one tap back, for as long as the
-                // line offering it stands. An edit that wrote nothing brings
-                // back no pair and clears the offer: the previous edit's
-                // rollback would restore a note this tap never touched.
-                _editResult.value = report.rollback.takeIf { it.isNotEmpty() }?.let { rollback ->
-                    written.root?.let { root ->
-                        EditResult(
-                            root = root,
-                            heading = written.heading,
-                            rollback = rollback,
-                            created = written.created,
-                            changes = written.changes,
-                            assumedDay = written.assumedDay,
-                        )
-                    }
-                }
-                // Which notes changed is known. Saying so is what keeps the
-                // agenda that follows from re-reading every note in the
-                // collection; a failure to re-read is not worth a sentence on
-                // screen, because the next full scan fixes it. Named by both
-                // halves — the same relative path occurs in more than one
-                // collection.
-                written.root?.let { root ->
-                    written.files.forEach { file ->
-                        agenda.reread(root, file).onFailure { failure ->
-                            Log.w(TAG, "the edited note could not be re-read", failure)
-                        }
-                    }
-                }
-                refresh()
-                notesMayHaveMoved()
-            },
-            onFailure = { error ->
-                // What the core wrote about it is an English sentence for a
-                // log, and that is where it goes; the screen answers in the
-                // language of the interface.
-                Log.w(TAG, "the edit failed", error)
-                _editIssue.value = error.toEditMessage()
-            },
-        )
-    }
-
-    /**
-     * Apply one action to a whole band of overdue entries.
-     *
-     * A group of ten dates from three years ago is answered in one move rather
-     * than read task by task, and the core does it as one rewrite per file and
-     * one commit. Tasks whose file cannot be named are left out before the call
-     * rather than refused by the core with a reason that would be about the
-     * wrong thing — the same check a single tap makes.
-     */
-    fun applyToGroup(rows: List<AgendaRow>, action: BulkAction) {
-        val tasks = rows.map(AgendaRow::task).filter(Task::isEditable)
-        if (tasks.isEmpty()) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_unnamed, failed = true)
-            return
-        }
-
-        // A band of overdue entries spans whatever collections have overdue
-        // tasks, and a collection is one pass and one commit: split here, so
-        // each directory is still rewritten once however many of them the band
-        // covers. Tasks whose collection is gone are dropped rather than sent
-        // to a directory that is no longer read.
-        val byCollection = tasks.groupBy { collections.byRoot(it.root) }
-            .mapNotNull { (collection, group) -> collection?.let { it to group } }
-        if (byCollection.isEmpty()) {
-            _editIssue.value = SyncMessage(R.string.edit_failed_no_collection, failed = true)
-            refresh()
-            return
-        }
-
-        viewModelScope.launch {
-            val started = System.nanoTime()
-            val outcomes = byCollection.map { (collection, group) ->
-                collection to collection.editor.applyToGroup(group, action, clock().toLocalDate())
-            }
-            Log.i(TAG, "the group of ${tasks.size} took ${millisSince(started)} ms")
-
-            // A collection that failed does not take the ones that went
-            // through with it: what was changed is on disk, and the offer to
-            // undo has to name it. The failure is still said, once, over the
-            // whole group.
-            outcomes.mapNotNull { (_, outcome) -> outcome.exceptionOrNull() }
-                .firstOrNull()
-                ?.let { error ->
-                    Log.w(TAG, "the group could not be applied", error)
-                    _editIssue.value = error.toEditMessage()
-                }
-
-            val applied = outcomes.mapNotNull { (collection, outcome) ->
-                outcome.getOrNull()?.let { collection to it }
-            }
-            applied.forEach { (_, group) ->
-                group.report.commitFailure?.let { failure ->
-                    Log.w(TAG, "the group was written but not committed", failure)
-                }
-            }
-
-            if (applied.isNotEmpty()) {
-                _groupResult.value = GroupResult(
-                    action = action,
-                    changed = applied.sumOf { (_, group) -> group.outcome.changed.toInt() },
-                    refused = applied.sumOf { (_, group) -> group.outcome.refused.size },
-                    rollback = applied.map { (collection, group) ->
-                        CollectionRollback(root = collection.root, files = group.outcome.rollback)
-                    },
-                )
-                // Which files changed is known, but a band spans several
-                // and the held notes for each would have to be dropped one
-                // by one; the walk that follows is the same one an edit
-                // ends in.
-                agenda.invalidate()
-                refresh()
-            }
-        }
-    }
-
-    /**
-     * Put back what the last group action overwrote.
-     *
-     * Only the files that still hold what it wrote go back — a sync or an edit
-     * that landed since is left alone by the core — so this can be pressed
-     * without knowing what happened in between.
-     */
-    fun undoGroup() {
-        val rollback = _groupResult.value?.rollback.orEmpty()
-        _groupResult.value = null
-        if (rollback.isEmpty()) {
-            return
-        }
-
-        viewModelScope.launch {
-            // Collection by collection, each one against its own directory:
-            // the paths in a rollback are relative, and handing them to another
-            // collection would restore whatever note sits at the same path
-            // there. A collection removed since is simply not put back.
-            val undone = rollback.mapNotNull { entry ->
-                collections.byRoot(entry.root)?.editor?.undoGroup(entry.files)
-            }
-
-            undone.mapNotNull(Result<*>::exceptionOrNull).firstOrNull()?.let { error ->
-                Log.w(TAG, "the group could not be undone", error)
-                _editIssue.value = error.toEditMessage()
-            }
-
-            val restored = undone.mapNotNull(Result<UndoReport>::getOrNull)
-            restored.forEach { report ->
-                report.report.commitFailure?.let { failure ->
-                    Log.w(TAG, "the undo was written but not committed", failure)
-                }
-            }
-            val partial = restored.any {
-                it.outcome.skipped.isNotEmpty() || it.outcome.failed.isNotEmpty()
-            }
-            if (partial) {
-                // Some of it went back and some did not, which is a state the
-                // user has to be told about rather than left to notice: the
-                // agenda below will show both.
-                _editIssue.value = SyncMessage(R.string.agenda_group_undo_partial)
-            }
-
-            if (restored.isNotEmpty()) {
-                agenda.invalidate()
-                refresh()
-            }
-        }
-    }
-
-    /** The group result has been shown, so it is not shown again. */
-    fun groupResultShown() {
-        _groupResult.value = null
-    }
-
-    /**
-     * Put back what the last single edit overwrote.
-     *
-     * The note goes back only while it still holds what the edit wrote — a
-     * sync landed since, the note was opened in another application — and the
-     * screen says so rather than reporting an undo that did not happen. The
-     * offer is dropped either way: it was made about a state the note has left.
-     */
-    fun undoEdit() {
-        val result = _editResult.value ?: return
-        _editResult.value = null
-
-        // The collection the edit was made in, which may have been removed
-        // while its line stood on screen.
-        val theirEditor = collections.byRoot(result.root)?.editor ?: return
-
-        viewModelScope.launch {
-            // A creation is taken back by its own call: what it puts back is
-            // the same file, and what it says in the history is not.
-            val taken = when {
-                result.created -> theirEditor.undoCreation(result.rollback, result.heading)
-                else -> theirEditor.undoEdit(result.rollback, result.heading)
-            }
-
-            taken.fold(
-                onSuccess = { undone ->
-                    undone.report.commitFailure?.let { failure ->
-                        Log.w(TAG, "the undo was written but not committed", failure)
-                    }
-                    if (undone.outcome.restored.isEmpty()) {
-                        _editIssue.value = SyncMessage(R.string.agenda_edit_undo_skipped)
-                        return@fold
-                    }
-                    val left = undone.outcome.skipped + undone.outcome.failed
-                    if (left.isNotEmpty()) {
-                        // An undone move puts two files back — the note the
-                        // entry left and the one it arrived in. One of them
-                        // returning and the other not leaves the entry in both
-                        // notes or in neither, which is worth a line rather
-                        // than the silence of a successful undo.
-                        Log.w(TAG, "part of the edit was not put back: $left")
-                        _editIssue.value = SyncMessage(R.string.agenda_edit_undo_partial)
-                    }
-
-                    // Which files went back is known, so the agenda is rebuilt
-                    // off a re-read of those notes rather than a walk of the
-                    // collection. Two of them for an undone move, one for
-                    // everything else.
-                    result.rollback.forEach { rollback ->
-                        agenda.reread(result.root, rollback.file).onFailure { failure ->
-                            Log.w(TAG, "the restored note could not be re-read", failure)
-                        }
-                    }
-                    refresh()
-                },
-                onFailure = { error ->
-                    Log.w(TAG, "the edit could not be undone", error)
-                    _editIssue.value = error.toEditMessage()
-                },
-            )
-        }
-    }
-
-    /** The edit result has been shown, so it is not shown again. */
-    fun editResultShown() {
-        _editResult.value = null
     }
 
     /**
@@ -1489,7 +664,7 @@ class AgendaViewModel(
             // Which date the plan is asked around: today unless the user has
             // stepped away from it. Held apart from `today`, which the seeding
             // below and the day-turned-over check still mean literally.
-            val shown = _anchor.value ?: today
+            val shown = view.anchor.value ?: today
             groupedAgainst = today
             // What the walk cost, for the one question the screen cannot
             // answer: whether a directory of this size is still usable. The
@@ -1519,7 +694,7 @@ class AgendaViewModel(
             // header above it says: the span can be changed while a scan is in
             // flight, and the answer of that scan describes the span it was
             // asked for.
-            val span = _span.value
+            val span = view.span.value
             // Both dates, and they are not the same one: `today` is what the
             // plan is late against, `shown` is what is drawn. Asked around
             // `shown` alone, the arrears of the whole collection moved with
@@ -1530,7 +705,7 @@ class AgendaViewModel(
             // for: the calendar needs the whole weeks it draws, borrowed days
             // and all, while the list of a month is that month and nothing
             // either side of it.
-            val scope = if (span == AgendaSpan.MONTH && _monthAsGrid.value) {
+            val scope = if (span == AgendaSpan.MONTH && view.monthAsGrid.value) {
                 Scope.MONTH_GRID
             } else {
                 span.scope
@@ -1540,7 +715,7 @@ class AgendaViewModel(
                     scope,
                     today = today,
                     shown = shown,
-                    weekStart = weekStart(),
+                    weekStart = view.firstDayOfWeek(),
                 ).getOrThrow()
             }
             // `mapCatching` catches every throwable, and the cancellation this
@@ -1568,7 +743,7 @@ class AgendaViewModel(
                         )
                         AgendaUiState.Ready(
                             date = shown,
-                            days = days.showing(hidden).tagged(_currentTag.value, _tags.value),
+                            days = filters.apply(days),
                             span = span,
                             notices = result.notices(),
                         )
@@ -1614,783 +789,13 @@ class AgendaViewModel(
      * fail to arrive, days later.
      */
     fun replanReminders() = notesChanged { failure ->
-        _syncState.update {
-            it.copy(
-                message = SyncMessage(
-                    R.string.reminders_plan_failed,
-                    detail = failure.message?.let(Detail::Verbatim),
-                    failed = true,
-                ),
-            )
-        }
-    }
-
-    /**
-     * Fetch and fast-forward every collection that has a remote, then rebuild
-     * the agenda over what arrived.
-     *
-     * One after another rather than together: each holds its own working copy
-     * while it runs, and a phone syncing three repositories at once spends the
-     * radio on all of them and finishes none of them sooner. A collection that
-     * fails does not stop the ones after it — the notes of the others did come
-     * forward, and saying otherwise would send the user looking for a fetch
-     * that worked.
-     */
-    fun syncNow() {
-        if (syncJob?.isActive == true) {
-            return
-        }
-
-        val configured = collections.entries.filter { it.settings.isConfigured }
-        if (configured.isEmpty()) {
-            return
-        }
-
-        // What the previous run answered goes before this one starts: a line
-        // per collection that is left over from an hour ago describes a
-        // checkout nobody has looked at since.
-        _syncState.update { it.copy(runs = emptyList()) }
-
-        syncJob = viewModelScope.launch {
-            configured.forEach { collection -> runSync(collection) }
-        }
-    }
-
-    /**
-     * Stores the remote and gets the directory into a state it can be synced
-     * from.
-     *
-     * Nothing here empties anything, and nothing anywhere else does either. A
-     * directory that already holds notes and no git is taken in as it stands —
-     * `adopt` makes what is in it the first commit and only then adds the
-     * remote — and a directory holding neither is cloned into.
-     *
-     * A checkout of another remote is the one case saving cannot resolve, and
-     * it stays unresolved: it says so and leaves both alone. The files are the
-     * user's, the commits in them may exist nowhere else, and the way on is
-     * another directory or a hand emptying this one — not a button here.
-     *
-     * [token] empty means "leave the stored one alone", since the form never
-     * shows it. That cannot hold across a change of host, though — a token is
-     * issued by one server and has no business reaching another — so the
-     * stored one is dropped along with the URL it belonged to. [dropToken]
-     * clears it outright, which is the only way to go back to a remote that
-     * needs no credentials.
-     *
-     * An address that carries credentials of its own — which is how a clone
-     * command copied from a repository page reads — is split before anything
-     * else: the secret belongs in the token, not in the field the screen shows
-     * in the clear.
-     *
-     * [sshKey] follows the token's rule, with one difference: it is not
-     * dropped when the address changes. A token is issued by one server; a key
-     * belongs to the device and is added to as many servers as its owner
-     * likes. What is dropped with the address is the server key it was known
-     * by — that one is about the host and about nothing else.
-     */
-    @Suppress("LongParameterList")
-    fun saveSettings(
-        url: String,
-        branch: String,
-        token: String,
-        dropToken: Boolean = false,
-        notesPath: String = editing.collection.path,
-        name: String = editing.collection.name,
-        inbox: String = editing.collection.inbox,
-        writeAt: WritePosition = editing.collection.writeAt,
-        mainFile: String = editing.collection.mainFile,
-        sshKey: String = "",
-        sshPassphrase: String = "",
-        dropKey: Boolean = false,
-    ) {
-        // Before anything is stored, and against the same rule the set itself
-        // is checked by: a collection with no name is one the filter offers as
-        // a blank chip and the rows carry a blank mark.
-        val named = name.trim()
-        if (named.isEmpty()) {
-            _syncState.update { it.copy(message = CollectionProblem.NAME_EMPTY.toMessage()) }
-            return
-        }
-
-        // And on the same terms: a collection whose receiving file cannot hold
-        // a task is one where the button that writes one has nowhere to go.
-        val receiving = inbox.trim()
-        noteFileProblem(receiving)?.let { problem ->
-            _syncState.update { it.copy(message = problem.toMessage()) }
-            return
-        }
-
-        // The main file is checked the same way, with one difference: leaving
-        // it unnamed is an answer, and what it costs is the offer to move an
-        // entry there.
-        val main = mainFile.trim()
-        mainFileProblem(main)?.let { problem ->
-            _syncState.update { it.copy(message = problem.toMessage()) }
-            return
-        }
-
-        val split = splitCredentials(url)
-        val address = split.url
-        val secret = token.ifBlank { split.token.orEmpty() }
-
-        // An empty address is not a failure but a form that is only about the
-        // directory: notes already on the device need no remote, and the one
-        // configured earlier — if any — is left exactly as it was.
-        val problem = remoteUrlProblem(address).takeUnless { it == RemoteUrlProblem.EMPTY }
-        if (problem != null) {
-            // Nothing is stored and nothing is deleted: the address is checked
-            // before the destructive part, not after the clone fails.
-            _syncState.update { it.copy(message = problem.toMessage()) }
-            return
-        }
-
-        // Checked here as well as on the form, and before anything is stored:
-        // the form is one caller, and a directory that cannot hold the notes
-        // must not become the one the next scan walks.
-        val directoryProblem = notesPathProblem(notesPath, ownNotes, storageGranted())
-            ?.toMessage()
-        if (directoryProblem != null) {
-            _syncState.update { it.copy(message = directoryProblem) }
-            return
-        }
-
-        // Saving is work on the working copy, so it becomes the job that
-        // stands for one: everything that asks "is a sync under way" — the
-        // sync icon, the answers beside the banner — has to be told yes while
-        // the directory is being moved and the address stored. Held in a local
-        // first, because the job this is about to become cannot cancel itself.
-        val running = syncJob
-        syncJob = viewModelScope.launch {
-            // A sync in flight owns the directory this is about to point
-            // somewhere else, so it is stopped rather than raced with.
-            //
-            // Cancelling asks; it does not interrupt. The sync is inside a
-            // call into the core, and that call returns when it returns — a
-            // fetch on a stalled connection, at the outside, when the core's
-            // own network timeouts expire. This waits for that, and it is why
-            // the core has those timeouts rather than the operating system's.
-            running?.cancelAndJoin()
-            _syncState.update { it.copy(running = false) }
-
-            if (!saveDirectory(notesPath, Collected(named, receiving, writeAt, main))) {
-                return@launch
-            }
-
-            // The rest is about a remote, and there is none in the form. What
-            // was stored before stays: clearing it here would be a way to lose
-            // a repository by saving a directory.
-            if (address.isEmpty()) {
-                return@launch
-            }
-
-            saveRemote(address, branch, secret, dropToken, sshKey, sshPassphrase, dropKey)
-        }
-    }
-
-    /**
-     * Put the notes where the form says, under the name it gives them.
-     *
-     * Runs before the remote half of the same save: everything there reads the
-     * checkout, and after a move that has to be the checkout in the new
-     * directory. Returns whether the save may go on — a move that failed leaves
-     * the rest untouched, because storing a remote against a directory the
-     * notes are not in would clone into the old one.
-     */
-    private suspend fun saveDirectory(notesPath: String, collected: Collected): Boolean {
-        if (moveNotes(notesPath).isFailure) {
-            return false
-        }
-
-        // After the move, and over what the move stored: the two are edits to
-        // the same set, and renaming against the set as it was would put the
-        // old directory back.
-        reviseEditing(collected)
-
-        return true
-    }
-
-    /**
-     * What the form says about the collection itself, apart from its remote.
-     *
-     * One object because they are stored together, in one revision of the set:
-     * passing four values through the save would be four parameters of the
-     * same three types, and a call that swapped two of them would compile.
-     */
-    private data class Collected(
-        val name: String,
-        val inbox: String,
-        val writeAt: WritePosition,
-        val mainFile: String,
-    )
-
-    /**
-     * Store the address and the credentials, then take up the directory.
-     *
-     * The second half of a save, reached only with an address in the form. What
-     * happens to the directory afterwards is decided from the checkout that is
-     * already in it: a fetch into a checkout of this same remote, an adoption
-     * of notes that are not in git yet, or a refusal to touch a checkout of
-     * somewhere else.
-     */
-    @Suppress("LongParameterList")
-    private suspend fun saveRemote(
-        address: String,
-        branch: String,
-        secret: String,
-        dropToken: Boolean,
-        sshKey: String,
-        sshPassphrase: String,
-        dropKey: Boolean,
-    ) {
-        // Which host the stored token was issued for: the settings, not the
-        // checkout. A directory holding no repository yet says nothing about
-        // where the token came from.
-        val configuredUrl = settings.remoteUrl
-
-        // Read off disk rather than from the state: the state is filled in
-        // asynchronously after launch, and saving before it arrives would
-        // throw away a checkout that did not need to go.
-        val previous = sync.status()
-        if (previous.isFailure) {
-            // The checkout is there but could not be read. Emptying it now
-            // would delete commits that exist nowhere else, so the address
-            // is stored and the directory left for a human to look at.
-            storeRemote(address, branch, secret, dropToken, configuredUrl)
-            storeKey(sshKey, sshPassphrase, dropKey)
-            _syncState.update {
-                it.copy(
-                    configured = settings.isConfigured,
-                    message = SyncMessage(R.string.sync_status_unreadable, failed = true),
-                )
-            }
-            return
-        }
-
-        // Compared without the credentials the checkout's own `origin` may
-        // carry: a clone made before those were split off names the same
-        // repository, and treating it as another one would send the user
-        // to a decision there is nothing to decide.
-        val before = previous.getOrNull()?.url?.let { splitCredentials(it).url }
-        val checkout = previous.getOrNull() != null
-        storeRemote(address, branch, secret, dropToken, configuredUrl)
-        storeKey(sshKey, sshPassphrase, dropKey)
-        // An address was named, so this is no longer the store the user
-        // said was local — whatever happens to the directory below.
-        settings.storesLocally = false
-        _syncState.update { it.copy(configured = settings.isConfigured) }
-
-        when {
-            // Somebody else's checkout, or this one pointed elsewhere. The
-            // address is kept and the directory is not touched: emptying
-            // it is what used to happen, and it took every commit that had
-            // not been pushed with it. The message says the way on.
-            checkout && before != settings.remoteUrl -> _syncState.update {
-                it.copy(
-                    message = SyncMessage(R.string.settings_other_checkout, failed = true),
-                )
-            }
-
-            // Already a checkout of this remote: fetch into it, branch
-            // change included — the core moves the checkout onto the new
-            // branch without touching what is committed here.
-            checkout -> startSync()
-
-            // A directory with notes and no git: taken in as it stands.
-            else -> startAdoption()
-        }
-    }
-
-    /**
-     * Keep the notes on this device and stop asking for a remote.
-     *
-     * The state was reachable by accident before — a directory with no address
-     * is a plain directory — and read as "not set up yet" on every launch.
-     * Said outright it is a way to use the application: no banner, no retry,
-     * and a remote can still be added later without the notes going anywhere.
-     */
-    fun keepNotesLocal() {
-        settings.storesLocally = true
-        _syncState.update {
-            it.copy(local = true, message = SyncMessage(R.string.settings_local_chosen))
-        }
-    }
-
-    /**
-     * Take the notes already in the directory into git and point them at the
-     * configured remote.
-     *
-     * Runs in place of the clone when the directory holds notes: the files
-     * stay where they are, and what happens next depends on what the remote
-     * turns out to hold — see [Adoption].
-     */
-    private fun startAdoption() {
-        syncJob = viewModelScope.launch {
-            _syncState.update { it.copy(running = true, message = null) }
-
-            val adopted = sync.adopt(settings)
-            val status = sync.status()
-                .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
-                .getOrNull()
-            val host = adopted.hostInQuestion()
-
-            _syncState.update { current ->
-                current.copy(
-                    configured = settings.isConfigured,
-                    running = false,
-                    repository = status,
-                    lastSyncedAt = settings.lastSyncedAt,
-                    message = adopted.fold(
-                        onSuccess = Adoption::toMessage,
-                        onFailure = Throwable::toSyncMessage,
-                    ),
-                    // The one outcome that needs an answer rather than a
-                    // reading: both sides hold notes, and joining them is not
-                    // something this application does by itself.
-                    unrelated = (adopted.getOrNull() as? Adoption.Unrelated)?.branch,
-                    pendingHost = host?.first,
-                    pendingHostReplaces = host?.second,
-                )
-            }
-
-            if (adopted.isSuccess) {
-                agenda.invalidate()
-                refresh()
-            }
-        }
-    }
-
-    /**
-     * Answer a sync stopped by uncommitted changes: commit them and go again.
-     *
-     * The commit is the one every sync makes anyway; what the button adds is
-     * a second attempt at it, for the state where it failed the first time —
-     * a directory that momentarily could not be written to, an index another
-     * process held. Nothing here forces anything: a commit that fails again
-     * leaves the same message and the same offer.
-     */
-    fun settleAndSync() {
-        if (syncJob?.isActive == true) {
-            return
-        }
-
-        _syncState.update { it.copy(blockedByUncommitted = false) }
-        syncNow()
-    }
-
-    /**
-     * Answer the unrelated-histories question with "take what the server has".
-     *
-     * What was in the directory is not deleted: the core leaves it as a commit
-     * on a branch of its own, readable by any git client.
-     */
-    fun takeRemoteNotes() {
-        if (syncJob?.isActive == true) {
-            return
-        }
-
-        syncJob = viewModelScope.launch {
-            _syncState.update { it.copy(running = true, message = null) }
-
-            val taken = sync.takeRemote(settings)
-            _syncState.update { current ->
-                current.copy(
-                    running = false,
-                    repository = taken.getOrNull()?.head ?: current.repository,
-                    unrelated = if (taken.isSuccess) null else current.unrelated,
-                    message = taken.fold(
-                        onSuccess = { SyncMessage(R.string.sync_took_remote) },
-                        onFailure = Throwable::toSyncMessage,
-                    ),
-                )
-            }
-
-            if (taken.isSuccess) {
-                agenda.invalidate()
-                refresh()
-            }
-        }
-    }
-
-    /**
-     * Vouch for the server key the last attempt stopped on, and try again.
-     *
-     * The key is stored only here, on a press: an application that recorded
-     * whatever answered the first time would pin nothing, since the first time
-     * is exactly when a wrong server would be believed. What follows is the
-     * attempt that was interrupted — a directory that is already a checkout
-     * fetches, one that is not is taken in as it stands.
-     */
-    fun trustHost() {
-        val fingerprint = _syncState.value.pendingHost ?: return
-        if (syncJob?.isActive == true) {
-            return
-        }
-
-        settings.knownHost = fingerprint
-        _syncState.update {
-            it.copy(pendingHost = null, pendingHostReplaces = null, message = null)
-        }
-
-        syncJob = viewModelScope.launch {
-            if (sync.holdsRepository()) {
-                startSync()
-            } else {
-                startAdoption()
-            }
-        }
-    }
-
-    /**
-     * The server key an attempt is waiting on, and the one it would replace.
-     *
-     * Both failures mean the same thing to the screen — a question about who
-     * answered — and differ only in how grave it is, which is what the second
-     * half of the pair says.
-     */
-    private fun Result<*>.hostInQuestion(): Pair<String, String?>? =
-        when (val failure = exceptionOrNull()) {
-            is SyncException.UnknownHost -> failure.fingerprint to null
-            is SyncException.HostChanged -> failure.fingerprint to failure.known
-            else -> null
-        }
-
-    /**
-     * Store the address and what is sent to it, dropping what belonged to the
-     * address it replaces.
-     *
-     * The server key goes with the address rather than surviving it: `origin`
-     * pointing somewhere else is a different server, and a key remembered for
-     * the old one would vouch for whatever answers at the new.
-     */
-    private fun storeRemote(
-        address: String,
-        branch: String,
-        secret: String,
-        dropToken: Boolean,
-        configuredUrl: String?,
-    ) {
-        val moved = configuredUrl != address
-        settings.remoteUrl = address
-        settings.branch = branch
-        settings.token = tokenFor(secret, dropToken, changedHost = moved)
-        if (moved) {
-            settings.knownHost = null
-        }
-    }
-
-    /**
-     * Store the key an `ssh://` remote is reached with.
-     *
-     * Blank means "leave the stored one alone", the way a blank token does:
-     * the form does not show a key it holds, so an empty field is silence
-     * rather than an instruction. [dropKey] takes both halves — a passphrase
-     * outliving the key it opens is worth nothing.
-     */
-    private fun storeKey(typed: String, passphrase: String, dropKey: Boolean) {
-        when {
-            dropKey -> {
-                settings.sshKey = null
-                settings.sshPassphrase = null
-            }
-
-            typed.isNotBlank() -> {
-                settings.sshKey = typed
-                settings.sshPassphrase = passphrase.ifEmpty { null }
-            }
-
-            // A passphrase typed against a key already stored: the key stays,
-            // and this is how a wrong one gets corrected.
-            passphrase.isNotEmpty() -> settings.sshPassphrase = passphrase
-        }
-    }
-
-    /**
-     * Which token to store: the one just typed, none, or the one already
-     * there.
-     *
-     * Kept out of [saveSettings] because it is the whole of the rule and both
-     * branches of that function apply it.
-     */
-    private fun tokenFor(typed: String, dropped: Boolean, changedHost: Boolean): String? = when {
-        dropped -> null
-        typed.isNotBlank() -> typed
-        changedHost -> null
-        else -> settings.token
-    }
-
-    /**
-     * Points the working copy at the chosen directory, when the choice changed.
-     *
-     * Answers with a failure the caller stops on, having already put the
-     * reason on screen: the whole of what saving does afterwards is about a
-     * directory the notes are in, and there is nothing sensible to do with a
-     * remote when the move did not happen.
-     *
-     * The directory is stored only after the move went through, so a path
-     * that cannot be used is not what the application opens on next time.
-     */
-    private suspend fun moveNotes(path: String): Result<Unit> {
-        val collection = editing.collection
-        val chosen = path.trim().ifEmpty { null }?.let(::File) ?: ownNotes
-        if (chosen.absolutePath == collection.path) {
-            return Result.success(Unit)
-        }
-
-        // Against the other collections as well as against the filesystem: a
-        // directory that is one of them, or sits inside one, would have every
-        // note under it read twice — once per collection — and an edit would
-        // then act on one of the two copies on screen.
-        val others = collections.entries.map { it.collection }.filter { it.id != collection.id }
-        val clash = collectionProblem(collection.name, chosen.absolutePath, others)
-        if (clash != null) {
-            _syncState.update { it.copy(message = clash.toMessage()) }
-            return Result.failure(IllegalStateException("the directory clashes with a collection"))
-        }
-
-        val used = editing.area.useDirectory(chosen)
-        if (used.isFailure) {
-            // The sentence is about a directory on this device, and the
-            // wording is in the resources; what the filesystem said about it
-            // goes to the log.
-            Log.w(TAG, "the notes directory could not be used", used.exceptionOrNull())
-            _syncState.update {
-                it.copy(message = SyncMessage(R.string.settings_notes_failed, failed = true))
-            }
-            return used
-        }
-
-        // Stored and put to work in one step: the set the walk reads and the
-        // set the next launch reads are the same set, and a directory that
-        // could not be used never becomes either.
-        val moved = stored.collections.map { entry ->
-            if (entry.id == collection.id) entry.copy(path = chosen.absolutePath) else entry
-        }
-        stored.collections = moved
-        collections.use(moved)
-        _collectionSet.value = moved
-        // The notes held from the previous directory describe files this one
-        // does not have. Dropped before anything reads them, for the same
-        // reason the header below is cleared.
-        agenda.invalidate()
-        // What the header showed belongs to the directory that was left
-        // behind; nothing is known about a checkout in the new one yet.
-        _syncState.update { it.copy(repository = null) }
-        // Ahead of the sync rather than after it: the agenda of what is
-        // already in the new directory is on screen while the fetch runs, and
-        // when no remote is configured it is all there is going to be.
-        refresh()
-
-        return used
-    }
-
-    /**
-     * Give the collection being edited what the form says about it.
-     *
-     * Its directory is not among those settings, so the working copy and the
-     * lock over it are the ones already in use — [CollectionsInUse.use] keeps
-     * an entry whose directory has not moved.
-     */
-    private fun reviseEditing(collected: Collected) {
-        val collection = editing.collection
-        val revised = collection.copy(
-            name = collected.name,
-            inbox = collected.inbox,
-            writeAt = collected.writeAt,
-            mainFile = collected.mainFile,
+        settingsScreen.say(
+            SyncMessage(
+                R.string.reminders_plan_failed,
+                detail = failure.message?.let(Detail::Verbatim),
+                failed = true,
+            ),
         )
-        if (revised == collection) {
-            return
-        }
-
-        useCollections(
-            stored.collections.map { entry ->
-                if (entry.id == collection.id) {
-                    entry.copy(
-                        name = collected.name,
-                        inbox = collected.inbox,
-                        writeAt = collected.writeAt,
-                        mainFile = collected.mainFile,
-                    )
-                } else {
-                    entry
-                }
-            },
-        )
-    }
-
-    /** Current settings, for filling the form. */
-    fun currentSettings(): SyncForm = SyncForm(
-        url = settings.remoteUrl.orEmpty(),
-        branch = settings.branch.orEmpty(),
-        hasToken = !settings.token.isNullOrBlank(),
-        notesPath = editing.collection.path,
-        name = editing.collection.name,
-        inbox = editing.collection.inbox,
-        writeAt = editing.collection.writeAt,
-        mainFile = editing.collection.mainFile,
-        hasKey = !settings.sshKey.isNullOrBlank(),
-        publicKey = settings.sshPublicKey.orEmpty(),
-        knownHost = settings.knownHost.orEmpty(),
-    )
-
-    /**
-     * Make a key for this device, keeping the private half here.
-     *
-     * Stored as it is made rather than when the form is saved: the public half
-     * has to be taken to a server before anything can be synced, and a key
-     * shown but not kept would let someone add a key to their account that
-     * this device no longer holds.
-     *
-     * A key made this way replaces whatever was stored, passphrase included:
-     * the new one has none, and an old passphrase against a new key is a
-     * failure with nothing on screen to explain it.
-     */
-    fun createSshKey() {
-        val made = runCatching { generateSshKey(KEY_COMMENT) }
-        made.onFailure { failure ->
-            Log.w(TAG, "the key could not be made", failure)
-            _syncState.update {
-                it.copy(message = SyncMessage(R.string.settings_key_failed, failed = true))
-            }
-        }
-
-        val key = made.getOrNull() ?: return
-        settings.sshKey = key.privateKey
-        settings.sshPassphrase = null
-        settings.sshPublicKey = key.publicKey
-        _syncState.update { it.copy(publicKey = key.publicKey) }
-    }
-
-    /** Sync the collection the settings screen is about. */
-    private fun startSync() {
-        if (!settings.isConfigured) {
-            return
-        }
-
-        val collection = editing
-        syncJob = viewModelScope.launch { runSync(collection) }
-    }
-
-    /**
-     * Fetch, fast-forward and push one collection, reporting what happened.
-     *
-     * Written as one suspending step rather than as a job of its own, so that
-     * syncing every collection is that step repeated: the working copies are
-     * held one at a time and the screen is told after each.
-     */
-    private suspend fun runSync(collection: CollectionInUse) {
-        // Named apart from the properties of the same shape: those read the
-        // collection the settings screen is about, and this run is over the one
-        // it was handed.
-        val theirSettings = collection.settings
-        val theirSyncer = collection.syncer
-
-        _syncState.update { it.copy(running = true, message = null) }
-
-        // An edit whose commit did not happen leaves the checkout dirty, and
-        // the core refuses to fast-forward a dirty checkout. The core's commit
-        // is idempotent, so this costs nothing when there is nothing to
-        // commit.
-        //
-        // What it settles is not only this application's own unfinished
-        // business: a note written in another editor is an uncommitted change
-        // like any other, and without this it would sit here unsent while the
-        // sync reported success. Whether anything was committed is carried on
-        // to the message, because a commit the user did not ask for should not
-        // appear in the history unannounced.
-        val settled = collection.editor.commitPending()
-            .onFailure { failure ->
-                Log.w(TAG, "the uncommitted edits could not be committed", failure)
-            }
-            .getOrDefault(false)
-
-        val outcome = theirSyncer.sync(theirSettings)
-            // The path with the most ways to fail — the network, the
-            // credentials, a host key, a history that diverged, a checkout
-            // left dirty — and the only failure that used to leave nothing
-            // behind it. What reaches the screen is a phrase assembled from
-            // the resources, so afterwards neither the class of the failure
-            // nor what the core said with it was anywhere. Safe to write down:
-            // the address is stored with the credentials already split off it
-            // (`splitCredentials`, where the settings are saved).
-            .onFailure { failure -> Log.w(TAG, "the sync failed", failure) }
-        outcome.getOrNull()?.pushFailure?.let { failure ->
-            // Beside a fetch that went through, so it never reaches the branch
-            // above: the run is reported as a success with a note, and the
-            // refusal itself is the half the screen says least about.
-            Log.w(TAG, "the push was refused", failure)
-        }
-        // A sync that went through hands back the state of the checkout it
-        // wrote. Asking again walks every file in the working copy, untracked
-        // ones included, for an answer already in hand; only a failed sync has
-        // nothing to report and has to read.
-        val status = outcome.getOrNull()?.head
-            ?: theirSyncer.status()
-                .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
-                .getOrNull()
-        val message = outcome.fold(
-            onSuccess = { run -> run.toMessage(settledEdits = settled) },
-            onFailure = Throwable::toSyncMessage,
-        )
-
-        val host = outcome.hostInQuestion()
-        _syncState.update { current ->
-            current.copy(
-                configured = theirSettings.isConfigured,
-                running = false,
-                // The header is about the collection the settings screen is
-                // about, so a run over the others leaves what it says alone.
-                repository = status.takeIf { collection.collection.id == _editingId.value }
-                    ?: current.repository,
-                lastSyncedAt = theirSettings.lastSyncedAt,
-                message = message,
-                // The collection's own answer, kept apart from the last one of
-                // the run: over several repositories the header alone cannot
-                // say which of them failed.
-                runs = current.runs.filterNot { it.id == collection.collection.id } +
-                    CollectionRun(
-                        id = collection.collection.id,
-                        name = collection.collection.name,
-                        message = message,
-                    ),
-                pendingHost = host?.first,
-                pendingHostReplaces = host?.second,
-                // Reached only when the commit above could not be made:
-                // otherwise the tree is clean by the time the fetch runs. The
-                // screen offers to try both again, because nothing else in the
-                // application moves a checkout in this state.
-                blockedByUncommitted = outcome.exceptionOrNull() is SyncException.Dirty,
-            )
-        }
-
-        if (outcome.isSuccess) {
-            // A fetch rewrites whatever it fast-forwarded over, and which
-            // files those were is not something this side is told. The held
-            // notes are stale as a whole, so the agenda that follows walks
-            // the directories again.
-            agenda.invalidate()
-            refresh()
-            notesMayHaveMoved()
-        }
-    }
-
-    private fun readCheckout() {
-        viewModelScope.launch {
-            // A checkout that cannot be read leaves the header saying nothing
-            // about it, which is all the screen can do here — but the reason
-            // has to end up somewhere, and this is the only place it exists.
-            val status = sync.status()
-                .onFailure { failure -> Log.w(TAG, "the checkout could not be read", failure) }
-                .getOrNull()
-            _syncState.update {
-                it.copy(
-                    configured = settings.isConfigured,
-                    local = settings.storesLocally,
-                    repository = status,
-                    lastSyncedAt = settings.lastSyncedAt,
-                )
-            }
-        }
     }
 
     /**
@@ -2428,12 +833,7 @@ class AgendaViewModel(
      * been removed must not go on hiding rows through an identifier its
      * successor could be given.
      */
-    private fun offerFilter(labels: List<CollectionLabel>) {
-        hidden = hidden.intersect(labels.map(CollectionLabel::id).toSet())
-        _collectionFilter.value = labels.map { label ->
-            CollectionChoice(label = label, shown = label.id !in hidden)
-        }
-    }
+    private fun offerFilter(labels: List<CollectionLabel>) = filters.offerCollections(labels)
 
     /**
      * Reread the tags the collections declare and merge them into one
@@ -2452,7 +852,7 @@ class AgendaViewModel(
      * collection, and this runs on every rebuild of the agenda.
      */
     private suspend fun offerTags() {
-        _tags.value = mergeTagDictionaries(
+        val merged = mergeTagDictionaries(
             collections.entries.mapNotNull { entry ->
                 // Under the collection's own lock, which is where the step off
                 // the main thread lives: this used to be the one read of
@@ -2461,9 +861,7 @@ class AgendaViewModel(
                 entry.area.exclusive { readDeclaredTags(entry.collection.name, File(entry.root)) }
             },
         )
-        if (_currentTag.value !in _tags.value.map(MergedTag::name)) {
-            _currentTag.value = null
-        }
+        filters.offerTags(merged)
     }
 
     /** How long ago [started] was, in whole milliseconds. */
@@ -2490,29 +888,6 @@ class AgendaViewModel(
         /** Where the failures the screen does not spell out are written. */
         private const val TAG = "Agenda"
 
-        /** A draft that has been told nothing, for a phrase read from scratch. */
-        private val EMPTY_PHRASE = PhraseDraft(
-            heading = "",
-            priority = null,
-            keyword = null,
-            date = null,
-            time = null,
-            repeater = null,
-            status = null,
-            cleared = emptyList(),
-        )
-
-        /**
-         * How much text an entry may hold and still be edited here.
-         *
-         * A field of this size answers a keystroke in about a third of a
-         * second on an emulator; a run of the same measurement puts 134 KB at
-         * a second and 676 KB at six. What sets the size is the user's file
-         * rather than the interface, so the limit is stated rather than
-         * assumed, and a longer entry is sent to an editor built for one.
-         */
-        private const val BODY_LIMIT = 20_000
-
         /**
          * How long the ticker keeps running after the screen stops watching.
          *
@@ -2521,15 +896,6 @@ class AgendaViewModel(
          * not wake the process once a minute.
          */
         private const val TICKER_LINGER_MS = 5_000L
-
-        /**
-         * What a key made here is labelled with on the server it is added to.
-         *
-         * Not the device's own name: that is the user's to give, it says who
-         * they are to whoever reads the list of keys, and asking a phone for
-         * it needs a permission this application has no other use for.
-         */
-        private const val KEY_COMMENT = "markdown-org"
 
         /** Time from [moment] to the top of the next minute, in milliseconds. */
         private fun millisUntilNextMinute(moment: LocalDateTime): Long = Duration.between(

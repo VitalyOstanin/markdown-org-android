@@ -487,6 +487,46 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun everyChoiceAboutTheViewIsWrittenDownAsItIsMade() = runTest(dispatcher) {
+        // The other half of "the agenda opens the way it was left": that test
+        // reads a stored choice, this one checks that making a choice stores
+        // it. Without this, a setter that only moved the flow would keep the
+        // screen right for as long as the process lived and lose the choice on
+        // the next launch -- and every test above would still pass.
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.setLayout(AgendaLayout.LIST)
+        model.setSpan(AgendaSpan.WEEK)
+        model.setGrouped(false)
+        model.setMonthAsGrid(false)
+        model.setWeekStart(WeekStart.MONDAY)
+        advanceUntilIdle()
+
+        assertEquals(AgendaLayout.LIST, ui.layout)
+        assertEquals(AgendaSpan.WEEK, ui.span)
+        assertFalse(ui.grouped)
+        assertFalse(ui.monthAsGrid)
+        assertEquals(WeekStart.MONDAY, ui.weekStart)
+    }
+
+    @Test
+    fun theDayACellAsksForIsTheSpanTheScreenIsLeftIn() = runTest(dispatcher) {
+        // A tap on a cell of the month calendar moves the span as well as the
+        // date, and the span it moves to is stored like any other: the next
+        // launch opens on the day, not back on the month.
+        ui.span = AgendaSpan.MONTH
+        val model = viewModel(FakeSyncer())
+        advanceUntilIdle()
+
+        model.showDay(NOON.toLocalDate().plusDays(1))
+        advanceUntilIdle()
+
+        assertEquals(AgendaSpan.DAY, model.span.value)
+        assertEquals(AgendaSpan.DAY, ui.span)
+    }
+
+    @Test
     fun steppingMovesThePlanBySpansRatherThanByDays() = runTest(dispatcher) {
         // A week stepped by a day answers with six of the same seven days,
         // which reads on screen as the step having done nothing.
