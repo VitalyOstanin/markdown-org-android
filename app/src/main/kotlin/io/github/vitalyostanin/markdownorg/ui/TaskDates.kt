@@ -287,6 +287,10 @@ internal fun TimeChoice(initial: LocalTime, onDismiss: () -> Unit, onPicked: (Lo
     val state = rememberTimePickerState(
         initialHour = initial.hour,
         initialMinute = initial.minute,
+        // Stated rather than left to the default, because the hour beside the
+        // dial is written on the clock of the device and a dial in the other
+        // convention beside it reads as a different time.
+        is24Hour = use24Hour(),
     )
 
     val room = with(LocalConfiguration.current) { aClockFits(screenWidthDp.dp, screenHeightDp.dp) }

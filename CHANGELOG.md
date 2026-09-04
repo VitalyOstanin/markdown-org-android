@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A field named to the value the entry already carried is not listed: the core
   reports such a phrase as an edit that wrote nothing, and the line agrees.
 
+### Changed
+
+- One set of words for a day and an hour, wherever they are asked for. The
+  screen that writes a new task said "No date" and "Pick a time…" where the
+  sheet over a task in the notes said "Take it off" and "Pick an hour…", and
+  the hour of the daily digest was picked in a second dialog of its own whose
+  buttons read "OK" and "Cancel" against the "Set" and "Cancel" of the one
+  beside it. All three now ask in the same words and in the same dialog.
+
 ### Fixed
 
 - A reminder in the drawer states its hour on the clock the reader set. It was

@@ -5,17 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimeInput
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,12 +17,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import java.time.LocalTime
@@ -125,20 +117,19 @@ internal fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit)
 }
 
 /**
- * The hour the day's digest is raised at, picked in the platform's own dial.
+ * The hour the day's digest is raised at, picked in the dial an entry's own
+ * hour is picked in.
  *
  * A button showing the hour rather than a field: what is being answered is a
  * time of day, and the dial is what every other application on the phone asks
  * it with.
  */
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
     var picking by rememberSaveable { mutableStateOf(false) }
     // The hour is written and asked for the way the agenda writes its own:
     // a device set to a 12-hour clock reads `09:00` as neither morning nor
     // evening, and a dial in the other convention beside it is worse still.
-    val use24Hour = use24Hour()
     val locale = LocalLocale.current.platformLocale
 
     SettingLabel(
@@ -149,47 +140,19 @@ private fun DigestChoice(current: LocalTime, onChange: (LocalTime) -> Unit) {
         onClick = { picking = true },
         modifier = Modifier.testTag("settings-reminders-digest"),
     ) {
-        Text(timeLabel(current, locale, use24Hour))
+        Text(timeLabel(current, locale, use24Hour()))
     }
     if (picking) {
-        val state = rememberTimePickerState(
-            initialHour = current.hour,
-            initialMinute = current.minute,
-            is24Hour = use24Hour,
-        )
-        val room = with(LocalConfiguration.current) {
-            aClockFits(screenWidthDp.dp, screenHeightDp.dp)
-        }
-        AlertDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        picking = false
-                        onChange(LocalTime.of(state.hour, state.minute))
-                    },
-                    modifier = Modifier.testTag("settings-reminders-digest-confirm"),
-                ) {
-                    Text(stringResource(android.R.string.ok))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { picking = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            },
-            text = {
-                if (room) {
-                    TimePicker(
-                        state = state,
-                        modifier = Modifier.testTag("settings-reminders-digest-clock"),
-                    )
-                } else {
-                    TimeInput(
-                        state = state,
-                        modifier = Modifier.testTag("settings-reminders-digest-typed"),
-                    )
-                }
+        // The clock the sheet over a task opens, rather than a second one
+        // beside it: one question asked twice was answered by two dialogs
+        // whose buttons did not even read alike -- the platform's own "OK"
+        // here against the words the rest of the application uses there.
+        TimeChoice(
+            initial = current,
+            onDismiss = { picking = false },
+            onPicked = { time ->
+                picking = false
+                onChange(time)
             },
         )
     }

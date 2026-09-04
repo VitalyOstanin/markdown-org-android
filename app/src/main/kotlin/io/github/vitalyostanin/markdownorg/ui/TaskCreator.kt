@@ -541,7 +541,7 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart, phrases: Phra
         ) { picking = true }
         if (state.day != null) {
             SheetAction(
-                label = stringResource(R.string.create_date_none),
+                label = stringResource(R.string.action_clear_date),
                 tag = "create-clear-date",
                 modifier = Modifier.weight(1f),
             ) { state.day = null }
@@ -560,13 +560,13 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart, phrases: Phra
                 // its own way.
                 label = state.time
                     ?.let { timeLabel(it, LocalLocale.current.platformLocale, use24Hour()) }
-                    ?: stringResource(R.string.create_pick_time),
+                    ?: stringResource(R.string.action_pick_hour),
                 tag = "create-pick-time",
                 modifier = Modifier.weight(1f),
             ) { pickingTime = true }
             if (state.time != null) {
                 SheetAction(
-                    label = stringResource(R.string.create_time_none),
+                    label = stringResource(R.string.action_clear_hour),
                     tag = "create-clear-time",
                     modifier = Modifier.weight(1f),
                 ) { state.time = null }

@@ -395,7 +395,6 @@
     <string name="create_date">Дата</string>
     <string name="create_scheduled">Дата начала</string>
     <string name="create_deadline">Срок</string>
-    <string name="create_date_none">Без даты</string>
     <string name="create_goes_to_start">Пишется в начало файла %1$s</string>
     <string name="create_goes_to_end">Пишется в конец файла %1$s</string>
     <string name="create_phrase">Скажите одной фразой</string>
@@ -416,8 +415,6 @@
     <string name="hint_create_priority">Метка [#A] в заголовке. A, B и C — то, что org-mode использует по умолчанию; новая задача не несёт приоритета, пока не сказано иначе, а остальную шкалу предлагает лист действий, когда задача уже в заметках.</string>
     <string name="hint_create_date">Какая строка планирования будет записана: SCHEDULED — день, когда работа начинается, DEADLINE — день, к которому она должна быть готова. Без выбранного дня строка планирования не пишется вовсе, и задача попадает в плоский список задач, а не на дату.</string>
     <string name="create_time">Время</string>
-    <string name="create_pick_time">Выбрать время…</string>
-    <string name="create_time_none">Весь день</string>
     <string name="create_repeat">Повтор</string>
     <string name="create_repeat_none">Без</string>
     <string name="create_repeat_daily">Каждый день</string>

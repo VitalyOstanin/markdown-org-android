@@ -534,8 +534,6 @@
     <string name="create_date">Date</string>
     <string name="create_scheduled">Scheduled</string>
     <string name="create_deadline">Deadline</string>
-    <!-- Takes the chosen day off again, leaving the task without a date. -->
-    <string name="create_date_none">No date</string>
     <!-- Where the task is about to be written; %1$s is the file of the collection. -->
     <string name="create_goes_to_start">Written at the start of %1$s</string>
     <string name="create_goes_to_end">Written at the end of %1$s</string>
@@ -564,8 +562,6 @@
          date a series. Both belong to the chosen day and are only offered
          once there is one. -->
     <string name="create_time">Time</string>
-    <string name="create_pick_time">Pick a time…</string>
-    <string name="create_time_none">All day</string>
     <string name="create_repeat">Repeat</string>
     <string name="create_repeat_none">None</string>
     <string name="create_repeat_daily">Daily</string>
@@ -583,10 +579,13 @@
     <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>
-    <!-- The calendar, for a task that already carries a planning date. -->
+    <!-- The calendar and the clock, for the day and hour an entry is held
+         at. One set of words for both places the question is asked: the
+         sheet over a task in the notes, and the screen that writes a new
+         one. Each pair is offered where there is something to change and
+         something to take off. -->
     <string name="action_pick_date">Pick a day…</string>
     <string name="action_clear_date">Take it off</string>
-    <!-- The clock, for the date the task carries. -->
     <string name="action_pick_hour">Pick an hour…</string>
     <string name="action_clear_hour">All day</string>
     <!-- One occurrence of a repeating entry, as against the series it
