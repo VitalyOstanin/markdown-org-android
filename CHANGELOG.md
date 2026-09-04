@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A scan that was dropped no longer reads as work that failed. The reminder
+  scheduler and the synchronisation both wrap their reads in `runCatching`,
+  which catches every throwable — including the cancellation the reader causes
+  by leaving the screen or by asking for the same thing again. Folded into a
+  result, that cancellation reported notes that could not be read and a sync
+  that failed, and left the coroutine planning for a caller that had gone.
+  Both now let a cancellation out and answer with a failure only for the
+  failures that are real.
+
 - A reminder in the drawer states its hour on the clock the reader set. It was
   written by the locale alone, so a phone on `en-US` with 24-hour time turned
   on said "1:05 PM" in the notification and "13:05" on the agenda behind it.

@@ -3,6 +3,7 @@ package io.github.vitalyostanin.markdownorg.core
 import io.github.vitalyostanin.markdownorg.ui.agenda
 import io.github.vitalyostanin.markdownorg.ui.day
 import io.github.vitalyostanin.markdownorg.ui.task
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -153,6 +154,23 @@ class ReminderSchedulerTest {
         val result = scheduler(StandingAgenda(), RefusedAlarms(), choices(enabled = false)).replan()
 
         assertTrue("the refusal was not reported as a failure", result.isFailure)
+    }
+
+    @Test
+    fun `a scan the caller dropped is not a failure to read the notes`() = runTest {
+        val alarms = HeldAlarms()
+        val agenda = StandingAgenda(failure = CancellationException("dropped"))
+
+        val thrown = runCatching { scheduler(agenda, alarms).replan() }.exceptionOrNull()
+
+        // Every other failure is answered with a Result and the held alarms
+        // are left alone; a cancellation is not one of those -- swallowed, it
+        // would keep this coroutine planning for a caller that has gone.
+        assertTrue(
+            "cancellation came back as a Result instead of ending the scan",
+            thrown is CancellationException,
+        )
+        assertNull("the alarms were touched on the way out", alarms.held)
     }
 
     @Test

@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uniffi.markdown_org_ffi.Day
@@ -100,13 +101,23 @@ class ReminderScheduler(
             .takeWhile { !it.isAfter(last) }
             .toList()
 
-        return runCatching {
+        val scanned = runCatching {
             dates.flatMap { date ->
                 agenda.load(Scope.DAY, today = today, shown = date, zone = now.zone)
                     .getOrThrow()
                     .days
             }
         }
+        // `runCatching` catches every throwable, and the cancellation this
+        // scan is dropped by is one of them -- the loads it wraps are
+        // suspending calls, so a caller that gives up lands here. Folded like
+        // any other failure it would read as "the notes could not be read",
+        // hold the alarms already set, and let this coroutine run on past its
+        // own cancellation. Rethrown, it ends the scan as a cancellation
+        // should, and the plan is made by whoever replaced it.
+        (scanned.exceptionOrNull() as? CancellationException)?.let { throw it }
+
+        return scanned
     }
 
     companion object {

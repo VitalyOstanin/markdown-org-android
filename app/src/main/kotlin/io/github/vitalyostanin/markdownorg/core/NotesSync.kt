@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -105,7 +106,16 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         // showing "syncing" should be waiting behind either. The certificate
         // store lives as long as the process, so this is once.
         val certificates = runCatching { loadCertificates() }
-        certificates.exceptionOrNull()?.let { return Result.failure(it) }
+        certificates.exceptionOrNull()?.let {
+            // The store is filled under a lock, so this call waits, and a sync
+            // the reader dropped while it waited answers with a cancellation.
+            // `runCatching` catches that along with everything else; handed
+            // back as a failure it would report a sync that failed where the
+            // reader simply left, so it goes on out instead.
+            if (it is CancellationException) throw it
+
+            return Result.failure(it)
+        }
 
         val request = request(url, settings)
 
@@ -152,7 +162,13 @@ class NotesSync(private val context: Context, private val notes: NotesArea) : No
         val url = settings.remoteUrl
             ?: return Result.failure(IllegalStateException("no remote configured"))
         val certificates = runCatching { loadCertificates() }
-        certificates.exceptionOrNull()?.let { return Result.failure(it) }
+        certificates.exceptionOrNull()?.let {
+            // Cancellation goes on out rather than being reported as a failed
+            // sync, as above.
+            if (it is CancellationException) throw it
+
+            return Result.failure(it)
+        }
 
         return notes.exclusive {
             retryingTransientFailures {
