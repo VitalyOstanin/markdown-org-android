@@ -25,6 +25,7 @@ val guardedFiles: List<String> = listOf(
     "README.md",
     "CLAUDE.md",
     "CHANGELOG.md",
+    "TODO.md",
     "LICENSE",
     "NOTICE",
     ".gitignore",

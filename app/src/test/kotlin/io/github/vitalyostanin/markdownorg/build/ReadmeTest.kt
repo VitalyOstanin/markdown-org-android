@@ -159,6 +159,35 @@ class ReadmeTest {
         assertTrue("the README counts the settings screen otherwise: $wrong", wrong.isEmpty())
     }
 
+    /**
+     * That the section on distribution says the same as the note behind it.
+     *
+     * The README states why the application is installed from a release page
+     * rather than from a store, and `TODO.md` holds the same reasons at
+     * length. The one that is quoted verbatim is the policy ruling the
+     * lightest of the stores out; a quotation that drifts from the note it
+     * summarises is worse than none, since neither reader can tell which was
+     * checked against the policy itself.
+     */
+    @Test
+    fun theStoresRuledOutAreNamedTheSameWayTwice() {
+        // Wrapped where each file wraps it, so the quotation is compared as
+        // it reads rather than as it is typed.
+        val todo = root.resolve("TODO.md").readText().unwrapped()
+        val stated = readme.unwrapped()
+        val elsewhere = listOf(QUOTED_POLICY, "F-Droid", "RuStore", "AppGallery")
+
+        val missing = elsewhere.filter { !stated.contains(it) || !todo.contains(it) }
+
+        assertTrue(
+            "the README and TODO.md disagree on why no store carries this: $missing",
+            missing.isEmpty(),
+        )
+    }
+
+    /** Prose as one line, whatever column the file was wrapped at. */
+    private fun String.unwrapped(): String = replace(Regex("""\s+"""), " ")
+
     /** The scripts of `tools/`, in a fixed order so a failure names the same one twice. */
     private fun scripts(): List<File> = root
         .resolve("tools")
@@ -210,6 +239,11 @@ class ReadmeTest {
             "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
             "eighty", "ninety",
         )
+
+        /** The rule that rules out the store the metadata was first written for. */
+        const val QUOTED_POLICY =
+            "strongly opposed to apps which are fully or in part created by " +
+                "generative AI tools"
 
         /** A function UniFFI carries across, which the attribute marks and nothing else. */
         val EXPORTED = Regex("""#\[uniffi::export]\s*\n\s*pub fn (\w+)""")

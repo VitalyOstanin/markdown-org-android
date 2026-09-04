@@ -50,6 +50,7 @@ the emulator.
 - [Continuous integration](#continuous-integration)
 - [Versions and what changed](#versions-and-what-changed)
   - [Rolling back a build](#rolling-back-a-build)
+- [How it reaches a phone](#how-it-reaches-a-phone)
 - [The store listing](#the-store-listing)
 - [The generated Kotlin surface](#the-generated-kotlin-surface)
 - [Colour](#colour)
@@ -985,6 +986,33 @@ its age, on a change, on a schedule and by hand. libgit2 and OpenSSL are
 compiled into the native library, so an advisory against either reaches a phone
 through a release of this project and through nothing else — and it is
 published when nobody is committing.
+
+## How it reaches a phone
+
+A release of this repository is the whole of the distribution: a tag builds a
+signed APK, the release page carries it, and a phone downloads that file with
+installs from an unknown source allowed. Updates are noticed by whoever looks
+at the releases page — nothing announces them. No request has been filed with
+any store as of 2026-09-04, and the reasons are worth stating rather than
+leaving the reader to wonder what is missing:
+
+| № | Store             | What stands in the way                                                                                                                     |
+|---|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | IzzyOnDroid       | technically the lightest — a repository publishing signed APKs is enough — but its policy is "strongly opposed to apps which are fully or in part created by generative AI tools", and this one was written with such a tool |
+| 2 | F-Droid           | no such rule, and the one worth the work: what it costs is making the build reproduce on their machines, which pins an NDK and a Rust toolchain of its own |
+| 3 | Google Play       | a developer fee charged in a way the author's card does not satisfy, an App Bundle rather than an APK, and their signing key over the project's own |
+| 4 | RuStore, AppGallery | a privacy notice, which this project has yet to write, and — at AppGallery — identity verified with scanned documents up front               |
+
+Two of those are decisions rather than obstacles, and they are why the list is
+not simply worked through. Publishing under Google's App Signing means the
+store holds a key of its own, and the same package cannot then be updated from
+two places; and every store adds a review between a commit and a phone, so a
+release stops being one command. The metadata a listing needs is kept anyway
+(below): it is the same for every store, so none of this has to be redone if
+the answer changes.
+
+[`TODO.md`](TODO.md) holds what each store asks for in full, and what F-Droid
+in particular would need from the build.
 
 ## The store listing
 
