@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,7 +41,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.vitalyostanin.markdownorg.R
+import io.github.vitalyostanin.markdownorg.core.CorePhraseRules
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
+import io.github.vitalyostanin.markdownorg.core.PhraseRules
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
@@ -48,8 +51,6 @@ import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.WritePosition
-import uniffi.markdown_org_ffi.canonicalRepeater
-import uniffi.markdown_org_ffi.refinePhrase
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -208,6 +209,7 @@ fun TaskCreator(
     weekStart: WeekStart = WeekStart.AUTO,
     today: LocalDate = LocalDate.now(),
     dictation: Dictation = rememberSystemDictation(),
+    phrases: PhraseRules = CorePhraseRules,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -236,6 +238,7 @@ fun TaskCreator(
                     weekStart = weekStart,
                     today = today,
                     dictation = dictation,
+                    phrases = phrases,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -282,6 +285,7 @@ internal fun CreatorFields(
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
     dictation: Dictation = rememberSystemDictation(),
+    phrases: PhraseRules = CorePhraseRules,
 ) {
     Column(
         modifier = modifier
@@ -291,7 +295,7 @@ internal fun CreatorFields(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         ReceivingCollection(state, collections)
-        SpokenPhrase(state, today, dictation)
+        SpokenPhrase(state, today, dictation, phrases)
 
         // A line under the field rather than a tooltip on it: inside a text
         // field a long press belongs to selecting text.
@@ -318,7 +322,7 @@ internal fun CreatorFields(
 
         NewTaskKeyword(state)
         NewTaskPriority(state)
-        NewTaskDate(state, weekStart)
+        NewTaskDate(state, weekStart, phrases)
 
         // Where the task is about to go, named rather than implied: the file
         // is a setting of the collection, and a task written into a note the
@@ -362,7 +366,12 @@ internal fun CreatorFields(
  * otherwise have been scattered into.
  */
 @Composable
-private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dictation) {
+private fun SpokenPhrase(
+    state: NewTaskState,
+    today: LocalDate,
+    dictation: Dictation,
+    phrases: PhraseRules,
+) {
     var phrase by rememberSaveable { mutableStateOf("") }
     // Said once the phone has answered that it cannot listen, and kept until
     // the next attempt: a line under the field rather than a message that
@@ -420,9 +429,7 @@ private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dicta
             HintTooltip(stringResource(R.string.hint_create_phrase)) {
                 TextButton(
                     onClick = {
-                        state.fill(
-                            refinePhrase(state.phraseDraft(), phrase, phraseLocales(), "$today"),
-                        )
+                        state.fill(phrases.refine(state.phraseDraft(), phrase, today))
                         phrase = ""
                         unheard = false
                     },
@@ -435,16 +442,6 @@ private fun SpokenPhrase(state: NewTaskState, today: LocalDate, dictation: Dicta
         }
     }
 }
-
-/**
- * Which grammars the core consults.
- *
- * Both of them, whichever language the screen is drawn in: a phone set to
- * English is still spoken to in Russian, and a rule that was not consulted is
- * a phrase left in the heading. The two grammars do not collide — the words
- * one of them reads the other does not know.
- */
-private fun phraseLocales(): String = "ru,en"
 
 /**
  * Which collection receives the task.
@@ -566,7 +563,7 @@ private val PRIORITIES = listOf("A", "B", "C", null)
  * no timestamp to write them into.
  */
 @Composable
-private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
+private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart, phrases: PhraseRules) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
 
@@ -631,7 +628,7 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart) {
             }
         }
 
-        NewTaskRepeat(state)
+        NewTaskRepeat(state, phrases)
     }
 
     if (picking) {
@@ -674,7 +671,7 @@ private val DEFAULT_HOUR: LocalTime = LocalTime.of(9, 0)
  * from the day it was done, is typed into the field.
  */
 @Composable
-private fun NewTaskRepeat(state: NewTaskState) {
+private fun NewTaskRepeat(state: NewTaskState, phrases: PhraseRules) {
     var typing by rememberSaveable { mutableStateOf(false) }
     val ready = REPEATS.any { it.written == state.repeater }
 
@@ -719,6 +716,7 @@ private fun NewTaskRepeat(state: NewTaskState) {
     if (typing) {
         RepeaterChoice(
             initial = state.repeater.orEmpty(),
+            phrases = phrases,
             onDismiss = { typing = false },
             onPicked = { written ->
                 typing = false
@@ -737,9 +735,17 @@ private fun NewTaskRepeat(state: NewTaskState) {
  * confirmed: the alternative is a task refused after it has been composed.
  */
 @Composable
-private fun RepeaterChoice(initial: String, onDismiss: () -> Unit, onPicked: (String) -> Unit) {
+private fun RepeaterChoice(
+    initial: String,
+    phrases: PhraseRules,
+    onDismiss: () -> Unit,
+    onPicked: (String) -> Unit,
+) {
     var typed by rememberSaveable { mutableStateOf(initial) }
-    val written = canonicalRepeater(typed.trim())
+    // Remembered against what was typed: reading a repeater crosses into the
+    // core, and the answer changes only when the field does — otherwise every
+    // recomposition of the dialog would cross again for the same string.
+    val written = remember(typed) { phrases.repeater(typed.trim()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

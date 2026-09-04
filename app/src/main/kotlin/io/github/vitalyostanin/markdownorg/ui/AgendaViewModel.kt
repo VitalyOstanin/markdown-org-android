@@ -14,6 +14,7 @@ import io.github.vitalyostanin.markdownorg.core.AssumedDay
 import io.github.vitalyostanin.markdownorg.core.CollectionInUse
 import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
+import io.github.vitalyostanin.markdownorg.core.CorePhraseRules
 import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
 import io.github.vitalyostanin.markdownorg.core.EditReport
@@ -25,6 +26,7 @@ import io.github.vitalyostanin.markdownorg.core.NotesCollectionsStore
 import io.github.vitalyostanin.markdownorg.core.NotesLocation
 import io.github.vitalyostanin.markdownorg.core.NotesSyncer
 import io.github.vitalyostanin.markdownorg.core.NotesWriter
+import io.github.vitalyostanin.markdownorg.core.PhraseRules
 import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.ReminderSettings
@@ -83,7 +85,6 @@ import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.WritePosition
 import uniffi.markdown_org_ffi.generateSshKey
-import uniffi.markdown_org_ffi.refinePhrase
 import java.io.File
 import java.time.DayOfWeek
 import java.time.Duration
@@ -128,6 +129,15 @@ class AgendaViewModel(
     private val notesChanged: (onFailure: (Throwable) -> Unit) -> Unit = {},
     /** The wall clock, taken as a parameter so a test can move it by hand. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
+    /**
+     * The rules a spoken phrase is read by.
+     *
+     * A parameter for the reason the clock is one, and a stronger one: the
+     * rules live in the core, the core is a native library loaded on a device,
+     * and a test on the JVM that called it would not get as far as the
+     * answer — so every way a phrase can be refused would go unexercised.
+     */
+    private val phrases: PhraseRules = CorePhraseRules,
     /**
      * Where the walks over the notes directory run.
      *
@@ -991,7 +1001,7 @@ class AgendaViewModel(
         }
 
         val read = runCatching {
-            refinePhrase(EMPTY_PHRASE, said, PHRASE_LOCALES, "${clock().toLocalDate()}")
+            phrases.refine(EMPTY_PHRASE, said, clock().toLocalDate())
         }.getOrElse { error ->
             Log.w(TAG, "the phrase could not be read", error)
             _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
@@ -1027,7 +1037,7 @@ class AgendaViewModel(
         }
 
         val read = runCatching {
-            refinePhrase(EMPTY_PHRASE, phrase, PHRASE_LOCALES, "${clock().toLocalDate()}")
+            phrases.refine(EMPTY_PHRASE, phrase, clock().toLocalDate())
         }.getOrElse { error ->
             Log.w(TAG, "the phrase could not be read", error)
             _editIssue.value = SyncMessage(R.string.agenda_dictate_failed, failed = true)
@@ -2479,16 +2489,6 @@ class AgendaViewModel(
     companion object {
         /** Where the failures the screen does not spell out are written. */
         private const val TAG = "Agenda"
-
-        /**
-         * Which grammars a spoken phrase is read against.
-         *
-         * Both of them, whatever the phone is set to: the recogniser answers
-         * in the language being spoken rather than the language of the screen,
-         * and a phrase said in Russian on a phone kept in English is the case
-         * this exists for. The creation screen consults the same pair.
-         */
-        private const val PHRASE_LOCALES = "ru,en"
 
         /** A draft that has been told nothing, for a phrase read from scratch. */
         private val EMPTY_PHRASE = PhraseDraft(
