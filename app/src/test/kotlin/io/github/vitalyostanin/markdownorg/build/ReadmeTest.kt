@@ -1,5 +1,7 @@
 package io.github.vitalyostanin.markdownorg.build
 
+import io.github.vitalyostanin.markdownorg.ui.settingHelp
+import io.github.vitalyostanin.markdownorg.ui.settingsCatalogue
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -133,6 +135,30 @@ class ReadmeTest {
         assertTrue("the README does not say where the bundle comes from", readme.contains(source!!))
     }
 
+    /**
+     * The settings screen is described by how many of its items say what they
+     * are for, and both counts are written out in words.
+     *
+     * They are the first thing about that section to go stale: an item added
+     * to the catalogue moves the total, and whether it was given an
+     * explanation moves the other two numbers. Nothing about adding one says
+     * that a paragraph elsewhere counts them.
+     */
+    @Test
+    fun theSettingsScreenIsCountedAsItStands() {
+        val explained = settingHelp.size
+        val plain = settingsCatalogue.size - explained
+
+        val counted = listOf(
+            "${inWords(explained)} of the ${inWords(settingsCatalogue.size)} items",
+            "The ${inWords(plain)} without a mark",
+            "What those ${inWords(plain)} kept",
+        )
+
+        val wrong = counted.filter { !readme.contains(it, ignoreCase = true) }
+        assertTrue("the README counts the settings screen otherwise: $wrong", wrong.isEmpty())
+    }
+
     /** The scripts of `tools/`, in a fixed order so a failure names the same one twice. */
     private fun scripts(): List<File> = root
         .resolve("tools")
@@ -161,12 +187,30 @@ class ReadmeTest {
         .orEmpty()
         .toSet()
 
+    /** A count as the README writes it, which is in words up to ninety-nine. */
+    private fun inWords(count: Int): String = when {
+        count < 20 -> UNITS[count]
+        count % 10 == 0 -> TENS[count / 10]
+        else -> "${TENS[count / 10]}-${UNITS[count % 10]}"
+    }
+
     private fun String.camelCase(): String = split("_")
         .mapIndexed { index, part ->
             if (index == 0) part else part.replaceFirstChar(Char::uppercase)
         }.joinToString("")
 
     private companion object {
+        val UNITS = listOf(
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+            "sixteen", "seventeen", "eighteen", "nineteen",
+        )
+
+        val TENS = listOf(
+            "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+            "eighty", "ninety",
+        )
+
         /** A function UniFFI carries across, which the attribute marks and nothing else. */
         val EXPORTED = Regex("""#\[uniffi::export]\s*\n\s*pub fn (\w+)""")
 

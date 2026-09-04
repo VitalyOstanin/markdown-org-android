@@ -587,7 +587,7 @@ The decision is in
 
 ## What a setting is for
 
-Twenty of the thirty-two items of the settings screen carry a mark beside their
+Twenty of the thirty items of the settings screen carry a mark beside their
 name, and the mark opens a screen about that one setting: its name, what it
 does, why the answer matters, and one case told with names and numbers. The
 screen is drawn over the form, so an address half typed is still there on the
@@ -598,8 +598,8 @@ way back.
 | 1 | Where the mark is drawn    | Beside the label of a setting, and inside the outline of a field                                       |
 | 2 | What it opens              | Four texts: the name, what it does, why it matters, one case                                           |
 | 3 | Where the first text is from | The line the tooltip carried before this; the other two are written for the screen                   |
-| 4 | The twelve without a mark  | Their label is the whole answer — the system picker, forgetting a key, which weekday a week starts on  |
-| 5 | What those twelve kept     | The tooltip they had, held open by a long press on the label                                           |
+| 4 | The ten without a mark     | Their label is the whole answer — the system picker, forgetting a key, which weekday a week starts on  |
+| 5 | What those ten kept        | The tooltip they had, held open by a long press on the label                                           |
 | 6 | Leaving the screen         | Back, or the button at its head; what was typed into the form is untouched                             |
 
 What is explained is the list `settingHelp` in `ui/SettingHelp.kt`, keyed by the
