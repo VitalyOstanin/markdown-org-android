@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A reminder in the drawer states its hour on the clock the reader set. It was
+  written by the locale alone, so a phone on `en-US` with 24-hour time turned
+  on said "1:05 PM" in the notification and "13:05" on the agenda behind it.
+  The hour now follows the same rule as every hour on screen: the setting of
+  the device first, the conventions of the locale for everything else.
+
 - The settings screen no longer accepts a remote address the synchronisation
   would refuse. A path holding an `@` in it -- `notes/me@host:repo.git` -- read
   as a login on a server here and as a directory in the core, so the address

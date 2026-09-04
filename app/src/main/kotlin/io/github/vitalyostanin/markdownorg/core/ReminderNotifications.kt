@@ -6,17 +6,19 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.os.ConfigurationCompat
 import io.github.vitalyostanin.markdownorg.MainActivity
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.ReminderActions
+import io.github.vitalyostanin.markdownorg.ui.timeLabel
 import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.Task
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import java.util.Locale
 
 /**
  * What a reminder looks like once it reaches the screen.
@@ -33,8 +35,15 @@ object ReminderNotifications {
 
     /** One entry, ahead of its hour. */
     fun showTimed(context: Context, reminder: TimedReminder) {
-        val hour = reminder.starts.toLocalTime()
-            .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+        // The hour the agenda would write, by the same rule: the clock of the
+        // device overrides what the locale would choose on its own, and a
+        // reader on `en-US` who asked for 24-hour time was being shown "1:05
+        // PM" in the drawer beside "13:05" on the screen behind it.
+        val hour = timeLabel(
+            reminder.starts.toLocalTime(),
+            readerLocale(context),
+            DateFormat.is24HourFormat(context),
+        )
         val id = ReminderNumbering.notification(reminder.entry)
 
         raise(
@@ -253,6 +262,18 @@ object ReminderNotifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
+
+    /**
+     * The language the notification is worded in, taken from the resources.
+     *
+     * Read from the configuration rather than from [Locale.getDefault]: a
+     * reminder is raised from a receiver in the background, where the default
+     * of the process may be the one it started with rather than the one the
+     * screens are drawn in.
+     */
+    private fun readerLocale(context: Context): Locale =
+        ConfigurationCompat.getLocales(context.resources.configuration)[0]
+            ?: Locale.getDefault()
 
     private const val TAG = "ReminderNotifications"
 }
