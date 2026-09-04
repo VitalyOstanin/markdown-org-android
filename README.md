@@ -927,20 +927,32 @@ of its own and gets the list of commits GitHub generates instead.
 
 ### Rolling back a build
 
-Every release keeps its APK, so the way back from a build that turned out to
-be broken is the previous one. The version code of an older build is lower
-than the installed one, and Android refuses that by default:
+Every release keeps its APK, so the build to go back to after a broken one is
+there. Putting it on a phone is the part that is not free: an older build
+carries a lower version code, Android refuses a lower code over a higher one,
+and the downgrade flag does not lift that here — `adb install -d` allows a
+downgrade for debuggable packages only, and every published build is the
+release variant, which is not debuggable. The way back is therefore to remove
+the installed one first:
 
 ```sh
-adb install -r -d path/to/older.apk    # -d allows the downgrade
+adb uninstall io.github.vitalyostanin.markdownorg
+adb install path/to/older.apk
 ```
 
-The settings, the token and the working copy of the notes survive it. What
-does not survive is uninstalling: the token lives in the application's private
-`SharedPreferences`, which go with the application, and the notes are cloned
-again from the remote, so a reinstall asks for both. A
-sync that misbehaves is switched off in the settings — clearing the address
-stops it without touching anything already committed.
+That takes the application's private data with it: the token and the settings
+live in `SharedPreferences`, and the notes live in the application's own
+directory unless another one was picked, so the older build starts on the
+first-run screen and asks for the remote again. Notes in a directory of the
+shared storage stay where they are and are read again once it is picked.
+
+Two things a rollback does not undo. What the application has already written
+into the notes stays written — a `CREATED:` line, an `EXDATE:` on a series, a
+moved timestamp — because those are the notes' own text by then, and the way
+back from them is an edit or the history of the working copy, not an older
+APK. And a sync that misbehaves is not a reason to roll back at all: clearing
+the address in the settings stops it without touching anything already
+committed.
 
 A pull request builds the debug variant: it has no access to the signing key
 and does not need one. Everything else is signed with the release key, which
