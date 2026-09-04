@@ -27,9 +27,14 @@ enum class RemoteUrlProblem {
  * a plain absolute path stay allowed; that is what a repository copied onto
  * the device looks like.
  *
- * The rules here mirror `ensure_supported` in the core, which is what
- * actually refuses an address. This one exists because the screen has to say
- * so where the address was typed, before anything is stored.
+ * What actually refuses an address is `ensure_supported` in the core; this
+ * exists because the screen has to say so where the address was typed, before
+ * anything is stored. The two are held to each other by `RemoteUrlAgreement`,
+ * which asks both about the same address: whatever is accepted here the core
+ * accepts as well. The other direction is allowed to differ — an address the
+ * core would take but that names no repository (`https://host`, `file://`) is
+ * refused here as incomplete, because a remote saved from it fetches nothing
+ * and the working copy is emptied either way.
  *
  * Returns `null` when the address is usable.
  */
@@ -79,7 +84,16 @@ private fun scpProblem(value: String): RemoteUrlProblem? {
     val host = rest.substringBefore(':')
     val path = rest.substringAfter(':', missingDelimiterValue = "")
 
-    return if (user.isEmpty() || host.isEmpty() || host.contains('/') || path.isEmpty()) {
+    // The slash is refused on both sides of the `@`: `notes/me@host:repo.git`
+    // is a path on the device that happens to hold one, not an address, and
+    // the core reads it that way -- this used to accept it and leave the
+    // refusal to a sync that had already emptied the working copy.
+    return if (user.isEmpty() ||
+        user.contains('/') ||
+        host.isEmpty() ||
+        host.contains('/') ||
+        path.isEmpty()
+    ) {
         RemoteUrlProblem.INCOMPLETE
     } else {
         null

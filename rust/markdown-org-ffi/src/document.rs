@@ -441,3 +441,140 @@ impl Document {
         Ok((index, heading))
     }
 }
+
+/// Properties of the model itself, over files nobody wrote by hand.
+///
+/// The invariants at the top of this module hold for every file a reader may
+/// hand the application -- written by the extension, by a sync from another
+/// device, by an editor of the person's own choosing. The examples elsewhere
+/// in the crate cover the shapes somebody thought to write down, one feature
+/// at a time; what is generated here is the combinations: a mark at the front
+/// of a file whose lines end both ways and whose last line ends with nothing.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    /// A line as a note holds one: a heading, a planning line, prose in more
+    /// than one script, and the empty line between two entries.
+    fn line_body() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("# TODO Write the report".to_string()),
+            Just("## Раздел".to_string()),
+            Just("`SCHEDULED: <2026-07-28 Tue 10:00 ++1w>`".to_string()),
+            Just(String::new()),
+            Just("Отчёт за неделю".to_string()),
+            Just("сдать 📄 отчёт".to_string()),
+            Just("zero\u{200B}width".to_string()),
+            Just("\u{202B}справа налево\u{202C}".to_string()),
+        ]
+    }
+
+    /// Either ending a file may be written with, per line rather than per
+    /// file: a note edited on two devices holds both.
+    fn line_ending() -> impl Strategy<Value = String> {
+        prop_oneof![Just("\n".to_string()), Just("\r\n".to_string())]
+    }
+
+    /// A whole file: lines with endings of their own, a mark at the front or
+    /// none, and a last line that may end with nothing at all.
+    fn note() -> impl Strategy<Value = String> {
+        (
+            any::<bool>(),
+            proptest::collection::vec((line_body(), line_ending()), 1..8),
+            any::<bool>(),
+        )
+            .prop_map(|(mark, lines, open)| {
+                let mut content = String::new();
+                if mark {
+                    content.push(BYTE_ORDER_MARK);
+                }
+
+                let last = lines.len() - 1;
+                for (index, (body, ending)) in lines.iter().enumerate() {
+                    content.push_str(body);
+                    if index < last || !open {
+                        content.push_str(ending);
+                    }
+                }
+                content
+            })
+    }
+
+    /// A document over `content`, written into a directory of its own.
+    ///
+    /// The handle is returned along with it: the directory is removed when it
+    /// drops, and a document whose file is gone cannot be saved.
+    fn written(content: &str) -> (tempfile::TempDir, Document) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("notes.md"), content).expect("write");
+        let document = Document::read(&dir.path().display().to_string(), "notes.md").expect("read");
+
+        (dir, document)
+    }
+
+    proptest! {
+        // 64 rather than the 256 proptest defaults to: every case writes a
+        // file and reads it back, and this runs alongside 282 examples in a
+        // job that has half an hour for the whole build.
+        #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+
+        /// The mark, the endings and the missing last newline at once: a file
+        /// read and handed straight back is the bytes it was written with.
+        #[test]
+        fn a_file_handed_back_untouched_is_the_bytes_it_was_written_with(content in note()) {
+            let (_dir, document) = written(&content);
+
+            prop_assert_eq!(document.text(), content);
+        }
+
+        /// What an edit to one task must not do to the task above it.
+        #[test]
+        fn replacing_a_line_leaves_the_others_byte_for_byte(
+            content in note(),
+            at in any::<proptest::sample::Index>(),
+        ) {
+            let (_dir, mut document) = written(&content);
+            // A file of no bytes has no lines to replace, and no line above
+            // one either; what it does hold -- a mark and nothing else -- is
+            // the first property's business.
+            prop_assume!(!document.lines.is_empty());
+            let index = at.index(document.lines.len());
+            let before = document.lines.clone();
+
+            document.replace_lines(index..index + 1, vec!["# TODO Replaced".to_string()]);
+
+            prop_assert_eq!(&document.lines[..index], &before[..index]);
+            prop_assert_eq!(&document.lines[index + 1..], &before[index + 1..]);
+        }
+
+        /// A file keeps what it was written as, whatever an edit did to it:
+        /// the mark stays at the front, a file that ended without a newline
+        /// does not grow one, and a line added to a CRLF file gets CRLF.
+        #[test]
+        fn an_edit_leaves_the_file_written_the_way_it_was(
+            content in note(),
+            at in any::<proptest::sample::Index>(),
+        ) {
+            let (_dir, mut document) = written(&content);
+            prop_assume!(!document.lines.is_empty());
+            let index = at.index(document.lines.len());
+            let ending = document.ending();
+
+            document.replace_lines(
+                index..index,
+                vec!["# TODO Added".to_string(), String::new()],
+            );
+            let text = document.text();
+
+            prop_assert_eq!(
+                text.starts_with(BYTE_ORDER_MARK),
+                content.starts_with(BYTE_ORDER_MARK)
+            );
+            prop_assert_eq!(text.ends_with('\n'), content.ends_with('\n'));
+            let added = format!("# TODO Added{ending}");
+            prop_assert!(text.contains(&added));
+        }
+    }
+}

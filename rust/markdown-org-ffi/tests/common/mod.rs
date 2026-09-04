@@ -10,6 +10,10 @@ use std::path::Path;
 use markdown_org_ffi::EditTarget;
 
 /// A directory with `notes.md` in it, removed when the returned handle drops.
+///
+/// Unused by the properties, which generate the file they write rather than
+/// spelling one out; the allowance is the same one `target` carries.
+#[allow(dead_code)]
 pub fn vault(body: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     fs::write(dir.path().join("notes.md"), body).expect("write");

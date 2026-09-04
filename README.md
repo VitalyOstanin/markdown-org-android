@@ -327,6 +327,10 @@ Keeping them in step with a remote:
   is how "not set up yet" is told from "set up and behind";
 - `generateSshKey(comment)` — make an ed25519 pair for this device: the
   private half stays here, the public one is a line to paste into a server;
+- `remoteUrlSupported(url)` — whether an address is one the core will fetch
+  over, which the settings screen reads its own answer against: the screen has
+  to name which part of an address is wrong, and this is what its rule is held
+  to;
 - `loadCaBundle(pem)` — hand the certificate authorities over, once per
   process.
 

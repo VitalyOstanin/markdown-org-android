@@ -70,6 +70,14 @@ tempfile = "3"
 # The crate already builds as part of the tree, so naming it here adds no code.
 idna = "1"
 
+[dev-dependencies]
+# The invariants this crate states in prose -- a file comes back byte for
+# byte, an edit touches only the lines it names -- hold over every file a
+# reader may hand it, and examples cover the shapes somebody thought of.
+# Properties cover the combinations nobody did: a byte-order mark on a file
+# whose lines end both ways and whose last line ends with nothing.
+proptest = "1.11"
+
 # Which OpenSSL the vendored build compiles. Nothing here calls into this
 # crate — `openssl-sys` builds the TLS stack with it, which is why the entry
 # stands among the build dependencies and not the ordinary ones. The

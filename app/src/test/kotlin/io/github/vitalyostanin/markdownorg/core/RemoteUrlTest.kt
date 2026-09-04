@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -76,6 +77,43 @@ class RemoteUrlTest {
         assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("https://gitlab.com/"))
         assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("https://"))
         assertEquals(RemoteUrlProblem.INCOMPLETE, remoteUrlProblem("file://"))
+    }
+
+    @Test
+    fun aPathThatHappensToHoldAnAtSignIsNotAnSshAddress() {
+        // A slash before the `@` makes it a directory on the device rather
+        // than a login on a server, and the core reads it that way. This was
+        // accepted here until the two readings were compared: saving it
+        // emptied the working copy, and the sync then refused the address.
+        assertEquals(
+            RemoteUrlProblem.INCOMPLETE,
+            remoteUrlProblem("notes/me@host:repo.git"),
+        )
+        // An absolute path is a directory on the device whatever it holds,
+        // and both sides read it that way -- the `@` is part of a name.
+        assertNull(remoteUrlProblem("/sdcard/notes@host:repo.git"))
+    }
+
+    /**
+     * What a masked line may not carry, whatever was in the address.
+     *
+     * The core passes libgit2's words through, and those quote the address the
+     * request went to — credentials and all, for a checkout cloned before the
+     * token was kept apart from the address.
+     */
+    @Test
+    fun aMaskedAddressCarriesNoPartOfWhatStoodBeforeTheAtSign() {
+        val secret = "s3cr3t-token"
+        val carrying = listOf(
+            "https://x-access-token:$secret@github.com/user/notes.git",
+            "https://$secret@github.com/user/notes.git",
+            "failed to fetch https://user:$secret@git.example.org/notes.git: 403",
+            "ssh://git:$secret@git.example.org:2222/user/notes.git",
+        )
+
+        for (text in carrying) {
+            assertFalse(text, maskCredentials(text).contains(secret))
+        }
     }
 
     @Test

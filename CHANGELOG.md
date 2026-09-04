@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The settings screen no longer accepts a remote address the synchronisation
+  would refuse. A path holding an `@` in it -- `notes/me@host:repo.git` -- read
+  as a login on a server here and as a directory in the core, so the address
+  was stored, the working copy emptied with it, and the refusal arrived on the
+  first sync afterwards. The screen now reads such an address the way the core
+  does, and a test asks both about the same address rather than leaving the
+  agreement to a line of documentation.
+
 - The number a reminder is announced under always falls inside the range set
   aside for it. The number comes from a hash of the note and the line the entry
   sits on, and the absolute value of the smallest number a hash can be is

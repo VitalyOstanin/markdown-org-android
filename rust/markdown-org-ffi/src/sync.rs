@@ -671,6 +671,20 @@ fn scp_endpoint(url: &str) -> Option<&str> {
     usable.then_some(host)
 }
 
+/// Whether this application would fetch over `url`.
+///
+/// The interface keeps a reading of an address of its own — it has to say
+/// which part of one is wrong, where it was typed, in the language the screen
+/// is drawn in, and a refusal from here is one sentence of English. This
+/// exists so the two readings can be held to each other: a test asks both
+/// about the same address and refuses the case where the screen accepts what
+/// the core would not. Until it existed the agreement was a line of prose,
+/// and the two had already drifted apart in three ways.
+#[uniffi::export]
+pub fn remote_url_supported(url: String) -> bool {
+    ensure_supported(&url).is_ok()
+}
+
 const HTTPS_SCHEME: &str = "https://";
 const SSH_SCHEME: &str = "ssh://";
 const FILE_SCHEME: &str = "file://";
