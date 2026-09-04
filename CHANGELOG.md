@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The README opens with what the application looks like: the day, the week and
+  the month, in the light theme and the dark one, of the sample notes written
+  on first run. A reader arriving at the repository had a description of the
+  agenda and no picture of it.
+
 - A phrase says what it changed, field by field. "перенеси на пятницу в 16:00
   и сделай срочной" is three fields at once, and "заметка записана" left the
   reader to open the note to see whether all three were heard. The line under

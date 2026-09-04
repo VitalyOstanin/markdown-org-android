@@ -4,6 +4,24 @@ An Android client for markdown files carrying Emacs Org-mode task markers —
 the same format the [`markdown-org-vscode`](https://github.com/VitalyOstanin/markdown-org-vscode)
 extension reads, kept in sync over git.
 
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/VitalyOstanin/markdown-org-android/raw/HEAD/media/agenda-day-dark.png">
+    <img src="media/agenda-day-light.png" alt="The agenda, one day" width="32%">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/VitalyOstanin/markdown-org-android/raw/HEAD/media/agenda-week-dark.png">
+    <img src="media/agenda-week-light.png" alt="The agenda, one week" width="32%">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/VitalyOstanin/markdown-org-android/raw/HEAD/media/agenda-month-dark.png">
+    <img src="media/agenda-month-light.png" alt="The agenda, one month" width="32%">
+  </picture>
+</p>
+
+The day, the week and the month, drawn from the sample notes the
+application writes on first run.
+
 It is one of three projects reading the same files:
 
 | Project                                                                         | What it is                                                           |
@@ -131,6 +149,7 @@ markdown-org-android/
 │   ├── run-app.sh            # assemble, install and start in one command
 │   └── run-emulator.sh       # start the headless emulator and wait for boot
 ├── fastlane/metadata/android/    # the store listing: descriptions, icon, screenshots
+├── media/                    # the screenshots this README opens with
 ├── rust/jniLibs/<abi>/       # build output, not committed
 └── generated/                # generated Kotlin, not committed
 ```
