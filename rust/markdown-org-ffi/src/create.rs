@@ -19,11 +19,11 @@
 //! file writes its tasks at, and a planning line is spelled the way the file
 //! spells the ones it already has.
 
-use chrono::{NaiveDate, NaiveDateTime};
-use markdown_org_extract::{parse_heading_line, Priority};
+use chrono::NaiveDateTime;
+use markdown_org_extract::parse_heading_line;
 
 use crate::document::Document;
-use crate::edit::{keyword_of, EditError, EditOutcome};
+use crate::edit::{checked_priority, keyword_of, parse_date, EditError, EditOutcome};
 use crate::entry::body_lines;
 use crate::occurrence::parse_time;
 use crate::planning::{
@@ -117,21 +117,13 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
     // reason the other operations read theirs there: a value the caller
     // mistyped must leave the notes as they were.
     if let Some(value) = task.priority.as_deref() {
-        if Priority::parse(value).is_none() {
-            return Err(EditError::InvalidPriority {
-                detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
-            });
-        }
+        checked_priority(value)?;
     }
     let planning = task
         .planning
         .as_ref()
         .map(|planning| {
-            let date = NaiveDate::parse_from_str(&planning.date, "%Y-%m-%d").map_err(|error| {
-                EditError::InvalidDate {
-                    detail: format!("{:?}: {error}", planning.date),
-                }
-            })?;
+            let date = parse_date(&planning.date)?;
             let time = planning.time.as_deref().map(parse_time).transpose()?;
             let repeater = planning
                 .repeater

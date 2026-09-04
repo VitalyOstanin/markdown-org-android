@@ -17,14 +17,16 @@
 //! refined one, rather than merging fields itself and disagreeing with the
 //! rules about which of them a phrase named.
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveTime;
 use markdown_org_extract::timestamp::{parse_repeater, parse_timestamp_parts, Repeater};
 use markdown_org_extract::{
-    parse_heading_line, refine_entry, PhraseEntry, PhraseKeyword, PlanningKind, Priority,
+    parse_heading_line, refine_entry, PhraseEntry, PhraseKeyword, PlanningKind,
 };
 
 use crate::document::Document;
-use crate::edit::{with_priority, with_status, EditError, EditOutcome, EditTarget};
+use crate::edit::{
+    checked_priority, parse_date, with_priority, with_status, EditError, EditOutcome, EditTarget,
+};
 use crate::planning::{
     holds_only, keyword_block_end, planning_line, planning_lines, rewrite_date, rewrite_repeater,
     rewrite_time, PlanningKeyword, StampTokens,
@@ -99,10 +101,7 @@ pub fn refine_phrase(
     locale: String,
     today: String,
 ) -> Result<PhraseDraft, EditError> {
-    let reference =
-        NaiveDate::parse_from_str(&today, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
-            detail: format!("{today:?}: {error}"),
-        })?;
+    let reference = parse_date(&today)?;
 
     let refined = refine_entry(entry_of(draft)?, &phrase, &locale, reference);
     Ok(draft_of(refined))
@@ -115,22 +114,14 @@ fn entry_of(draft: PhraseDraft) -> Result<PhraseEntry, EditError> {
     entry.heading = draft.heading;
 
     if let Some(value) = draft.priority.as_deref() {
-        let priority = Priority::parse(value).ok_or_else(|| EditError::InvalidPriority {
-            detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
-        })?;
-        entry.priority = Some(priority);
+        entry.priority = Some(checked_priority(value)?);
     }
     entry.planning = draft.keyword.map(|keyword| match keyword {
         PlanningKeyword::Scheduled => PlanningKind::Scheduled,
         PlanningKeyword::Deadline => PlanningKind::Deadline,
     });
     if let Some(value) = draft.date.as_deref() {
-        let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| {
-            EditError::InvalidDate {
-                detail: format!("{value:?}: {error}"),
-            }
-        })?;
-        entry.date = Some(date);
+        entry.date = Some(parse_date(value)?);
     }
     if let Some(value) = draft.time.as_deref() {
         entry.time = Some(NaiveTime::parse_from_str(value, "%H:%M").map_err(|_| {

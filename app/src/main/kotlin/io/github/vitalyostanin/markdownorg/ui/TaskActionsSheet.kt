@@ -260,73 +260,27 @@ private fun SheetHeader(task: Task) {
 /**
  * The sentence that changes the entry, typed or spoken.
  *
- * The same shape the creation screen uses for a phrase: a field, a button that
- * listens, and a button that hands what is in the field to the rules. What was
- * heard joins what is already there rather than replacing it, so a sentence
- * said in two goes is one sentence.
+ * The same field the creation screen draws for a phrase ([PhraseField]),
+ * worded for an entry that already exists: what is said here changes the task
+ * the sheet stands over rather than writing a new one.
  */
 @Composable
 private fun SpokenEdit(onAction: (TaskAction) -> Unit, dictation: Dictation) {
-    var phrase by rememberSaveable { mutableStateOf("") }
-    // Said once the phone has answered that it cannot listen, and kept until
-    // the next attempt: a line under the field rather than a message that goes
-    // away on its own, because what to do instead is to type here.
-    var unheard by rememberSaveable { mutableStateOf(false) }
-    val prompt = stringResource(R.string.action_phrase_prompt)
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        OutlinedTextField(
-            value = phrase,
-            onValueChange = { phrase = it },
-            label = { Text(stringResource(R.string.action_phrase)) },
-            supportingText = if (unheard) {
-                { Text(stringResource(R.string.create_phrase_unheard)) }
-            } else {
-                null
-            },
-            isError = unheard,
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .withoutAutofill()
-                .testTag("action-phrase"),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HintTooltip(stringResource(R.string.hint_action_phrase_speak)) {
-                TextButton(
-                    onClick = {
-                        unheard = !dictation.listen(prompt) { heard ->
-                            phrase = listOf(phrase.trim(), heard.trim())
-                                .filter { it.isNotEmpty() }
-                                .joinToString(" ")
-                        }
-                    },
-                    modifier = Modifier.testTag("action-phrase-speak"),
-                ) {
-                    Text(stringResource(R.string.action_phrase_speak))
-                }
-            }
-            HintTooltip(stringResource(R.string.hint_action_phrase)) {
-                TextButton(
-                    onClick = {
-                        onAction(TaskAction.Phrase(phrase))
-                        phrase = ""
-                        unheard = false
-                    },
-                    enabled = phrase.isNotBlank(),
-                    modifier = Modifier.testTag("action-phrase-apply"),
-                ) {
-                    Text(stringResource(R.string.action_phrase_apply))
-                }
-            }
-        }
+    PhraseField(
+        labels = PhraseFieldLabels(
+            label = R.string.action_phrase,
+            prompt = R.string.action_phrase_prompt,
+            speak = R.string.action_phrase_speak,
+            speakHint = R.string.hint_action_phrase_speak,
+            apply = R.string.action_phrase_apply,
+            applyHint = R.string.hint_action_phrase,
+            fieldTag = "action-phrase",
+            speakTag = "action-phrase-speak",
+            applyTag = "action-phrase-apply",
+        ),
+        dictation = dictation,
+    ) { phrase ->
+        onAction(TaskAction.Phrase(phrase))
     }
 }
 

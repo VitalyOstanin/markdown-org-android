@@ -353,17 +353,15 @@ internal fun CreatorFields(
  * The fields are filled, not written. What the rules misread is corrected the
  * way anything typed by hand is, and the notes see none of it until Create.
  *
- * The field is emptied once a phrase has been read, because the next thing
- * said is a new phrase rather than an edit of the last one: a second phrase
- * refines what the first left — "at 16:00" moves the hour and keeps the rest.
- * The refining is the core's to do, and what it is handed is the draft the
- * screen currently shows, so a field corrected by hand is the field the next
- * phrase refines rather than one the screen quietly merges over.
+ * A second phrase refines what the first left -- "at 16:00" moves the hour and
+ * keeps the rest. The refining is the core's to do, and what it is handed is
+ * the draft the screen currently shows, so a field corrected by hand is the
+ * field the next phrase refines rather than one the screen quietly merges
+ * over.
  *
- * The sentence can be spoken as well as typed, and speaking only fills this
- * field: what the phone heard is read by the same button, so a word it got
- * wrong is corrected in one line rather than across the nine fields it would
- * otherwise have been scattered into.
+ * The field itself is [PhraseField], which the actions sheet draws as well:
+ * the two screens ask for a sentence in different words, and nothing else
+ * about the field differs.
  */
 @Composable
 private fun SpokenPhrase(
@@ -372,74 +370,21 @@ private fun SpokenPhrase(
     dictation: Dictation,
     phrases: PhraseRules,
 ) {
-    var phrase by rememberSaveable { mutableStateOf("") }
-    // Said once the phone has answered that it cannot listen, and kept until
-    // the next attempt: a line under the field rather than a message that
-    // goes away on its own, because what to do instead is to type here.
-    var unheard by rememberSaveable { mutableStateOf(false) }
-    val prompt = stringResource(R.string.create_phrase_prompt)
-
-    // The field takes the width and the two buttons stand under it. Beside it
-    // they leave a column narrow enough to set its own label over three lines
-    // -- one button did fit, and the second is what turned the invitation into
-    // a stack of words on a phone held upright.
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        OutlinedTextField(
-            value = phrase,
-            onValueChange = { phrase = it },
-            label = { Text(stringResource(R.string.create_phrase)) },
-            supportingText = if (unheard) {
-                { Text(stringResource(R.string.create_phrase_unheard)) }
-            } else {
-                null
-            },
-            isError = unheard,
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .withoutAutofill()
-                .testTag("create-phrase"),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HintTooltip(stringResource(R.string.hint_create_phrase_speak)) {
-                TextButton(
-                    onClick = {
-                        // What was heard joins what is already in the field
-                        // rather than replacing it: the sentence may be said
-                        // in two goes, and a word corrected by hand before
-                        // speaking again is not worth losing.
-                        unheard = !dictation.listen(prompt) { heard ->
-                            phrase = listOf(phrase.trim(), heard.trim())
-                                .filter { it.isNotEmpty() }
-                                .joinToString(" ")
-                        }
-                    },
-                    modifier = Modifier.testTag("create-phrase-speak"),
-                ) {
-                    Text(stringResource(R.string.create_phrase_speak))
-                }
-            }
-            HintTooltip(stringResource(R.string.hint_create_phrase)) {
-                TextButton(
-                    onClick = {
-                        state.fill(phrases.refine(state.phraseDraft(), phrase, today))
-                        phrase = ""
-                        unheard = false
-                    },
-                    enabled = phrase.isNotBlank(),
-                    modifier = Modifier.testTag("create-phrase-parse"),
-                ) {
-                    Text(stringResource(R.string.create_phrase_parse))
-                }
-            }
-        }
+    PhraseField(
+        labels = PhraseFieldLabels(
+            label = R.string.create_phrase,
+            prompt = R.string.create_phrase_prompt,
+            speak = R.string.create_phrase_speak,
+            speakHint = R.string.hint_create_phrase_speak,
+            apply = R.string.create_phrase_parse,
+            applyHint = R.string.hint_create_phrase,
+            fieldTag = "create-phrase",
+            speakTag = "create-phrase-speak",
+            applyTag = "create-phrase-parse",
+        ),
+        dictation = dictation,
+    ) { phrase ->
+        state.fill(phrases.refine(state.phraseDraft(), phrase, today))
     }
 }
 

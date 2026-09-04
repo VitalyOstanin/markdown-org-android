@@ -50,7 +50,7 @@ use markdown_org_extract::{parse_heading_line, TimestampParts};
 
 use crate::create::{append, opening};
 use crate::document::Document;
-use crate::edit::{splice, EditError, EditOutcome, EditTarget};
+use crate::edit::{parse_date, splice, EditError, EditOutcome, EditTarget};
 use crate::planning::{keyword_block_end, planning_lines, weekday_like};
 
 /// Property key listing the occurrences a series does not have.
@@ -239,13 +239,6 @@ fn repeating_line(
     }
 
     Ok((first.0, first.2))
-}
-
-/// `YYYY-MM-DD`, or the failure that names what was passed.
-fn parse_date(value: &str) -> Result<NaiveDate, EditError> {
-    NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
-        detail: format!("{value:?}: {error}"),
-    })
 }
 
 /// `HH:MM`, or `HH:MM-HH:MM` for an occurrence held between two times.

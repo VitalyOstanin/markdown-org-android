@@ -29,7 +29,9 @@ use markdown_org_extract::{
 };
 
 use crate::document::Document;
-use crate::edit::{splice, with_status, write_line, EditError, EditOutcome, EditTarget};
+use crate::edit::{
+    checked_year, parse_date, splice, with_status, write_line, EditError, EditOutcome, EditTarget,
+};
 use crate::occurrence::{fields, is_repeater, is_time, parse_time};
 use crate::undo::FileRollback;
 use crate::TaskType;
@@ -148,13 +150,7 @@ pub fn set_planning(
 ) -> Result<EditOutcome, EditError> {
     // Parsed before the file is opened: a date the caller mistyped must leave
     // the notes as they were.
-    let date = date
-        .map(|date| {
-            NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
-                detail: format!("{date:?}: {error}"),
-            })
-        })
-        .transpose()?;
+    let date = date.as_deref().map(parse_date).transpose()?;
 
     let mut document = Document::open(&target)?;
     let (index, _) = document.heading(&target)?;
@@ -325,10 +321,7 @@ pub(crate) fn rewrite_repeater(
 /// to produce the same file.
 #[uniffi::export]
 pub fn complete_task(target: EditTarget, today: String) -> Result<CompleteOutcome, EditError> {
-    let today =
-        NaiveDate::parse_from_str(&today, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
-            detail: format!("{today:?}: {error}"),
-        })?;
+    let today = parse_date(&today)?;
 
     let mut document = Document::open(&target)?;
     let (index, heading) = document.heading(&target)?;
@@ -545,55 +538,19 @@ pub(crate) fn planning_line(
     date: NaiveDate,
     tokens: StampTokens<'_>,
 ) -> Result<String, EditError> {
-    // The same bound `rewrite_date` keeps: a year outside four digits is
-    // written by chrono in a form no reader of these files accepts.
-    if !(1000..=9999).contains(&date.year()) {
-        return Err(EditError::InvalidDate {
-            detail: format!("{date} is outside the four-digit years timestamps are written in"),
-        });
-    }
+    checked_year(date)?;
 
-    let sample = sample_planning(document, index);
-    let indent = sample.as_ref().map_or("", |(line, _)| {
-        &line[..line.len() - line.trim_start().len()]
-    });
-    // Framed in inline code, which is how these lines are written in markdown
-    // notes: the timestamp is not a link and the backticks keep a renderer
-    // from making one of it. A file that writes them bare keeps doing so.
-    let fenced = sample
-        .as_ref()
-        .is_none_or(|(line, _)| line.trim_start().starts_with('`'));
-
-    let weekday = match &sample {
-        // A file that writes its dates without a weekday goes on without one.
-        Some((line, parts)) => parts.weekday.clone().map(|range| {
-            // A weekday this application cannot rewrite -- a language neither
-            // of the two -- is no reason to refuse a date it was not asked to
-            // touch, so the canonical name is written instead.
-            weekday_like(&line[range], date).unwrap_or_else(|_| date.weekday().to_string())
-        }),
-        None => Some(date.weekday().to_string()),
-    };
-
+    let spelling = Spelling::of(document, index);
     // The order org writes them in: the date, then the weekday that names it,
     // then the hour it is held at, and the repeater last.
     let written = [
         Some(date.format("%Y-%m-%d").to_string()),
-        weekday,
+        spelling.weekday(date),
         tokens.time.map(str::to_string),
         tokens.repeater.map(str::to_string),
     ];
-    let stamp = format!(
-        "<{}>",
-        written.into_iter().flatten().collect::<Vec<_>>().join(" ")
-    );
-    let body = format!("{} {stamp}", keyword.token());
 
-    Ok(if fenced {
-        format!("{indent}`{body}`")
-    } else {
-        format!("{indent}{body}")
-    })
+    Ok(spelling.line(&format!("{} ", keyword.token()), '<', &written))
 }
 
 /// The `CREATED` line to write under a heading just added, spelled the way
@@ -613,45 +570,92 @@ pub(crate) fn created_line(
     moment: NaiveDateTime,
 ) -> Result<String, EditError> {
     let date = moment.date();
-    if !(1000..=9999).contains(&date.year()) {
-        return Err(EditError::InvalidDate {
-            detail: format!("{date} is outside the four-digit years timestamps are written in"),
-        });
-    }
+    checked_year(date)?;
 
-    let sample = sample_planning(document, index);
-    let indent = sample.as_ref().map_or("", |(line, _)| {
-        &line[..line.len() - line.trim_start().len()]
-    });
-    let fenced = sample
-        .as_ref()
-        .is_none_or(|(line, _)| line.trim_start().starts_with('`'));
-    let weekday = match &sample {
-        Some((line, parts)) => parts.weekday.clone().map(|range| {
-            weekday_like(&line[range], date).unwrap_or_else(|_| date.weekday().to_string())
-        }),
-        None => Some(date.weekday().to_string()),
-    };
-
+    let spelling = Spelling::of(document, index);
     // With the hour, unlike a planning date, which carries one only where the
     // entry is held at a time: two entries written the same day are told apart
     // by the minute they were written at, and a day alone cannot do that.
     let written = [
         Some(date.format("%Y-%m-%d").to_string()),
-        weekday,
+        spelling.weekday(date),
         Some(moment.format("%H:%M").to_string()),
     ];
-    let stamp = format!(
-        "[{}]",
-        written.into_iter().flatten().collect::<Vec<_>>().join(" ")
-    );
-    let body = format!("{CREATED} {stamp}");
 
-    Ok(if fenced {
-        format!("{indent}`{body}`")
-    } else {
-        format!("{indent}{body}")
-    })
+    Ok(spelling.line(&format!("{CREATED} "), '[', &written))
+}
+
+/// How this file writes the lines that carry a date, so a line written into
+/// it looks like the ones already there.
+///
+/// Drawn once and consulted three times over, because a planning line and a
+/// `CREATED` line differ only in the keyword, the brackets and what stands
+/// after the date -- everything else about how they are spelled is the file's
+/// and the same for both.
+struct Spelling {
+    sample: Option<(String, TimestampParts)>,
+}
+
+impl Spelling {
+    /// The spelling the entry at `index` stands in.
+    fn of(document: &Document, index: usize) -> Self {
+        Self {
+            sample: sample_planning(document, index),
+        }
+    }
+
+    /// The weekday token to write, `None` where this file writes none.
+    fn weekday(&self, date: NaiveDate) -> Option<String> {
+        match &self.sample {
+            // A file that writes its dates without a weekday goes on without
+            // one.
+            Some((line, parts)) => parts.weekday.clone().map(|range| {
+                // A weekday this application cannot rewrite -- a language
+                // neither of the two -- is no reason to refuse a date it was
+                // not asked to touch, so the canonical name is written
+                // instead.
+                weekday_like(&line[range], date).unwrap_or_else(|_| date.weekday().to_string())
+            }),
+            None => Some(date.weekday().to_string()),
+        }
+    }
+
+    /// The whole line: this file's indentation, `keyword`, and `tokens` inside
+    /// a timestamp opened with `open`.
+    fn line(&self, keyword: &str, open: char, tokens: &[Option<String>]) -> String {
+        let close = if open == '[' { ']' } else { '>' };
+        let stamp = tokens
+            .iter()
+            .flatten()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let body = format!("{keyword}{open}{stamp}{close}");
+
+        // Framed in inline code, which is how these lines are written in
+        // markdown notes: the timestamp is not a link and the backticks keep a
+        // renderer from making one of it. A file that writes them bare keeps
+        // doing so.
+        if self.fenced() {
+            format!("{}`{body}`", self.indent())
+        } else {
+            format!("{}{body}", self.indent())
+        }
+    }
+
+    /// The indentation the file's own planning lines stand at.
+    fn indent(&self) -> &str {
+        self.sample.as_ref().map_or("", |(line, _)| {
+            &line[..line.len() - line.trim_start().len()]
+        })
+    }
+
+    /// Whether this file frames such lines in inline code.
+    fn fenced(&self) -> bool {
+        self.sample
+            .as_ref()
+            .is_none_or(|(line, _)| line.trim_start().starts_with('`'))
+    }
 }
 
 /// A planning line to copy the spelling of: the entry's own first, then the
@@ -736,14 +740,7 @@ pub(crate) fn rewrite_date(
     parts: &TimestampParts,
     date: NaiveDate,
 ) -> Result<String, EditError> {
-    // Anything outside four digits comes back from chrono signed and of
-    // another width (`+10021-04-01`), which no reader of these files accepts
-    // — and the caller would be writing it into the user's notes.
-    if !(1000..=9999).contains(&date.year()) {
-        return Err(EditError::InvalidDate {
-            detail: format!("{date} is outside the four-digit years timestamps are written in"),
-        });
-    }
+    checked_year(date)?;
 
     let with_weekday = match parts.weekday.clone() {
         Some(weekday) => {

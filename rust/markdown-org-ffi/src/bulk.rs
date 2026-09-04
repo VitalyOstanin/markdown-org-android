@@ -20,7 +20,7 @@ use chrono::NaiveDate;
 use markdown_org_extract::TimestampParts;
 
 use crate::document::Document;
-use crate::edit::{with_status, EditError, EditTarget};
+use crate::edit::{parse_date, with_status, EditError, EditTarget};
 use crate::planning::{next_occurrence, planning_lines, rewrite_date, PlanningKeyword};
 use crate::undo::FileRollback;
 use crate::TaskType;
@@ -115,10 +115,7 @@ pub fn apply_to_group(
     action: BulkAction,
     today: String,
 ) -> Result<BulkOutcome, EditError> {
-    let today =
-        NaiveDate::parse_from_str(&today, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
-            detail: format!("{today:?}: {error}"),
-        })?;
+    let today = parse_date(&today)?;
 
     let mut outcome = BulkOutcome {
         changed: 0,

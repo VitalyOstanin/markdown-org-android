@@ -11,6 +11,7 @@
 //! deliberate: the grammar belongs to the crate that also reads the files, and
 //! a second copy of it would drift.
 
+use chrono::{Datelike, NaiveDate};
 use markdown_org_extract::{HeadingLine, Priority};
 
 use crate::document::Document;
@@ -173,11 +174,7 @@ pub fn set_priority(
     // Validated before the file is touched: an invalid value must leave the
     // file exactly as it was.
     if let Some(value) = priority.as_deref() {
-        if Priority::parse(value).is_none() {
-            return Err(EditError::InvalidPriority {
-                detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
-            });
-        }
+        checked_priority(value)?;
     }
 
     edit_heading(target, |line, heading| {
@@ -253,6 +250,40 @@ pub(crate) fn write_line(
         line: rewritten,
         changed: true,
         rollback: Some(rollback),
+    })
+}
+
+/// `YYYY-MM-DD`, or the failure that names what was passed.
+///
+/// Every operation that takes a date takes it as text: the bindings carry no
+/// date type, and a day picked on a screen arrives as the string it was
+/// written as. Shared so that all of them refuse the same shape the same way.
+pub(crate) fn parse_date(value: &str) -> Result<NaiveDate, EditError> {
+    NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| EditError::InvalidDate {
+        detail: format!("{value:?}: {error}"),
+    })
+}
+
+/// The date back, if it is one a note can hold.
+///
+/// Anything outside four digits comes back from chrono signed and of another
+/// width (`+10021-04-01`), which no reader of these files accepts -- and the
+/// caller would be writing it into the user's notes. Checked wherever a date
+/// is written rather than where one is read: arithmetic on a repeater is what
+/// carries a year past the bound, not the user typing one.
+pub(crate) fn checked_year(date: NaiveDate) -> Result<NaiveDate, EditError> {
+    if !(1000..=9999).contains(&date.year()) {
+        return Err(EditError::InvalidDate {
+            detail: format!("{date} is outside the four-digit years timestamps are written in"),
+        });
+    }
+    Ok(date)
+}
+
+/// The priority as the extractor reads it, or the failure naming the value.
+pub(crate) fn checked_priority(value: &str) -> Result<Priority, EditError> {
+    Priority::parse(value).ok_or_else(|| EditError::InvalidPriority {
+        detail: format!("{value:?} is neither an uppercase letter nor a number in 0..=64"),
     })
 }
 
