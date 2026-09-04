@@ -9,7 +9,6 @@ import io.github.vitalyostanin.markdownorg.ReminderReceiver
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import kotlin.math.absoluteValue
 
 /**
  * Whatever holds the plan until it comes due.
@@ -91,7 +90,9 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         slots.replace(
             planned = plan.size,
             cancel = ::drop,
-            place = { index -> schedule(index, plan[index], exact) },
+            place = { index ->
+                schedule(ReminderNumbering.planAlarm(index), plan[index], exact)
+            },
         )
     }
 
@@ -103,33 +104,32 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
         // FLAG_NO_CREATE: an alarm already delivered leaves nothing to
         // cancel, and building one to cancel it would be the only place
         // this application ever created it.
-        pending(index, intent = Intent(context, ReminderReceiver::class.java), create = false)
+        pending(
+            code = ReminderNumbering.planAlarm(index),
+            intent = Intent(context, ReminderReceiver::class.java),
+            create = false,
+        )
             ?.let { waiting ->
                 alarms?.cancel(waiting)
                 waiting.cancel()
             }
     }
 
-    /**
-     * The alarm the reader asked to have again later.
-     *
-     * Numbered above everything the plan uses, so that replacing the plan —
-     * which cancels by number, from zero to the count held — leaves it alone.
-     */
+    /** The alarm the reader asked to have again later, numbered aside. */
     override fun holdAside(key: Int, reminder: PlannedReminder) = slots.inTurn {
         if (alarms == null) {
             return@inTurn
         }
         schedule(
-            index = ASIDE + key.absoluteValue % ASIDE_RANGE,
+            code = ReminderNumbering.alarmHeldAside(key),
             reminder = reminder,
             exact = ReminderAccess.exactAlarmsAllowed(context),
         )
     }
 
-    private fun schedule(index: Int, reminder: PlannedReminder, exact: Boolean) {
+    private fun schedule(code: Int, reminder: PlannedReminder, exact: Boolean) {
         val errand = ReminderIntent.pack(context, reminder)
-        val waiting = pending(index, errand, create = true) ?: return
+        val waiting = pending(code, errand, create = true) ?: return
         val at = reminder.at.toInstant().toEpochMilli()
 
         // Both of these wake a phone that is dozing; the exact one is the
@@ -156,30 +156,19 @@ class ReminderAlarms(private val context: Context) : AlarmHolder {
      *
      * The number is what tells two alarms apart: the platform compares the
      * intent without its extras, so every reminder of one plan would otherwise
-     * be the same alarm rescheduled.
+     * be the same alarm rescheduled. Which numbers are whose is
+     * [ReminderNumbering]'s to say.
      */
-    private fun pending(index: Int, intent: Intent, create: Boolean): PendingIntent? {
+    private fun pending(code: Int, intent: Intent, create: Boolean): PendingIntent? {
         val flags = PendingIntent.FLAG_IMMUTABLE or
             if (create) PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_NO_CREATE
 
-        return PendingIntent.getBroadcast(context, REQUEST_BASE + index, intent, flags)
+        return PendingIntent.getBroadcast(context, code, intent, flags)
     }
 
     private companion object {
         const val FILE = "reminder-alarms"
         const val KEY_HELD = "held"
-
-        /**
-         * Where the numbers of the alarms held aside begin.
-         *
-         * Above any plan: the plan is capped well below this, and cancelling
-         * it walks the numbers it used from zero.
-         */
-        const val ASIDE = 1_000
-        const val ASIDE_RANGE = 100_000
-
-        /** Where the numbering of the plan's alarms starts. */
-        const val REQUEST_BASE = 1000
 
         const val TAG = "ReminderAlarms"
     }

@@ -106,7 +106,7 @@ fun planReminders(
         // The platform caps the alarms one application may hold. Every firing
         // re-plans, so an entry left out here is picked up by the time the
         // ones ahead of it have fired.
-        .take(LIMIT)
+        .take(PLAN_LIMIT)
 
     return (timed + digest(choices, now)).sortedBy { it.at }
 }
@@ -176,5 +176,10 @@ val DEFAULT_DIGEST_TIME: LocalTime = LocalTime.of(9, 0)
  */
 val HORIZON: Duration = Duration.ofDays(2)
 
-/** How many timed alarms one plan may hold. */
-private const val LIMIT = 64
+/**
+ * How many timed alarms one plan may hold.
+ *
+ * Read by [ReminderNumbering] as well: the alarms a reader has put off are
+ * numbered above the plan, and "above" is only a fact while the plan is capped.
+ */
+internal const val PLAN_LIMIT: Int = 64

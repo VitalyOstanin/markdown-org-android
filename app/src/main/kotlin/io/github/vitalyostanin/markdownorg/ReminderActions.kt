@@ -15,22 +15,23 @@ import io.github.vitalyostanin.markdownorg.core.ClosingOutcome
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsStore
 import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
+import io.github.vitalyostanin.markdownorg.core.ReminderAnswer
 import io.github.vitalyostanin.markdownorg.core.ReminderChannels
-import io.github.vitalyostanin.markdownorg.core.ReminderEntry
 import io.github.vitalyostanin.markdownorg.core.ReminderIntent
 import io.github.vitalyostanin.markdownorg.core.ReminderNotifications
+import io.github.vitalyostanin.markdownorg.core.ReminderNumbering
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.RunningWork
 import io.github.vitalyostanin.markdownorg.core.TimedReminder
+import io.github.vitalyostanin.markdownorg.core.answerTo
 import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.closingOutcome
+import io.github.vitalyostanin.markdownorg.core.entryNamed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import uniffi.markdown_org_ffi.Day
-import uniffi.markdown_org_ffi.Task
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -54,14 +55,7 @@ object ReminderActions {
     /** How long "later" is. */
     val LATER: Duration = Duration.ofMinutes(15)
 
-    /**
-     * Pressing one of them, as something a notification can hold.
-     *
-     * The request code takes in both the notification and which button it is:
-     * pending intents are told apart by that code and by the intent, and
-     * extras count for neither — one code for all of them would leave every
-     * button holding whichever entry was packed last.
-     */
+    /** Pressing one of them, as something a notification can hold. */
     fun pressing(
         context: Context,
         action: String,
@@ -75,7 +69,7 @@ object ReminderActions {
 
         return PendingIntent.getBroadcast(
             context,
-            notification * BUTTONS + if (action == DONE) 1 else 0,
+            ReminderNumbering.button(notification, second = action == DONE),
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -85,9 +79,6 @@ object ReminderActions {
     fun notificationOf(intent: Intent): Int = intent.getIntExtra(EXTRA_NOTIFICATION, 0)
 
     private const val EXTRA_NOTIFICATION = "notification"
-
-    /** How many buttons a reminder carries, which is what spaces the codes out. */
-    private const val BUTTONS = 2
 }
 
 /**
@@ -105,16 +96,13 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val notification = ReminderActions.notificationOf(intent)
 
         NotificationManagerCompat.from(app).cancel(notification)
-        when (intent.action) {
-            ReminderActions.SNOOZE -> ReminderAlarms(app).holdAside(
-                key = notification,
-                // The entry keeps the hour it starts at; only the moment it is
-                // announced moves. What the reader gets in a quarter of an
-                // hour is the same reminder, worded the same way.
-                reminder = reminder.copy(at = ZonedDateTime.now().plus(ReminderActions.LATER)),
-            )
+        when (val answer = answerTo(intent.action, reminder, ZonedDateTime.now())) {
+            is ReminderAnswer.HoldAside ->
+                ReminderAlarms(app).holdAside(key = notification, reminder = answer.reminder)
 
-            ReminderActions.DONE -> ReminderCompletionService.close(app, reminder)
+            is ReminderAnswer.Close -> ReminderCompletionService.close(app, answer.reminder)
+
+            null -> Unit
         }
     }
 }
@@ -152,7 +140,7 @@ class ReminderCompletionService : Service() {
         ReminderChannels.declare(this)
         ServiceCompat.startForeground(
             this,
-            WORKING,
+            ReminderNumbering.WORKING_NOTIFICATION,
             working(reminder.entry.heading),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE,
         )
@@ -197,7 +185,7 @@ class ReminderCompletionService : Service() {
         val read = scheduler.read(reminder.starts.toLocalDate()).onFailure { failure ->
             Log.w(TAG, "the day the reminder was for could not be read", failure)
         }
-        val task = read.getOrNull()?.let { holding -> holding.find(reminder.entry) }
+        val task = read.getOrNull()?.let { holding -> holding.entryNamed(reminder.entry) }
         val editor = task?.let { found ->
             DeviceCollections(this, NotesCollectionsStore(this).collections)
                 .byRoot(found.root)
@@ -267,15 +255,6 @@ class ReminderCompletionService : Service() {
                 }
         }
 
-        /** The notification the service itself stands behind. */
-        private const val WORKING = 2
-
         private const val TAG = "ReminderCompletion"
     }
 }
-
-/** The task the entry names, wherever in the day it sits. */
-private fun Day.find(entry: ReminderEntry): Task? =
-    (overdue + scheduledTimed + scheduledNoTime + upcoming).firstOrNull { task ->
-        task.line == entry.line && task.file == entry.file && task.root == entry.root
-    }

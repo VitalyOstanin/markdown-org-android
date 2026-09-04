@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The number a reminder is announced under always falls inside the range set
+  aside for it. The number comes from a hash of the note and the line the entry
+  sits on, and the absolute value of the smallest number a hash can be is
+  itself -- still negative; one entry in four billion was therefore announced
+  below that range, and would be every time it came round. Nothing else in the
+  application numbers notifications there, so no reminder is known to have been
+  lost to it, and the remainder is now taken in a way that has no sign to lose.
+
 - An hour written with one digit no longer costs the reminder. A note may
   hold `9:00` -- org-mode writes it that way, and so does anyone typing a
   timestamp by hand -- and the plan read the hour strictly, dropped what it

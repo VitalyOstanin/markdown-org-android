@@ -17,7 +17,6 @@ import uniffi.markdown_org_ffi.Day
 import uniffi.markdown_org_ffi.Task
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import kotlin.math.absoluteValue
 
 /**
  * What a reminder looks like once it reaches the screen.
@@ -36,7 +35,7 @@ object ReminderNotifications {
     fun showTimed(context: Context, reminder: TimedReminder) {
         val hour = reminder.starts.toLocalTime()
             .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-        val id = idOf(reminder.entry)
+        val id = ReminderNumbering.notification(reminder.entry)
 
         raise(
             context = context,
@@ -74,7 +73,7 @@ object ReminderNotifications {
 
         raise(
             context = context,
-            id = idOf(reminder.entry),
+            id = ReminderNumbering.notification(reminder.entry),
             channel = ReminderChannels.TIMED,
             title = reminder.entry.heading,
             text = context.getString(said),
@@ -85,37 +84,33 @@ object ReminderNotifications {
         )
     }
 
-    /**
-     * What the day holds, or nothing when it holds none of it.
-     *
-     * A digest of three zeroes is a notification saying there is nothing to
-     * say, raised every morning; the alarm still fired and the next plan was
-     * still made, which is all that firing was for.
-     */
+    /** What the day holds, or nothing when it holds none of it. */
     fun showDigest(context: Context, day: Day) {
-        val counts = listOfNotNull(
-            day.scheduledNoTime.size.takeIf { it > 0 }?.let { count ->
+        val counts = digestCounts(day)
+
+        if (counts.silent) {
+            return
+        }
+        val said = listOfNotNull(
+            counts.dated.takeIf { it > 0 }?.let { count ->
                 context.resources.getQuantityString(R.plurals.reminder_digest_dated, count, count)
             },
-            day.upcoming.size.takeIf { it > 0 }?.let { count ->
+            counts.deadlines.takeIf { it > 0 }?.let { count ->
                 context.resources
                     .getQuantityString(R.plurals.reminder_digest_deadlines, count, count)
             },
-            day.overdue.size.takeIf { it > 0 }?.let { count ->
+            counts.overdue.takeIf { it > 0 }?.let { count ->
                 context.getString(R.string.reminder_digest_overdue, count)
             },
         )
-        if (counts.isEmpty()) {
-            return
-        }
 
         raise(
             context = context,
-            id = DIGEST_ID,
+            id = ReminderNumbering.DIGEST_NOTIFICATION,
             channel = ReminderChannels.DIGEST,
             title = context.getString(R.string.reminder_digest_title),
-            text = counts.joinToString(context.getString(R.string.reminder_digest_separator)),
-            headings = headings(day),
+            text = said.joinToString(context.getString(R.string.reminder_digest_separator)),
+            headings = digestHeadings(day),
             // The day it counted, with nothing picked out within it: the
             // digest is about all of them, and the screen it opens is where
             // the reader chooses which.
@@ -233,34 +228,6 @@ object ReminderNotifications {
                 )
 
     /**
-     * The first few headings of the day, for the drawer when it is expanded.
-     *
-     * A few rather than all of them: the platform truncates a long text, and
-     * the counts above already say how much there is. The order is the
-     * agenda's, which is the order the screen shows them in.
-     */
-    private fun headings(day: Day): List<String> =
-        (day.scheduledNoTime + day.upcoming + day.overdue)
-            .take(LISTED)
-            .map(Task::heading)
-
-    /**
-     * A notification of its own per entry, and the same one when the entry is
-     * announced twice.
-     *
-     * Keyed by the note and the line rather than by the heading, so the
-     * reminder at the hour replaces the one that came before it instead of
-     * standing beside it. Two entries whose keys collide share a notification,
-     * which costs the earlier of the two — rare enough, and the alternative is
-     * a table of identifiers to be kept as long as the alarms are.
-     */
-    private fun idOf(entry: ReminderEntry): Int {
-        val key = "${entry.root} ${entry.file} ${entry.line}".hashCode()
-
-        return TIMED_BASE + (key.absoluteValue % TIMED_RANGE)
-    }
-
-    /**
      * The tap: the agenda, opened where the notification points.
      *
      * The request code is the notification's own. Pending intents are told
@@ -287,14 +254,46 @@ object ReminderNotifications {
         )
     }
 
-    /** The digest is one notification, replaced daily. */
-    private const val DIGEST_ID = 1
-
-    private const val TIMED_BASE = 100
-    private const val TIMED_RANGE = 100_000
-
-    /** How many headings the expanded digest names. */
-    private const val LISTED = 5
-
     private const val TAG = "ReminderNotifications"
 }
+
+/**
+ * What a digest has to say about a day.
+ *
+ * The counting is apart from the wording so that it can be asserted without a
+ * device: which buckets are counted, and which day amounts to nothing at all,
+ * is the decision here -- the strings around it are the platform's.
+ */
+internal data class DigestCounts(val dated: Int, val deadlines: Int, val overdue: Int) {
+
+    /**
+     * Nothing to say.
+     *
+     * A digest of three zeroes is a notification saying there is nothing to
+     * say, raised every morning; the alarm still fired and the next plan was
+     * still made, which is all that firing was for.
+     */
+    val silent: Boolean get() = dated == 0 && deadlines == 0 && overdue == 0
+}
+
+/** How much of each kind the day holds, in the order the digest says it. */
+internal fun digestCounts(day: Day): DigestCounts = DigestCounts(
+    dated = day.scheduledNoTime.size,
+    deadlines = day.upcoming.size,
+    overdue = day.overdue.size,
+)
+
+/**
+ * The first few headings of the day, for the drawer when it is expanded.
+ *
+ * A few rather than all of them: the platform truncates a long text, and the
+ * counts already say how much there is. The order is the agenda's, which is
+ * the order the screen shows them in.
+ */
+internal fun digestHeadings(day: Day): List<String> =
+    (day.scheduledNoTime + day.upcoming + day.overdue)
+        .take(LISTED)
+        .map(Task::heading)
+
+/** How many headings the expanded digest names. */
+private const val LISTED = 5
