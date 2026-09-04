@@ -84,7 +84,7 @@ to it, and adding one never destroys what is there.
   `Adoption`, `KEPT_BRANCH`.
 - `rust/markdown-org-ffi/tests/sync.rs` — a directory of notes becoming a
   checkout, an empty one taking the remote's, and what unrelated histories do.
-- `app/src/main/kotlin/…/ui/AgendaViewModel.kt` — where saving the form now
+- `app/src/main/kotlin/…/ui/NotesSettings.kt` — where saving the form now
   leads, and `replaceNotes` as the only thing that empties the directory.
 - [ADR-0006](0006-fast-forward-only-sync.md) and
   [ADR-0018](0018-edits-go-back-as-a-fast-forward-push.md) — the two halves of

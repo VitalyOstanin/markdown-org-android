@@ -68,7 +68,7 @@ anywhere in it that empties the notes directory.
   of files the application owns.
 - `app/src/main/kotlin/…/core/NotesArea.kt` — the operations the working copy
   offers, none of which removes anything.
-- `app/src/main/kotlin/…/ui/AgendaViewModel.kt` — `saveSettings`, and what a
+- `app/src/main/kotlin/…/ui/NotesSettings.kt` — `saveSettings`, and what a
   checkout of another address leads to.
 - [ADR-0019](0019-the-directory-holds-the-notes-and-git-is-added-to-it.md) —
   the record this amends.

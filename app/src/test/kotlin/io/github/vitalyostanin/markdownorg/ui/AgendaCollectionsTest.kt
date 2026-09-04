@@ -88,7 +88,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.apply(task(heading = "Write the report", root = WORK), TaskAction.Complete)
+        model.edits.apply(task(heading = "Write the report", root = WORK), TaskAction.Complete)
         advanceUntilIdle()
 
         // The same relative path exists in both directories, so an edit that
@@ -103,7 +103,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.createTask("2", TaskDraft(title = "Write the report"))
+        model.edits.createTask("2", TaskDraft(title = "Write the report"))
         advanceUntilIdle()
 
         // Which collection was chosen decides both the directory and the file:
@@ -121,12 +121,12 @@ class AgendaCollectionsTest {
 
         // The screen stood over the agenda while the collection it was opened
         // for was removed in the settings.
-        model.createTask("3", TaskDraft(title = "Write the report"))
+        model.edits.createTask("3", TaskDraft(title = "Write the report"))
         advanceUntilIdle()
 
         assertNull(personalWriter.created)
         assertNull(workWriter.created)
-        assertEquals(R.string.edit_failed_no_collection, model.editIssue.value?.text)
+        assertEquals(R.string.edit_failed_no_collection, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -134,7 +134,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.apply(task(heading = "Write the report", root = WORK), TaskAction.Complete)
+        model.edits.apply(task(heading = "Write the report", root = WORK), TaskAction.Complete)
         advanceUntilIdle()
 
         assertEquals(listOf(WORK), loader.rereadRoots)
@@ -146,12 +146,12 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.apply(task(heading = "Orphan", root = "/gone"), TaskAction.Complete)
+        model.edits.apply(task(heading = "Orphan", root = "/gone"), TaskAction.Complete)
         advanceUntilIdle()
 
         assertEquals(0, personalWriter.calls)
         assertEquals(0, workWriter.calls)
-        assertEquals(R.string.edit_failed_no_collection, model.editIssue.value?.text)
+        assertEquals(R.string.edit_failed_no_collection, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -159,7 +159,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.applyToGroup(
+        model.edits.applyToGroup(
             listOf(
                 task(heading = "Pay the tax", root = PERSONAL).toAgendaRow(),
                 task(heading = "Renew the licence", line = 2u, root = PERSONAL).toAgendaRow(),
@@ -187,7 +187,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.applyToGroup(
+        model.edits.applyToGroup(
             listOf(
                 task(heading = "Pay the tax", root = PERSONAL).toAgendaRow(),
                 task(heading = "Write the report", root = WORK).toAgendaRow(),
@@ -199,7 +199,7 @@ class AgendaCollectionsTest {
         // Both hold a file called `todo.md`, and the rollback is applied by
         // whoever owns the directory: without the root beside it, one
         // collection's text would be written over the other's file.
-        val result = model.groupResult.value!!
+        val result = model.edits.groupResult.value!!
         assertEquals(listOf(PERSONAL, WORK), result.rollback.map { it.root })
         assertTrue(result.canUndo)
     }
@@ -211,11 +211,11 @@ class AgendaCollectionsTest {
 
         assertEquals(
             listOf("Personal", "Work"),
-            model.collectionFilter.value.map { it.label.name },
+            model.filters.collectionFilter.value.map { it.label.name },
         )
-        assertTrue(model.collectionFilter.value.all { it.shown })
+        assertTrue(model.filters.collectionFilter.value.all { it.shown })
         // A colour apiece, so the mark on a row and the chip above it agree.
-        assertEquals(listOf(0, 1), model.collectionFilter.value.map { it.label.tone })
+        assertEquals(listOf(0, 1), model.filters.collectionFilter.value.map { it.label.tone })
     }
 
     @Test
@@ -247,7 +247,7 @@ class AgendaCollectionsTest {
         // of the directories for a tap on a chip is the whole cost this
         // avoids.
         assertEquals(scansBefore, loader.pending.size)
-        assertFalse(model.collectionFilter.value.single { it.label.id == "2" }.shown)
+        assertFalse(model.filters.collectionFilter.value.single { it.label.id == "2" }.shown)
     }
 
     @Test
@@ -323,7 +323,7 @@ class AgendaCollectionsTest {
         )
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         // The banner ends up describing the last collection of the run, so
@@ -331,11 +331,11 @@ class AgendaCollectionsTest {
         // on screen.
         assertEquals(
             listOf("Personal", "Work"),
-            model.syncState.value.runs.map { it.name },
+            model.settings.syncState.value.runs.map { it.name },
         )
         assertEquals(
             listOf(false, true),
-            model.syncState.value.runs.map { it.message.failed },
+            model.settings.syncState.value.runs.map { it.message.failed },
         )
     }
 
@@ -359,7 +359,7 @@ class AgendaCollectionsTest {
         )
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         // The settings of the collection being synced, never those of the one
@@ -449,7 +449,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        assertEquals(R.string.settings_notes_failed, model.syncState.value.message?.text)
+        assertEquals(R.string.settings_notes_failed, model.settings.syncState.value.message?.text)
         assertTrue("the scan was never asked for", loader.pending.isNotEmpty())
     }
 
@@ -489,7 +489,7 @@ class AgendaCollectionsTest {
         advanceUntilIdle()
         model.editCollection("2")
 
-        model.saveSettings(url = "", branch = "", token = "", name = "Office")
+        model.settings.saveSettings(url = "", branch = "", token = "", name = "Office")
         advanceUntilIdle()
 
         assertEquals(listOf("Personal", "Office"), store.collections.map { it.name })
@@ -500,11 +500,11 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        model.saveSettings(url = "", branch = "", token = "", name = "  ")
+        model.settings.saveSettings(url = "", branch = "", token = "", name = "  ")
         advanceUntilIdle()
 
         assertEquals(listOf("Personal", "Work"), store.collections.map { it.name })
-        assertEquals(R.string.collection_name_empty, model.syncState.value.message?.text)
+        assertEquals(R.string.collection_name_empty, model.settings.syncState.value.message?.text)
     }
 
     @Test
@@ -526,7 +526,7 @@ class AgendaCollectionsTest {
 
         // One chip either shows everything or nothing, and a mark on every row
         // would be a column of the same word.
-        assertTrue(model.collectionFilter.value.isEmpty())
+        assertTrue(model.filters.collectionFilter.value.isEmpty())
     }
 
     /** A group action that changed one file and can be put back. */
@@ -562,7 +562,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        val note = model.noteFile(task(root = WORK, file = "notes.md"))
+        val note = model.edits.noteFile(task(root = WORK, file = "notes.md"))
 
         assertEquals(File(WORK, "notes.md"), note)
     }
@@ -573,7 +573,7 @@ class AgendaCollectionsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        assertNull(model.noteFile(task(root = "/notes/elsewhere", file = "notes.md")))
+        assertNull(model.edits.noteFile(task(root = "/notes/elsewhere", file = "notes.md")))
     }
 
     private fun viewModel(inUse: FakeCollections = collections): AgendaViewModel = AgendaViewModel(

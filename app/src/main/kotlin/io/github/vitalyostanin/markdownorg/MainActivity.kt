@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
                     line = entry.line,
                 )
             }
-            ?: model.showDay(target.day)
+            ?: model.view.showDay(target.day)
     }
 }
 
@@ -179,12 +179,12 @@ private fun SettingsRoute(
     modifier: Modifier,
 ) {
     val context = LocalContext.current.applicationContext
-    val sync by model.syncState.collectAsStateWithLifecycle()
+    val sync by model.settings.syncState.collectAsStateWithLifecycle()
     val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
     val editingId by model.editingId.collectAsStateWithLifecycle()
-    val grouped by model.grouped.collectAsStateWithLifecycle()
-    val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
-    val weekStart by model.weekStart.collectAsStateWithLifecycle()
+    val grouped by model.view.grouped.collectAsStateWithLifecycle()
+    val monthAsGrid by model.view.monthAsGrid.collectAsStateWithLifecycle()
+    val weekStart by model.view.weekStart.collectAsStateWithLifecycle()
 
     val storage = rememberStorageUi()
     val reminders = rememberRemindersUi(replan = model::replanReminders)
@@ -192,7 +192,7 @@ private fun SettingsRoute(
     // Read once per opening, so a save followed by a reopen shows what was
     // stored — and again when the form is pointed at another collection, whose
     // remote, token and directory are its own.
-    val form = remember(editingId) { model.currentSettings() }
+    val form = remember(editingId) { model.settings.currentSettings() }
 
     // What the run that crashed left behind, off the main thread like the
     // notices: a file read is a file read.
@@ -222,7 +222,7 @@ private fun SettingsRoute(
             storesLocally = sync.local,
         ),
         onSave = { saved ->
-            model.saveSettings(
+            model.settings.saveSettings(
                 url = saved.url,
                 branch = saved.branch,
                 token = saved.token,
@@ -257,18 +257,18 @@ private fun SettingsRoute(
             onOpenLicences = onOpenLicences,
         ),
         onKeepLocal = {
-            model.keepNotesLocal()
+            model.settings.keepNotesLocal()
             onDismiss()
         },
-        onCreateKey = model::createSshKey,
+        onCreateKey = model.settings::createSshKey,
         onOpenPage = { page -> openPage(context, page) },
         agenda = AgendaUi(
             grouped = grouped,
-            onGroupedChange = model::setGrouped,
+            onGroupedChange = model.view::setGrouped,
             monthAsGrid = monthAsGrid,
-            onMonthAsGridChange = model::setMonthAsGrid,
+            onMonthAsGridChange = model.view::setMonthAsGrid,
             weekStart = weekStart,
-            onWeekStartChange = model::setWeekStart,
+            onWeekStartChange = model.view::setWeekStart,
         ),
         reminders = reminders,
     )
@@ -357,23 +357,23 @@ private fun rememberStorageUi(): StorageUi {
 @Composable
 private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modifier: Modifier) {
     val state by model.state.collectAsStateWithLifecycle()
-    val layout by model.layout.collectAsStateWithLifecycle()
-    val span by model.span.collectAsStateWithLifecycle()
-    val grouped by model.grouped.collectAsStateWithLifecycle()
-    val monthAsGrid by model.monthAsGrid.collectAsStateWithLifecycle()
-    val weekStart by model.weekStart.collectAsStateWithLifecycle()
-    val sync by model.syncState.collectAsStateWithLifecycle()
-    val selected by model.selected.collectAsStateWithLifecycle()
-    val moveTargets by model.moveTargets.collectAsStateWithLifecycle()
-    val editedEntry by model.editedEntry.collectAsStateWithLifecycle()
-    val creating by model.creating.collectAsStateWithLifecycle()
+    val layout by model.view.layout.collectAsStateWithLifecycle()
+    val span by model.view.span.collectAsStateWithLifecycle()
+    val grouped by model.view.grouped.collectAsStateWithLifecycle()
+    val monthAsGrid by model.view.monthAsGrid.collectAsStateWithLifecycle()
+    val weekStart by model.view.weekStart.collectAsStateWithLifecycle()
+    val sync by model.settings.syncState.collectAsStateWithLifecycle()
+    val selected by model.edits.selected.collectAsStateWithLifecycle()
+    val moveTargets by model.edits.moveTargets.collectAsStateWithLifecycle()
+    val editedEntry by model.edits.editedEntry.collectAsStateWithLifecycle()
+    val creating by model.edits.creating.collectAsStateWithLifecycle()
     val collectionSet by model.collectionSet.collectAsStateWithLifecycle()
-    val editIssue by model.editIssue.collectAsStateWithLifecycle()
-    val groupResult by model.groupResult.collectAsStateWithLifecycle()
-    val editResult by model.editResult.collectAsStateWithLifecycle()
-    val collections by model.collectionFilter.collectAsStateWithLifecycle()
-    val tags by model.tags.collectAsStateWithLifecycle()
-    val currentTag by model.currentTag.collectAsStateWithLifecycle()
+    val editIssue by model.edits.editIssue.collectAsStateWithLifecycle()
+    val groupResult by model.edits.groupResult.collectAsStateWithLifecycle()
+    val editResult by model.edits.editResult.collectAsStateWithLifecycle()
+    val collections by model.filters.collectionFilter.collectAsStateWithLifecycle()
+    val tags by model.filters.tags.collectAsStateWithLifecycle()
+    val currentTag by model.filters.currentTag.collectAsStateWithLifecycle()
     // With the lifecycle, so the ticker behind it stops with the screen and
     // reads the clock again when the screen comes back.
     val now by model.now.collectAsStateWithLifecycle()
@@ -382,9 +382,9 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
         state = state,
         view = AgendaView(
             layout = layout,
-            onLayoutChange = model::setLayout,
+            onLayoutChange = model.view::setLayout,
             span = span,
-            onSpanChange = model::setSpan,
+            onSpanChange = model.view::setSpan,
             grouped = grouped,
             monthAsGrid = monthAsGrid,
         ),
@@ -411,13 +411,13 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
 
         TaskActionsSheet(
             task = task,
-            onAction = { action -> model.apply(task, action) },
-            onDismiss = { model.select(null) },
+            onAction = { action -> model.edits.apply(task, action) },
+            onDismiss = { model.edits.select(null) },
             // The calendar is cut where the agenda's month grid is cut: the
             // reader answered that question once, in the settings.
             weekStart = weekStart,
             move = moveTargets,
-            onEdit = { model.edit(task) },
+            onEdit = { model.edits.edit(task) },
             // Handled here rather than in the view model: this leaves the
             // application, and what it needs is an activity to launch from,
             // not the notes. The sheet closes first, the way it does for
@@ -425,13 +425,13 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
             // screen, and a sheet left standing behind it is what the user
             // returns to.
             onOpenExternally = {
-                model.select(null)
+                model.edits.select(null)
                 // The note as it sits on the device: the task names its file
                 // relative to the directory the walk covered, and the two are
                 // only a path once joined.
-                val note = model.noteFile(task)
+                val note = model.edits.noteFile(task)
                 if (note == null || !ExternalNote.open(context, note)) {
-                    model.reportOpenFailure()
+                    model.edits.reportOpenFailure()
                 }
             },
         )
@@ -442,8 +442,8 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     editedEntry?.let { draft ->
         EntryEditor(
             draft = draft,
-            onSave = model::saveEntry,
-            onDismiss = model::cancelEdit,
+            onSave = model.edits::saveEntry,
+            onDismiss = model.edits::cancelEdit,
         )
     }
 
@@ -452,8 +452,8 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
     if (creating) {
         TaskCreator(
             collections = collectionSet,
-            onCreate = model::createTask,
-            onDismiss = model::cancelCreating,
+            onCreate = model.edits::createTask,
+            onDismiss = model.edits::cancelCreating,
             weekStart = weekStart,
         )
     }
@@ -467,22 +467,22 @@ private fun AgendaRoute(model: AgendaViewModel, onOpenSettings: () -> Unit, modi
  * together ran past what fits on a screen.
  */
 private fun agendaActions(model: AgendaViewModel, onOpenSettings: () -> Unit) = AgendaActions(
-    onSync = model::syncNow,
+    onSync = model.settings::syncNow,
     onOpenSettings = onOpenSettings,
-    onTaskClick = model::select,
-    onTakeRemote = model::takeRemoteNotes,
-    onSettleAndSync = model::settleAndSync,
-    onTrustHost = model::trustHost,
-    onStep = model::stepBy,
-    onShowToday = model::showToday,
-    onShowDay = model::showDay,
-    onGroupAction = { group, action -> model.applyToGroup(group.rows, action) },
-    onUndoGroup = model::undoGroup,
-    onUndoEdit = model::undoEdit,
-    onCreate = model::startCreating,
-    onDictated = model::createFromPhrase,
-    onDictationUnavailable = model::reportNoRecogniser,
-    onEditIssueShown = model::editIssueShown,
-    onGroupResultShown = model::groupResultShown,
-    onEditResultShown = model::editResultShown,
+    onTaskClick = model.edits::select,
+    onTakeRemote = model.settings::takeRemoteNotes,
+    onSettleAndSync = model.settings::settleAndSync,
+    onTrustHost = model.settings::trustHost,
+    onStep = model.view::stepBy,
+    onShowToday = model.view::showToday,
+    onShowDay = model.view::showDay,
+    onGroupAction = { group, action -> model.edits.applyToGroup(group.rows, action) },
+    onUndoGroup = model.edits::undoGroup,
+    onUndoEdit = model.edits::undoEdit,
+    onCreate = model.edits::startCreating,
+    onDictated = model.edits::createFromPhrase,
+    onDictationUnavailable = model.edits::reportNoRecogniser,
+    onEditIssueShown = model.edits::editIssueShown,
+    onGroupResultShown = model.edits::groupResultShown,
+    onEditResultShown = model.edits::editResultShown,
 )

@@ -95,7 +95,7 @@ that expires is a worse fit for a device that syncs in the background.
   `HostTrust`, `generate_ssh_key`.
 - `app/src/main/kotlin/…/core/RemoteUrl.kt` — the same rules, stated where the
   address is typed.
-- `app/src/main/kotlin/…/ui/AgendaViewModel.kt` — `trustHost`, and what a
+- `app/src/main/kotlin/…/ui/NotesSettings.kt` — `trustHost`, and what a
   stored server key is dropped with.
 - [ADR-0005](0005-vendored-tls-and-libgit2.md) — the vendored build this
   extends, and the scheme allowlist it set.

@@ -408,10 +408,10 @@ fun Throwable.toAgendaMessage(): SyncMessage = SyncMessage(
  * English sentence written for a log — `line 9 is past the end of notes.md` —
  * and under a translated heading it makes a message that is half in each
  * language while saying no more than the heading already did. It goes to
- * logcat instead; see [AgendaViewModel.apply].
+ * logcat instead; see [EntryEdits.apply].
  *
  * The result belongs to a channel of its own — see
- * [AgendaViewModel.editIssue]. The banner under the header is about the
+ * [EntryEdits.editIssue]. The banner under the header is about the
  * checkout, and "the task could not be changed" is not.
  */
 fun Throwable.toEditMessage(): SyncMessage = when (this) {

@@ -116,8 +116,8 @@ class AgendaViewModelTest {
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
 
-        model.syncNow()
-        model.syncNow()
+        model.settings.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         assertEquals(1, syncer.requested.size)
@@ -138,10 +138,10 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(OTHER_REMOTE, branch = "", token = "")
+        model.settings.saveSettings(OTHER_REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
-        assertEquals(R.string.settings_other_checkout, model.syncState.value.message?.text)
+        assertEquals(R.string.settings_other_checkout, model.settings.syncState.value.message?.text)
     }
 
     /**
@@ -156,7 +156,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(REMOTE, branch = "", token = "")
+        model.settings.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
         assertEquals(listOf(REMOTE), syncer.adopted)
@@ -170,10 +170,10 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(REMOTE, branch = "", token = "")
+        model.settings.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
-        val state = model.syncState.value
+        val state = model.settings.syncState.value
         assertEquals("main", state.unrelated)
         assertEquals(R.string.sync_unrelated, state.message?.text)
         // Not a failure: nothing was lost, nothing was sent, and the screen
@@ -195,10 +195,10 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
-        val state = model.syncState.value
+        val state = model.settings.syncState.value
         assertEquals(FINGERPRINT, state.pendingHost)
         assertNull(state.pendingHostReplaces)
         assertEquals(R.string.sync_host_unknown, state.message?.text)
@@ -214,15 +214,15 @@ class AgendaViewModelTest {
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
         advanceUntilIdle()
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         syncer.result = Result.success(FakeSyncer.run(cloned = false))
-        model.trustHost()
+        model.settings.trustHost()
         advanceUntilIdle()
 
         assertEquals(FINGERPRINT, settings.knownHost)
-        assertNull(model.syncState.value.pendingHost)
+        assertNull(model.settings.syncState.value.pendingHost)
         // The attempt that was interrupted, made again: a checkout fetches.
         assertEquals(2, syncer.requested.size)
     }
@@ -242,10 +242,10 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
-        val state = model.syncState.value
+        val state = model.settings.syncState.value
         assertEquals(FINGERPRINT, state.pendingHost)
         assertEquals("SHA256:what-was-known", state.pendingHostReplaces)
         assertEquals(R.string.sync_host_changed, state.message?.text)
@@ -261,16 +261,16 @@ class AgendaViewModelTest {
         settings.remoteUrl = REMOTE
         val model = viewModel(syncer)
         advanceUntilIdle()
-        model.saveSettings(REMOTE, branch = "", token = "")
+        model.settings.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
         val invalidationsBefore = loader.invalidations
 
-        model.takeRemoteNotes()
+        model.settings.takeRemoteNotes()
         advanceUntilIdle()
 
         assertEquals(1, syncer.remotesTaken)
-        assertNull(model.syncState.value.unrelated)
-        assertEquals(R.string.sync_took_remote, model.syncState.value.message?.text)
+        assertNull(model.settings.syncState.value.unrelated)
+        assertEquals(R.string.sync_took_remote, model.settings.syncState.value.message?.text)
         assertTrue(loader.invalidations > invalidationsBefore)
     }
 
@@ -284,11 +284,11 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.keepNotesLocal()
+        model.settings.keepNotesLocal()
         advanceUntilIdle()
 
         assertTrue(settings.storesLocally)
-        assertTrue(model.syncState.value.local)
+        assertTrue(model.settings.syncState.value.local)
         assertTrue(settings.isSettled)
         assertFalse(settings.isConfigured)
     }
@@ -298,9 +298,9 @@ class AgendaViewModelTest {
         val syncer = FakeSyncer()
         val model = viewModel(syncer)
         advanceUntilIdle()
-        model.keepNotesLocal()
+        model.settings.keepNotesLocal()
 
-        model.saveSettings(REMOTE, branch = "", token = "")
+        model.settings.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
         assertFalse(settings.storesLocally)
@@ -319,10 +319,10 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(REMOTE, branch = "", token = "")
+        model.settings.saveSettings(REMOTE, branch = "", token = "")
         advanceUntilIdle()
 
-        assertEquals(R.string.sync_status_unreadable, model.syncState.value.message?.text)
+        assertEquals(R.string.sync_status_unreadable, model.settings.syncState.value.message?.text)
     }
 
     @Test
@@ -331,11 +331,11 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings("http://example.test/notes.git", branch = "", token = "")
+        model.settings.saveSettings("http://example.test/notes.git", branch = "", token = "")
         advanceUntilIdle()
 
         assertNull(settings.remoteUrl)
-        assertEquals(R.string.settings_url_scheme, model.syncState.value.message?.text)
+        assertEquals(R.string.settings_url_scheme, model.settings.syncState.value.message?.text)
     }
 
     /**
@@ -358,10 +358,10 @@ class AgendaViewModelTest {
         // the checkout. The tap lands in that window.
         val reading = CompletableDeferred<Unit>()
         syncer.statusGate = reading
-        model.saveSettings(REMOTE, branch = "notes", token = "")
+        model.settings.saveSettings(REMOTE, branch = "notes", token = "")
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
         reading.complete(Unit)
         advanceUntilIdle()
@@ -483,7 +483,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        assertEquals(AgendaLayout.LIST, model.layout.value)
+        assertEquals(AgendaLayout.LIST, model.view.layout.value)
     }
 
     @Test
@@ -496,11 +496,11 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.setLayout(AgendaLayout.LIST)
-        model.setSpan(AgendaSpan.WEEK)
-        model.setGrouped(false)
-        model.setMonthAsGrid(false)
-        model.setWeekStart(WeekStart.MONDAY)
+        model.view.setLayout(AgendaLayout.LIST)
+        model.view.setSpan(AgendaSpan.WEEK)
+        model.view.setGrouped(false)
+        model.view.setMonthAsGrid(false)
+        model.view.setWeekStart(WeekStart.MONDAY)
         advanceUntilIdle()
 
         assertEquals(AgendaLayout.LIST, ui.layout)
@@ -519,10 +519,10 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.showDay(NOON.toLocalDate().plusDays(1))
+        model.view.showDay(NOON.toLocalDate().plusDays(1))
         advanceUntilIdle()
 
-        assertEquals(AgendaSpan.DAY, model.span.value)
+        assertEquals(AgendaSpan.DAY, model.view.span.value)
         assertEquals(AgendaSpan.DAY, ui.span)
     }
 
@@ -534,7 +534,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.stepBy(1)
+        model.view.stepBy(1)
         advanceUntilIdle()
 
         assertEquals(listOf(NOON.toLocalDate(), NOON.toLocalDate().plusWeeks(1)), loader.dates)
@@ -545,16 +545,16 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.stepBy(1)
+        model.view.stepBy(1)
         advanceUntilIdle()
-        model.stepBy(-1)
+        model.view.stepBy(-1)
         advanceUntilIdle()
 
         val today = NOON.toLocalDate()
         assertEquals(listOf(today, today.plusDays(1), today), loader.dates)
         // Back to following the clock rather than pinned to a date that
         // happens to be today's: the phone is left running over midnight.
-        assertNull(model.anchor.value)
+        assertNull(model.view.anchor.value)
     }
 
     @Test
@@ -563,11 +563,11 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.stepBy(1)
+        model.view.stepBy(1)
         advanceUntilIdle()
 
         assertEquals(1, loader.dates.size)
-        assertNull(model.anchor.value)
+        assertNull(model.view.anchor.value)
     }
 
     @Test
@@ -575,9 +575,9 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.stepBy(4)
+        model.view.stepBy(4)
         advanceUntilIdle()
-        model.showToday()
+        model.view.showToday()
         advanceUntilIdle()
 
         val today = NOON.toLocalDate()
@@ -594,7 +594,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.stepBy(1)
+        model.view.stepBy(1)
         advanceUntilIdle()
 
         val today = NOON.toLocalDate()
@@ -615,7 +615,7 @@ class AgendaViewModelTest {
         loader.pending[0].complete(Result.success(agenda(day())))
         advanceUntilIdle()
 
-        model.stepBy(1)
+        model.view.stepBy(1)
         advanceUntilIdle()
         loader.pending[1].complete(Result.success(agenda(day())))
         advanceUntilIdle()
@@ -636,7 +636,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.setLayout(AgendaLayout.LIST)
+        model.view.setLayout(AgendaLayout.LIST)
 
         assertEquals(AgendaLayout.LIST, ui.layout)
     }
@@ -649,11 +649,11 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         val scansBefore = loader.pending.size
 
-        model.setGrouped(false)
+        model.view.setGrouped(false)
         advanceUntilIdle()
 
         assertEquals(false, ui.grouped)
-        assertEquals(false, model.grouped.value)
+        assertEquals(false, model.view.grouped.value)
         assertEquals("the agenda was rebuilt for nothing", scansBefore, loader.pending.size)
     }
 
@@ -668,17 +668,17 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
-        val failure = model.editIssue.value
+        val failure = model.edits.editIssue.value
         assertEquals(R.string.edit_failed, failure?.text)
-        assertNull(model.syncState.value.message)
+        assertNull(model.settings.syncState.value.message)
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
-        assertEquals(failure, model.editIssue.value)
-        assertEquals(R.string.sync_cloned, model.syncState.value.message?.text)
+        assertEquals(failure, model.edits.editIssue.value)
+        assertEquals(R.string.sync_cloned, model.settings.syncState.value.message?.text)
     }
 
     @Test
@@ -690,14 +690,14 @@ class AgendaViewModelTest {
         )
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
-        model.select(task())
+        model.edits.select(task())
 
-        model.edit(task())
+        model.edits.edit(task())
         advanceUntilIdle()
 
-        assertEquals("Write **the** report", model.editedEntry.value?.title)
-        assertEquals("The figures are in the drive.", model.editedEntry.value?.body)
-        assertNull("the sheet stayed open over the editor", model.selected.value)
+        assertEquals("Write **the** report", model.edits.editedEntry.value?.title)
+        assertEquals("The figures are in the drive.", model.edits.editedEntry.value?.body)
+        assertNull("the sheet stayed open over the editor", model.edits.selected.value)
     }
 
     @Test
@@ -710,10 +710,10 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer(), mainFile = "main.md")
         advanceUntilIdle()
 
-        model.select(task())
+        model.edits.select(task())
         advanceUntilIdle()
 
-        assertEquals("main.md", model.moveTargets.value.mainFile)
+        assertEquals("main.md", model.edits.moveTargets.value.mainFile)
     }
 
     @Test
@@ -724,11 +724,11 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.edit(task())
+        model.edits.edit(task())
         advanceUntilIdle()
 
-        assertNull(model.editedEntry.value)
-        assertEquals(R.string.entry_too_long, model.editIssue.value?.text)
+        assertNull(model.edits.editedEntry.value)
+        assertEquals(R.string.entry_too_long, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -739,11 +739,11 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.edit(task())
+        model.edits.edit(task())
         advanceUntilIdle()
 
-        assertNull(model.editedEntry.value)
-        assertEquals(R.string.edit_failed, model.editIssue.value?.text)
+        assertNull(model.edits.editedEntry.value)
+        assertEquals(R.string.edit_failed, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -751,15 +751,15 @@ class AgendaViewModelTest {
         writer.entry = Result.success(EntryText(title = "A note", body = "One line."))
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
-        model.edit(task())
+        model.edits.edit(task())
         advanceUntilIdle()
         val scansBefore = loader.pending.size
 
-        model.saveEntry("A note, retitled", "Two\nlines.")
+        model.edits.saveEntry("A note, retitled", "Two\nlines.")
         advanceUntilIdle()
 
         assertEquals("A note, retitled" to "Two\nlines.", writer.saved)
-        assertNull(model.editedEntry.value)
+        assertNull(model.edits.editedEntry.value)
         assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
     }
 
@@ -768,13 +768,13 @@ class AgendaViewModelTest {
         writer.entry = Result.success(EntryText(title = "A note", body = "One line."))
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
-        model.edit(task())
+        model.edits.edit(task())
         advanceUntilIdle()
 
-        model.cancelEdit()
+        model.edits.cancelEdit()
         advanceUntilIdle()
 
-        assertNull(model.editedEntry.value)
+        assertNull(model.edits.editedEntry.value)
         assertEquals(0, writer.calls)
     }
 
@@ -791,10 +791,10 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         val scansBefore = loader.pending.size
 
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
 
-        assertEquals(R.string.edit_not_committed, model.editIssue.value?.text)
+        assertEquals(R.string.edit_not_committed, model.edits.editIssue.value?.text)
         assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
     }
 
@@ -806,7 +806,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.apply(task(file = "projects/plan.md"), TaskAction.Complete)
+        model.edits.apply(task(file = "projects/plan.md"), TaskAction.Complete)
         advanceUntilIdle()
 
         assertEquals(listOf("projects/plan.md"), loader.reread)
@@ -822,10 +822,10 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         val scansBefore = loader.pending.size
 
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
 
-        assertNull(model.editIssue.value)
+        assertNull(model.edits.editIssue.value)
         assertTrue("the agenda was not rebuilt", loader.pending.size > scansBefore)
     }
 
@@ -838,7 +838,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         assertEquals(1, loader.invalidations)
@@ -854,7 +854,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         assertEquals(1, writer.pendingCommits)
@@ -882,11 +882,11 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
-        model.editIssueShown()
+        model.edits.editIssueShown()
 
-        assertNull(model.editIssue.value)
+        assertNull(model.edits.editIssue.value)
     }
 
     @Test
@@ -898,12 +898,12 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.apply(task(file = "bad�name.md"), TaskAction.Complete)
+        model.edits.apply(task(file = "bad�name.md"), TaskAction.Complete)
         advanceUntilIdle()
 
         assertEquals(0, writer.calls)
-        assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
-        assertNull(model.syncState.value.message)
+        assertEquals(R.string.edit_failed_unnamed, model.edits.editIssue.value?.text)
+        assertNull(model.settings.syncState.value.message)
     }
 
     @Test
@@ -919,11 +919,11 @@ class AgendaViewModelTest {
             advanceUntilIdle()
             val readsBefore = syncer.statusReads
 
-            model.syncNow()
+            model.settings.syncNow()
             advanceUntilIdle()
 
             assertEquals(readsBefore, syncer.statusReads)
-            assertEquals(head, model.syncState.value.repository)
+            assertEquals(head, model.settings.syncState.value.repository)
         }
 
     /**
@@ -947,11 +947,11 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
-        assertEquals(R.string.sync_failed_rejected, model.syncState.value.message?.text)
-        assertTrue(model.syncState.value.message?.failed == true)
+        assertEquals(R.string.sync_failed_rejected, model.settings.syncState.value.message?.text)
+        assertTrue(model.settings.syncState.value.message?.failed == true)
         // The fetch rewrote files nobody named, so what is held for them is
         // stale and the agenda is built again from disk.
         assertEquals(1, loader.invalidations)
@@ -965,7 +965,7 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         val readsBefore = syncer.statusReads
 
-        model.syncNow()
+        model.settings.syncNow()
         advanceUntilIdle()
 
         assertTrue(syncer.statusReads > readsBefore)
@@ -982,7 +982,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        model.settings.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
         advanceUntilIdle()
 
         assertNull(settings.token)
@@ -996,7 +996,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "notes", token = "")
+        model.settings.saveSettings(url = REMOTE, branch = "notes", token = "")
         advanceUntilIdle()
 
         assertEquals("the-old-token", settings.token)
@@ -1016,7 +1016,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        model.settings.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
         advanceUntilIdle()
 
         assertNull(settings.knownHost)
@@ -1036,7 +1036,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
+        model.settings.saveSettings(url = OTHER_REMOTE, branch = "main", token = "")
         advanceUntilIdle()
 
         assertEquals("-----BEGIN PRIVATE KEY-----", settings.sshKey)
@@ -1051,7 +1051,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", dropKey = true)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", dropKey = true)
         advanceUntilIdle()
 
         assertNull(settings.sshKey)
@@ -1066,7 +1066,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", dropToken = true)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", dropToken = true)
         advanceUntilIdle()
 
         assertNull(settings.token)
@@ -1083,7 +1083,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(
+        model.settings.saveSettings(
             url = "https://x-access-token:ghp_secret@example.test/notes.git",
             branch = "main",
             token = "",
@@ -1104,7 +1104,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "notes", token = "")
+        model.settings.saveSettings(url = REMOTE, branch = "notes", token = "")
         advanceUntilIdle()
 
         assertEquals(listOf(REMOTE), syncer.requested)
@@ -1117,7 +1117,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(File(SHARED), notes.root)
@@ -1131,7 +1131,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(1, loader.invalidations)
@@ -1144,7 +1144,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = "")
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = "")
         advanceUntilIdle()
 
         assertEquals(own, notes.root)
@@ -1161,11 +1161,11 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(DEFAULT_NOTES, storedPath)
-        assertEquals(R.string.settings_notes_failed, model.syncState.value.message?.text)
+        assertEquals(R.string.settings_notes_failed, model.settings.syncState.value.message?.text)
     }
 
     @Test
@@ -1178,7 +1178,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertNull(settings.remoteUrl)
@@ -1192,12 +1192,12 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(DEFAULT_NOTES, storedPath)
         assertFalse("the directory was moved into anyway", notes.trace.contains("move"))
-        assertEquals(R.string.settings_notes_denied, model.syncState.value.message?.text)
+        assertEquals(R.string.settings_notes_denied, model.settings.syncState.value.message?.text)
     }
 
     @Test
@@ -1209,7 +1209,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(SHARED, storedPath)
@@ -1227,7 +1227,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = "", branch = "", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertEquals(REMOTE, settings.remoteUrl)
@@ -1244,7 +1244,7 @@ class AgendaViewModelTest {
         val model = viewModel(syncer)
         advanceUntilIdle()
 
-        model.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
+        model.settings.saveSettings(url = REMOTE, branch = "main", token = "", notesPath = SHARED)
         advanceUntilIdle()
 
         assertFalse("the directory was moved into for nothing", notes.trace.contains("move"))
@@ -1326,7 +1326,7 @@ class AgendaViewModelTest {
             task(heading = "Service the car", line = 2u).toAgendaRow(),
         )
 
-        model.applyToGroup(rows, BulkAction.MOVE_TO_TODAY)
+        model.edits.applyToGroup(rows, BulkAction.MOVE_TO_TODAY)
         advanceUntilIdle()
 
         // One call for the band rather than one per task: twenty taps would
@@ -1354,10 +1354,10 @@ class AgendaViewModelTest {
             ),
         )
 
-        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.CANCEL)
+        model.edits.applyToGroup(listOf(task().toAgendaRow()), BulkAction.CANCEL)
         advanceUntilIdle()
 
-        val result = model.groupResult.value
+        val result = model.edits.groupResult.value
         assertEquals(BulkAction.CANCEL, result?.action)
         assertEquals(2, result?.changed)
         // The refusal is counted rather than swallowed: a group that left one
@@ -1371,10 +1371,13 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.DROP_PLANNING)
+        model.edits.applyToGroup(listOf(task().toAgendaRow()), BulkAction.DROP_PLANNING)
         advanceUntilIdle()
 
-        assertFalse("an undo was offered for nothing", model.groupResult.value?.canUndo == true)
+        assertFalse(
+            "an undo was offered for nothing",
+            model.edits.groupResult.value?.canUndo == true,
+        )
     }
 
     @Test
@@ -1392,16 +1395,16 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
+        model.edits.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
         advanceUntilIdle()
 
-        model.undoGroup()
+        model.edits.undoGroup()
         advanceUntilIdle()
 
         assertEquals(listOf(written), writer.undone)
         // The offer is gone with it: pressing undo twice would put the notes
         // back over an edit made in between.
-        assertNull(model.groupResult.value)
+        assertNull(model.edits.groupResult.value)
     }
 
     @Test
@@ -1428,15 +1431,15 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
+        model.edits.applyToGroup(listOf(task().toAgendaRow()), BulkAction.MOVE_TO_TODAY)
         advanceUntilIdle()
 
-        model.undoGroup()
+        model.edits.undoGroup()
         advanceUntilIdle()
 
         assertEquals(
             R.string.agenda_group_undo_partial,
-            model.editIssue.value?.text,
+            model.edits.editIssue.value?.text,
         )
     }
 
@@ -1447,10 +1450,10 @@ class AgendaViewModelTest {
         val written = rollback("notes.md")
         writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
 
-        model.apply(task(heading = "Pay the tax"), TaskAction.Complete)
+        model.edits.apply(task(heading = "Pay the tax"), TaskAction.Complete)
         advanceUntilIdle()
 
-        val result = model.editResult.value
+        val result = model.edits.editResult.value
         assertEquals(listOf(written), result?.rollback)
         // Both halves of the address travel with it: the same relative path
         // occurs in more than one collection, and the undo commits by name.
@@ -1466,10 +1469,10 @@ class AgendaViewModelTest {
         // handed back no pair to put back.
         writer.outcome = Result.success(EditReport(committed = true))
 
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
 
-        assertNull(model.editResult.value)
+        assertNull(model.edits.editResult.value)
     }
 
     @Test
@@ -1488,17 +1491,17 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.apply(task(heading = "Pay the tax"), TaskAction.Complete)
+        model.edits.apply(task(heading = "Pay the tax"), TaskAction.Complete)
         advanceUntilIdle()
 
-        model.undoEdit()
+        model.edits.undoEdit()
         advanceUntilIdle()
 
         assertEquals(listOf(written), writer.undone)
         assertEquals("Pay the tax", writer.undoneEdit)
         // The offer goes with it, for the reason the group's does: pressing it
         // twice would put the note back over whatever came after.
-        assertNull(model.editResult.value)
+        assertNull(model.edits.editResult.value)
     }
 
     @Test
@@ -1508,10 +1511,10 @@ class AgendaViewModelTest {
         val written = rollback("inbox.md")
         writer.outcome = Result.success(EditReport(committed = true, rollback = listOf(written)))
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        model.edits.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
         advanceUntilIdle()
 
-        val result = model.editResult.value
+        val result = model.edits.editResult.value
         assertEquals(listOf(written), result?.rollback)
         assertEquals("Pay the tax", result?.heading)
         // Marked as a creation, because what the offer takes back is the whole
@@ -1533,7 +1536,10 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(15, 0)))
+        model.edits.createTask(
+            FIRST_ID,
+            TaskDraft(title = "Позвонить врачу", time = LocalTime.of(15, 0)),
+        )
         advanceUntilIdle()
 
         // Noon on this clock, so three in the afternoon is still ahead.
@@ -1546,7 +1552,10 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)))
+        model.edits.createTask(
+            FIRST_ID,
+            TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)),
+        )
         advanceUntilIdle()
 
         assertEquals(NOON.toLocalDate().plusDays(1), writer.created?.second?.date)
@@ -1565,10 +1574,13 @@ class AgendaViewModelTest {
             EditReport(committed = true, rollback = listOf(rollback("inbox.md"))),
         )
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)))
+        model.edits.createTask(
+            FIRST_ID,
+            TaskDraft(title = "Позвонить врачу", time = LocalTime.of(9, 0)),
+        )
         advanceUntilIdle()
 
-        val assumed = model.editResult.value?.assumedDay
+        val assumed = model.edits.editResult.value?.assumedDay
         assertEquals(NOON.toLocalDate().plusDays(1), assumed?.date)
         assertEquals(LocalTime.of(9, 0), assumed?.hour)
         assertEquals(true, assumed?.passed)
@@ -1583,7 +1595,7 @@ class AgendaViewModelTest {
             EditReport(committed = true, rollback = listOf(rollback("inbox.md"))),
         )
 
-        model.createTask(
+        model.edits.createTask(
             FIRST_ID,
             TaskDraft(
                 title = "Позвонить врачу",
@@ -1594,7 +1606,7 @@ class AgendaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 8, 1), writer.created?.second?.date)
-        assertNull(model.editResult.value?.assumedDay)
+        assertNull(model.edits.editResult.value?.assumedDay)
     }
 
     @Test
@@ -1602,10 +1614,10 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
         store.collections = store.collections.map { it.copy(writeAt = WritePosition.END) }
-        model.saveSettings(url = "", branch = "", token = "", writeAt = WritePosition.END)
+        model.settings.saveSettings(url = "", branch = "", token = "", writeAt = WritePosition.END)
         advanceUntilIdle()
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        model.edits.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
         advanceUntilIdle()
 
         // The setting travels with the write rather than being read inside the
@@ -1619,7 +1631,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        model.edits.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
         advanceUntilIdle()
 
         // From this model's clock rather than the device's, for the reason
@@ -1647,14 +1659,14 @@ class AgendaViewModelTest {
             ),
         )
 
-        model.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
+        model.edits.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
         advanceUntilIdle()
 
         // The file, and the place in it the collection writes entries at.
         assertEquals("main.md" to WritePosition.START, writer.movedTo)
         // Both notes come back for the undo: the entry has to go out of the
         // one it reached as well as back into the one it left.
-        assertEquals(listOf(left, reached), model.editResult.value?.rollback)
+        assertEquals(listOf(left, reached), model.edits.editResult.value?.rollback)
         // Both notes are re-read by name: the entry has to appear in the file
         // it reached and stop appearing in the file it left.
         assertEquals(listOf("notes.md", "main.md"), loader.reread)
@@ -1686,11 +1698,11 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
+        model.edits.apply(task(heading = "Pay the tax"), TaskAction.MoveToFile("main.md"))
         advanceUntilIdle()
         loader.reread.clear()
 
-        model.undoEdit()
+        model.edits.undoEdit()
         advanceUntilIdle()
 
         // Not through the undo of a creation: nothing was written from
@@ -1716,10 +1728,10 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
+        model.edits.createTask(FIRST_ID, TaskDraft(title = "Pay the tax"))
         advanceUntilIdle()
 
-        model.undoEdit()
+        model.edits.undoEdit()
         advanceUntilIdle()
 
         // Through the undo that says so in the history: the same file goes
@@ -1746,13 +1758,13 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
 
-        model.undoEdit()
+        model.edits.undoEdit()
         advanceUntilIdle()
 
-        assertEquals(R.string.agenda_edit_undo_skipped, model.editIssue.value?.text)
+        assertEquals(R.string.agenda_edit_undo_skipped, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -1777,16 +1789,16 @@ class AgendaViewModelTest {
                 report = EditReport(committed = true),
             ),
         )
-        model.apply(task(), TaskAction.Complete)
+        model.edits.apply(task(), TaskAction.Complete)
         advanceUntilIdle()
 
-        model.undoEdit()
+        model.edits.undoEdit()
         advanceUntilIdle()
 
         // One file back and the other not is the entry standing in both notes
         // or in neither — reported as an undo that worked, it is a state the
         // reader has no reason to go looking for.
-        assertEquals(R.string.agenda_edit_undo_partial, model.editIssue.value?.text)
+        assertEquals(R.string.agenda_edit_undo_partial, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -1797,11 +1809,11 @@ class AgendaViewModelTest {
         // on disk; every edit aimed at it would come back as "file not found".
         val rows = listOf(task(file = "notes�.md").toAgendaRow())
 
-        model.applyToGroup(rows, BulkAction.CANCEL)
+        model.edits.applyToGroup(rows, BulkAction.CANCEL)
         advanceUntilIdle()
 
         assertEquals(0, writer.calls)
-        assertEquals(R.string.edit_failed_unnamed, model.editIssue.value?.text)
+        assertEquals(R.string.edit_failed_unnamed, model.edits.editIssue.value?.text)
     }
 
     @Test
@@ -1813,7 +1825,7 @@ class AgendaViewModelTest {
         loader.pending[0].complete(Result.success(agenda(day())))
         advanceUntilIdle()
 
-        model.setSpan(AgendaSpan.WEEK)
+        model.view.setSpan(AgendaSpan.WEEK)
         advanceUntilIdle()
 
         assertEquals(listOf(Scope.DAY, Scope.WEEK), loader.scopes)
@@ -1832,7 +1844,7 @@ class AgendaViewModelTest {
         // The calendar is what a month opens as, and the calendar is drawn on
         // whole weeks -- so that is the scope, not the month alone.
         assertEquals(listOf(Scope.MONTH_GRID), loader.scopes)
-        assertEquals(AgendaSpan.MONTH, model.span.value)
+        assertEquals(AgendaSpan.MONTH, model.view.span.value)
     }
 
     @Test
@@ -1860,7 +1872,7 @@ class AgendaViewModelTest {
         loader.pending[0].complete(Result.success(agenda(day())))
         advanceUntilIdle()
 
-        model.setMonthAsGrid(false)
+        model.view.setMonthAsGrid(false)
         advanceUntilIdle()
 
         assertEquals(listOf(Scope.MONTH_GRID, Scope.MONTH), loader.scopes)
@@ -1906,7 +1918,7 @@ class AgendaViewModelTest {
         loader.pending[0].complete(Result.success(agenda(day())))
         advanceUntilIdle()
 
-        model.setWeekStart(WeekStart.SUNDAY)
+        model.view.setWeekStart(WeekStart.SUNDAY)
         advanceUntilIdle()
 
         assertEquals(
@@ -1925,7 +1937,7 @@ class AgendaViewModelTest {
         loader.pending[0].complete(Result.success(agenda(day())))
         advanceUntilIdle()
 
-        model.setWeekStart(WeekStart.SUNDAY)
+        model.view.setWeekStart(WeekStart.SUNDAY)
         advanceUntilIdle()
 
         assertEquals(1, loader.scopes.size)
@@ -1936,7 +1948,7 @@ class AgendaViewModelTest {
     fun aWeekArrivesWithItsDaysStillApart() = runTest(dispatcher) {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
-        model.setSpan(AgendaSpan.WEEK)
+        model.view.setSpan(AgendaSpan.WEEK)
         advanceUntilIdle()
 
         loader.pending.last().complete(
@@ -1968,7 +1980,7 @@ class AgendaViewModelTest {
         // is left".
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
-        model.setSpan(AgendaSpan.TASKS)
+        model.view.setSpan(AgendaSpan.TASKS)
         advanceUntilIdle()
 
         loader.pending.last().complete(
@@ -1994,7 +2006,7 @@ class AgendaViewModelTest {
 
         // A switch that planned nothing is otherwise indistinguishable from
         // one that worked: the reminders simply do not arrive, days later.
-        val message = model.syncState.value.message
+        val message = model.settings.syncState.value.message
         assertEquals(R.string.reminders_plan_failed, message?.text)
         assertTrue("the message does not read as a failure", message?.failed == true)
     }
@@ -2047,7 +2059,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.apply(
+        model.edits.apply(
             task(timestampType = null, date = null),
             TaskAction.Plan(PlanningKeyword.DEADLINE, LocalDate.of(2026, 8, 19)),
         )
@@ -2063,7 +2075,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.apply(
+        model.edits.apply(
             task(repeater = "+1w", date = "2026-08-20"),
             TaskAction.CancelOccurrence(LocalDate.of(2026, 8, 20)),
         )
@@ -2080,7 +2092,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.apply(
+        model.edits.apply(
             task(repeater = "+1w", date = "2026-08-20", time = "15:00"),
             TaskAction.MoveOccurrence(
                 LocalDate.of(2026, 8, 20),
@@ -2104,7 +2116,7 @@ class AgendaViewModelTest {
         val model = viewModel(FakeSyncer())
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Plan(PlanningKeyword.SCHEDULED, null))
+        model.edits.apply(task(), TaskAction.Plan(PlanningKeyword.SCHEDULED, null))
         advanceUntilIdle()
 
         assertEquals(PlanningKeyword.SCHEDULED to null, writer.planned)

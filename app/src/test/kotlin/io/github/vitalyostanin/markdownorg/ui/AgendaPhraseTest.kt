@@ -61,7 +61,7 @@ class AgendaPhraseTest {
         val model = viewModel(rules)
         advanceUntilIdle()
 
-        model.createFromPhrase("  позвонить врачу завтра  ")
+        model.edits.createFromPhrase("  позвонить врачу завтра  ")
         advanceUntilIdle()
 
         val asked = rules.asked
@@ -89,7 +89,7 @@ class AgendaPhraseTest {
         )
         advanceUntilIdle()
 
-        model.createFromPhrase("позвонить врачу завтра в 15:00, каждую неделю")
+        model.edits.createFromPhrase("позвонить врачу завтра в 15:00, каждую неделю")
         advanceUntilIdle()
 
         val written = writer.created?.second
@@ -108,7 +108,7 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(read = draft(heading = "", date = "2026-07-29")))
         advanceUntilIdle()
 
-        model.createFromPhrase("завтра")
+        model.edits.createFromPhrase("завтра")
         advanceUntilIdle()
 
         assertEquals("завтра", writer.created?.second?.title)
@@ -124,10 +124,10 @@ class AgendaPhraseTest {
             // The button was pressed while the last collection was being
             // removed in the settings.
             collections.entries = emptyList()
-            model.createFromPhrase("позвонить врачу")
+            model.edits.createFromPhrase("позвонить врачу")
             advanceUntilIdle()
 
-            assertEquals(R.string.edit_failed_no_collection, model.editIssue.value?.text)
+            assertEquals(R.string.edit_failed_no_collection, model.edits.editIssue.value?.text)
             assertNull("the rules were consulted with nowhere to write", rules.asked)
             assertNull(writer.created)
         }
@@ -137,11 +137,14 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(refusal = IllegalStateException("no grammar")))
         advanceUntilIdle()
 
-        model.createFromPhrase("позвонить врачу")
+        model.edits.createFromPhrase("позвонить врачу")
         advanceUntilIdle()
 
-        assertEquals(R.string.agenda_dictate_failed, model.editIssue.value?.text)
-        assertTrue("the message does not read as a failure", model.editIssue.value?.failed == true)
+        assertEquals(R.string.agenda_dictate_failed, model.edits.editIssue.value?.text)
+        assertTrue(
+            "the message does not read as a failure",
+            model.edits.editIssue.value?.failed == true,
+        )
         assertNull(writer.created)
     }
 
@@ -152,11 +155,11 @@ class AgendaPhraseTest {
         advanceUntilIdle()
 
         collections.entries = emptyList()
-        model.createFromPhrase("   ")
+        model.edits.createFromPhrase("   ")
         advanceUntilIdle()
 
         assertNull(rules.asked)
-        assertNull("a phrase nobody said was reported as a failure", model.editIssue.value)
+        assertNull("a phrase nobody said was reported as a failure", model.edits.editIssue.value)
     }
 
     @Test
@@ -165,11 +168,11 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(read = read))
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Phrase("завтра в 15:00"))
+        model.edits.apply(task(), TaskAction.Phrase("завтра в 15:00"))
         advanceUntilIdle()
 
         assertEquals(read, writer.phrase)
-        assertNull(model.editIssue.value)
+        assertNull(model.edits.editIssue.value)
     }
 
     @Test
@@ -177,10 +180,10 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(refusal = IllegalStateException("no grammar")))
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Phrase("завтра в 15:00"))
+        model.edits.apply(task(), TaskAction.Phrase("завтра в 15:00"))
         advanceUntilIdle()
 
-        assertEquals(R.string.agenda_dictate_failed, model.editIssue.value?.text)
+        assertEquals(R.string.agenda_dictate_failed, model.edits.editIssue.value?.text)
         assertNull(writer.phrase)
     }
 
@@ -191,10 +194,10 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(read = draft(heading = "врчу", date = "2026-07-29")))
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Phrase("врчу завтра"))
+        model.edits.apply(task(), TaskAction.Phrase("врчу завтра"))
         advanceUntilIdle()
 
-        val issue = model.editIssue.value
+        val issue = model.edits.editIssue.value
         assertEquals(R.string.agenda_phrase_leftover, issue?.text)
         assertEquals(Detail.Verbatim("врчу"), issue?.detail)
         assertNull(writer.phrase)
@@ -205,10 +208,10 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(read = draft()))
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Phrase("здравствуйте"))
+        model.edits.apply(task(), TaskAction.Phrase("здравствуйте"))
         advanceUntilIdle()
 
-        assertEquals(R.string.agenda_phrase_nothing, model.editIssue.value?.text)
+        assertEquals(R.string.agenda_phrase_nothing, model.edits.editIssue.value?.text)
         assertNull(writer.phrase)
     }
 
@@ -220,7 +223,7 @@ class AgendaPhraseTest {
         val model = viewModel(StubRules(read = read))
         advanceUntilIdle()
 
-        model.apply(task(), TaskAction.Phrase("без времени"))
+        model.edits.apply(task(), TaskAction.Phrase("без времени"))
         advanceUntilIdle()
 
         assertEquals(read, writer.phrase)

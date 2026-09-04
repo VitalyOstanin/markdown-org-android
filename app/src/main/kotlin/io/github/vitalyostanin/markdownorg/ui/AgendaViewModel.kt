@@ -10,59 +10,34 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.vitalyostanin.markdownorg.R
 import io.github.vitalyostanin.markdownorg.core.AgendaLoader
 import io.github.vitalyostanin.markdownorg.core.AgendaSource
-import io.github.vitalyostanin.markdownorg.core.AssumedDay
 import io.github.vitalyostanin.markdownorg.core.CollectionInUse
-import io.github.vitalyostanin.markdownorg.core.CollectionProblem
 import io.github.vitalyostanin.markdownorg.core.CollectionsInUse
 import io.github.vitalyostanin.markdownorg.core.CorePhraseRules
-import io.github.vitalyostanin.markdownorg.core.DEFAULT_WRITE_AT
 import io.github.vitalyostanin.markdownorg.core.DeviceCollections
-import io.github.vitalyostanin.markdownorg.core.EditReport
-import io.github.vitalyostanin.markdownorg.core.MergedTag
-import io.github.vitalyostanin.markdownorg.core.NotesArea
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsPreferences
 import io.github.vitalyostanin.markdownorg.core.NotesCollectionsStore
 import io.github.vitalyostanin.markdownorg.core.NotesLocation
-import io.github.vitalyostanin.markdownorg.core.NotesSyncer
-import io.github.vitalyostanin.markdownorg.core.NotesWriter
 import io.github.vitalyostanin.markdownorg.core.PhraseRules
 import io.github.vitalyostanin.markdownorg.core.ReminderAlarms
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.ReminderSettings
-import io.github.vitalyostanin.markdownorg.core.RemoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.Replanning
 import io.github.vitalyostanin.markdownorg.core.SampleWording
 import io.github.vitalyostanin.markdownorg.core.StorageAccess
-import io.github.vitalyostanin.markdownorg.core.SyncPreferences
-import io.github.vitalyostanin.markdownorg.core.SyncRun
-import io.github.vitalyostanin.markdownorg.core.TaskDraft
 import io.github.vitalyostanin.markdownorg.core.UiPreferences
 import io.github.vitalyostanin.markdownorg.core.UiSettings
-import io.github.vitalyostanin.markdownorg.core.UndoReport
-import io.github.vitalyostanin.markdownorg.core.assumedDay
-import io.github.vitalyostanin.markdownorg.core.byRoot
 import io.github.vitalyostanin.markdownorg.core.collectionProblem
-import io.github.vitalyostanin.markdownorg.core.mainFileProblem
-import io.github.vitalyostanin.markdownorg.core.markdownFiles
 import io.github.vitalyostanin.markdownorg.core.mergeTagDictionaries
 import io.github.vitalyostanin.markdownorg.core.migratedCollections
 import io.github.vitalyostanin.markdownorg.core.nextCollectionId
-import io.github.vitalyostanin.markdownorg.core.noteFileProblem
-import io.github.vitalyostanin.markdownorg.core.notesPathProblem
-import io.github.vitalyostanin.markdownorg.core.onItsDay
 import io.github.vitalyostanin.markdownorg.core.ownNotesRoot
 import io.github.vitalyostanin.markdownorg.core.readDeclaredTags
-import io.github.vitalyostanin.markdownorg.core.remoteUrlProblem
 import io.github.vitalyostanin.markdownorg.core.single
-import io.github.vitalyostanin.markdownorg.core.splitCredentials
-import io.github.vitalyostanin.markdownorg.core.statedDate
-import io.github.vitalyostanin.markdownorg.core.statedTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,25 +49,13 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import uniffi.markdown_org_ffi.Adoption
-import uniffi.markdown_org_ffi.BulkAction
-import uniffi.markdown_org_ffi.FileRollback
-import uniffi.markdown_org_ffi.PhraseDraft
-import uniffi.markdown_org_ffi.PlanningKeyword
 import uniffi.markdown_org_ffi.Scope
-import uniffi.markdown_org_ffi.SyncException
 import uniffi.markdown_org_ffi.Task
-import uniffi.markdown_org_ffi.WritePosition
-import uniffi.markdown_org_ffi.generateSshKey
 import java.io.File
-import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import java.time.temporal.WeekFields
-import java.util.Locale
 
 /**
  * What the screens read from and what they ask for.
@@ -108,8 +71,10 @@ import java.util.Locale
  *
  * They are separate classes rather than sections of one because each of them
  * is a different kind of work: two redraw what is in hand, one writes files,
- * one talks to a remote. The screens still read everything through this model,
- * so a composable reaches one object and the split stays an internal one.
+ * one talks to a remote. Each stands as a field of its own rather than behind
+ * a row of forwarding methods: a screen that steps the plan says so where it
+ * is read, and this class is not the place a member is added to whenever one
+ * of the four gains a method.
  *
  * What this class keeps for itself is what the four have in common: the scan,
  * the collections in use, and the rule that a write is followed by a read.
@@ -197,11 +162,6 @@ class AgendaViewModel(
         get() = collections.entries.firstOrNull { it.collection.id == _editingId.value }
             ?: collections.single
 
-    private val notes: NotesArea get() = editing.area
-    private val settings: SyncPreferences get() = editing.settings
-    private val editor: NotesWriter get() = editing.editor
-    private val sync: NotesSyncer get() = editing.syncer
-
     private val _state = MutableStateFlow<AgendaUiState>(AgendaUiState.Loading)
     val state: StateFlow<AgendaUiState> = _state.asStateFlow()
 
@@ -228,37 +188,23 @@ class AgendaViewModel(
 
     /**
      * Which of the rows a scan produced are on screen: the collection chips
-     * and the tag. Held by [RowFilters], and read through the properties
-     * below for the reason the view settings are.
+     * and the tag.
      */
-    private val filters = RowFilters()
-
-    val tags: StateFlow<List<MergedTag>> get() = filters.tags
-    val currentTag: StateFlow<String?> get() = filters.currentTag
-    val collectionFilter: StateFlow<List<CollectionChoice>> get() = filters.collectionFilter
+    val filters = RowFilters()
 
     /**
      * How much of the plan is on screen and how it is drawn: the layout, the
      * span, the sections, the calendar, the first weekday and the date the
-     * plan is asked around. Held by [PlanView], and read through the
-     * properties below so that the screen keeps asking this model for what it
-     * draws.
+     * plan is asked around.
      */
-    private val view = PlanView(ui, clock, ::refresh)
-
-    val layout: StateFlow<AgendaLayout> get() = view.layout
-    val span: StateFlow<AgendaSpan> get() = view.span
-    val grouped: StateFlow<Boolean> get() = view.grouped
-    val monthAsGrid: StateFlow<Boolean> get() = view.monthAsGrid
-    val weekStart: StateFlow<WeekStart> get() = view.weekStart
-    val anchor: StateFlow<LocalDate?> get() = view.anchor
+    val view = PlanView(ui, clock, ::refresh)
 
     /**
      * The settings screen: where a collection's notes live and what they are
-     * synced with. Held by [NotesSettings], which is where every operation of
-     * that screen lives; the agenda reads its state and asks it for a sync.
+     * synced with. Every operation of that screen is there; the agenda reads
+     * its state and asks it for a sync.
      */
-    private val settingsScreen = NotesSettings(
+    val settings = NotesSettings(
         collections = collections,
         stored = stored,
         agenda = agenda,
@@ -273,58 +219,11 @@ class AgendaViewModel(
         onNotesMoved = ::notesMayHaveMoved,
     )
 
-    val syncState: StateFlow<SyncUiState> get() = settingsScreen.syncState
-
-    fun syncNow() = settingsScreen.syncNow()
-
-    fun keepNotesLocal() = settingsScreen.keepNotesLocal()
-
-    fun settleAndSync() = settingsScreen.settleAndSync()
-
-    fun takeRemoteNotes() = settingsScreen.takeRemoteNotes()
-
-    fun trustHost() = settingsScreen.trustHost()
-
-    fun createSshKey() = settingsScreen.createSshKey()
-
-    fun currentSettings(): SyncForm = settingsScreen.currentSettings()
-
-    /** See [NotesSettings.saveSettings], which is where the work is done. */
-    @Suppress("LongParameterList")
-    fun saveSettings(
-        url: String,
-        branch: String,
-        token: String,
-        dropToken: Boolean = false,
-        notesPath: String = settingsScreen.collection.path,
-        name: String = settingsScreen.collection.name,
-        inbox: String = settingsScreen.collection.inbox,
-        writeAt: WritePosition = settingsScreen.collection.writeAt,
-        mainFile: String = settingsScreen.collection.mainFile,
-        sshKey: String = "",
-        sshPassphrase: String = "",
-        dropKey: Boolean = false,
-    ) = settingsScreen.saveSettings(
-        url = url,
-        branch = branch,
-        token = token,
-        dropToken = dropToken,
-        notesPath = notesPath,
-        name = name,
-        inbox = inbox,
-        writeAt = writeAt,
-        mainFile = mainFile,
-        sshKey = sshKey,
-        sshPassphrase = sshPassphrase,
-        dropKey = dropKey,
-    )
-
     /**
      * What a tap on a row writes into the notes, and what it answers with:
-     * one entry or a whole band of them, and the way back from either. Held by
-     * [EntryEdits]; the properties below are what the screen reads.
+     * one entry or a whole band of them, and the way back from either.
      */
-    private val edits = EntryEdits(
+    val edits = EntryEdits(
         collections = collections,
         agenda = agenda,
         editing = { editing },
@@ -335,50 +234,6 @@ class AgendaViewModel(
         rescan = ::refresh,
         onNotesMoved = ::notesMayHaveMoved,
     )
-
-    val editIssue: StateFlow<SyncMessage?> get() = edits.editIssue
-    val groupResult: StateFlow<GroupResult?> get() = edits.groupResult
-    val editResult: StateFlow<EditResult?> get() = edits.editResult
-    val selected: StateFlow<Task?> get() = edits.selected
-    val moveTargets: StateFlow<MoveTargets> get() = edits.moveTargets
-    val creating: StateFlow<Boolean> get() = edits.creating
-    val editedEntry: StateFlow<EntryDraft?> get() = edits.editedEntry
-
-    fun editIssueShown() = edits.editIssueShown()
-
-    fun select(task: Task?) = edits.select(task)
-
-    fun noteFile(task: Task): File? = edits.noteFile(task)
-
-    fun reportOpenFailure() = edits.reportOpenFailure()
-
-    fun apply(task: Task, action: TaskAction) = edits.apply(task, action)
-
-    fun edit(task: Task) = edits.edit(task)
-
-    fun cancelEdit() = edits.cancelEdit()
-
-    fun startCreating() = edits.startCreating()
-
-    fun cancelCreating() = edits.cancelCreating()
-
-    fun createFromPhrase(phrase: String) = edits.createFromPhrase(phrase)
-
-    fun reportNoRecogniser() = edits.reportNoRecogniser()
-
-    fun createTask(collectionId: String, draft: TaskDraft) = edits.createTask(collectionId, draft)
-
-    fun saveEntry(title: String, body: String) = edits.saveEntry(title, body)
-
-    fun applyToGroup(rows: List<AgendaRow>, action: BulkAction) = edits.applyToGroup(rows, action)
-
-    fun undoGroup() = edits.undoGroup()
-
-    fun groupResultShown() = edits.groupResultShown()
-
-    fun undoEdit() = edits.undoEdit()
-
-    fun editResultShown() = edits.editResultShown()
 
     /**
      * The work in flight, so a new request can supersede it.
@@ -439,24 +294,8 @@ class AgendaViewModel(
             useDirectories()
             refresh()
         }
-        settingsScreen.readCheckout()
+        settings.readCheckout()
     }
-
-    fun setLayout(layout: AgendaLayout) = view.setLayout(layout)
-
-    fun setGrouped(grouped: Boolean) = view.setGrouped(grouped)
-
-    fun setMonthAsGrid(asGrid: Boolean) = view.setMonthAsGrid(asGrid)
-
-    fun setWeekStart(start: WeekStart) = view.setWeekStart(start)
-
-    fun setSpan(span: AgendaSpan) = view.setSpan(span)
-
-    fun stepBy(steps: Int) = view.stepBy(steps)
-
-    fun showDay(date: LocalDate) = view.showDay(date)
-
-    fun showToday() = view.showToday()
 
     /**
      * Open the day an entry falls on, with the entry itself picked out.
@@ -565,7 +404,7 @@ class AgendaViewModel(
 
         val problem = collectionProblem(added.name, added.path, existing)
         if (problem != null) {
-            settingsScreen.say(problem.toMessage())
+            settings.say(problem.toMessage())
             return
         }
 
@@ -637,7 +476,7 @@ class AgendaViewModel(
         }
         if (refused.isNotEmpty()) {
             Log.w(TAG, "directories could not be used: ${refused.map { it.collection.path }}")
-            settingsScreen.say(SyncMessage(R.string.settings_notes_failed, failed = true))
+            settings.say(SyncMessage(R.string.settings_notes_failed, failed = true))
         }
     }
 
@@ -789,7 +628,7 @@ class AgendaViewModel(
      * fail to arrive, days later.
      */
     fun replanReminders() = notesChanged { failure ->
-        settingsScreen.say(
+        settings.say(
             SyncMessage(
                 R.string.reminders_plan_failed,
                 detail = failure.message?.let(Detail::Verbatim),

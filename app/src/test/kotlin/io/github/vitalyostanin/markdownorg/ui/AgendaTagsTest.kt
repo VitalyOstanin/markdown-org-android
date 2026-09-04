@@ -73,7 +73,7 @@ class AgendaTagsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        assertEquals(listOf("TASKS", "BILLS"), model.tags.value.map(MergedTag::name))
+        assertEquals(listOf("TASKS", "BILLS"), model.filters.tags.value.map(MergedTag::name))
     }
 
     @Test
@@ -180,7 +180,7 @@ class AgendaTagsTest {
         model.refresh()
         advanceUntilIdle()
 
-        assertNull(model.currentTag.value)
+        assertNull(model.filters.currentTag.value)
     }
 
     @Test
@@ -188,7 +188,7 @@ class AgendaTagsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        assertTrue(model.tags.value.isEmpty())
+        assertTrue(model.filters.tags.value.isEmpty())
     }
 
     @Test
@@ -199,7 +199,7 @@ class AgendaTagsTest {
         val model = viewModel()
         advanceUntilIdle()
 
-        assertEquals(listOf("BILLS"), model.tags.value.map(MergedTag::name))
+        assertEquals(listOf("BILLS"), model.filters.tags.value.map(MergedTag::name))
     }
 
     /**
@@ -229,14 +229,14 @@ class AgendaTagsTest {
         assertEquals(
             "the tag file was read without the lock on the working copy it lives in",
             listOf("TASKS"),
-            model.tags.value.map(MergedTag::name),
+            model.filters.tags.value.map(MergedTag::name),
         )
 
         opened.complete(Unit)
         holder.join()
         advanceUntilIdle()
 
-        assertEquals(listOf("TASKS", "URGENT"), model.tags.value.map(MergedTag::name))
+        assertEquals(listOf("TASKS", "URGENT"), model.filters.tags.value.map(MergedTag::name))
     }
 
     /** The collections the model under test is working with, for a test that holds a lock. */
