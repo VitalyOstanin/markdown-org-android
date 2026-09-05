@@ -89,4 +89,4 @@ proptest = "1.11"
 # `~300.5`, not `300.5`: the caret requirement a bare version stands for
 # admits 300.6 as well, and would hold nothing.
 [build-dependencies]
-openssl-src = "~300.5"
+openssl-src = "~300.6"
