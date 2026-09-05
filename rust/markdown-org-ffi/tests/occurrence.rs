@@ -293,6 +293,51 @@ fn the_move_is_spelled_the_way_the_series_is() {
 }
 
 #[test]
+fn a_series_naming_no_weekday_is_still_written_with_one() {
+    // Both halves carry a weekday: a day written as digits alone says nothing
+    // about a step that landed on the wrong one. Where the series names none,
+    // the spelling comes from a weekday the note writes elsewhere.
+    let vault = vault(
+        "# TODO Английский\n\
+         `CREATED: [2025-12-08 Пн 01:06]`\n\
+         `SCHEDULED: <2026-08-06 15:00 +1w>`\n",
+    );
+
+    move_occurrence(
+        target(vault.path(), 1, "Английский"),
+        "2026-08-20".to_string(),
+        "2026-08-22".to_string(),
+        None,
+    )
+    .expect("move");
+
+    assert!(
+        body(vault.path()).contains("`MOVED: [2026-08-20 Чт] -> <2026-08-22 Сб 15:00>`"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
+fn a_note_that_writes_no_weekday_at_all_is_answered_in_english() {
+    let vault = vault("# TODO English\n`SCHEDULED: <2026-08-06 15:00 +1w>`\n");
+
+    move_occurrence(
+        target(vault.path(), 1, "English"),
+        "2026-08-20".to_string(),
+        "2026-08-22".to_string(),
+        None,
+    )
+    .expect("move");
+
+    assert!(
+        body(vault.path()).contains("`MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 15:00>`"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
 fn an_occurrence_held_between_two_times_keeps_both_of_them() {
     let vault = vault("# TODO English\n`SCHEDULED: <2026-08-06 Thu 15:00-16:30 +1w>`\n");
 

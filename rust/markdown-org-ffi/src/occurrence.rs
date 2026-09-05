@@ -146,7 +146,8 @@ pub fn move_occurrence(
 
     let planning = document.at(planning_index).to_string();
     let held = to_time.clone().or_else(|| written_time(&planning, &parts));
-    let written = moved_line(&planning, &parts, occurrence, to_date, held.as_deref())?;
+    let spelling = weekday_sample(&planning, &parts, &document);
+    let written = moved_line(&planning, &spelling, occurrence, to_date, held.as_deref())?;
 
     if let Some(line_index) = moved_line_for(&document, index, occurrence) {
         if document.at(line_index) == written {
@@ -195,24 +196,66 @@ pub fn move_occurrence(
 /// Both days are timestamps, and the brackets say which is which (the core's
 /// ADR-0039): the occurrence being moved is an address, so it is written
 /// inactive, and the day it is held on is active.
+/// A weekday spelt the way the file spells its own: the series' own planning
+/// line where it names one, the first weekday written anywhere in the note
+/// otherwise, and `Mon` where the note writes none at all. Both halves of a
+/// `MOVED` line carry a weekday, and a first move in a note of bare dates has
+/// to pick a language; the date beside it names the day either way.
+fn weekday_sample(planning: &str, parts: &TimestampParts, document: &Document) -> String {
+    if let Some(range) = parts.weekday.clone() {
+        return planning[range].to_string();
+    }
+    document
+        .text()
+        .lines()
+        .find_map(weekday_written_in)
+        .unwrap_or_else(|| "Mon".to_string())
+}
+
+/// The weekday of the first timestamp on a line that names one.
+fn weekday_written_in(line: &str) -> Option<String> {
+    let mut rest = line;
+    while let Some(at) = rest.find(['<', '[']) {
+        rest = &rest[at + 1..];
+        let Some(day) = rest.get(..10) else { continue };
+        let iso = day
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| match index {
+                4 | 7 => *byte == b'-',
+                _ => byte.is_ascii_digit(),
+            });
+        if !iso {
+            continue;
+        }
+        let Some(tail) = rest.get(10..).and_then(|tail| tail.strip_prefix(' ')) else {
+            continue;
+        };
+        let name: String = tail
+            .chars()
+            .take_while(|written| written.is_alphabetic())
+            .collect();
+        if !name.is_empty() {
+            return Some(name);
+        }
+    }
+    None
+}
+
 fn moved_line(
     planning: &str,
-    parts: &TimestampParts,
+    spelling: &str,
     occurrence: NaiveDate,
     to: NaiveDate,
     time: Option<&str>,
 ) -> Result<String, EditError> {
-    let (moved_weekday, weekday) = match parts.weekday.clone() {
-        Some(range) => (
-            format!(" {}", weekday_like(&planning[range.clone()], occurrence)?),
-            format!(" {}", weekday_like(&planning[range], to)?),
-        ),
-        None => (String::new(), String::new()),
-    };
+    let moved_weekday = weekday_like(spelling, occurrence)?;
+    let weekday = weekday_like(spelling, to)?;
     let held = time.map_or(String::new(), |time| format!(" {time}"));
 
     Ok(format!(
-        "{}`{MOVED} [{}{moved_weekday}] -> <{}{weekday}{held}>`",
+        "{}`{MOVED} [{} {moved_weekday}] -> <{} {weekday}{held}>`",
         indentation(planning),
         occurrence.format("%Y-%m-%d"),
         to.format("%Y-%m-%d"),
