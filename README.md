@@ -246,15 +246,18 @@ The text of one entry is the exception, and it is bounded to that entry:
   left as they were.
 
 One occurrence of a repeating entry is answered apart from the series it
-belongs to, following iCalendar's answer to the same question — see
-[ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md):
+belongs to, and both answers are written inside the entry — see
+[ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md)
+and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md):
 
 - `cancelOccurrence(target, date)` — take one occurrence out of the series by
   adding the day to its `EXDATE`, leaving the series repeating;
-- `moveOccurrence(target, occurrence, date, time, seriesId)` — write a second
-  entry at the new day or hour, naming the occurrence it stands in for. The
-  series keeps its own line and gains an identifier if it has none;
-  `seriesId` is the caller's, so the same call writes the same file.
+- `moveOccurrence(target, occurrence, date, time)` — write a `MOVED` line of
+  the series, naming the occurrence before the arrow and where it is held
+  after it: `` `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>` ``. The series
+  keeps its own line and needs no identifier. An occurrence moved a second
+  time rewrites what already stands for it — the `MOVED` line, or the entry
+  the older shape left in the file.
 
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)

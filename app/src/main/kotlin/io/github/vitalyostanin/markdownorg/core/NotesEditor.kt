@@ -23,7 +23,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 import kotlin.math.abs
 import uniffi.markdown_org_ffi.applyPhrase as coreApplyPhrase
 import uniffi.markdown_org_ffi.applyToGroup as coreApplyToGroup
@@ -188,8 +187,8 @@ interface NotesWriter {
      * Move one occurrence of a repeating entry, leaving the series where it is.
      *
      * [occurrence] is the day it stands on now and [date] the day it moves to;
-     * both are needed, because the entry written in its place has to name the
-     * occurrence it stands in for, and the new date cannot say that. [time] is
+     * both are needed, because the line written into the series has to name
+     * the occurrence it is about, and the new date cannot say that. [time] is
      * `null` for a series not held at an hour, and for one that keeps the hour
      * it already has.
      */
@@ -442,14 +441,7 @@ class NotesEditor internal constructor(
         outcome.rollback to occurrenceCancelMessage(task.heading, date)
     }
 
-    /**
-     * Move one occurrence, writing the entry that stands in its place.
-     *
-     * The identifier a series is named by is drawn here rather than in the
-     * core, which takes it as an argument for the reason it takes today as
-     * one: the same call has to write the same file. It is used only where the
-     * series does not already carry one.
-     */
+    /** Move one occurrence, writing the `MOVED` line that holds it elsewhere. */
     override suspend fun moveOccurrence(
         task: Task,
         occurrence: LocalDate,
@@ -461,7 +453,6 @@ class NotesEditor internal constructor(
             occurrence.toString(),
             date.toString(),
             time?.toString(),
-            UUID.randomUUID().toString(),
         )
         outcome.rollback to occurrenceMoveMessage(task.heading, occurrence, date, time)
     }

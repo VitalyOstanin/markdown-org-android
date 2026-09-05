@@ -10,7 +10,10 @@
 
 ## Status
 
-Accepted (2026-08-21).
+Accepted (2026-08-21). The move half — the entry carrying `SERIES_ID` and
+`RECURRENCE_ID` — is superseded by
+[ADR-0043](0043-a-move-is-a-line-of-the-series.md) for what this application
+writes; that shape is still read. The `EXDATE` half stands.
 
 ## Context
 

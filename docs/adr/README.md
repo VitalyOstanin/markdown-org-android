@@ -68,7 +68,7 @@ so a decision can be followed across the three repositories.
 | 0030 | [A date written from nothing follows the file it lands in](0030-a-date-written-from-nothing-follows-the-file.md) | Accepted |
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
 | 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted, amended by 0036 |
-| 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted |
+| 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted, move half superseded by 0043 |
 | 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted |
 | 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |
 | 0036 | [Where an entry is written is the collection's to say, and an entry can move between files](0036-where-an-entry-is-written-is-the-collections-to-say.md) | Accepted |
@@ -78,6 +78,7 @@ so a decision can be followed across the three repositories.
 | 0040 | [An entry carries the moment it was written at, and the caller names it](0040-an-entry-carries-the-moment-it-was-written-at.md) | Accepted |
 | 0041 | [A setting explains itself on a screen behind a mark, and the obvious ones say nothing](0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md) | Accepted |
 | 0042 | [An entry is changed by one phrase, in one write](0042-an-entry-is-changed-by-one-phrase-in-one-write.md) | Accepted |
+| 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted |
 
 ## Adding a new ADR
 

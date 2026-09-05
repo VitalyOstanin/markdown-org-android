@@ -2,45 +2,36 @@
 //! moved.
 //!
 //! A repeating timestamp describes an endless series and has nowhere to say
-//! that one of its occurrences is different. The extractor's ADR-0031 answers
-//! that in the shape iCalendar settled on, written with the `org-properties`
-//! keys of its ADR-0020:
+//! that one of its occurrences is different. Both answers are written into
+//! the entry itself, with the `org-properties` keys of the extractor's
+//! ADR-0020 and the `MOVED` line of its ADR-0038:
 //!
 //! ````text
-//! # TODO English                              <- the series, unchanged
+//! # TODO English
 //! `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`
+//! `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>`   <- an occurrence that moved
 //! ```org-properties
-//! ID: 9f2c
-//! EXDATE: 2026-08-13                          <- an occurrence that is gone
-//! ```
-//!
-//! # TODO English                              <- an occurrence that moved
-//! `SCHEDULED: <2026-08-20 Thu 18:00>`
-//! ```org-properties
-//! SERIES_ID: 9f2c
-//! RECURRENCE_ID: 2026-08-20 15:00
+//! EXDATE: 2026-08-13                              <- an occurrence that is gone
 //! ```
 //! ````
 //!
 //! The two are not the same operation and are not written the same way. A
 //! cancelled occurrence is a date added to the series' own `EXDATE`; a moved
-//! one is an entry of its own that replaces the occurrence it names, and it
-//! needs no `EXDATE` beside it — that is the split RFC 5545 makes, and the
-//! extractor reads it that way.
+//! one is a line naming the day it left and the timestamp it is held on
+//! instead, and it needs no `EXDATE` beside it — an occurrence that moved is
+//! not one that is gone, and the extractor reads it that way.
 //!
-//! The identifier a series is given when it has none comes from the caller,
-//! for the reason "today" does — see this project's ADR-0011. (ADR numbers
-//! run independently in the two repositories and have already collided on
-//! this subject: 0011 here is where "today" comes from, 0011 in the
-//! extractor is the release commit format. Every cross-project reference in
-//! this file names the project it belongs to.) A value drawn here would make
-//! the same call write a different file each time, and the tests could not
-//! say what the file holds.
+//! The line stands in the entry the series is written in, which is where the
+//! reader looks for it. The shape ADR-0031 wrote a move in — a second entry
+//! at the end of the file carrying `SERIES_ID` and `RECURRENCE_ID` — is still
+//! read, because files and other tools hold it: an occurrence standing in
+//! such an entry is moved where it stands rather than answered with a `MOVED`
+//! line here, so that only one of the two ever speaks for a day.
 //!
-//! The replacement is written at the end of the file the series lives in, the
-//! place [`crate::create`] writes a new task for: the notes are merged line by
-//! line, and an entry appended at the end is what two devices can both do
-//! without a conflict.
+//! (ADR numbers run independently in the two repositories and have already
+//! collided on this subject: 0011 here is where "today" comes from, 0011 in
+//! the extractor is the release commit format. Every cross-project reference
+//! in this file names the project it belongs to.)
 
 use std::ops::Range;
 
@@ -48,10 +39,9 @@ use chrono::{NaiveDate, NaiveTime};
 use markdown_org_extract::timestamp::parse_repeater;
 use markdown_org_extract::{parse_heading_line, TimestampParts};
 
-use crate::create::{append, opening};
 use crate::document::Document;
 use crate::edit::{parse_date, splice, EditError, EditOutcome, EditTarget};
-use crate::planning::{keyword_block_end, planning_lines, weekday_like};
+use crate::planning::{bare_start, keyword_block_end, planning_lines, weekday_like, MOVED};
 
 /// Property key listing the occurrences a series does not have.
 const EXDATE: &str = "EXDATE";
@@ -120,85 +110,213 @@ pub fn cancel_occurrence(target: EditTarget, date: String) -> Result<EditOutcome
 /// Move one occurrence of a repeating entry to another date, another time, or
 /// both.
 ///
-/// The series stays as it is, save for gaining an `ID` when it has none: what
-/// is written is a second entry at the end of the same file, spelled the way
-/// the series is and carrying the pair that says which occurrence it stands
-/// in for. The occurrence it replaces is then not drawn from the series, so
-/// nothing has to be excluded as well.
+/// The series stays as it is: what is written is a `MOVED` line of the entry
+/// (the extractor's ADR-0038), naming the occurrence before the arrow and
+/// where it is held after it. The occurrence is then not drawn on the day the
+/// repeater names, so nothing has to be excluded as well.
 ///
-/// `occurrence` and `to_date` are `YYYY-MM-DD`; `to_time` is `HH:MM`, and
-/// `None` keeps whatever time the series carries — an occurrence moved to
-/// another day is usually held at the same hour. `series_id` is the
-/// identifier to give the series when it does not already have one, and is
-/// ignored when it does.
+/// The line is written the way the planning line above it is: an inline-code
+/// span, at its indentation, with the weekday spelt as that line spells it.
+/// It carries no repeater and no warning cookie — one occurrence does not
+/// repeat, and how far ahead a deadline warns belongs to the series.
 ///
-/// The heading of the replacement is the series' heading as it stands, its
-/// level, keyword and priority cookie included: it is the same entry, held
-/// once at another time.
+/// `occurrence` and `to_date` are `YYYY-MM-DD`; `to_time` is `HH:MM` or
+/// `HH:MM-HH:MM`, and `None` keeps whatever time the series carries — an
+/// occurrence moved to another day is usually held at the same hour.
+///
+/// Moving an occurrence that has already moved rewrites what stands for it
+/// rather than adding a second answer: the `MOVED` line where there is one,
+/// and the entry ADR-0031 wrote where the file still holds that shape.
 #[uniffi::export]
 pub fn move_occurrence(
     target: EditTarget,
     occurrence: String,
     to_date: String,
     to_time: Option<String>,
-    series_id: String,
 ) -> Result<EditOutcome, EditError> {
     // Everything the caller passed is read before the file is opened, so a
     // value that was mistyped leaves the notes as they were.
     let occurrence = parse_date(&occurrence)?;
     let to_date = parse_date(&to_date)?;
     let to_time = to_time.as_deref().map(parse_time).transpose()?;
-    let series_id = checked_identifier(&series_id)?;
 
     let mut document = Document::open(&target)?;
     let (index, _) = document.heading(&target)?;
     let (planning_index, parts) = repeating_line(&document, index, &target)?;
 
-    let section = section(&document, index);
-    let identifier = property(&document, section, ID)
-        .map(|(_, value)| value)
-        .filter(|value| !value.is_empty());
-    let known = identifier.is_some();
-    let identifier = identifier.unwrap_or_else(|| series_id.to_string());
+    let planning = document.at(planning_index).to_string();
+    let held = to_time.clone().or_else(|| written_time(&planning, &parts));
+    let written = moved_line(&planning, &parts, occurrence, to_date, held.as_deref())?;
 
-    let replaced = occurrence.format("%Y-%m-%d").to_string();
-    if already_replaced(&document, &identifier, occurrence) {
-        return Err(EditError::Unsupported {
-            detail: format!(
-                "{} of {} is already replaced by an entry of this file, which is the one to edit",
-                replaced, target.heading
-            ),
+    if let Some(line_index) = moved_line_for(&document, index, occurrence) {
+        if document.at(line_index) == written {
+            return Ok(EditOutcome {
+                line: written,
+                changed: false,
+                rollback: None,
+            });
+        }
+        let before = document.text();
+        document.set(line_index, written.clone());
+        let rollback = document.saved(before)?;
+
+        return Ok(EditOutcome {
+            line: written,
+            changed: true,
+            rollback: Some(rollback),
         });
     }
 
-    let planning = document.at(planning_index).to_string();
-    let moved = replacement_timestamp(&planning, &parts, to_date, to_time.as_deref())?;
-    let heading = document.at(index).to_string();
-    let recurrence = match written_time(&planning, &parts) {
-        Some(time) => format!("{replaced} {time}"),
-        None => replaced,
-    };
-
-    let before = document.text();
-    if !known {
-        set_property(&mut document, index, ID, &identifier);
+    if let Some(replacement) = replacement_of(&document, index, occurrence) {
+        return rewrite_replacement(document, replacement, to_date, to_time.as_deref());
     }
-    let entry = opening(&document, heading.clone());
-    append(&mut document, entry);
-    append(&mut document, vec![moved]);
-    append(
-        &mut document,
-        vec![
-            format!("```{PROPERTIES}"),
-            format!("{SERIES_ID}: {identifier}"),
-            format!("{RECURRENCE_ID}: {recurrence}"),
-            "```".to_string(),
-        ],
-    );
+
+    // Under the last of the entry's dated lines, so that the dates of one
+    // entry stay together and a second move does not push itself between the
+    // first one and the timestamp it belongs to.
+    let at = last_dated_line(&document, index, planning_index) + 1;
+    let before = document.text();
+    document.replace_lines(at..at, vec![written.clone()]);
     let rollback = document.saved(before)?;
 
     Ok(EditOutcome {
-        line: heading,
+        line: written,
+        changed: true,
+        rollback: Some(rollback),
+    })
+}
+
+/// The `MOVED` line holding `occurrence` on `to`.
+///
+/// Spelt from the series' own planning line: its indentation, and the weekday
+/// written the way that line writes it. A series naming no weekday is
+/// answered without one.
+fn moved_line(
+    planning: &str,
+    parts: &TimestampParts,
+    occurrence: NaiveDate,
+    to: NaiveDate,
+    time: Option<&str>,
+) -> Result<String, EditError> {
+    let weekday = match parts.weekday.clone() {
+        Some(range) => format!(" {}", weekday_like(&planning[range], to)?),
+        None => String::new(),
+    };
+    let held = time.map_or(String::new(), |time| format!(" {time}"));
+
+    Ok(format!(
+        "{}`{MOVED} {} -> <{}{weekday}{held}>`",
+        indentation(planning),
+        occurrence.format("%Y-%m-%d"),
+        to.format("%Y-%m-%d"),
+    ))
+}
+
+/// Which line of the entry already moves `occurrence`, if one does.
+///
+/// The first is the one that stands, which is how the extractor resolves a
+/// file holding two of them.
+fn moved_line_for(document: &Document, index: usize, occurrence: NaiveDate) -> Option<usize> {
+    let day = occurrence.format("%Y-%m-%d").to_string();
+
+    section(document, index).find(|line_index| {
+        moved_occurrence(document.at(*line_index)).is_some_and(|written| written == day)
+    })
+}
+
+/// The occurrence a `MOVED` line names, as it is written.
+fn moved_occurrence(line: &str) -> Option<String> {
+    let rest = bare_start(line).strip_prefix(MOVED)?;
+    let (day, _) = rest.split_once("->")?;
+
+    let day = day.trim();
+    NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .ok()
+        .map(|_| day.to_string())
+}
+
+/// The last line of the entry carrying a date — a planning line or a `MOVED`
+/// line — which is what a new one is written under.
+fn last_dated_line(document: &Document, index: usize, planning: usize) -> usize {
+    let dated: Vec<usize> = planning_lines(document, index)
+        .iter()
+        .map(|(at, _, _)| *at)
+        .chain(
+            section(document, index)
+                .filter(|line_index| moved_occurrence(document.at(*line_index)).is_some()),
+        )
+        .collect();
+
+    dated
+        .into_iter()
+        .chain([planning])
+        .max()
+        .unwrap_or(planning)
+}
+
+/// The entry of this file that stands in for `occurrence` of the series at
+/// `index`, in the shape ADR-0031 wrote, if the file holds one.
+///
+/// Only this file is looked at, because this is the file being written to: a
+/// replacement in another note is out of reach of an operation that opens one
+/// file, and the second entry it would leave is visible in the agenda rather
+/// than silent.
+fn replacement_of(document: &Document, index: usize, occurrence: NaiveDate) -> Option<usize> {
+    let series = property(document, section(document, index), ID)
+        .map(|(_, value)| value)
+        .filter(|value| !value.is_empty())?;
+    let day = occurrence.format("%Y-%m-%d").to_string();
+
+    (0..document.len())
+        .filter(|line_index| parse_heading_line(document.at(*line_index)).is_some())
+        .find(|heading| {
+            let section = section(document, *heading);
+            let named = property(document, section.clone(), SERIES_ID)
+                .is_some_and(|(_, value)| value == series);
+            named
+                && property(document, section, RECURRENCE_ID)
+                    .is_some_and(|(_, value)| value.split_whitespace().next() == Some(day.as_str()))
+        })
+}
+
+/// Move an entry that already stands in for one occurrence to another date or
+/// time.
+///
+/// Only its timestamp is touched: the heading, the properties and the place in
+/// the file are the ones the replacement was written with, and rewriting them
+/// would move an entry the reader may since have added notes under.
+fn rewrite_replacement(
+    mut document: Document,
+    heading: usize,
+    to: NaiveDate,
+    time: Option<&str>,
+) -> Result<EditOutcome, EditError> {
+    let (planning_index, _, parts) = planning_lines(&document, heading)
+        .into_iter()
+        .next()
+        .ok_or_else(|| EditError::Unsupported {
+            detail: format!(
+                "{} carries no planning line, so there is nothing to move",
+                document.at(heading).trim()
+            ),
+        })?;
+
+    let line = document.at(planning_index).to_string();
+    let rewritten = replacement_timestamp(&line, &parts, to, time)?;
+    if rewritten == line {
+        return Ok(EditOutcome {
+            line: rewritten,
+            changed: false,
+            rollback: None,
+        });
+    }
+
+    let before = document.text();
+    document.set(planning_index, rewritten.clone());
+    let rollback = document.saved(before)?;
+
+    Ok(EditOutcome {
+        line: rewritten,
         changed: true,
         rollback: Some(rollback),
     })
@@ -258,27 +376,6 @@ pub(crate) fn parse_time(value: &str) -> Result<String, EditError> {
     }
 
     Ok(value.to_string())
-}
-
-/// The identifier, checked for what would keep it from reading back.
-///
-/// It is written as the value of a `KEY: value` line, so a colon or a line
-/// break in it would come back as another key or another line altogether, and
-/// an empty one would name no series at all.
-fn checked_identifier(value: &str) -> Result<&str, EditError> {
-    let usable = !value.trim().is_empty()
-        && value.trim() == value
-        && !value.contains([':', '\n', '\r'])
-        && !value.chars().any(char::is_whitespace);
-    if !usable {
-        return Err(EditError::Unsupported {
-            detail: format!(
-                "{value:?} is not an identifier: it has to read back off a KEY: value line"
-            ),
-        });
-    }
-
-    Ok(value)
 }
 
 /// The lines under the heading at `index`, up to the next heading.
@@ -437,42 +534,15 @@ fn indentation(line: &str) -> &str {
     &line[..line.len() - line.trim_start().len()]
 }
 
-/// Whether the file already holds an entry replacing `date` of `series`.
+/// The time the timestamp carries, as written — a range of hours included.
 ///
-/// Only this file is looked at, because this is the file being written to: a
-/// replacement in another note is out of reach of an operation that opens one
-/// file, and the second entry it would leave is visible in the agenda rather
-/// than silent.
-fn already_replaced(document: &Document, series: &str, date: NaiveDate) -> bool {
-    let text = date.format("%Y-%m-%d").to_string();
-
-    (0..document.len())
-        .filter(|index| parse_heading_line(document.at(*index)).is_some())
-        .any(|index| {
-            let section = section(document, index);
-            let named = property(document, section.clone(), SERIES_ID)
-                .is_some_and(|(_, value)| value == series);
-            named
-                && property(document, section, RECURRENCE_ID).is_some_and(|(_, value)| {
-                    value.split_whitespace().next() == Some(text.as_str())
-                })
-        })
-}
-
-/// The time the timestamp carries, as written.
+/// An occurrence held from 15:00 to 16:00 is held for an hour wherever it
+/// moves to, so the whole token travels with it rather than only its start.
 fn written_time(line: &str, parts: &TimestampParts) -> Option<String> {
     fields(line, parts.whole.clone())
         .into_iter()
         .find(|field| is_time(&line[field.clone()]))
-        // A range of times names one occurrence by where it starts, which is
-        // what a recurrence identifier is.
-        .map(|field| {
-            line[field]
-                .split('-')
-                .next()
-                .unwrap_or_default()
-                .to_string()
-        })
+        .map(|field| line[field].to_string())
 }
 
 /// The series' planning line, moved to the occurrence that replaces it.

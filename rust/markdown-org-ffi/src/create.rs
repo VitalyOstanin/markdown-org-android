@@ -200,15 +200,6 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
     })
 }
 
-/// The heading with the blank line that has to precede it, if any.
-///
-/// A file whose last line already stands empty gets no second one: the
-/// separator belongs between two entries, and one added on every write would
-/// open a gap that grows by a line per task.
-pub(crate) fn opening(document: &Document, heading: String) -> Vec<String> {
-    placed(document, WritePosition::End, vec![heading]).lines
-}
-
 /// Where a block of lines goes in a file, and the block as it will be spliced.
 pub(crate) struct Placement {
     /// The line the block is spliced in at.
@@ -291,12 +282,6 @@ fn front_matter_end(document: &Document) -> usize {
 
 /// The fence a YAML front matter is written between.
 const FRONT_MATTER: &str = "---";
-
-/// Put `lines` at the end of the document.
-pub(crate) fn append(document: &mut Document, lines: Vec<String>) {
-    let at = document.len();
-    document.replace_lines(at..at, lines);
-}
 
 /// The level a new entry is written at: the level this file writes its tasks
 /// at.

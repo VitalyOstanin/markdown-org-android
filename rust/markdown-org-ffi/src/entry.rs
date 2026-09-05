@@ -25,7 +25,7 @@ use markdown_org_extract::parse_heading_line;
 use crate::document::Document;
 use crate::edit::{splice, EditError, EditOutcome, EditTarget};
 use crate::occurrence::property_block_at;
-use crate::planning::{bare_start, planning_keyword, CLOSED};
+use crate::planning::{bare_start, planning_keyword, CLOSED, MOVED};
 
 /// The text of an entry as the file holds it.
 #[derive(Debug, Clone, uniffi::Record)]
@@ -253,7 +253,8 @@ fn with_the_separator(
 }
 
 /// Whether the line is one an operation writes rather than one the user types:
-/// a planning line, or the closing date.
+/// a planning line, the closing date, or an occurrence held on another day.
 fn structural(line: &str) -> bool {
-    planning_keyword(line).is_some() || bare_start(line).starts_with(CLOSED)
+    let start = bare_start(line);
+    planning_keyword(line).is_some() || start.starts_with(CLOSED) || start.starts_with(MOVED)
 }

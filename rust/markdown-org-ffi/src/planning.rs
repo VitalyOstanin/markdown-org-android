@@ -464,6 +464,14 @@ pub(crate) const CLOSED: &str = "CLOSED:";
 /// planning lines do.
 const CREATED: &str = "CREATED:";
 
+/// The key naming an occurrence of the entry held on another day (the
+/// extractor's ADR-0038).
+///
+/// One of the keyword lines under a heading, for the same reason `CLOSED:` is:
+/// it is written by an operation rather than typed, and it carries a date the
+/// reader of the entry does not edit as prose.
+pub(crate) const MOVED: &str = "MOVED:";
+
 /// Where the block of keyword lines under the heading at `index` ends.
 ///
 /// Where a line written by an operation rather than typed belongs: a
@@ -483,7 +491,10 @@ pub(crate) fn keyword_block_end(document: &Document, index: usize) -> usize {
 /// rather than the text of the entry.
 fn keyword_line(line: &str) -> bool {
     let start = bare_start(line);
-    planning_keyword(line).is_some() || start.starts_with(CLOSED) || start.starts_with(CREATED)
+    planning_keyword(line).is_some()
+        || start.starts_with(CLOSED)
+        || start.starts_with(CREATED)
+        || start.starts_with(MOVED)
 }
 
 /// Write a planning line the entry did not have, and save the file.
