@@ -69,7 +69,7 @@ so a decision can be followed across the three repositories.
 | 0031 | [Every edit carries what it takes to undo it](0031-every-edit-carries-what-it-takes-to-undo-it.md) | Accepted |
 | 0032 | [A new task goes to a file the collection names](0032-a-new-task-goes-to-a-file-the-collection-names.md) | Accepted, amended by 0036 |
 | 0033 | [An occurrence is cancelled in place and moved by an entry of its own](0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md) | Accepted, move half superseded by 0043 |
-| 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted |
+| 0034 | [Reminders are planned on the device and the plan is replaced whole](0034-reminders-are-planned-on-the-device-and-replaced-whole.md) | Accepted, exact alarms amended by 0045 |
 | 0035 | [A reminder is answered where it is read](0035-a-reminder-is-answered-where-it-is-read.md) | Accepted |
 | 0036 | [Where an entry is written is the collection's to say, and an entry can move between files](0036-where-an-entry-is-written-is-the-collections-to-say.md) | Accepted |
 | 0037 | [The settings are searched by filtering the screen they are on](0037-the-settings-are-searched-by-filtering-the-screen-they-are-on.md) | Accepted |
@@ -80,6 +80,7 @@ so a decision can be followed across the three repositories.
 | 0042 | [An entry is changed by one phrase, in one write](0042-an-entry-is-changed-by-one-phrase-in-one-write.md) | Accepted |
 | 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted, written form amended by 0044 |
 | 0044 | [The occurrence a move names is written as an inactive timestamp](0044-the-occurrence-a-move-names-is-a-timestamp.md) | Accepted |
+| 0045 | [The minute a reminder is held to rests on a permission of its own](0045-the-minute-is-held-by-a-permission-of-its-own.md) | Accepted |
 
 ## Adding a new ADR
 

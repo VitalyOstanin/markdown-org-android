@@ -32,6 +32,7 @@ val guardedFiles: List<String> = listOf(
     "gradle.properties",
     "build.gradle.kts",
     "app/build.gradle.kts",
+    "app/src/main/AndroidManifest.xml",
     "gradle/wrapper/gradle-wrapper.properties",
     ".github/dependabot.yml",
     "rust/Cargo.toml",

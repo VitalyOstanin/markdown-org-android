@@ -10,7 +10,9 @@
 
 ## Status
 
-Accepted (2026-08-22).
+Accepted (2026-08-22). The exact-alarm part is amended by
+[ADR-0045](0045-the-minute-is-held-by-a-permission-of-its-own.md):
+`USE_EXACT_ALARM` is declared after all. Everything else below stands.
 
 ## Context
 

@@ -89,6 +89,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A reminder arrives at the minute it names, and no longer at the platform's
+  convenience. The application asked for exact alarms without holding the
+  permission for them, so the minute rested on whatever else the phone granted:
+  an exemption from battery optimisation gives the same exactness and is
+  withdrawn without the application being told. Measured over half an hour with
+  nothing touched, the alarms of one plan were exact, then an hour wide, then
+  exact again -- and the settings screen reported the access as held throughout,
+  because it asks the platform while the screen is drawn rather than while the
+  plan is made. `USE_EXACT_ALARM` is now declared, which Android 13 and later
+  grant at install; on Android 12, which has no such permission, the settings
+  screen asks for the older one as before.
+
 - A scan that was dropped no longer reads as work that failed. The reminder
   scheduler and the synchronisation both wrap their reads in `runCatching`,
   which catches every throwable — including the cancellation the reader causes

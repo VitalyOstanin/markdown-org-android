@@ -21,20 +21,25 @@
         android:maxSdkVersion="29" />
 
     <!--
-        Telling the reader what is coming. All three are asked for by the
+        Telling the reader what is coming. All four are asked for by the
         reminders and by nothing else, and none of them is held until the
         reader switches reminders on.
 
-        POST_NOTIFICATIONS is asked at runtime from Android 13. Without
-        SCHEDULE_EXACT_ALARM the platform still delivers, within an hour of the
-        time asked for, which the settings screen says where the switch is;
-        USE_EXACT_ALARM, which needs no asking, is deliberately not declared,
-        as the store policy limits it to alarm and calendar applications.
-        RECEIVE_BOOT_COMPLETED is what lets the plan be made again after a
-        restart: alarms do not survive one.
+        POST_NOTIFICATIONS is asked at runtime from Android 13.
+        USE_EXACT_ALARM is granted at install and is what puts a reminder at
+        the minute it names; the store policy allows it to an application whose
+        purpose is a calendar or an alarm, which is this one — it shows an
+        agenda and announces the entries of that agenda. SCHEDULE_EXACT_ALARM
+        covers Android 12, where USE_EXACT_ALARM does not yet exist and the
+        reader is asked for the access on the settings screen; from Android 13
+        it is superseded and therefore capped. RECEIVE_BOOT_COMPLETED is what
+        lets the plan be made again after a restart: alarms do not survive one.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--

@@ -454,16 +454,21 @@ settings changed, a fetch landed, an entry was edited here, an alarm fired, the
 phone restarted, the application was replaced, the clock or the time zone was
 set, or the exact-alarm access changed.
 
-Two accesses are granted separately by the platform, and the settings say which
-of them is missing where the switch is:
+Two accesses stand behind a reminder, and the settings say where the switch is
+which of them the platform is withholding:
 
-| № | Access                                     | Without it                                                                  |
-|---|--------------------------------------------|--------------------------------------------------------------------------------|
-| 1 | Notifications (`POST_NOTIFICATIONS`, from Android 13) | the plan stands and fires, and nothing of it reaches the screen       |
-| 2 | Alarms to the minute (`SCHEDULE_EXACT_ALARM`, from Android 12) | the platform delivers within an hour of the time asked for — a reminder for a day, not for a meeting |
+| № | Access                                                          | Where it comes from                              | Without it                                                                                          |
+|---|-----------------------------------------------------------------|--------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| 1 | Notifications (`POST_NOTIFICATIONS`, from Android 13)            | asked for when reminders are switched on         | the plan stands and fires, and nothing of it reaches the screen                                        |
+| 2 | Alarms to the minute (`USE_EXACT_ALARM`, from Android 13)        | granted at install, nothing to ask for            | —                                                                                                      |
+| 3 | Alarms to the minute (`SCHEDULE_EXACT_ALARM`, Android 12 only)   | asked for on the settings screen                 | the platform delivers within an hour of the time asked for — a reminder for a day, not for a meeting   |
 
-`USE_EXACT_ALARM`, which is granted without asking, is not declared: the store
-policy limits it to alarm and calendar applications.
+`USE_EXACT_ALARM` is declared because the application is what the store policy
+allows it to: an agenda that announces the entries it shows. Until it was
+declared, the minute rested on whatever else the phone happened to grant — an
+exemption from battery optimisation gives the same exactness and is taken back
+without notice, and a reminder then arrives up to an hour late while the
+settings screen still reports the access as held.
 
 Notifications go on two channels — entries held at an hour, and the day's
 digest — so either can be silenced in the system settings without losing the

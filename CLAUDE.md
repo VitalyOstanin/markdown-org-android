@@ -147,6 +147,14 @@ reasoning.
   note may have moved. See
   [ADR-0034](docs/adr/0034-reminders-are-planned-on-the-device-and-replaced-whole.md).
 
+- A reminder is held to the minute by `USE_EXACT_ALARM`, which the platform
+  grants at install from Android 13 and which the store is told about at every
+  release. `SCHEDULE_EXACT_ALARM` is capped at Android 12, where the newer
+  permission does not exist and the settings screen still asks for it. Nothing
+  is left to the exemption from battery optimisation: it grants the same
+  exactness and is withdrawn without the application being told. See
+  [ADR-0045](docs/adr/0045-the-minute-is-held-by-a-permission-of-its-own.md).
+
 - Where in a file an entry is written is a setting of the collection: at the
   start, before the first heading and after whatever stands above it, or at the
   end, which is what keeps two devices' additions merging without a conflict.
