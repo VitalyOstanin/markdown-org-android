@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [\[Unreleased\]](#unreleased)
-- [\[0.2.0\] - 2026-09-03](#020---2026-09-03)
+- [\[0.2.0\] - 2026-09-05](#020---2026-09-05)
 - [\[0.1.0\] - 2026-08-25](#010---2026-08-25)
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-09-05
 
 ### Added
 
@@ -29,6 +31,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   write them; the keywords are not translated, being what the file says.
   A field named to the value the entry already carried is not listed: the core
   reports such a phrase as an edit that wrote nothing, and the line agrees.
+
+- An entry is changed by saying what to change. The sheet a tap on a row opens
+  now begins with a field and a microphone: "перенеси на пятницу в 16:00 и
+  сделай срочной" moves the day, the hour and the priority at once, where the
+  buttons under it are three taps and two dialogs of choice. A phrase can also
+  say the keyword — "отметь выполненной", "в работу" — and empty a field:
+  "убрать дату", "убрать время", "без повтора", "без приоритета". One write,
+  one commit and one undo for the whole sentence.
+  A word the rules do not know changes nothing at all and is named instead:
+  applying the half that was understood would move a field nobody meant to
+  name. The rules are the core's, and read both grammars whatever language the
+  phone is set to.
+
+- A mark beside the name of a setting, opening a screen about that one setting:
+  what it does, why the answer matters, and one case told with names and
+  numbers — which token scope a push needs, what a branch of the phone's own
+  keeps two devices out of, what the digest at nine names and what it leaves to
+  the entry with an hour. Twenty of the thirty items of the screen carry it; the
+  ten whose label is the whole answer keep the tooltip they had. What the screen
+  says is searched as text of its own setting, so a case remembered and a label
+  forgotten still finds it. The explanation used to be a tooltip held open by a
+  long press — a gesture nothing announced, over a line sized for a glance.
+
+- The moment an entry was written at is marked under its heading, as org-mode's
+  expiry convention writes it: `CREATED: [2026-09-01 Tue 14:01]`, inactive
+  brackets so that no agenda shows the mark as a date to keep. To the minute,
+  because that is what tells two entries written the same day apart. Every way
+  of writing an entry on the phone leaves the mark — the form, a typed phrase, a
+  spoken one — and the line is spelled the way the file spells the dates it
+  already holds: bare where they are bare, in Russian where they are in Russian,
+  without a weekday where they carry none.
+
+- A phrase at the head of the creation screen. What is said in one sentence —
+  "позвонить врачу завтра в 15:00, каждую неделю" — fills the heading, the day,
+  the hour and the repeater at once, instead of a heading typed with two thumbs,
+  a date picked out of a dialog, an hour picked out of a clock and a repeater
+  chosen from a row of chips. The rules are the core's, so the phone and the
+  editor extension read a phrase the same way, and both grammars are consulted
+  whatever language the phone is set to. A second phrase refines what the first
+  left rather than starting over, a field corrected by hand is the field it adds
+  to, and nothing is written until Create — a sentence read wrong is a screen to
+  correct.
+
+- That phrase can be spoken rather than typed. `Speak` opens whatever the phone
+  recognises speech with — the application behind the keyboard's microphone key
+  — and what it heard joins the field, to be read by the same button a typed
+  sentence is: a misheard word is one line to correct rather than nine fields.
+  This application asks for no microphone permission and recognises nothing
+  itself. The language is the one the phone is set to, a second attempt joins
+  what the first left, and a phone with nothing to listen with says so in the
+  field instead of hiding the button.
+
+- A field at the head of the settings screen that filters it: what a query does
+  not name is not drawn, headings of emptied stretches included, and an empty
+  field is the screen as it always was. Case and `ё` are folded, a heading that
+  matches carries the whole stretch under it, and the section folded away under
+  "Access over SSH" opens while a query is active.
+
+- The hour of a planning date is set and taken off after the fact. A day could
+  be given, moved or cleared, but the hour an entry is held at could only be
+  chosen while the entry was being written — changing one afterwards meant
+  editing the file by hand. The hour goes into the timestamp the line already
+  carries, leaving the date, the weekday in whatever language it was spelled,
+  the repeater and the warning cookie as written; taking it off takes the space
+  ahead of it with it. An entry carrying no planning line of that kind is
+  refused rather than given a day nobody asked for.
+
+- A collection says where its entries go, and an entry can leave the file it
+  went into. The write position is a setting of the collection — the start of
+  the file, after whatever header stands above the first heading, unless the
+  collection says the end — and beside it the collection names a main file, the
+  one an entry is carried into from the sheet. Any other markdown file of the
+  same collection can be named instead, and a file that is not there yet is
+  created. The whole entry travels: the heading, its planning lines, its
+  property block, its text and everything nested under it. The receiving file
+  is written first and a removal that fails takes that write back, so the one
+  outcome the order rules out is the entry standing in neither file; the undo
+  line takes both files back together.
+
+- A microphone in the corner of the agenda, over the plus. A task said to it
+  is written the moment the recogniser hands the sentence over — "позвонить
+  врачу завтра в 15:00" becomes a heading, a day and an hour without a screen
+  in between, and the line at the foot offers to take it back. Two actions
+  rather than the five the creation screen takes, which is what a task thought
+  of while walking has time for. The sentence goes through the rules a typed
+  phrase does, so both ways of saying the same thing read the same; a phone
+  with nothing to listen with says so and leaves the plus to write with.
 
 ### Changed
 
@@ -86,6 +175,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the hour of the daily digest was picked in a second dialog of its own whose
   buttons read "OK" and "Cancel" against the "Set" and "Cancel" of the one
   beside it. All three now ask in the same words and in the same dialog.
+
+- Settings that take one answer out of a few are lists now rather than rows of
+  chips: where a week begins, how long before a timed entry it is announced,
+  and which end of the file an entry is written at. A row of chips paid a line
+  of the screen for every answer that did not fit the width, and on a phone
+  held upright "Воскресенья" was squeezed until its word broke into a column of
+  single letters.
+
+- The line that used to stand under a setting has moved into the tooltip its
+  label already carried. Eight of them on a column of thirty settings spent a
+  screenful of height on text that is read once, and both halves are now read
+  the same way — by holding the setting's name.
+
+- Where an entry is written now says what it is the start and the end of: "at
+  the start of the file" rather than "at the start".
 
 ### Fixed
 
@@ -211,116 +315,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the alarms as they were, until the next fetch. The walk now outlives the
   screen, and a second choice made while the first is still being planned
   replaces it rather than racing it.
-
-## [0.2.0] - 2026-09-03
-
-### Added
-
-- An entry is changed by saying what to change. The sheet a tap on a row opens
-  now begins with a field and a microphone: "перенеси на пятницу в 16:00 и
-  сделай срочной" moves the day, the hour and the priority at once, where the
-  buttons under it are three taps and two dialogs of choice. A phrase can also
-  say the keyword — "отметь выполненной", "в работу" — and empty a field:
-  "убрать дату", "убрать время", "без повтора", "без приоритета". One write,
-  one commit and one undo for the whole sentence.
-  A word the rules do not know changes nothing at all and is named instead:
-  applying the half that was understood would move a field nobody meant to
-  name. The rules are the core's, and read both grammars whatever language the
-  phone is set to.
-
-- A mark beside the name of a setting, opening a screen about that one setting:
-  what it does, why the answer matters, and one case told with names and
-  numbers — which token scope a push needs, what a branch of the phone's own
-  keeps two devices out of, what the digest at nine names and what it leaves to
-  the entry with an hour. Twenty of the thirty items of the screen carry it; the
-  ten whose label is the whole answer keep the tooltip they had. What the screen
-  says is searched as text of its own setting, so a case remembered and a label
-  forgotten still finds it. The explanation used to be a tooltip held open by a
-  long press — a gesture nothing announced, over a line sized for a glance.
-
-- The moment an entry was written at is marked under its heading, as org-mode's
-  expiry convention writes it: `CREATED: [2026-09-01 Tue 14:01]`, inactive
-  brackets so that no agenda shows the mark as a date to keep. To the minute,
-  because that is what tells two entries written the same day apart. Every way
-  of writing an entry on the phone leaves the mark — the form, a typed phrase, a
-  spoken one — and the line is spelled the way the file spells the dates it
-  already holds: bare where they are bare, in Russian where they are in Russian,
-  without a weekday where they carry none.
-
-- A phrase at the head of the creation screen. What is said in one sentence —
-  "позвонить врачу завтра в 15:00, каждую неделю" — fills the heading, the day,
-  the hour and the repeater at once, instead of a heading typed with two thumbs,
-  a date picked out of a dialog, an hour picked out of a clock and a repeater
-  chosen from a row of chips. The rules are the core's, so the phone and the
-  editor extension read a phrase the same way, and both grammars are consulted
-  whatever language the phone is set to. A second phrase refines what the first
-  left rather than starting over, a field corrected by hand is the field it adds
-  to, and nothing is written until Create — a sentence read wrong is a screen to
-  correct.
-
-- That phrase can be spoken rather than typed. `Speak` opens whatever the phone
-  recognises speech with — the application behind the keyboard's microphone key
-  — and what it heard joins the field, to be read by the same button a typed
-  sentence is: a misheard word is one line to correct rather than nine fields.
-  This application asks for no microphone permission and recognises nothing
-  itself. The language is the one the phone is set to, a second attempt joins
-  what the first left, and a phone with nothing to listen with says so in the
-  field instead of hiding the button.
-
-- A field at the head of the settings screen that filters it: what a query does
-  not name is not drawn, headings of emptied stretches included, and an empty
-  field is the screen as it always was. Case and `ё` are folded, a heading that
-  matches carries the whole stretch under it, and the section folded away under
-  "Access over SSH" opens while a query is active.
-
-- The hour of a planning date is set and taken off after the fact. A day could
-  be given, moved or cleared, but the hour an entry is held at could only be
-  chosen while the entry was being written — changing one afterwards meant
-  editing the file by hand. The hour goes into the timestamp the line already
-  carries, leaving the date, the weekday in whatever language it was spelled,
-  the repeater and the warning cookie as written; taking it off takes the space
-  ahead of it with it. An entry carrying no planning line of that kind is
-  refused rather than given a day nobody asked for.
-
-- A collection says where its entries go, and an entry can leave the file it
-  went into. The write position is a setting of the collection — the start of
-  the file, after whatever header stands above the first heading, unless the
-  collection says the end — and beside it the collection names a main file, the
-  one an entry is carried into from the sheet. Any other markdown file of the
-  same collection can be named instead, and a file that is not there yet is
-  created. The whole entry travels: the heading, its planning lines, its
-  property block, its text and everything nested under it. The receiving file
-  is written first and a removal that fails takes that write back, so the one
-  outcome the order rules out is the entry standing in neither file; the undo
-  line takes both files back together.
-
-- A microphone in the corner of the agenda, over the plus. A task said to it
-  is written the moment the recogniser hands the sentence over — "позвонить
-  врачу завтра в 15:00" becomes a heading, a day and an hour without a screen
-  in between, and the line at the foot offers to take it back. Two actions
-  rather than the five the creation screen takes, which is what a task thought
-  of while walking has time for. The sentence goes through the rules a typed
-  phrase does, so both ways of saying the same thing read the same; a phone
-  with nothing to listen with says so and leaves the plus to write with.
-
-### Changed
-
-- Settings that take one answer out of a few are lists now rather than rows of
-  chips: where a week begins, how long before a timed entry it is announced,
-  and which end of the file an entry is written at. A row of chips paid a line
-  of the screen for every answer that did not fit the width, and on a phone
-  held upright "Воскресенья" was squeezed until its word broke into a column of
-  single letters.
-
-- The line that used to stand under a setting has moved into the tooltip its
-  label already carried. Eight of them on a column of thirty settings spent a
-  screenful of height on text that is read once, and both halves are now read
-  the same way — by holding the setting's name.
-
-- Where an entry is written now says what it is the start and the end of: "at
-  the start of the file" rather than "at the start".
-
-### Fixed
 
 - A note handed to another application opens where it stands. The action built
   the file out of the path a task carries — which is relative to the directory

@@ -21,6 +21,14 @@ What it does
 * Editing from the agenda: the keyword of a task, its priority, and moving a
   planning date. Every edit is written into the note it came from and
   committed straight away.
+* A task written by saying it. One sentence — "call the doctor tomorrow at
+  15:00, every week" — becomes the heading, the day, the hour and the
+  repeater; said to the microphone on the agenda it is written with no screen
+  in between. The rules that read the sentence are the core's, so a phrase is
+  understood the same way here and on a desktop.
+* An entry changed by saying what to change: "move it to Friday at 16:00 and
+  make it urgent" moves the day, the hour and the priority in one sentence,
+  where the buttons are three taps and two dialogs of choice.
 * Repeating tasks move to their next occurrence when they are marked done,
   following the repeater in the timestamp rather than dropping it.
 * Several collections of notes read as one agenda — a work repository and a
