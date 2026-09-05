@@ -6,7 +6,7 @@ activityCompose = "1.13.0"
 # FileProvider, which hands one note to an editor of the user's choosing.
 # Already in the graph through Compose; named here because the code calls
 # it directly and a transitive version is not a promise.
-androidxCore = "1.18.0"
+androidxCore = "1.19.0"
 lifecycle = "2.11.0"
 # The Android build of JNA; UniFFI's Kotlin bindings call the native library
 # through it. The plain jar carries desktop libraries only.
