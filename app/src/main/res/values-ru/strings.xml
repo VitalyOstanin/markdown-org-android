@@ -157,10 +157,10 @@
     <string name="settings_agenda_grouped_hint">Без разбивки те же строки идут в том же порядке — без заголовков, счётчиков и меню группы.</string>
     <string name="settings_agenda_month_grid">Показывать месяц календарём</string>
     <string name="settings_agenda_month_grid_hint">Без календаря месяц читается как неделя: заголовок у каждого дня, где что-то есть, и строки под ним.</string>
-    <string name="settings_week_start">Неделя начинается с</string>
+    <string name="settings_week_start">Первый день недели</string>
     <string name="settings_week_start_auto">Как на телефоне</string>
-    <string name="settings_week_start_monday">Понедельника</string>
-    <string name="settings_week_start_sunday">Воскресенья</string>
+    <string name="settings_week_start_monday">Понедельник</string>
+    <string name="settings_week_start_sunday">Воскресенье</string>
     <string name="settings_week_start_hint">Определяет, по каким дням режется календарь и как группируется неделя.</string>
     <!-- Сообщать ли читателю о том, что впереди, и на каких условиях. -->
     <string name="settings_reminders">Напоминания</string>
@@ -174,14 +174,14 @@
     <string name="settings_reminders_enabled_hint">О записи, назначенной на час, сообщается заранее; о дне с датами и сроками — один раз, сводкой.</string>
     <string name="settings_reminders_lead">Сообщать о записи ко времени</string>
     <string name="settings_reminders_lead_hint">За сколько до её часа. О сроке с собственной датой здесь не сообщается — он попадает в сводку через окно предупреждения, которое у него уже есть.</string>
-    <string name="settings_reminders_lead_none">В сам момент</string>
+    <string name="settings_reminders_lead_none">Без упреждения</string>
     <string name="settings_reminders_lead_five">За 5 мин</string>
     <string name="settings_reminders_lead_fifteen">За 15 мин</string>
     <string name="settings_reminders_lead_thirty">За 30 мин</string>
     <string name="settings_reminders_lead_hour">За час</string>
     <string name="settings_reminders_at_start">И ещё раз в назначенное время</string>
     <string name="settings_reminders_at_start_hint">Два уведомления об одной записи: одно заранее, второе в назначенное время.</string>
-    <string name="settings_reminders_digest">Сводка дня в</string>
+    <string name="settings_reminders_digest">Время сводки дня</string>
     <string name="settings_reminders_digest_hint">Одно уведомление о том, что в дне: записи без часа, сроки внутри окна предупреждения и сколько просрочено.</string>
     <string name="settings_reminders_no_notifications">Уведомления запрещены, поэтому ничего не будет видно.</string>
     <string name="settings_reminders_grant">Разрешить уведомления</string>
@@ -281,9 +281,9 @@
     <string name="hint_settings_week_start">По умолчанию отвечает сам телефон — по языку и региону. Задайте явно, если привычка и телефон расходятся: от ответа зависит, какой день стоит первым столбцом календаря и какие семь дней покрывает неделя. Смена запрашивает агенду заново.</string>
     <string name="hint_settings_agenda_month_grid">Календарь показывает форму месяца: где недели заполнены, где скопились просрочки, где свободно. Что именно стоит в дне, читается открытием дня. Список говорит, что в месяце есть, но за это приходится его прокрутить.</string>
     <string name="hint_settings_reminders_enabled">Пока выключено, ничего не сообщается и ни один сигнал не поставлен. О чём сообщать, решается по той же агенде, что рисует экран, поэтому запись, закрытая на другом устройстве, перестаёт напоминать о себе сразу после получения заметок.</string>
-    <string name="hint_settings_reminders_lead">Упреждение одно на все записи: заметки ничего не говорят о том, сколько добираться, а упреждение на запись пришлось бы писать в них самих. «В сам момент» — это упреждение в ноль, а не отсутствие напоминания.</string>
-    <string name="hint_settings_reminders_at_start">Для записи, о которой стоит сказать дважды: заранее — чтобы собраться, и в назначенное время — чтобы начать. При упреждении «В сам момент» оба совпадают, и остаётся одно уведомление.</string>
-    <string name="hint_settings_reminders_digest">У записи с датой и без часа нет момента, о котором можно сообщить, поэтому сообщается о дне — один раз, в этот час, что бы в нём ни было. Содержание читается в момент срабатывания, а не при планировании.</string>
+    <string name="hint_settings_reminders_lead">Упреждение одно на все записи: заметки ничего не говорят о том, сколько добираться, а упреждение на запись пришлось бы писать в них самих. «Без упреждения» — это упреждение в ноль, а не отсутствие напоминания.</string>
+    <string name="hint_settings_reminders_at_start">Для записи, о которой стоит сказать дважды: заранее — чтобы собраться, и в назначенное время — чтобы начать. Без упреждения оба совпадают, и остаётся одно уведомление.</string>
+    <string name="hint_settings_reminders_digest">У записи с датой и без часа нет момента, о котором можно сообщить, поэтому сообщается о дне — один раз, в выбранное здесь время, что бы в нём ни было. Содержание читается в момент срабатывания, а не при планировании.</string>
     <string name="hint_settings_reminders_grant">Открывает экран платформы, где разрешаются уведомления этого приложения. Без разрешения план стоит и срабатывает, но на экран ничего не попадает.</string>
     <string name="hint_settings_reminders_allow_exact">Открывает экран платформы, где разрешаются точные сигналы. Без разрешения платформа доставляет сигнал в пределах часа от его времени, а для встречи это не напоминание.</string>
     <string name="hint_settings_licences">Что приложение несёт в себе, кроме собственных исходников, и на каких условиях.</string>
@@ -352,7 +352,7 @@
 
     <string name="help_reminders_enabled_example">Встреча в 15:00 при упреждении за час объявляется в 14:00, а сводка в 09:00 называет то, что в дне стоит без времени. При выключенном тумблере и то и другое остаётся в заметках и до экрана не доходит.</string>
 
-    <string name="help_reminders_lead_example">Час до встречи в 15:00 — уведомление в 14:00, есть время выйти. Пять минут подходят для звонка, к которому не надо идти, а «В сам момент» объявляет ровно в 15:00.</string>
+    <string name="help_reminders_lead_example">Час до встречи в 15:00 — уведомление в 14:00, есть время выйти. Пять минут подходят для звонка, к которому не надо идти, а «Без упреждения» объявляет ровно в 15:00.</string>
 
     <string name="help_reminders_at_start_example">Встреча в 15:00 при упреждении за час: одно уведомление в 14:00 — собраться, другое в 15:00 — начинать. При выключенном тумблере останется только то, что в 14:00.</string>
 

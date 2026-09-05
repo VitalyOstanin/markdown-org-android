@@ -32,6 +32,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The setting for which day a week starts on is named rather than begun. "A
+  week begins on" ended mid-sentence and left the answer to finish it, which
+  in Russian also put the days into a case of their own ("Понедельника"). It
+  is "The first day of the week" now, and the answers are the days as they are
+  called.
+
+- Two more reminder settings say what they mean on their own. A lead time of
+  zero was "At the moment", which named a moment the reader had to infer;
+  it is "No lead time" now, in the same breath as the "5 minutes" and the
+  "an hour" beside it, and the Russian drops a second borrowed "в сам". The
+  digest's label was the first half of a sentence the button finished ("The
+  day's digest at" / "09:00"), which reads as nothing at all where the label
+  is shown by itself — in the search over the settings and in the list of
+  explanations. It is a phrase of its own now.
+
 - The second reminder is named by the time it is raised at rather than by "the
   hour itself". An entry set for 15:30 is not announced at an hour, and the
   Russian said it in words borrowed from the English besides. The switch, its
