@@ -330,7 +330,7 @@
       },
       {
         "name": "libssh2-sys",
-        "version": "0.3.2",
+        "version": "0.3.3",
         "url": "https://github.com/alexcrichton/ssh2-rs"
       },
       {
@@ -512,7 +512,7 @@
     "usedBy": [
       {
         "name": "getrandom",
-        "version": "0.4.3",
+        "version": "0.3.4",
         "url": "https://github.com/rust-random/getrandom"
       }
     ]

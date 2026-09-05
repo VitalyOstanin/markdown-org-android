@@ -38,6 +38,12 @@ jobs:
       # A scheduled run has no pull request to report on, so the action opens
       # an issue instead.
       issues: write
+      # What the action reports a finding through on every other run. Without
+      # it the run fails on the refusal to create the check rather than on the
+      # advisory it found, which reads as a broken workflow: the first finding
+      # in months was a yanked crate, and what the log ended with was
+      # "Resource not accessible by integration".
+      checks: write
 
     steps:
       - name: Checkout
