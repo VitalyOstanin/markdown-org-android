@@ -78,7 +78,8 @@ so a decision can be followed across the three repositories.
 | 0040 | [An entry carries the moment it was written at, and the caller names it](0040-an-entry-carries-the-moment-it-was-written-at.md) | Accepted |
 | 0041 | [A setting explains itself on a screen behind a mark, and the obvious ones say nothing](0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md) | Accepted |
 | 0042 | [An entry is changed by one phrase, in one write](0042-an-entry-is-changed-by-one-phrase-in-one-write.md) | Accepted |
-| 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted |
+| 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted, written form amended by 0044 |
+| 0044 | [The occurrence a move names is written as an inactive timestamp](0044-the-occurrence-a-move-names-is-a-timestamp.md) | Accepted |
 
 ## Adding a new ADR
 

@@ -55,7 +55,7 @@ foreign-types = "0.3"
 # and a RECURRENCE_ID written with seconds loses the time it names. A phone
 # disagreeing with the editor over which days a series has is the difference
 # this pin exists to prevent.
-markdown-org-extract = "0.22"
+markdown-org-extract = "0.23"
 # Dates cross the boundary as strings, but the repeater maths the extractor
 # exposes speaks NaiveDate. The same lower bound the extractor states, rather
 # than a bare "0.4": otherwise the floor here would be whatever the extractor

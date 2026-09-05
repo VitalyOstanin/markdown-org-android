@@ -40,20 +40,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wording is unchanged.
 - An occurrence moved to another day is written inside the series rather than
   as an entry of its own. What lands in the note is one line under the entry's
-  dates, `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>`, naming the occurrence
-  before the arrow and where it is held after it. A reader looking at the
-  series now sees that one of its occurrences moved; before, the answer stood
-  at the end of the file, under whatever heading happened to be last, and its
-  copied heading said something false about where it belonged. The line is
-  spelt from the series' own planning line -- its indentation, the language of
-  its weekday -- and carries neither a repeater nor a warning cookie, because
-  one occurrence does not repeat and how far ahead a deadline warns belongs to
-  the series. The series is not touched at all and no longer gains an `ID`: a
-  line inside the entry points at nothing. An occurrence moved a second time
-  rewrites what stands for it rather than adding a second answer for the day,
-  and one moved before this release -- an entry carrying `SERIES_ID` and
-  `RECURRENCE_ID` -- is still read and is moved where it stands. An occurrence
-  held between two hours keeps both of them wherever it goes.
+  dates, `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 18:00>`, naming the
+  occurrence before the arrow and where it is held after it. Both halves are
+  timestamps, and the brackets say which is which: the occurrence is an
+  address, written inactive; the day it moves to is when the entry is kept,
+  written active. A reader looking at the series now sees that one of its
+  occurrences moved; before, the answer stood at the end of the file, under
+  whatever heading happened to be last, and its copied heading said something
+  false about where it belonged. The line is spelt from the series' own
+  planning line -- its indentation, the language of its weekday -- and carries
+  neither a repeater nor a warning cookie, because one occurrence does not
+  repeat and how far ahead a deadline warns belongs to the series. The series
+  is not touched at all and no longer gains an `ID`: a line inside the entry
+  points at nothing. An occurrence moved a second time rewrites what stands for
+  it rather than adding a second answer for the day, in whichever form that
+  line was written, and one moved before this release -- an entry carrying
+  `SERIES_ID` and `RECURRENCE_ID` -- is still read and is moved where it
+  stands. An occurrence held between two hours keeps both of them wherever it
+  goes.
 - The setting for which day a week starts on is named rather than begun. "A
   week begins on" ended mid-sentence and left the answer to finish it, which
   in Russian also put the days into a case of their own ("Понедельника"). It

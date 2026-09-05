@@ -248,16 +248,19 @@ The text of one entry is the exception, and it is bounded to that entry:
 One occurrence of a repeating entry is answered apart from the series it
 belongs to, and both answers are written inside the entry — see
 [ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md)
-and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md):
+and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md), in the form
+[ADR-0044](docs/adr/0044-the-occurrence-a-move-names-is-a-timestamp.md) writes:
 
 - `cancelOccurrence(target, date)` — take one occurrence out of the series by
   adding the day to its `EXDATE`, leaving the series repeating;
 - `moveOccurrence(target, occurrence, date, time)` — write a `MOVED` line of
-  the series, naming the occurrence before the arrow and where it is held
-  after it: `` `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>` ``. The series
-  keeps its own line and needs no identifier. An occurrence moved a second
-  time rewrites what already stands for it — the `MOVED` line, or the entry
-  the older shape left in the file.
+  the series, naming the occurrence before the arrow and where it is held after
+  it: `` `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 18:00>` ``. The occurrence
+  is inactive, because it is an address; the day it moves to is active, because
+  that is when the entry is kept. The series keeps its own line and needs no
+  identifier. An occurrence moved a second time rewrites what already stands
+  for it — the `MOVED` line in either form, or the entry the older shape left
+  in the file.
 
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)

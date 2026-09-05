@@ -4,7 +4,9 @@
 //! Both are written into the entry itself: `EXDATE` on the series lists the
 //! occurrences it does not have (the extractor's ADR-0031, in the
 //! `org-properties` keys of its ADR-0020), and a `MOVED` line names an
-//! occurrence and where it is held instead (its ADR-0038). A move needs no
+//! occurrence and where it is held instead (its ADR-0038). The occurrence it
+//! names is written as an inactive timestamp, so both halves of the line are
+//! timestamps (its ADR-0039); a bare date is still read. A move needs no
 //! `EXDATE` beside it — that is the split RFC 5545 makes between an
 //! occurrence that is gone and one that moved.
 //!
@@ -187,13 +189,13 @@ fn moving_an_occurrence_writes_a_line_of_the_series_and_leaves_the_series_where_
     assert!(outcome.changed);
     assert_eq!(
         outcome.line,
-        "`MOVED: 2026-08-20 -> <2026-08-20 Thu 18:00>`"
+        "`MOVED: [2026-08-20 Thu] -> <2026-08-20 Thu 18:00>`"
     );
     assert_eq!(
         body(vault.path()),
         "# TODO English\n\
          `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
-         `MOVED: 2026-08-20 -> <2026-08-20 Thu 18:00>`\n"
+         `MOVED: [2026-08-20 Thu] -> <2026-08-20 Thu 18:00>`\n"
     );
 }
 
@@ -221,7 +223,7 @@ fn a_move_stands_under_the_dates_and_above_the_properties() {
         "# TODO English\n\
          `CREATED: [2025-12-08 Mon 01:06]`\n\
          `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
-         `MOVED: 2026-08-20 -> <2026-08-21 Fri 15:00>`\n\
+         `MOVED: [2026-08-20 Thu] -> <2026-08-21 Fri 15:00>`\n\
          ```org-properties\n\
          ID: 4b71\n\
          ```\n"
@@ -267,7 +269,7 @@ fn neither_the_repeater_nor_the_warning_cookie_goes_with_the_occurrence() {
         body(vault.path()),
         "# TODO Rent\n\
          `DEADLINE: <2026-08-06 Thu ++1m -3d>`\n\
-         `MOVED: 2026-09-06 -> <2026-09-04 Fri>`\n"
+         `MOVED: [2026-09-06 Sun] -> <2026-09-04 Fri>`\n"
     );
 }
 
@@ -284,7 +286,7 @@ fn the_move_is_spelled_the_way_the_series_is() {
     .expect("move");
 
     assert!(
-        body(vault.path()).contains("`MOVED: 2026-08-20 -> <2026-08-21 пт 18:00>`\n"),
+        body(vault.path()).contains("`MOVED: [2026-08-20 чт] -> <2026-08-21 пт 18:00>`\n"),
         "{}",
         body(vault.path())
     );
@@ -303,7 +305,7 @@ fn an_occurrence_held_between_two_times_keeps_both_of_them() {
     .expect("move");
 
     assert!(
-        body(vault.path()).contains("`MOVED: 2026-08-20 -> <2026-08-22 Sat 15:00-16:30>`"),
+        body(vault.path()).contains("`MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 15:00-16:30>`"),
         "{}",
         body(vault.path())
     );
@@ -325,7 +327,7 @@ fn the_heading_is_not_touched_and_nothing_is_appended_to_the_file() {
         body(vault.path()),
         "### TODO [#A] English\n\
          `SCHEDULED: <2026-08-06 Thu +1w>`\n\
-         `MOVED: 2026-08-20 -> <2026-08-21 Fri>`\n"
+         `MOVED: [2026-08-20 Thu] -> <2026-08-21 Fri>`\n"
     );
 }
 
@@ -387,7 +389,35 @@ fn an_occurrence_moved_twice_is_moved_in_place() {
         body(vault.path()),
         "# TODO English\n\
          `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
-         `MOVED: 2026-08-20 -> <2026-08-22 Sat 19:00>`\n"
+         `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 19:00>`\n"
+    );
+}
+
+#[test]
+fn a_move_written_as_a_bare_date_is_found_and_rewritten_in_place() {
+    // The form ADR-0038 wrote before ADR-0039 named the occurrence without
+    // brackets. Files still hold it, and a second move has to land on that
+    // line rather than beside it.
+    let vault = vault(
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
+         `MOVED: 2026-08-20 -> <2026-08-21 Fri 15:00>`\n",
+    );
+
+    let outcome = move_occurrence(
+        target(vault.path(), 1, "English"),
+        "2026-08-20".to_string(),
+        "2026-08-22".to_string(),
+        Some("19:00".to_string()),
+    )
+    .expect("move");
+
+    assert!(outcome.changed);
+    assert_eq!(
+        body(vault.path()),
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
+         `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 19:00>`\n"
     );
 }
 
@@ -441,8 +471,8 @@ fn a_second_occurrence_gets_a_line_of_its_own() {
         body(vault.path()),
         "# TODO English\n\
          `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
-         `MOVED: 2026-08-20 -> <2026-08-21 Fri 15:00>`\n\
-         `MOVED: 2026-08-27 -> <2026-08-29 Sat 15:00>`\n"
+         `MOVED: [2026-08-20 Thu] -> <2026-08-21 Fri 15:00>`\n\
+         `MOVED: [2026-08-27 Thu] -> <2026-08-29 Sat 15:00>`\n"
     );
 }
 
@@ -519,7 +549,7 @@ fn a_working_day_series_leaves_its_repeater_behind_too() {
     .expect("move");
 
     assert!(
-        body(vault.path()).contains("`MOVED: 2026-08-07 -> <2026-08-10 Mon 10:00>`"),
+        body(vault.path()).contains("`MOVED: [2026-08-07 Fri] -> <2026-08-10 Mon 10:00>`"),
         "{}",
         body(vault.path())
     );

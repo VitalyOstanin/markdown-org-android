@@ -9,7 +9,7 @@
 //! ````text
 //! # TODO English
 //! `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`
-//! `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>`   <- an occurrence that moved
+//! `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 18:00>` <- an occurrence that moved
 //! ```org-properties
 //! EXDATE: 2026-08-13                              <- an occurrence that is gone
 //! ```
@@ -191,6 +191,10 @@ pub fn move_occurrence(
 /// Spelt from the series' own planning line: its indentation, and the weekday
 /// written the way that line writes it. A series naming no weekday is
 /// answered without one.
+///
+/// Both days are timestamps, and the brackets say which is which (the core's
+/// ADR-0039): the occurrence being moved is an address, so it is written
+/// inactive, and the day it is held on is active.
 fn moved_line(
     planning: &str,
     parts: &TimestampParts,
@@ -198,14 +202,17 @@ fn moved_line(
     to: NaiveDate,
     time: Option<&str>,
 ) -> Result<String, EditError> {
-    let weekday = match parts.weekday.clone() {
-        Some(range) => format!(" {}", weekday_like(&planning[range], to)?),
-        None => String::new(),
+    let (moved_weekday, weekday) = match parts.weekday.clone() {
+        Some(range) => (
+            format!(" {}", weekday_like(&planning[range.clone()], occurrence)?),
+            format!(" {}", weekday_like(&planning[range], to)?),
+        ),
+        None => (String::new(), String::new()),
     };
     let held = time.map_or(String::new(), |time| format!(" {time}"));
 
     Ok(format!(
-        "{}`{MOVED} {} -> <{}{weekday}{held}>`",
+        "{}`{MOVED} [{}{moved_weekday}] -> <{}{weekday}{held}>`",
         indentation(planning),
         occurrence.format("%Y-%m-%d"),
         to.format("%Y-%m-%d"),
@@ -225,11 +232,15 @@ fn moved_line_for(document: &Document, index: usize, occurrence: NaiveDate) -> O
 }
 
 /// The occurrence a `MOVED` line names, as it is written.
+///
+/// Read in both forms: the inactive timestamp written since ADR-0039, and the
+/// bare date of ADR-0038 that files already hold.
 fn moved_occurrence(line: &str) -> Option<String> {
     let rest = bare_start(line).strip_prefix(MOVED)?;
     let (day, _) = rest.split_once("->")?;
 
-    let day = day.trim();
+    let day = day.trim().trim_start_matches('[').trim_end_matches(']');
+    let day = day.split_whitespace().next()?;
     NaiveDate::parse_from_str(day, "%Y-%m-%d")
         .ok()
         .map(|_| day.to_string())

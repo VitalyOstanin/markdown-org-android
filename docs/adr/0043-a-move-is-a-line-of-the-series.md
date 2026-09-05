@@ -17,6 +17,11 @@ application writes; that shape is still read, and files already carrying it
 keep working. The `EXDATE` half of ADR-0033 is untouched: an occurrence that is
 gone is still cancelled the way it was.
 
+Amended by
+[ADR-0044](0044-the-occurrence-a-move-names-is-a-timestamp.md) (2026-09-05):
+the occurrence before the arrow is written as an inactive timestamp rather
+than a bare date; the bare date is still read.
+
 ## Context
 
 ADR-0033 wrote a moved occurrence the way iCalendar does: a second entry at the

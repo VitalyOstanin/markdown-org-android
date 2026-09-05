@@ -216,13 +216,16 @@ reasoning.
   [ADR-0042](docs/adr/0042-an-entry-is-changed-by-one-phrase-in-one-write.md).
 
 - One occurrence of a series is moved by a line of the entry itself,
-  `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>`, rather than by a second entry
-  at the end of the file. The occurrence stands before the arrow and where it
-  is held after it; the timestamp there carries no repeater and no warning
-  cookie, and the series is not touched and needs no `ID`. The shape written
-  before — an entry carrying `SERIES_ID` and `RECURRENCE_ID` — is still read,
-  and an occurrence standing in one is moved where it stands. See
-  [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md).
+  `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 18:00>`, rather than by a second
+  entry at the end of the file. The occurrence stands before the arrow, written
+  inactive because it is an address, and where it is held after it, written
+  active; the timestamp there carries no repeater and no warning cookie, and
+  the series is not touched and needs no `ID`. The bare date written before —
+  and the shape before that, an entry carrying `SERIES_ID` and
+  `RECURRENCE_ID` — are still read, and an occurrence standing in either is
+  moved where it stands. See
+  [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md) and
+  [ADR-0044](docs/adr/0044-the-occurrence-a-move-names-is-a-timestamp.md).
 
 ## Working on the core
 
