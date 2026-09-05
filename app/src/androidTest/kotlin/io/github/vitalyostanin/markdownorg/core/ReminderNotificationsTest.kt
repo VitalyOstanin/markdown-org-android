@@ -1,8 +1,13 @@
 package io.github.vitalyostanin.markdownorg.core
 
+import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.ParcelFileDescriptor
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.vitalyostanin.markdownorg.R
@@ -48,12 +53,24 @@ class ReminderNotificationsTest {
         // Granted through the shell rather than through a rule: this is the
         // only runtime permission these tests need, and the rule for it lives
         // in a test dependency the project does not otherwise carry.
+        //
+        // Waited for, because `executeShellCommand` returns as soon as the
+        // command has been handed over: the grant lands afterwards, and a
+        // notification raised before it does is dropped without a word --
+        // `ReminderNotifications` checks the permission and returns. It is the
+        // first test of the class that pays for this, whichever one that is,
+        // and the rest run against a permission granted by then. The
+        // descriptor is drained rather than closed unread so that the shell
+        // is not writing into a pipe nobody reads.
         InstrumentationRegistry.getInstrumentation()
             .uiAutomation
             .executeShellCommand(
                 "pm grant ${context.packageName} android.permission.POST_NOTIFICATIONS",
             )
-            .close()
+            .use { descriptor ->
+                ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+            }
+        awaitTheGrant()
         // The receiver does this before it raises anything; a notification
         // into a channel that was never declared is dropped by the platform.
         ReminderChannels.declare(context)
@@ -165,6 +182,29 @@ class ReminderNotificationsTest {
         ReminderNotifications.cancelAll(context)
 
         assertNull(waitFor(ReminderNumbering.notification(TIMED.entry), patience = SHORT))
+    }
+
+    /**
+     * That the permission is actually held before anything is raised.
+     *
+     * The same question `ReminderNotifications` asks itself before it raises
+     * anything, so what is waited for is exactly what decides whether the
+     * notification appears.
+     */
+    private fun awaitTheGrant() {
+        val deadline = System.currentTimeMillis() + PATIENCE
+
+        while (System.currentTimeMillis() < deadline) {
+            val held = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (held && NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                return
+            }
+            Thread.sleep(POLL)
+        }
     }
 
     /** The platform holds it a moment after `notify` returns, so it is waited for. */
