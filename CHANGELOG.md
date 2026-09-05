@@ -121,6 +121,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The SSH library git traffic is built on moves to libssh2-sys 0.3.3. The
+  version before it was yanked from crates.io, and the crate is vendored into
+  the native library rather than loaded from the phone, so the only way a
+  replacement reaches a reader is a release of this application. The notices
+  name the version that is actually inside the APK.
+
 - The button that opens speech recognition is called "Диктовать" in Russian,
   in all three places it stands: beside the phrase field of an entry, beside
   the one on the creation screen, and on the agenda ("Диктовать задачу"). It
