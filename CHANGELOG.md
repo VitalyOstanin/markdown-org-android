@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The second reminder is named by the time it is raised at rather than by "the
+  hour itself". An entry set for 15:30 is not announced at an hour, and the
+  Russian said it in words borrowed from the English besides. The switch, its
+  subtitle and its hint now say "at the time it is set for"; the examples in
+  the help say "with an hour of lead time" where they used to say "at an
+  hour", which read as two different things at once.
+
 - One set of words for a day and an hour, wherever they are asked for. The
   screen that writes a new task said "No date" and "Pick a time…" where the
   sheet over a task in the notes said "Take it off" and "Pick an hour…", and

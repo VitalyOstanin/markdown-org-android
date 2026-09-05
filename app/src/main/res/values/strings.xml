@@ -249,8 +249,8 @@
     <string name="settings_reminders_lead_fifteen">15 min before</string>
     <string name="settings_reminders_lead_thirty">30 min before</string>
     <string name="settings_reminders_lead_hour">An hour before</string>
-    <string name="settings_reminders_at_start">And again at the hour itself</string>
-    <string name="settings_reminders_at_start_hint">Two notifications about the same entry: one ahead of it, one when it starts.</string>
+    <string name="settings_reminders_at_start">And again at the time it is set for</string>
+    <string name="settings_reminders_at_start_hint">Two notifications about the same entry: one ahead of it, one at the time it is set for.</string>
     <string name="settings_reminders_digest">The day\'s digest at</string>
     <string name="settings_reminders_digest_hint">One notification naming what the day holds: entries without an hour, deadlines inside their warning window, and how much is overdue.</string>
     <string name="settings_reminders_no_notifications">Notifications are refused, so nothing would be seen.</string>
@@ -395,7 +395,7 @@
     <string name="hint_settings_agenda_month_grid">A calendar says how the month is shaped: which weeks are full, where the arrears sit, which stretch is free. A day is opened to read what is actually on it. The list says what is in the month and takes a scroll to say it.</string>
     <string name="hint_settings_reminders_enabled">Nothing is announced while this is off, and no alarm is held. What is announced is decided from the same agenda the screen draws, so an entry closed on another device stops being announced as soon as the notes are fetched.</string>
     <string name="hint_settings_reminders_lead">The lead time is the same for every entry: the notes say nothing about how long it takes to get anywhere, and a lead time per entry would have to be written into them. "At the moment" is a lead time of zero rather than the absence of a reminder.</string>
-    <string name="hint_settings_reminders_at_start">For an entry worth being told about twice — the notice ahead of it to get ready, and the one at the hour to start. With a lead time of "at the moment" the two coincide and only one is raised.</string>
+    <string name="hint_settings_reminders_at_start">For an entry worth being told about twice — the notice ahead of it to get ready, and the one at the time it is set for to start. With a lead time of "at the moment" the two coincide and only one is raised.</string>
     <string name="hint_settings_reminders_digest">An entry with a date and no hour has no moment to announce, so the day is announced instead — once, at this hour, whatever it holds. What it says is read when it fires, not when it is planned.</string>
     <string name="hint_settings_reminders_grant">Opens the screen of the platform where notifications from this application are allowed. Without it the plan still stands and fires, and nothing of it reaches the screen.</string>
     <string name="hint_settings_reminders_allow_exact">Opens the screen of the platform where exact alarms are allowed. Without it the platform delivers an alarm within an hour of its time, which for a meeting is not a reminder.</string>
