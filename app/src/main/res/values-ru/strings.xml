@@ -57,7 +57,7 @@
     <string name="create_day_assumed_today">День не назван: %1$s сегодня ещё впереди — запись на сегодня, %2$s</string>
     <string name="create_day_assumed_tomorrow">День не назван: %1$s сегодня уже прошло — запись на завтра, %2$s</string>
     <string name="create_day_assumed_repeat">День не назван, повтор начинается сегодня — %1$s</string>
-    <string name="agenda_dictate">Сказать задачу</string>
+    <string name="agenda_dictate">Диктовать задачу</string>
     <string name="agenda_dictate_failed">Сказанное не удалось разобрать</string>
     <string name="agenda_section_timed">Ко времени</string>
     <string name="agenda_section_untimed">Весь день и предстоящие</string>
@@ -369,7 +369,7 @@
     <string name="action_cancel_task">Снять задачу</string>
     <string name="action_reopen">Вернуть в работу</string>
     <string name="action_phrase">Измените одной фразой</string>
-    <string name="action_phrase_speak">Сказать</string>
+    <string name="action_phrase_speak">Диктовать</string>
     <string name="action_phrase_apply">Применить</string>
     <string name="action_phrase_prompt">Скажите, что изменить в этой записи</string>
     <string name="action_open_externally">Открыть заметку в другом приложении</string>
@@ -399,7 +399,7 @@
     <string name="create_goes_to_end">Пишется в конец файла %1$s</string>
     <string name="create_phrase">Скажите одной фразой</string>
     <string name="create_phrase_parse">Заполнить</string>
-    <string name="create_phrase_speak">Сказать</string>
+    <string name="create_phrase_speak">Диктовать</string>
     <string name="create_phrase_prompt">Скажите задачу одной фразой</string>
     <string name="create_phrase_unheard">На этом устройстве нечем распознать речь — наберите фразу.</string>
     <string name="agenda_phrase_leftover">Фраза понята не полностью, ничего не изменено</string>

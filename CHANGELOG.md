@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The button that opens speech recognition is called "Диктовать" in Russian,
+  in all three places it stands: beside the phrase field of an entry, beside
+  the one on the creation screen, and on the agenda ("Диктовать задачу"). It
+  said "Сказать" and "Сказать задачу", which names the act of speaking rather
+  than what the button does, and left one action with two names. The English
+  wording is unchanged.
 - An occurrence moved to another day is written inside the series rather than
   as an entry of its own. What lands in the note is one line under the entry's
   dates, `MOVED: 2026-08-20 -> <2026-08-22 Sat 18:00>`, naming the occurrence
