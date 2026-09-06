@@ -22,23 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on first run. A reader arriving at the repository had a description of the
   agenda and no picture of it.
 
-- A phrase says what it changed, field by field. "перенеси на пятницу в 16:00
-  и сделай срочной" is three fields at once, and "заметка записана" left the
-  reader to open the note to see whether all three were heard. The line under
-  the screen now names them with both values -- "Изменено: срочность B → A,
-  дата 04.09.2026, время 16:00" -- and a field the phrase emptied is named as
-  emptied. Dates and hours are written the way the reader's locale and clock
-  write them; the keywords are not translated, being what the file says.
+- A phrase says what it changed, field by field. "move it to Friday at 16:00
+  and urgent" is three fields at once, and a line reading only "note written"
+  left the reader to open the note to see whether all three were heard. The
+  line under the screen now names them with both values -- in Russian,
+  "Изменено: срочность B → A, дата 04.09.2026, время 16:00" -- and a field the
+  phrase emptied is named as emptied. Dates and hours are written the way the
+  reader's locale and clock write them; the keywords are not translated, being
+  what the file says.
   A field named to the value the entry already carried is not listed: the core
   reports such a phrase as an edit that wrote nothing, and the line agrees.
 
 - An entry is changed by saying what to change. The sheet a tap on a row opens
-  now begins with a field and a microphone: "перенеси на пятницу в 16:00 и
-  сделай срочной" moves the day, the hour and the priority at once, where the
-  buttons under it are three taps and two dialogs of choice. A phrase can also
-  say the keyword — "отметь выполненной", "в работу" — and empty a field:
-  "убрать дату", "убрать время", "без повтора", "без приоритета". One write,
-  one commit and one undo for the whole sentence.
+  now begins with a field and a microphone: "move it to Friday at 16:00 and
+  urgent" moves the day, the hour and the priority at once, where the buttons
+  under it are three taps and two dialogs of choice. A phrase can also say the
+  keyword — "done", "todo" — and empty a field: "remove the date", "remove the
+  time", "no repeat", "no priority". One write, one commit and one undo for the
+  whole sentence.
   A word the rules do not know changes nothing at all and is named instead:
   applying the half that was understood would move a field nobody meant to
   name. The rules are the core's, and read both grammars whatever language the
@@ -64,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without a weekday where they carry none.
 
 - A phrase at the head of the creation screen. What is said in one sentence —
-  "позвонить врачу завтра в 15:00, каждую неделю" — fills the heading, the day,
+  "call the doctor tomorrow at 15:00, every week" — fills the heading, the day,
   the hour and the repeater at once, instead of a heading typed with two thumbs,
   a date picked out of a dialog, an hour picked out of a clock and a repeater
   chosen from a row of chips. The rules are the core's, so the phone and the
@@ -111,13 +112,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   line takes both files back together.
 
 - A microphone in the corner of the agenda, over the plus. A task said to it
-  is written the moment the recogniser hands the sentence over — "позвонить
-  врачу завтра в 15:00" becomes a heading, a day and an hour without a screen
-  in between, and the line at the foot offers to take it back. Two actions
-  rather than the five the creation screen takes, which is what a task thought
-  of while walking has time for. The sentence goes through the rules a typed
-  phrase does, so both ways of saying the same thing read the same; a phone
-  with nothing to listen with says so and leaves the plus to write with.
+  is written the moment the recogniser hands the sentence over — "call the
+  doctor tomorrow at 15:00" becomes a heading, a day and an hour without a
+  screen in between, and the line at the foot offers to take it back. Two
+  actions rather than the five the creation screen takes, which is what a task
+  thought of while walking has time for. The sentence goes through the rules a
+  typed phrase does, so both ways of saying the same thing read the same; a
+  phone with nothing to listen with says so and leaves the plus to write with.
 
 ### Changed
 
@@ -186,8 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chips: where a week begins, how long before a timed entry it is announced,
   and which end of the file an entry is written at. A row of chips paid a line
   of the screen for every answer that did not fit the width, and on a phone
-  held upright "Воскресенья" was squeezed until its word broke into a column of
-  single letters.
+  held upright the Russian "Воскресенья" was squeezed until its word broke
+  into a column of single letters.
 
 - The line that used to stand under a setting has moved into the tooltip its
   label already carried. Eight of them on a column of thirty settings spent a
@@ -252,7 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the sheet of date actions, where the reading had no guard at all.
 
 - A task said with an hour and no day is written for the day that hour next
-  comes round on. The rules read "позвонить врачу в 15:00" as an hour and
+  comes round on. The rules read "call the doctor at 15:00" as an hour and
   nothing else, a planning line cannot hold an hour without a day, and the
   hour was dropped on the way to the file -- the entry arrived as a bare
   heading, with no screen in between for the loss to show on. It is written
@@ -270,7 +271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now put to the extractor.
 
 - Two things happening at once no longer cost a reminder or a write. A fetch
-  landing while an edit is being written, or two "Готово" buttons answered a
+  landing while an edit is being written, or two "Done" buttons answered a
   second apart, used to run two walks over one working copy: whichever finished
   first could renumber the alarms while the other was still placing them,
   leaving reminders that never fire and alarms that nothing cancels. Every
@@ -278,7 +279,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds it, and the count the alarms are cancelled by is kept in step with what
   the platform holds.
 
-- The "Готово" button on a reminder says when it did not work. The
+- The "Done" button on a reminder says when it did not work. The
   notification goes down as the button is pressed — one that stays up reads as
   a press that did nothing — and everything after that used to be silent: an
   entry moved on another device, a collection removed since the reminder was
@@ -296,7 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reminders that stop arriving now leave a trace. The part of the application
   that has no screen — the receiver woken by an alarm, the one woken by a
-  restart, the service behind the "Готово" button — asked for a plan and threw
+  restart, the service behind the "Done" button — asked for a plan and threw
   the answer away, so a directory that could not be read, a nine-second budget
   that ran out and a refused alarm all looked the same from outside: nothing
   arrives, and the log says nothing either. Each of them is now written down
