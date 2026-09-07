@@ -55,20 +55,29 @@ class ReminderPlanningTest {
         )
     }
 
+    /**
+     * Counted per call rather than per file: `onFailure` standing anywhere in
+     * the file says nothing about the call beside it, and every file that asks
+     * for a plan handles something else as well.
+     */
     @Test
     fun everyPlanMadeInTheBackgroundSaysWhenItFailed() {
         val main = root.resolve("app/src/main/kotlin/io/github/vitalyostanin/markdownorg")
+        val asked = Regex("""\.replan\(\)""")
+        val answered = Regex("""\.replan\(\)\s*(//[^\n]*\n\s*)*\.onFailure""")
         val silent = main.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> file.readText().contains(".replan()") }
-            .filter { file -> !file.readText().contains("onFailure") }
-            .map { it.name }
+            .map { file -> file to file.readText() }
+            .map { (file, text) ->
+                file.name to asked.findAll(text).count() - answered.findAll(text).count()
+            }
+            .filter { (_, dropped) -> dropped > 0 }
             .toList()
 
         assertTrue(
             "these files ask for a plan and drop the answer — the reminders stopping is then " +
                 "a silence with nothing in the log to tell one cause from another:\n" +
-                silent.joinToString("\n") { "  $it" },
+                silent.joinToString("\n") { (name, dropped) -> "  $name: $dropped" },
             silent.isEmpty(),
         )
     }

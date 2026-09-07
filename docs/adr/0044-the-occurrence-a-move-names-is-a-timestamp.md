@@ -10,7 +10,10 @@
 
 ## Status
 
-Accepted (2026-09-05). Amends the written form of
+Accepted (2026-09-05); the weekday part amended by
+[ADR-0046](0046-both-halves-of-a-move-carry-a-weekday.md), which writes one on
+both halves of the line whatever the series' planning line names. Amends the
+written form of
 [ADR-0043](0043-a-move-is-a-line-of-the-series.md): what stands before the
 arrow is an inactive timestamp rather than a bare date. The bare date is still
 read, so files this application has already written keep working. Everything

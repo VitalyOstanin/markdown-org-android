@@ -223,9 +223,17 @@ class ReminderNotificationsTest {
             context.getString(R.string.reminder_digest_title),
             raised.notification.extras.getString("android.title"),
         )
-        // The counts the digest is made of, in the order it says them.
-        val text = raised.notification.extras.getString("android.text").orEmpty()
-        assertTrue("the digest said nothing of the day: $text", text.isNotEmpty())
+        // The counts the digest is made of, in the order it says them, and
+        // nothing for the group the day holds none of. Only here: the wording
+        // comes out of the resources, and a JVM test sees a stub in their
+        // place.
+        assertEquals(
+            listOf(
+                context.resources.getQuantityString(R.plurals.reminder_digest_dated, 1, 1),
+                context.getString(R.string.reminder_digest_overdue, 1),
+            ).joinToString(context.getString(R.string.reminder_digest_separator)),
+            raised.notification.extras.getString("android.text"),
+        )
         // What the expanded drawer holds: the headings of the day in the same
         // order, each marked as an entry of its own. Only here as well --
         // which style a notification carries is the platform's answer, not the

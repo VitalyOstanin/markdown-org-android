@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.build
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -19,32 +20,66 @@ import java.io.File
  * not take the collection, and `settings` there quietly becomes the edited
  * collection's. Hence the guard: a local that means another collection carries
  * another name.
+ *
+ * Where to look is found rather than written down. A path in the test survives
+ * the code moving out of the file it names and goes on passing over a file
+ * that holds none of this; the property declarations are what the guard is
+ * about, so they are what it looks for. The name alone would not do either:
+ * `settings` in the agenda's model is the settings screen and in the reminders
+ * it is their preferences, and neither stands for a collection.
  */
 class CollectionNamesTest {
+
     private val root = File(System.getProperty("repo.root") ?: "..")
 
-    /** What the settings screen's own properties are called. */
-    private val reserved = listOf("notes", "settings", "editor", "sync")
+    private val screens =
+        root.resolve("app/src/main/kotlin/io/github/vitalyostanin/markdownorg/ui")
 
-    /** A local binding of one of those names, wherever it stands. */
-    private val local = Regex("""^\s+val (${reserved.joinToString("|")})\s*[:=]""")
+    /** The short names, and what each of them is a collaborator of. */
+    private val standFor = mapOf(
+        "notes" to "NotesArea",
+        "settings" to "SyncPreferences",
+        "editor" to "NotesWriter",
+        "sync" to "NotesSyncer",
+    )
 
     @Test
     fun noLocalTakesTheNameOfTheEditedCollection() {
-        val screen = root.resolve(
-            "app/src/main/kotlin/io/github/vitalyostanin/markdownorg/ui/NotesSettings.kt",
+        val sources = screens.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .toList()
+        val declared = standFor.mapValues { (name, type) ->
+            sources.filter { file ->
+                Regex("""val $name\s*:\s*$type\b""").containsMatchIn(file.readText())
+            }
+        }
+
+        assertEquals(
+            "each of these names is the edited collection's in exactly one file; the guard " +
+                "below has nowhere to look otherwise:\n" +
+                declared.entries.joinToString("\n") { (name, files) ->
+                    "  $name: ${files.map { it.name }}"
+                },
+            standFor.keys,
+            declared.filterValues { it.size == 1 }.keys,
         )
-        val offenders = screen.readLines()
-            .mapIndexed { index, line -> index + 1 to line }
-            .filter { (_, line) -> local.containsMatchIn(line) }
+
+        val shadowed = declared.flatMap { (name, files) ->
+            val property = Regex("""val $name\s*:\s*${standFor.getValue(name)}\b""")
+
+            files.flatMap { file ->
+                file.readLines()
+                    .mapIndexed { index, line -> index + 1 to line }
+                    .filter { (_, line) -> Regex("""\bval $name\b""").containsMatchIn(line) }
+                    .filterNot { (_, line) -> property.containsMatchIn(line) }
+                    .map { (at, line) -> "  ${file.name}:$at: ${line.trim()}" }
+            }
+        }
 
         assertTrue(
-            "these locals take a name that means the collection the settings screen edits, " +
-                "while standing for another one — name them apart:\n" +
-                offenders.joinToString("\n") { (line, text) ->
-                    "  NotesSettings.kt:$line: ${text.trim()}"
-                },
-            offenders.isEmpty(),
+            "these bindings take a name that means the collection the settings screen edits, " +
+                "while standing for another one — name them apart:\n" + shadowed.joinToString("\n"),
+            shadowed.isEmpty(),
         )
     }
 }

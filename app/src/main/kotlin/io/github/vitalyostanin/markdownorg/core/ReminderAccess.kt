@@ -20,17 +20,13 @@ import androidx.core.content.ContextCompat
  * - **Notifications.** Asked for at runtime from Android 13; before that they
  *   are on unless the reader switched them off in the system settings, which
  *   `areNotificationsEnabled` reports either way.
- * - **Exact alarms.** From Android 12 an alarm to the minute needs
- *   `SCHEDULE_EXACT_ALARM`, which the documentation states is "not pre-granted
- *   to fresh installs of apps targeting Android 13 (API level 33) and higher"
- *   and is granted in a settings screen rather than a dialog. Without it the
- *   platform still delivers, within an hour of the time asked for — which is a
- *   reminder for a day and not for a meeting, so the settings say so rather
- *   than pretending the plan holds.
- *
- * `USE_EXACT_ALARM`, which is granted without asking, is deliberately not
- * declared: the store policy limits it to alarm and calendar applications, and
- * this is neither.
+ * - **Exact alarms.** Held from Android 13 by `USE_EXACT_ALARM`, which is
+ *   granted at install and cannot be withdrawn while the application is
+ *   installed, so there is nothing to ask for and nothing to lose (ADR-0045).
+ *   Android 12 has no such permission and asks for `SCHEDULE_EXACT_ALARM` on
+ *   a settings screen instead; refused, the platform still delivers within an
+ *   hour of the time asked for — which is a reminder for a day and not for a
+ *   meeting, so the settings say so rather than pretending the plan holds.
  *
  * Every answer is asked of the platform at the moment it is needed rather than
  * read once. Both are granted in screens outside this application, and the

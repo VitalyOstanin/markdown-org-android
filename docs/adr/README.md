@@ -79,8 +79,9 @@ so a decision can be followed across the three repositories.
 | 0041 | [A setting explains itself on a screen behind a mark, and the obvious ones say nothing](0041-a-setting-explains-itself-on-a-screen-behind-a-mark.md) | Accepted |
 | 0042 | [An entry is changed by one phrase, in one write](0042-an-entry-is-changed-by-one-phrase-in-one-write.md) | Accepted |
 | 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted, written form amended by 0044 |
-| 0044 | [The occurrence a move names is written as an inactive timestamp](0044-the-occurrence-a-move-names-is-a-timestamp.md) | Accepted |
+| 0044 | [The occurrence a move names is written as an inactive timestamp](0044-the-occurrence-a-move-names-is-a-timestamp.md) | Accepted, weekday amended by 0046 |
 | 0045 | [The minute a reminder is held to rests on a permission of its own](0045-the-minute-is-held-by-a-permission-of-its-own.md) | Accepted |
+| 0046 | [Both halves of a move carry a weekday](0046-both-halves-of-a-move-carry-a-weekday.md) | Accepted |
 | 0047 | [A reminder says its hour to a locked screen, not its entry](0047-a-reminder-says-its-hour-to-a-locked-screen.md) | Accepted |
 
 ## Adding a new ADR

@@ -215,59 +215,45 @@ notes already have — the `org-properties` block the core parses under ADR-0020
 | 3 | An occurrence moved      | an ordinary entry at the new time, carrying `RECURRENCE-ID: 2026-08-20 15:00` and the series' `ID` | it replaces exactly that occurrence, and holds its own state, notes and clocks |
 | 4 | Everything from here on  | later, if wanted: `RANGE: THISANDFUTURE` beside the identifier | splits the series rather than moving one of it                    |
 
-Why this shape rather than a bare `MOVED:` line: it is the one the extension's
-Google Calendar export can carry across without inventing a mapping, it separates
-"gone" from "moved" the way the calendar world found necessary, and it keeps the
-moved occurrence a real entry — with its own `DONE`, its own body, its own clock —
-which the alternative of rewriting the series line cannot do.
+What was chosen, and where it is written down: a cancelled occurrence is a date
+added to the series' own `EXDATE`, and a moved one is a `MOVED` line in the
+entry the series is written in — the day it left, and the timestamp it is held
+on instead. The shape on disk is the extractor's ADR-0038 and ADR-0039; what
+this application writes and what it refuses is
+[ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md),
+[ADR-0044](docs/adr/0044-the-occurrence-a-move-names-is-a-timestamp.md) and
+[ADR-0046](docs/adr/0046-both-halves-of-a-move-carry-a-weekday.md). The entry
+of ADR-0031, carrying `SERIES_ID` and `RECURRENCE_ID`, is still read, because
+files and other tools hold it.
 
-What it costs: the core's occurrence resolver reads a second source; both clients
-need a way to say "move just this one"; and a core older than the change ignores
-the properties, so an old reader shows both the series occurrence and the moved
-entry on that day.
-
-Until any of it exists, the answer that needs no format change is the one the
-clone command amounts to: complete the occurrence on the series, which moves the
-series to the next one, and write a one-off entry at the new time.
-
-The shape of an answer, none of which is chosen yet:
-
-| № | Option                          | How it reads in a file                                                        | What it costs                                                                 |
-|---|---------------------------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| 1 | Exception plus a separate entry | a property excluding the date, e.g. `EXDATE: 2026-08-20`, and an ordinary entry at the new time | the moved occurrence is a heading of its own, so its `DONE`, its notes and its clocks live apart from the series |
-| 2 | Override in place               | a property naming the occurrence and its replacement, e.g. `MOVED: 2026-08-20 15:00 -> 2026-08-20 18:00` | the series stays one heading, but the core's occurrence resolver grows a second source of truth that every consumer has to read |
-| 3 | No format change                | the client offers "detach this occurrence" and performs option 1 mechanically  | the convention still has to exist; this only decides who types it                |
-
-Whatever is chosen belongs to the core rather than to this client: the
-occurrence a row is drawn on, `timestamp_next` and `timestamp_next_after` are
-all resolved there, and the extension reads the same fields. iCalendar answers
-exactly this question with `EXDATE` and `RECURRENCE-ID`, and the extension
-already maps a repeater to an `RRULE` for Google Calendar, so an override in
-that shape would survive the round trip rather than being lost on the way out.
+The resolution belongs to the core rather than to this client: the occurrence a
+row is drawn on, `timestamp_next` and `timestamp_next_after` are all resolved
+there, and the extension reads the same fields.
 
 ### Where this stands
 
-Decided and written down: the extractor's ADR-0031 for the shape on disk, and
+Decided and written down: the extractor's ADR-0038 and ADR-0039 for the shape
+on disk, and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md) here
+for what this application writes and what it refuses —
 [ADR-0033](docs/adr/0033-an-occurrence-is-cancelled-in-place-and-moved-by-an-entry-of-its-own.md)
-here for what this application writes and what it refuses. The questions the
-options left open are answered by that shape: the original date shows nothing
-at all, and a moved occurrence is an ordinary entry, so completing it is
-completing an entry — the series is untouched and its own repeater is what
-carries it forward.
+is what it superseded. The questions the options left open are answered by that
+shape: the day the occurrence left shows nothing at all, the day it went to
+shows it, and the series is untouched — its own repeater carries it forward,
+and the line stands in the entry the series is written in, which is where the
+reader looks for it.
 
 | № | Part                                                        | State                                                                  |
 |---|-------------------------------------------------------------|------------------------------------------------------------------------|
 | 1 | The extractor leaves out an occurrence excluded or replaced | done: `EXDATE`, `SERIES_ID` and `RECURRENCE_ID` are read, and the next occurrence steps over them |
 | 2 | `cancel_occurrence` and `move_occurrence` on the boundary   | done: `rust/markdown-org-ffi/src/occurrence.rs`, with the property block kept out of the entry editor |
 | 3 | The actions on the task sheet                               | done: "Just this occurrence" under the date actions — move it, which asks for the day and then the hour, or cancel it |
-| 4 | Saying that an entry replaces an occurrence                 | to do: a row standing in for one occurrence reads as an ordinary entry, and nothing says which series it came from |
-| 5 | The pin on the extractor                                    | to do: until the version pinned in `rust/markdown-org-ffi/Cargo.toml` carries ADR-0031, a moved occurrence stands on the agenda twice |
+| 4 | The pin on the extractor                                    | done: `rust/markdown-org-ffi/Cargo.toml` is on 0.23, which reads both shapes and steps the series over what they hold |
+| 5 | Saying that an entry replaces an occurrence                 | to do: a row standing in for one occurrence in the ADR-0031 shape reads as an ordinary entry, and nothing on it says which series it came from |
 
-What is left is the reading side. Until the pin on the extractor moves, a moved
-occurrence stands on the agenda twice — the series still draws it, because the
-version bundled here does not know about replacements — and an entry that
-replaces one reads as an ordinary entry, with nothing saying which series it
-came from.
+What is left is the reading side of the older shape: an entry that replaces an
+occurrence is drawn as an ordinary entry, with nothing saying which series it
+came from. A move this application writes is a line of the series and does not
+have the question.
 
 ## Publishing to the app stores
 

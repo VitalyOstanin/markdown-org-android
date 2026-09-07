@@ -1080,6 +1080,13 @@ The screenshots are taken by hand on the emulator — `tools/run-emulator.sh`,
 then `adb exec-out screencap -p`. They show the sample notes the application
 writes on first run.
 
+`USE_EXACT_ALARM` is declared to the store with the use it is put to, at every
+release: it is a permission a store asks about, and the use is the one the
+policy allows — an agenda that announces the entries it shows. A release that
+fails to declare it is a release whose reminders are again an hour wide, and
+the failure is on the listing rather than in the code, where nothing in the
+build can catch it (ADR-0045).
+
 ## The generated Kotlin surface
 
 Names arrive idiomatic — `scanAgenda`, `filesProcessed` — and the Rust
