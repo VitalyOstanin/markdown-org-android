@@ -348,3 +348,124 @@ fn a_block_written_among_the_text_is_text() {
         "Textbook, unit four.\n```org-properties\nNOTE: by hand\n```"
     );
 }
+
+#[test]
+fn the_line_saying_when_the_entry_was_written_is_not_part_of_its_text() {
+    // Written by the operation that created the entry, like the planning
+    // lines beside it. The rest of the crate counts it as one of the lines
+    // under the heading -- a date added to such an entry joins the block
+    // rather than splitting it -- and the editor has to count it the same way,
+    // or it hands the line over as text and one keystroke takes it out.
+    let vault = vault(
+        "# TODO Write the report\n\
+         `SCHEDULED: <2026-07-28 Tue>`\n\
+         `CREATED: [2026-09-05 Fri]`\n\
+         \n\
+         The figures are in the drive.\n",
+    );
+
+    let entry = read_entry(target(vault.path(), 1, "Write the report")).expect("read");
+
+    assert_eq!(entry.body, "The figures are in the drive.");
+}
+
+#[test]
+fn a_body_line_saying_when_the_entry_was_written_is_refused() {
+    let vault = vault(ENTRY);
+
+    let refusal = set_entry(
+        target(vault.path(), 1, "Write the report"),
+        "Write the report".to_string(),
+        "`CREATED: [2026-09-05 Fri]`".to_string(),
+    )
+    .expect_err("refused");
+
+    assert!(
+        matches!(refusal, EditError::Unsupported { .. }),
+        "{refusal:?}"
+    );
+    assert_eq!(body(vault.path()), ENTRY);
+}
+
+#[test]
+fn prose_that_begins_with_a_keyword_is_still_the_text_of_the_entry() {
+    // "MOVED: обсудили, переносим в другой проект" is a sentence that starts
+    // with the word a move is written with. A marker alone does not make a
+    // line one an action wrote -- the form does -- and reading it as one takes
+    // everything above it out of the text the editor is handed.
+    let vault = vault(
+        "# TODO Write the report\n\
+         `SCHEDULED: <2026-07-28 Tue>`\n\
+         \n\
+         Agreed on the date.\n\
+         MOVED: we are taking this to another project.\n",
+    );
+
+    let entry = read_entry(target(vault.path(), 1, "Write the report")).expect("read");
+
+    assert_eq!(
+        entry.body,
+        "Agreed on the date.\nMOVED: we are taking this to another project."
+    );
+}
+
+#[test]
+fn a_body_line_that_begins_with_a_keyword_and_is_not_one_is_written_back() {
+    let vault = vault(ENTRY);
+
+    set_entry(
+        target(vault.path(), 1, "Write the report"),
+        "Write the report".to_string(),
+        "CLOSED: the question of who signs it.".to_string(),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO Write the report\n\
+         `SCHEDULED: <2026-07-28 Tue>`\n\
+         \n\
+         CLOSED: the question of who signs it.\n\
+         \n\
+         # TODO Water the plants\n"
+    );
+}
+
+#[test]
+fn an_occurrence_held_elsewhere_is_not_the_text_of_the_entry() {
+    // The other side of the same rule: a line that does carry the form is
+    // written by an action, and the editor is not handed it.
+    let vault = vault(
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu +1w>`\n\
+         `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat>`\n\
+         \n\
+         The book is in the bag.\n",
+    );
+
+    let entry = read_entry(target(vault.path(), 1, "English")).expect("read");
+
+    assert_eq!(entry.body, "The book is in the bag.");
+}
+
+#[test]
+fn a_move_the_reader_of_the_notes_refuses_is_not_read_as_one_here() {
+    // One occurrence does not repeat, so a `MOVED` line whose target carries
+    // a repeater is refused where the notes are read, and the day it names
+    // is not moved anywhere. Reading it as a move here would hide the line
+    // from the editor -- the one place it could be corrected -- while the
+    // agenda goes on warning about it.
+    let vault = vault(
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu +1w>`\n\
+         \n\
+         `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat +1w>`\n",
+    );
+
+    let entry = read_entry(target(vault.path(), 1, "English")).expect("read");
+
+    assert_eq!(
+        entry.body,
+        "`MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat +1w>`"
+    );
+}

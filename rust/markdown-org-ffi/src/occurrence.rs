@@ -35,13 +35,18 @@
 
 use std::ops::Range;
 
-use chrono::{NaiveDate, NaiveTime};
-use markdown_org_extract::timestamp::parse_repeater;
-use markdown_org_extract::{parse_heading_line, TimestampParts};
+use chrono::{Datelike, NaiveDate, NaiveTime};
+use markdown_org_extract::exceptions::parse_moved;
+use markdown_org_extract::timestamp::{
+    closest_date, extract_moved_normalized, parse_repeater, DatePreference,
+};
+use markdown_org_extract::{parse_heading_line, parse_timestamp_parts, TimestampParts};
 
 use crate::document::Document;
 use crate::edit::{parse_date, splice, EditError, EditOutcome, EditTarget};
-use crate::planning::{bare_start, keyword_block_end, planning_lines, weekday_like, MOVED};
+use crate::planning::{
+    bare_start, indentation, keyword_block_end, planning_lines, weekday_like, Spelling, MOVED,
+};
 
 /// Property key listing the occurrences a series does not have.
 const EXDATE: &str = "EXDATE";
@@ -69,7 +74,11 @@ const PROPERTIES: &str = "org-properties";
 /// Cancelling a date the series does not fall on is not refused. Whether a
 /// given date is an occurrence is the repeater's answer, and the caller is
 /// the agenda, which asks about a day it drew the series on; a date that is
-/// not one leaves an `EXDATE` that suppresses nothing.
+/// not one leaves an `EXDATE` that suppresses nothing. Moving is refused in
+/// that case rather than accepted, and the two answers differ for the reason
+/// the operations differ: a cancellation that addresses nothing writes a line
+/// that draws nothing, while a move that addresses nothing draws a day the
+/// series never had.
 #[uniffi::export]
 pub fn cancel_occurrence(target: EditTarget, date: String) -> Result<EditOutcome, EditError> {
     let date = parse_date(&date)?;
@@ -127,6 +136,10 @@ pub fn cancel_occurrence(target: EditTarget, date: String) -> Result<EditOutcome
 /// Moving an occurrence that has already moved rewrites what stands for it
 /// rather than adding a second answer: the `MOVED` line where there is one,
 /// and the entry ADR-0031 wrote where the file still holds that shape.
+///
+/// A day the series does not fall on is refused: there is no occurrence there
+/// to move, and holding one on the target day would give the entry a day it
+/// never had.
 #[uniffi::export]
 pub fn move_occurrence(
     target: EditTarget,
@@ -143,11 +156,14 @@ pub fn move_occurrence(
     let mut document = Document::open(&target)?;
     let (index, _) = document.heading(&target)?;
     let (planning_index, parts) = repeating_line(&document, index, &target)?;
+    occurrence_of_the_series(&parts, occurrence, &target)?;
 
     let planning = document.at(planning_index).to_string();
     let held = to_time.clone().or_else(|| written_time(&planning, &parts));
-    let spelling = weekday_sample(&planning, &parts, &document);
-    let written = moved_line(&planning, &spelling, occurrence, to_date, held.as_deref())?;
+    // Spelled the way this file spells the dated lines it already has, which
+    // is the same reading a planning line and a `CREATED` line are written by.
+    let spelling = Spelling::of(&document, index);
+    let written = moved_line(&spelling, &document, occurrence, to_date, held.as_deref())?;
 
     if let Some(line_index) = moved_line_for(&document, index, occurrence) {
         if document.at(line_index) == written {
@@ -187,79 +203,126 @@ pub fn move_occurrence(
     })
 }
 
+/// Refuse a day the series does not fall on.
+///
+/// A move says where an occurrence is held instead of where the series draws
+/// it, and there is no line that gives a series a day it never had. A `MOVED`
+/// line naming a day off the series would add one through a keyword that says
+/// nothing about adding, so it is refused rather than written (the extractor's
+/// ADR-0040, which its reader enforces as well).
+///
+/// The grid asked is the extractor's own -- `closest_date` from the entry's
+/// timestamp -- so a day accepted here is a day the agenda draws, whatever
+/// shape the repeater has. Counting steps from one occurrence to the next
+/// instead would answer differently for a monthly series past the 28th, and
+/// would refuse days the agenda shows.
+///
+/// Cancelling carries no such check and needs none: an `EXDATE` on a day the
+/// series does not have suppresses nothing, while a move on one draws
+/// something.
+fn occurrence_of_the_series(
+    parts: &TimestampParts,
+    occurrence: NaiveDate,
+    target: &EditTarget,
+) -> Result<(), EditError> {
+    let repeater = parts
+        .repeater
+        .as_ref()
+        .expect("the line was chosen for carrying a repeater");
+    let day = |prefer| closest_date(parts.value, occurrence, prefer, repeater);
+    if day(DatePreference::Past) == Some(occurrence) {
+        return Ok(());
+    }
+
+    // The days on either side, which is what the reader needs to see to know
+    // which one was meant: the address was mistyped, and no guess of ours
+    // would be the one they had in mind.
+    let nearest: Vec<String> = [DatePreference::Past, DatePreference::Future]
+        .into_iter()
+        .filter_map(day)
+        .map(|date| date.to_string())
+        .collect();
+
+    Err(EditError::Unsupported {
+        detail: match nearest.as_slice() {
+            [] => format!(
+                "{} does not fall on {occurrence}, so there is no occurrence of it there to move",
+                target.heading
+            ),
+            days => format!(
+                "{} does not fall on {occurrence}, so there is no occurrence of it there to move; it falls on {}",
+                target.heading,
+                days.join(" and ")
+            ),
+        },
+    })
+}
+
+/// The weekday to write on a `MOVED` line, which always carries one.
+///
+/// The file's own spelling where it has one, which is the answer every other
+/// dated line this crate writes is spelled by. Where it has none the two
+/// part: a planning line written into such a file goes without a weekday,
+/// while both halves of a `MOVED` line carry one -- a day written as digits
+/// alone says nothing about a step that landed on the wrong one. A first move
+/// in a note of bare dates therefore has to pick a language: the first
+/// weekday written anywhere in the note, and English where the note writes
+/// none at all. The date beside it names the day either way.
+fn moved_weekday(
+    spelling: &Spelling,
+    document: &Document,
+    date: NaiveDate,
+) -> Result<String, EditError> {
+    if let Some(written) = spelling.weekday(date) {
+        return Ok(written);
+    }
+
+    match document.text().lines().find_map(weekday_written_in) {
+        Some(sample) => weekday_like(&sample, date),
+        None => Ok(date.weekday().to_string()),
+    }
+}
+
+/// The weekday of the first timestamp on a line that names one, as written.
+///
+/// Asked of the extractor: it reads the timestamps of these files, and it
+/// reports the weekday "as written, in whatever language and length", which is
+/// exactly what is wanted here. A second reading of the same syntax written
+/// beside it would be a second set of answers to keep in step -- the reason
+/// the repeater of a token is asked of the extractor too.
+fn weekday_written_in(line: &str) -> Option<String> {
+    let parts = parse_timestamp_parts(line)?;
+
+    parts.weekday.map(|range| line[range].to_string())
+}
+
 /// The `MOVED` line holding `occurrence` on `to`.
 ///
-/// Spelt from the series' own planning line: its indentation, and the weekday
-/// written the way that line writes it. A series naming no weekday is
-/// answered without one.
+/// Spelt the way the file spells the dated lines it already holds: the
+/// indentation of those lines, their framing, and the weekday written as they
+/// write one. Both halves carry a weekday even where the file names none --
+/// see [`moved_weekday`].
 ///
 /// Both days are timestamps, and the brackets say which is which (the core's
 /// ADR-0039): the occurrence being moved is an address, so it is written
 /// inactive, and the day it is held on is active.
-/// A weekday spelt the way the file spells its own: the series' own planning
-/// line where it names one, the first weekday written anywhere in the note
-/// otherwise, and `Mon` where the note writes none at all. Both halves of a
-/// `MOVED` line carry a weekday, and a first move in a note of bare dates has
-/// to pick a language; the date beside it names the day either way.
-fn weekday_sample(planning: &str, parts: &TimestampParts, document: &Document) -> String {
-    if let Some(range) = parts.weekday.clone() {
-        return planning[range].to_string();
-    }
-    document
-        .text()
-        .lines()
-        .find_map(weekday_written_in)
-        .unwrap_or_else(|| "Mon".to_string())
-}
-
-/// The weekday of the first timestamp on a line that names one.
-fn weekday_written_in(line: &str) -> Option<String> {
-    let mut rest = line;
-    while let Some(at) = rest.find(['<', '[']) {
-        rest = &rest[at + 1..];
-        let Some(day) = rest.get(..10) else { continue };
-        let iso = day
-            .as_bytes()
-            .iter()
-            .enumerate()
-            .all(|(index, byte)| match index {
-                4 | 7 => *byte == b'-',
-                _ => byte.is_ascii_digit(),
-            });
-        if !iso {
-            continue;
-        }
-        let Some(tail) = rest.get(10..).and_then(|tail| tail.strip_prefix(' ')) else {
-            continue;
-        };
-        let name: String = tail
-            .chars()
-            .take_while(|written| written.is_alphabetic())
-            .collect();
-        if !name.is_empty() {
-            return Some(name);
-        }
-    }
-    None
-}
-
 fn moved_line(
-    planning: &str,
-    spelling: &str,
+    spelling: &Spelling,
+    document: &Document,
     occurrence: NaiveDate,
     to: NaiveDate,
     time: Option<&str>,
 ) -> Result<String, EditError> {
-    let moved_weekday = weekday_like(spelling, occurrence)?;
-    let weekday = weekday_like(spelling, to)?;
     let held = time.map_or(String::new(), |time| format!(" {time}"));
-
-    Ok(format!(
-        "{}`{MOVED} [{} {moved_weekday}] -> <{} {weekday}{held}>`",
-        indentation(planning),
+    let body = format!(
+        "{MOVED} [{} {}] -> <{} {}{held}>",
         occurrence.format("%Y-%m-%d"),
+        moved_weekday(spelling, document, occurrence)?,
         to.format("%Y-%m-%d"),
-    ))
+        moved_weekday(spelling, document, to)?,
+    );
+
+    Ok(spelling.framed(&body))
 }
 
 /// Which line of the entry already moves `occurrence`, if one does.
@@ -278,15 +341,22 @@ fn moved_line_for(document: &Document, index: usize, occurrence: NaiveDate) -> O
 ///
 /// Read in both forms: the inactive timestamp written since ADR-0039, and the
 /// bare date of ADR-0038 that files already hold.
-fn moved_occurrence(line: &str) -> Option<String> {
-    let rest = bare_start(line).strip_prefix(MOVED)?;
-    let (day, _) = rest.split_once("->")?;
+///
+/// The one reading of the line in this crate, so that what counts as a move
+/// is the same question wherever it is asked: here, to find the line a second
+/// move rewrites, and in [`crate::planning::keyword_line`], to tell such a
+/// line from prose that begins with the same word.
+///
+/// The reading itself is the extractor's, which is what the notes are read
+/// by: a line it refuses -- a target carrying a repeater or a warning cookie,
+/// an occurrence written active -- moves nothing, and answering here that it
+/// does would hide from the editor a line the agenda is warning about. Only
+/// the framing is taken off first, because the extractor is handed the line
+/// as the file's reader sees it.
+pub(crate) fn moved_occurrence(line: &str) -> Option<String> {
+    let said = extract_moved_normalized(bare_start(line))?;
 
-    let day = day.trim().trim_start_matches('[').trim_end_matches(']');
-    let day = day.split_whitespace().next()?;
-    NaiveDate::parse_from_str(day, "%Y-%m-%d")
-        .ok()
-        .map(|_| day.to_string())
+    parse_moved(&said, |_| {}).map(|moved| moved.from)
 }
 
 /// The last line of the entry carrying a date — a planning line or a `MOVED`
@@ -525,7 +595,7 @@ fn property_line(line: &str) -> Option<(&str, &str)> {
     Some((key, value.trim()))
 }
 
-/// What the entry at `index` holds under `key`, and which line holds it.
+/// What the entry spanning `section` holds under `key`, and which line holds it.
 ///
 /// The last one wins, which is how the extractor merges a key written twice.
 fn property(document: &Document, section: Range<usize>, key: &str) -> Option<(usize, String)> {
@@ -581,11 +651,6 @@ fn set_property(document: &mut Document, index: usize, key: &str, value: &str) -
         vec![format!("```{PROPERTIES}"), line.clone(), "```".to_string()],
     );
     line
-}
-
-/// The whitespace a line begins with.
-fn indentation(line: &str) -> &str {
-    &line[..line.len() - line.trim_start().len()]
 }
 
 /// The time the timestamp carries, as written — a range of hours included.

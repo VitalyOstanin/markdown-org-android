@@ -32,7 +32,7 @@ use crate::document::Document;
 use crate::edit::{
     checked_year, parse_date, splice, with_status, write_line, EditError, EditOutcome, EditTarget,
 };
-use crate::occurrence::{fields, is_repeater, is_time, parse_time};
+use crate::occurrence::{fields, is_repeater, is_time, moved_occurrence, parse_time};
 use crate::undo::FileRollback;
 use crate::TaskType;
 
@@ -462,7 +462,7 @@ pub(crate) const CLOSED: &str = "CLOSED:";
 /// The date org-mode's expiry convention writes when an entry is created.
 /// Never edited here, only stepped over: it stands in the same block the
 /// planning lines do.
-const CREATED: &str = "CREATED:";
+pub(crate) const CREATED: &str = "CREATED:";
 
 /// The key naming an occurrence of the entry held on another day (the
 /// extractor's ADR-0038).
@@ -489,12 +489,43 @@ pub(crate) fn keyword_block_end(document: &Document, index: usize) -> usize {
 
 /// Whether the line is one of the keyword lines written under a heading,
 /// rather than the text of the entry.
-fn keyword_line(line: &str) -> bool {
-    let start = bare_start(line);
-    planning_keyword(line).is_some()
-        || start.starts_with(CLOSED)
-        || start.starts_with(CREATED)
-        || start.starts_with(MOVED)
+///
+/// One answer to one question, asked from both ends of the crate: here, to
+/// find where the block under a heading ends and a new line joins it; and by
+/// the entry editor, to keep such lines out of the text it hands over. Two
+/// copies of it drifted apart once already -- the editor's left `CREATED:`
+/// out, so a line this counted as part of the block was handed over as prose
+/// and could be taken out by a keystroke.
+///
+/// The keyword alone does not answer it: "MOVED: обсудили, переносим в другой
+/// проект" is a sentence that begins with the word, and reading it as a line
+/// an action wrote takes the text above it out of what the editor is handed.
+/// So the form is confirmed as well -- the keyword and then a timestamp, and
+/// for a move the pair of them around the arrow, which is what the reader of
+/// such a line asks for.
+pub(crate) fn keyword_line(line: &str) -> bool {
+    [
+        PlanningKeyword::Scheduled.token(),
+        PlanningKeyword::Deadline.token(),
+        CLOSED,
+        CREATED,
+    ]
+    .into_iter()
+    .any(|keyword| dated_line(line, keyword))
+        || moved_occurrence(line).is_some()
+}
+
+/// Whether the line is `keyword` and then a timestamp, rather than prose that
+/// begins with the same word.
+///
+/// The timestamp has to stand first in what follows the keyword: a sentence
+/// that mentions a date further along is still a sentence.
+fn dated_line(line: &str, keyword: &str) -> bool {
+    let Some(rest) = bare_start(line).strip_prefix(keyword) else {
+        return false;
+    };
+
+    parse_timestamp_parts(rest.trim_start()).is_some_and(|parts| parts.whole.start == 0)
 }
 
 /// Write a planning line the entry did not have, and save the file.
@@ -603,20 +634,20 @@ pub(crate) fn created_line(
 /// `CREATED` line differ only in the keyword, the brackets and what stands
 /// after the date -- everything else about how they are spelled is the file's
 /// and the same for both.
-struct Spelling {
+pub(crate) struct Spelling {
     sample: Option<(String, TimestampParts)>,
 }
 
 impl Spelling {
     /// The spelling the entry at `index` stands in.
-    fn of(document: &Document, index: usize) -> Self {
+    pub(crate) fn of(document: &Document, index: usize) -> Self {
         Self {
             sample: sample_planning(document, index),
         }
     }
 
     /// The weekday token to write, `None` where this file writes none.
-    fn weekday(&self, date: NaiveDate) -> Option<String> {
+    pub(crate) fn weekday(&self, date: NaiveDate) -> Option<String> {
         match &self.sample {
             // A file that writes its dates without a weekday goes on without
             // one.
@@ -641,12 +672,19 @@ impl Spelling {
             .map(String::as_str)
             .collect::<Vec<_>>()
             .join(" ");
-        let body = format!("{keyword}{open}{stamp}{close}");
+        self.framed(&format!("{keyword}{open}{stamp}{close}"))
+    }
 
-        // Framed in inline code, which is how these lines are written in
-        // markdown notes: the timestamp is not a link and the backticks keep a
-        // renderer from making one of it. A file that writes them bare keeps
-        // doing so.
+    /// `body` as a line of this file: at its indentation, framed the way it
+    /// frames the dated lines it already has.
+    ///
+    /// Apart from [`Spelling::line`] because a `MOVED` line is two timestamps
+    /// and an arrow rather than one timestamp, and the framing is the half of
+    /// the spelling both have in common. Framed in inline code, which is how
+    /// these lines are written in markdown notes: the timestamp is not a link
+    /// and the backticks keep a renderer from making one of it. A file that
+    /// writes them bare keeps doing so.
+    pub(crate) fn framed(&self, body: &str) -> String {
         if self.fenced() {
             format!("{}`{body}`", self.indent())
         } else {
@@ -656,9 +694,9 @@ impl Spelling {
 
     /// The indentation the file's own planning lines stand at.
     fn indent(&self) -> &str {
-        self.sample.as_ref().map_or("", |(line, _)| {
-            &line[..line.len() - line.trim_start().len()]
-        })
+        self.sample
+            .as_ref()
+            .map_or("", |(line, _)| indentation(line))
     }
 
     /// Whether this file frames such lines in inline code.
@@ -667,6 +705,11 @@ impl Spelling {
             .as_ref()
             .is_none_or(|(line, _)| line.trim_start().starts_with('`'))
     }
+}
+
+/// The whitespace a line begins with.
+pub(crate) fn indentation(line: &str) -> &str {
+    &line[..line.len() - line.trim_start().len()]
 }
 
 /// A planning line to copy the spelling of: the entry's own first, then the

@@ -228,11 +228,26 @@ pub struct Task {
     /// Days from the agenda date: negative is overdue. Only set on tasks
     /// returned by [`scan_agenda`], never by [`scan`].
     pub days_offset: Option<i64>,
+    /// The day of the series this row stands for, where it is a moved
+    /// occurrence, as `YYYY-MM-DD`.
+    ///
+    /// A moved occurrence is drawn on the day it is held, and the copy drawn
+    /// there carries that day as its
+    /// [`timestamp_date`](Self::timestamp_date) — the day it is held is what
+    /// the reader is looking at. The occurrence is *named* by the day the
+    /// series draws it on, though: that is what a `MOVED` line is keyed by,
+    /// and what an `EXDATE` has to say to leave it out. Without this field the
+    /// client can only offer the day on screen, so moving the occurrence a
+    /// second time writes a second `MOVED` line beside the first, and
+    /// cancelling it excludes a day the series does not fall on (ADR-0038).
+    pub moved_from: Option<String>,
 }
 
 impl From<markdown_org_extract::Task> for Task {
     fn from(task: markdown_org_extract::Task) -> Self {
         use markdown_org_extract::TaskType as SourceType;
+
+        let drawn_on = task.timestamp_date.clone();
 
         Self {
             file: task.file,
@@ -255,6 +270,19 @@ impl From<markdown_org_extract::Task> for Task {
             timestamp_next: task.timestamp_next,
             timestamp_next_after: task.timestamp_next_after,
             days_offset: None,
+            // The series carries every move it holds, on the copy in every
+            // cell; the one this row stands for is the move whose destination
+            // is the day the row was drawn on.
+            moved_from: task
+                .moved_occurrences
+                .as_ref()
+                .zip(drawn_on.as_deref())
+                .and_then(|(moves, drawn)| {
+                    moves
+                        .iter()
+                        .find(|moved| moved.to == drawn)
+                        .map(|moved| moved.from.clone())
+                }),
         }
     }
 }

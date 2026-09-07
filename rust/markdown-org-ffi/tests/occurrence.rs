@@ -599,3 +599,89 @@ fn a_working_day_series_leaves_its_repeater_behind_too() {
         body(vault.path())
     );
 }
+
+#[test]
+fn a_day_the_series_does_not_fall_on_is_not_an_occurrence_to_move() {
+    // A move says where an occurrence is held instead of where the series
+    // draws it. A day the series never draws is addressed by nothing, and
+    // holding it somewhere would give the entry a day it never had -- an
+    // operation this format does not have (the extractor's ADR-0040).
+    let vault = vault(SERIES);
+
+    let error = move_occurrence(
+        target(vault.path(), 1, "English"),
+        "2026-08-21".to_string(),
+        "2026-08-23".to_string(),
+        None,
+    )
+    .expect_err("not an occurrence");
+
+    assert!(matches!(error, EditError::Unsupported { .. }), "{error:?}");
+    let said = error.to_string();
+    assert!(said.contains("2026-08-20"), "{said}");
+    assert!(said.contains("2026-08-27"), "{said}");
+    assert_eq!(body(vault.path()), SERIES);
+}
+
+#[test]
+fn a_day_before_the_series_begins_is_refused_and_the_first_one_named() {
+    let vault = vault(SERIES);
+
+    let error = move_occurrence(
+        target(vault.path(), 1, "English"),
+        "2026-07-30".to_string(),
+        "2026-08-01".to_string(),
+        None,
+    )
+    .expect_err("before the series");
+
+    assert!(matches!(error, EditError::Unsupported { .. }), "{error:?}");
+    assert!(error.to_string().contains("2026-08-06"), "{error}");
+    assert_eq!(body(vault.path()), SERIES);
+}
+
+#[test]
+fn a_monthly_series_is_counted_from_its_own_date_and_not_by_steps() {
+    // The day a month after 31 January is 28 February by steps and 31 March
+    // by the grid the agenda walks. Counting by steps would refuse a day the
+    // agenda draws, so the answer comes from the extractor's own reckoning.
+    let vault = vault("# TODO Rent\n`SCHEDULED: <2026-01-31 Sat 10:00 +1m>`\n");
+
+    move_occurrence(
+        target(vault.path(), 1, "Rent"),
+        "2026-03-31".to_string(),
+        "2026-04-01".to_string(),
+        None,
+    )
+    .expect("an occurrence of the series");
+
+    assert!(
+        body(vault.path()).contains("`MOVED: [2026-03-31 Tue] -> <2026-04-01 Wed 10:00>`"),
+        "{}",
+        body(vault.path())
+    );
+}
+
+#[test]
+fn a_note_that_writes_its_dates_bare_is_answered_with_a_bare_move() {
+    // The backticks keep a renderer from making a link of a timestamp, and
+    // this crate writes them -- but a note that writes its own dates without
+    // them goes on without them, which is how every other dated line this
+    // crate writes is spelled.
+    let vault = vault("# TODO English\nSCHEDULED: <2026-08-06 Thu 15:00 +1w>\n");
+
+    move_occurrence(
+        target(vault.path(), 1, "English"),
+        "2026-08-20".to_string(),
+        "2026-08-22".to_string(),
+        None,
+    )
+    .expect("move");
+
+    assert_eq!(
+        body(vault.path()),
+        "# TODO English\n\
+         SCHEDULED: <2026-08-06 Thu 15:00 +1w>\n\
+         MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 15:00>\n"
+    );
+}

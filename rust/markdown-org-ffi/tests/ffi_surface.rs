@@ -588,3 +588,44 @@ fn a_dated_row_carries_the_occurrence_after_its_own_day() {
 
     assert_eq!(row.timestamp_next_after.as_deref(), Some("2026-03-09"));
 }
+
+#[test]
+fn a_moved_occurrence_carries_the_day_of_the_series_it_stands_for() {
+    // The core draws a moved occurrence on the day it is held and rewrites
+    // that copy's `timestamp_date` to it, so the row on screen says the 22nd
+    // while the occurrence it stands for is the 20th. Every action on the
+    // occurrence -- moving it again, cancelling it -- is addressed by the day
+    // of the series, and without this field the client has no way to name it:
+    // a second move would write a second `MOVED` line instead of rewriting the
+    // one that is there, and a cancellation would exclude a day the series
+    // does not fall on.
+    let vault = write_vault(&[(
+        "notes.md",
+        "# TODO English\n\
+         `SCHEDULED: <2026-08-06 Thu 15:00 +1w>`\n\
+         `MOVED: [2026-08-20 Thu] -> <2026-08-22 Sat 19:00>`\n",
+    )]);
+
+    let agenda = scan_agenda(
+        vault.path().display().to_string(),
+        AgendaQuery {
+            scope: Scope::Day,
+            current_date: "2026-08-22".to_string(),
+            date: None,
+            timezone: "Europe/Moscow".to_string(),
+            include_done: false,
+            week_start: None,
+        },
+        options(),
+    )
+    .expect("agenda");
+
+    let day = agenda.days.first().expect("the day it is held on");
+    let row = day
+        .scheduled_timed
+        .first()
+        .expect("the occurrence is drawn at its hour");
+
+    assert_eq!(row.timestamp_date.as_deref(), Some("2026-08-22"));
+    assert_eq!(row.moved_from.as_deref(), Some("2026-08-20"));
+}

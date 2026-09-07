@@ -25,7 +25,7 @@ use markdown_org_extract::parse_heading_line;
 use crate::document::Document;
 use crate::edit::{splice, EditError, EditOutcome, EditTarget};
 use crate::occurrence::property_block_at;
-use crate::planning::{bare_start, planning_keyword, CLOSED, MOVED};
+use crate::planning::keyword_line;
 
 /// The text of an entry as the file holds it.
 #[derive(Debug, Clone, uniffi::Record)]
@@ -165,10 +165,11 @@ pub(crate) fn body_lines(body: &str) -> Result<Vec<String>, EditError> {
                 detail: format!("{line:?} would start another entry"),
             });
         }
-        if structural(line) {
+        if keyword_line(line) {
             return Err(EditError::Unsupported {
                 detail: format!(
-                    "{line:?} is a planning line, which is written by the date actions"
+                    "{line:?} is one of the lines an action writes -- a date, a closing, \
+                     an occurrence held elsewhere -- and is not typed as text"
                 ),
             });
         }
@@ -204,7 +205,7 @@ fn body_range(document: &Document, index: usize) -> std::ops::Range<usize> {
 
     let mut start = index + 1;
     for line in index + 1..end {
-        if structural(document.at(line)) {
+        if keyword_line(document.at(line)) {
             start = line + 1;
         }
     }
@@ -250,11 +251,4 @@ fn with_the_separator(
     } else {
         range
     }
-}
-
-/// Whether the line is one an operation writes rather than one the user types:
-/// a planning line, the closing date, or an occurrence held on another day.
-fn structural(line: &str) -> bool {
-    let start = bare_start(line);
-    planning_keyword(line).is_some() || start.starts_with(CLOSED) || start.starts_with(MOVED)
 }

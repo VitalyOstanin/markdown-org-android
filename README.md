@@ -260,7 +260,12 @@ and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md), in the form
   that is when the entry is kept. The series keeps its own line and needs no
   identifier. An occurrence moved a second time rewrites what already stands
   for it — the `MOVED` line in either form, or the entry the older shape left
-  in the file.
+  in the file. A day the series does not fall on is refused: there is no
+  occurrence there to move, and a line naming one would give the entry a day it
+  never had, which is an operation this format does not have
+  ([`markdown-org-extract`](https://github.com/VitalyOstanin/markdown-org-extract),
+  ADR-0040). Cancelling such a day is not refused — the `EXDATE` it leaves
+  suppresses nothing.
 
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)

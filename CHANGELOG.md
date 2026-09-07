@@ -13,6 +13,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A note that writes its dates without the inline-code framing is answered
+  with a `MOVED` line written the same way. The line was composed on its own
+  rather than through the one reading of how a file spells its dated lines, so
+  a note of bare dates gained a line in backticks -- while a planning line or
+  a `CREATED:` line written into the same note came out bare.
+
+- The line saying when an entry was written is no longer handed to the editor
+  as text. What counts as a line an action wrote was decided in two places that
+  disagreed about `CREATED:`, so a note holding one under its planning lines
+  offered it for editing, and a keystroke could take it out.
+
+- A sentence that begins with one of those keywords stays in the text. A body
+  line reading "MOVED: обсудили, переносим в другой проект" was read as a line
+  an action wrote, which took every line above it out of what the editor was
+  handed; a line now counts as one only when it carries the form as well --
+  the keyword and the timestamp, and for a move the pair of them around the
+  arrow.
+
+- A `MOVED` line the reader of the notes refuses stays in the text of the
+  entry, where it can be corrected. The line was recognised here by a second
+  reading of the timestamp syntax, written beside the one already asked of the
+  extractor, so a move whose target carries a repeater -- which the extractor
+  reports as an error, one occurrence being no series -- was taken for a move
+  all the same: it left the editor's hands while the agenda went on warning
+  about it. The move and the weekday a series names are now both read by the
+  extractor.
+
+- Moving an occurrence onto a day the series does not fall on is refused. The
+  day before the arrow addresses an occurrence, and the core draws the day
+  after it whatever stands before -- so a `MOVED` line naming a day the series
+  never had did not relocate an occurrence but gave the entry an extra one,
+  through a keyword that says nothing about adding. Such a move is now refused
+  and the days the series does fall on either side of it are named. Whether a
+  day belongs to the series is asked of the core's own reckoning, the one the
+  agenda is drawn by, so a day the agenda shows is never refused.
+
+- An occurrence that has already moved is acted on as the occurrence it is. The
+  row for such an occurrence is drawn on the day it is held, and the actions of
+  the sheet read the day off the row -- so moving it a second time wrote a
+  second `MOVED` line beside the first, and the entry then showed up twice; and
+  cancelling it excluded the day it had been moved to, which the series does
+  not fall on, leaving the occurrence on screen and taking a real one away. The
+  day the series draws the occurrence on now crosses from the core with the
+  row, and both actions are addressed by it.
+
 ## [0.2.0] - 2026-09-05
 
 ### Added

@@ -35,6 +35,10 @@ import java.time.LocalTime
 @Composable
 internal fun TaskOccurrence(task: Task, weekStart: WeekStart, onAction: (TaskAction) -> Unit) {
     val occurrence = task.occurrence() ?: return
+    // Where the row stands now, which is where the day picker opens: an
+    // occurrence already moved is usually moved on from where it is, not from
+    // where the series would have drawn it.
+    val heldOn = statedDate(task.timestampDate) ?: occurrence
     val time = task.startTime()
 
     var pickingDay by rememberSaveable { mutableStateOf(false) }
@@ -62,7 +66,7 @@ internal fun TaskOccurrence(task: Task, weekStart: WeekStart, onAction: (TaskAct
 
     if (pickingDay) {
         DateChoice(
-            initial = occurrence,
+            initial = heldOn,
             weekStart = weekStart,
             onDismiss = { pickingDay = false },
             onPicked = { date ->
@@ -100,13 +104,21 @@ internal fun TaskOccurrence(task: Task, weekStart: WeekStart, onAction: (TaskAct
  * keyword for an exception to be written against, and an entry that does not
  * repeat has no occurrences — what the sheet offers for those is the row of
  * date actions above.
+ *
+ * An occurrence that has already moved is drawn on the day it is held, and
+ * that day is what the row's own date says. The occurrence is named by the day
+ * the series draws it on, though — that is what a `MOVED` line is keyed by and
+ * what an `EXDATE` has to say — so the day of the series comes first where the
+ * core sent one (ADR-0038). Addressing such a row by the day on screen wrote a
+ * second `MOVED` line beside the first and excluded a day the series does not
+ * fall on.
  */
-private fun Task.occurrence(): LocalDate? {
+internal fun Task.occurrence(): LocalDate? {
     if (timestampRepeater == null || planningKeyword() == null) {
         return null
     }
 
-    return statedDate(timestampDate)
+    return statedDate(movedFrom ?: timestampDate)
 }
 
 /** The hour the entry is held at, where it names one. */
