@@ -1,6 +1,7 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import android.Manifest
+import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -45,13 +46,17 @@ object ReminderNotifications {
             DateFormat.is24HourFormat(context),
         )
         val id = ReminderNumbering.notification(reminder.entry)
+        val said = context.getString(R.string.reminder_starts_at, hour)
 
         raise(
             context = context,
             id = id,
             channel = ReminderChannels.TIMED,
             title = reminder.entry.heading,
-            text = context.getString(R.string.reminder_starts_at, hour),
+            text = said,
+            // The hour says what the reminder is for and names no entry, so
+            // it is what a locked screen keeps.
+            spoken = Spoken(title = context.getString(R.string.reminder_public_title), text = said),
             // The hour of the entry rather than the hour the notification
             // arrived: sorted among the others in the drawer, this is what the
             // reader is being told about.
@@ -86,6 +91,10 @@ object ReminderNotifications {
             channel = ReminderChannels.TIMED,
             title = reminder.entry.heading,
             text = context.getString(said),
+            spoken = Spoken(
+                title = context.getString(R.string.reminder_public_title),
+                text = context.getString(said),
+            ),
             target = AgendaTarget(
                 day = reminder.starts.toLocalDate(),
                 entry = reminder.entry,
@@ -119,6 +128,12 @@ object ReminderNotifications {
             channel = ReminderChannels.DIGEST,
             title = context.getString(R.string.reminder_digest_title),
             text = said.joinToString(context.getString(R.string.reminder_digest_separator)),
+            // The counts, and none of the headings behind them: how much a day
+            // holds says nothing about what is in the notes.
+            spoken = Spoken(
+                title = context.getString(R.string.reminder_digest_title),
+                text = said.joinToString(context.getString(R.string.reminder_digest_separator)),
+            ),
             headings = digestHeadings(day),
             // The day it counted, with nothing picked out within it: the
             // digest is about all of them, and the screen it opens is where
@@ -147,6 +162,7 @@ object ReminderNotifications {
         channel: String,
         title: String,
         text: String,
+        spoken: Spoken,
         moment: Long? = null,
         headings: List<String> = emptyList(),
         target: AgendaTarget? = null,
@@ -165,6 +181,11 @@ object ReminderNotifications {
             .setContentIntent(opens(context, id, target))
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            // Said rather than inherited: private is what the platform builds
+            // with, and a line saying so is what keeps a later change from
+            // handing the notes to a locked screen without anyone noticing.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicly(context, id, channel, spoken, target))
 
         moment?.let { builder.setWhen(it).setShowWhen(true) }
         actions.forEach(builder::addAction)
@@ -172,7 +193,7 @@ object ReminderNotifications {
             builder.setStyle(
                 NotificationCompat.BigTextStyle()
                     .setSummaryText(text)
-                    .bigText(headings.joinToString(separator = System.lineSeparator())),
+                    .bigText(listedHeadings(headings)),
             )
         }
         // Caught rather than left to fly: the permission can go away between
@@ -185,6 +206,33 @@ object ReminderNotifications {
             Log.w(TAG, "the notification was refused", refused)
         }
     }
+
+    /**
+     * The notification a locked screen is allowed to show instead.
+     *
+     * Shown where the reader told the phone to keep private notifications to
+     * themselves: without one of these the platform draws a line of its own
+     * saying the content is hidden, which does not say when the entry is or
+     * how much the day holds. Carries no buttons -- they are answered from a
+     * screen the reader has already unlocked -- and no expanded text.
+     */
+    private fun publicly(
+        context: Context,
+        id: Int,
+        channel: String,
+        spoken: Spoken,
+        target: AgendaTarget?,
+    ): Notification = NotificationCompat.Builder(context, channel)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentTitle(spoken.title)
+        .setContentText(spoken.text)
+        .setContentIntent(opens(context, id, target))
+        .setAutoCancel(true)
+        .setCategory(NotificationCompat.CATEGORY_REMINDER)
+        // The one notification here that is public, which is what being the
+        // public version of another means.
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .build()
 
     /**
      * The two the reader can answer a timed reminder with.
@@ -279,6 +327,15 @@ object ReminderNotifications {
 }
 
 /**
+ * What a locked screen is told when the notification itself is kept back.
+ *
+ * A pair rather than two more parameters of [ReminderNotifications.raise]: the
+ * two belong together, and a caller that passes one has to have decided the
+ * other.
+ */
+internal data class Spoken(val title: String, val text: String)
+
+/**
  * What a digest has to say about a day.
  *
  * The counting is apart from the wording so that it can be asserted without a
@@ -315,6 +372,23 @@ internal fun digestHeadings(day: Day): List<String> =
     (day.scheduledNoTime + day.upcoming + day.overdue)
         .take(LISTED)
         .map(Task::heading)
+
+/**
+ * The headings of an expanded digest, one to a line.
+ *
+ * `BigTextStyle` is a paragraph rather than a list: a heading wider than the
+ * drawer is wrapped onto the next line, and among bare lines the wrapped half
+ * reads as an entry of its own. The marker says where an entry begins.
+ *
+ * The marker is a character rather than a string of the resources: it is
+ * punctuation, the same in both languages, and a resource would be one more
+ * pair to keep in step for nothing.
+ */
+internal fun listedHeadings(headings: List<String>): String =
+    headings.joinToString(separator = System.lineSeparator()) { heading -> "$MARKER$heading" }
+
+/** What an entry of the expanded digest begins with. */
+private const val MARKER = "\u2022 "
 
 /** How many headings the expanded digest names. */
 private const val LISTED = 5

@@ -90,6 +90,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   day the series draws the occurrence on now crosses from the core with the
   row, and both actions are addressed by it.
 
+### Changed
+
+- A reminder tells a locked screen its hour rather than its entry. Every
+  notification is raised private and carries a public version of itself: where
+  the reader asked the phone to hide private content, the drawer says "Starts
+  at 15:00", or how much the day holds, in place of the heading it used to
+  leave to a line the platform writes.
+
+- The expanded day's digest marks each heading as an entry of its own. The
+  headings stood one to a line in a paragraph of text, and a heading wider
+  than the drawer was wrapped onto the next line -- where it read as one more
+  entry the day does not hold.
+
 ## [0.2.0] - 2026-09-05
 
 ### Added

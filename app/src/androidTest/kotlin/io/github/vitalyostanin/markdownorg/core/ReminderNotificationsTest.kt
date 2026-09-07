@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelFileDescriptor
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -105,6 +106,79 @@ class ReminderNotificationsTest {
     }
 
     /**
+     * The heading of an entry is not for a locked screen to say.
+     *
+     * The notification is private -- which is the platform's own default, so
+     * this says out loud what a later builder must not undo -- and carries a
+     * public version of itself for the lock screen of a reader who told the
+     * phone to keep private notifications to themselves. Without one the
+     * platform shows its own line saying the content is hidden, which says
+     * nothing about when the entry is; with one the hour survives and the
+     * heading does not.
+     */
+    @Test
+    fun aTimedReminderKeepsTheHeadingOffALockedScreen() {
+        ReminderNotifications.showTimed(context, TIMED)
+
+        val raised = requireNotNull(waitFor(ReminderNumbering.notification(TIMED.entry))) {
+            "nothing was raised"
+        }
+
+        assertEquals(
+            NotificationCompat.VISIBILITY_PRIVATE,
+            raised.notification.visibility,
+        )
+        val spoken = requireNotNull(raised.notification.publicVersion) {
+            "the reminder carries no public version"
+        }
+
+        assertEquals(
+            context.getString(R.string.reminder_public_title),
+            spoken.extras.getString("android.title"),
+        )
+        // The same line the notification itself carries: the hour is what the
+        // reminder is about, and it names no entry.
+        assertEquals(
+            raised.notification.extras.getString("android.text"),
+            spoken.extras.getString("android.text"),
+        )
+    }
+
+    /**
+     * The counts of the day are not what a locked screen has to keep back --
+     * the headings behind them are. The public version says the same counts
+     * and carries none of the entries.
+     */
+    @Test
+    fun aDigestKeepsTheHeadingsOffALockedScreen() {
+        ReminderNotifications.showDigest(
+            context,
+            day(
+                date = DAY.toString(),
+                overdue = listOf(task(heading = "Renew the certificate")),
+                scheduledNoTime = listOf(task(heading = "Water the plants")),
+            ),
+        )
+
+        val raised = requireNotNull(waitFor(ReminderNumbering.DIGEST_NOTIFICATION)) {
+            "the digest was not raised"
+        }
+        val spoken = requireNotNull(raised.notification.publicVersion) {
+            "the digest carries no public version"
+        }
+
+        assertEquals(
+            context.getString(R.string.reminder_digest_title),
+            spoken.extras.getString("android.title"),
+        )
+        assertEquals(
+            raised.notification.extras.getString("android.text"),
+            spoken.extras.getString("android.text"),
+        )
+        assertNull(spoken.extras.getString("android.bigText"))
+    }
+
+    /**
      * Both of the buttons, because a reminder is answered through them: one
      * asks for it again shortly, the other closes the entry. A notification
      * that arrives without them can only be swiped away.
@@ -152,6 +226,15 @@ class ReminderNotificationsTest {
         // The counts the digest is made of, in the order it says them.
         val text = raised.notification.extras.getString("android.text").orEmpty()
         assertTrue("the digest said nothing of the day: $text", text.isNotEmpty())
+        // What the expanded drawer holds: the headings of the day in the same
+        // order, each marked as an entry of its own. Only here as well --
+        // which style a notification carries is the platform's answer, not the
+        // builder's.
+        assertEquals(
+            listOf("\u2022 Water the plants", "\u2022 Renew the certificate")
+                .joinToString(System.lineSeparator()),
+            raised.notification.extras.getString("android.bigText"),
+        )
     }
 
     /**
@@ -181,7 +264,32 @@ class ReminderNotificationsTest {
 
         ReminderNotifications.cancelAll(context)
 
-        assertNull(waitFor(ReminderNumbering.notification(TIMED.entry), patience = SHORT))
+        assertTrue(
+            "the reminder is still in the drawer",
+            awaitGone(ReminderNumbering.notification(TIMED.entry)),
+        )
+    }
+
+    /**
+     * Wait for a notification to leave the drawer.
+     *
+     * Apart from [waitFor], which answers as soon as one is there: taking a
+     * notification back is a request handed to the platform, and it is granted
+     * a moment later. Asking once, straight after the call, is asking whether
+     * the platform was quick rather than whether it did it -- and the answer
+     * turned when a notification grew a public version to take back with it.
+     */
+    private fun awaitGone(id: Int, patience: Long = PATIENCE): Boolean {
+        val deadline = System.currentTimeMillis() + patience
+
+        do {
+            if (manager.activeNotifications.none { it.id == id }) {
+                return true
+            }
+            Thread.sleep(POLL)
+        } while (System.currentTimeMillis() < deadline)
+
+        return false
     }
 
     /**

@@ -81,6 +81,7 @@ so a decision can be followed across the three repositories.
 | 0043 | [A move is a line of the series](0043-a-move-is-a-line-of-the-series.md) | Accepted, written form amended by 0044 |
 | 0044 | [The occurrence a move names is written as an inactive timestamp](0044-the-occurrence-a-move-names-is-a-timestamp.md) | Accepted |
 | 0045 | [The minute a reminder is held to rests on a permission of its own](0045-the-minute-is-held-by-a-permission-of-its-own.md) | Accepted |
+| 0047 | [A reminder says its hour to a locked screen, not its entry](0047-a-reminder-says-its-hour-to-a-locked-screen.md) | Accepted |
 
 ## Adding a new ADR
 

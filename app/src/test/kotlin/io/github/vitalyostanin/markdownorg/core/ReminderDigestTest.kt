@@ -84,4 +84,18 @@ class ReminderDigestTest {
             digestHeadings(holding),
         )
     }
+
+    /**
+     * Marked rather than bare: the expanded drawer is a paragraph, and a
+     * heading wider than it is wrapped onto the next line -- where, among
+     * bare lines, the wrapped half reads as an entry of its own.
+     */
+    @Test
+    fun `the expanded digest marks every heading as an entry of its own`() {
+        assertEquals(
+            listOf("\u2022 Review the notes", "\u2022 Renew the certificate")
+                .joinToString(System.lineSeparator()),
+            listedHeadings(listOf("Review the notes", "Renew the certificate")),
+        )
+    }
 }

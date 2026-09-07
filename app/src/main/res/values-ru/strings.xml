@@ -197,6 +197,7 @@
     <string name="reminder_action_snooze">Позже</string>
     <string name="reminder_action_done">Готово</string>
     <string name="reminder_starts_at">Начало в %1$s</string>
+    <string name="reminder_public_title">Напоминание</string>
     <string name="reminder_digest_title">Что в плане на день</string>
     <string name="reminder_digest_overdue">просрочено: %d</string>
     <string name="reminder_digest_separator">", "</string>

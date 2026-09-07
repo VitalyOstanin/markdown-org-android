@@ -173,6 +173,13 @@ reasoning.
   short foreground service. The digest is never an exact alarm. See
   [ADR-0035](docs/adr/0035-a-reminder-is-answered-where-it-is-read.md).
 
+- A notification is private and carries a public version of itself: a locked
+  screen of a reader who hides private content is told the hour a reminder is
+  about, or how much the day holds, and never the heading of an entry. No
+  setting of ours governs this -- the choice is the phone's, and the reader has
+  already made it there. See
+  [ADR-0047](docs/adr/0047-a-reminder-says-its-hour-to-a-locked-screen.md).
+
 - The settings screen is searched by filtering itself: what a query does not
   name is not drawn, headings of emptied stretches included, and an empty field
   is the screen as it always was. What can be found is the list

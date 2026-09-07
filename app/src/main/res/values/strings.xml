@@ -272,6 +272,9 @@
     <string name="reminder_action_done">Done</string>
     <!-- Under the heading of the entry, which is the notification's title. -->
     <string name="reminder_starts_at">Starts at %1$s</string>
+    <!-- Stands in for the heading of the entry on a lock screen the reader
+         told to keep private notifications to itself. -->
+    <string name="reminder_public_title">A reminder</string>
     <string name="reminder_digest_title">What the day holds</string>
     <string name="reminder_digest_overdue">%d overdue</string>
     <!-- Between the counts of a digest: "2 entries, 1 deadline, 3 overdue". -->

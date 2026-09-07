@@ -496,6 +496,14 @@ write runs in a short service of its own rather than in the receiver, which the
 platform gives nine seconds — a third notification appears while it does, on a
 channel of its own at the lowest importance such a service is allowed.
 
+What a locked screen is told is the hour rather than the entry. Every
+notification is raised private and carries a public version of itself, so a
+phone set to hide private content shows "Starts at 15:00", or the counts the
+day holds, in place of any heading — see
+[ADR-0047](docs/adr/0047-a-reminder-says-its-hour-to-a-locked-screen.md).
+Whether a locked screen hides that content at all is the phone's own setting,
+and this application adds no second one beside it.
+
 The digest is never held to the minute, whatever access the platform has
 granted: an hour picked for a summary of the day asks for around nine rather
 than for nine exactly, and exact alarms are a ration better spent on the
