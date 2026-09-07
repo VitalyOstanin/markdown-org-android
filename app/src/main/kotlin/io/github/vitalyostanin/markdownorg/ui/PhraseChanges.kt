@@ -61,6 +61,10 @@ data class PhraseChange(val field: PhraseChangedField, val before: String?, val 
  */
 fun phraseChanges(task: Task, draft: PhraseDraft): List<PhraseChange> {
     val cleared = draft.cleared.toSet()
+    // Where the phrase writes the other planning line, the row's own values
+    // are not what it changed, so nothing of the row is named as the "before".
+    val elsewhere = writesTheOtherLine(task, draft)
+    val had = { value: String? -> value.takeUnless { elsewhere } }
 
     return listOfNotNull(
         change(PhraseChangedField.STATUS, task.taskType?.keyword(), draft.status?.keyword(), false),
@@ -72,7 +76,7 @@ fun phraseChanges(task: Task, draft: PhraseDraft): List<PhraseChange> {
         ),
         change(
             PhraseChangedField.PLANNING,
-            task.timestampType?.planningKeyword(),
+            had(task.timestampType?.planningKeyword()),
             // The keyword travels with the date: a phrase that named no date
             // says nothing about which line it stands on either.
             draft.keyword?.keyword()?.takeIf { draft.date != null },
@@ -80,23 +84,47 @@ fun phraseChanges(task: Task, draft: PhraseDraft): List<PhraseChange> {
         ),
         change(
             PhraseChangedField.DATE,
-            task.timestampDate,
+            had(task.timestampDate),
             draft.date,
             PhraseField.DATE in cleared,
         ),
         change(
             PhraseChangedField.TIME,
-            task.timestampTime,
+            had(task.timestampTime),
             draft.time,
             PhraseField.TIME in cleared,
         ),
         change(
             PhraseChangedField.REPEATER,
-            task.timestampRepeater,
+            had(task.timestampRepeater),
             draft.repeater,
             PhraseField.REPEATER in cleared,
         ),
     )
+}
+
+/**
+ * Whether the phrase writes a planning line other than the one the row shows.
+ *
+ * A phrase naming the other kind -- "перенеси к пятнице" on an entry that is
+ * scheduled -- does not carry the date across: the core writes a `DEADLINE`
+ * line and leaves the `SCHEDULED` one where it is, so the entry keeps the day
+ * the agenda drew it on and gains a second one. The row's date, hour and
+ * repeater belong to the line that stayed, and naming them as what the phrase
+ * changed would report a move that did not happen.
+ *
+ * What the other line carried before is unknown here -- the agenda row carries
+ * one timestamp, the one it is drawn by -- so the fields are named with their
+ * new values alone. That is true whether the line was written or rewritten,
+ * which is the other thing this cannot tell apart.
+ *
+ * The date is what settles it: the keyword travels with the date in the rules,
+ * and a phrase naming no date names no line.
+ */
+private fun writesTheOtherLine(task: Task, draft: PhraseDraft): Boolean {
+    val said = draft.keyword?.keyword()?.takeIf { draft.date != null } ?: return false
+
+    return said != task.timestampType?.planningKeyword()
 }
 
 /**

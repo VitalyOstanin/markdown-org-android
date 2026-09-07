@@ -42,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   about it. The move and the weekday a series names are now both read by the
   extractor.
 
+- The line reporting what a phrase changed no longer claims a date moved when
+  a second one was written. "Перенеси к пятнице" said about a scheduled entry
+  writes a `DEADLINE` line and leaves the `SCHEDULED` one where it is -- the
+  entry keeps the day the agenda drew it on -- but the report was built by
+  comparing the phrase against the row, and read "строка планирования
+  SCHEDULED → DEADLINE, дата 01.09.2026 → 04.09.2026". A phrase naming the
+  other planning line is now reported by what it wrote there, without the
+  values of the line that stayed.
+
 - Moving an occurrence onto a day the series does not fall on is refused. The
   day before the arrow addresses an occurrence, and the core draws the day
   after it whatever stands before -- so a `MOVED` line naming a day the series

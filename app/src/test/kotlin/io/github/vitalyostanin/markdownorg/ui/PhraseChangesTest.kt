@@ -84,16 +84,70 @@ class PhraseChangesTest {
         assertEquals(emptyList<PhraseChange>(), phraseChanges(entry, said))
     }
 
+    /**
+     * A phrase naming the other planning line does not move the date there:
+     * the core writes a line of that kind, and the line the row is drawn by
+     * stays where it is. So the values of the row are not the values the
+     * phrase changed, and naming them as the "before" would tell the reader
+     * the entry moved when it gained a second date.
+     */
     @Test
-    fun `moving the date to the other planning line is named as well`() {
+    fun `a date said for the other planning line is named as the line it goes on`() {
         val entry = task(timestampType = TimestampType.SCHEDULED, date = "2026-09-01")
         val said = draft(keyword = PlanningKeyword.DEADLINE, date = "2026-09-04")
 
         assertEquals(
             listOf(
-                PhraseChange(PhraseChangedField.PLANNING, "SCHEDULED", "DEADLINE"),
-                PhraseChange(PhraseChangedField.DATE, "2026-09-01", "2026-09-04"),
+                PhraseChange(PhraseChangedField.PLANNING, null, "DEADLINE"),
+                PhraseChange(PhraseChangedField.DATE, null, "2026-09-04"),
             ),
+            phraseChanges(entry, said),
+        )
+    }
+
+    @Test
+    fun `a deadline for the day the entry is scheduled on is still a line it gained`() {
+        // The dates match, so comparing them field by field found no change at
+        // all -- and the entry did gain a deadline.
+        val entry = task(timestampType = TimestampType.SCHEDULED, date = "2026-09-01")
+        val said = draft(keyword = PlanningKeyword.DEADLINE, date = "2026-09-01")
+
+        assertEquals(
+            listOf(
+                PhraseChange(PhraseChangedField.PLANNING, null, "DEADLINE"),
+                PhraseChange(PhraseChangedField.DATE, null, "2026-09-01"),
+            ),
+            phraseChanges(entry, said),
+        )
+    }
+
+    @Test
+    fun `the hour said with the other line belongs to that line as well`() {
+        val entry = task(
+            timestampType = TimestampType.SCHEDULED,
+            date = "2026-09-01",
+            time = "15:00",
+            repeater = "+1w",
+        )
+        val said = draft(keyword = PlanningKeyword.DEADLINE, date = "2026-09-04", time = "16:00")
+
+        assertEquals(
+            listOf(
+                PhraseChange(PhraseChangedField.PLANNING, null, "DEADLINE"),
+                PhraseChange(PhraseChangedField.DATE, null, "2026-09-04"),
+                PhraseChange(PhraseChangedField.TIME, null, "16:00"),
+            ),
+            phraseChanges(entry, said),
+        )
+    }
+
+    @Test
+    fun `a date said for the line the entry already uses moves that line`() {
+        val entry = task(timestampType = TimestampType.SCHEDULED, date = "2026-09-01")
+        val said = draft(keyword = PlanningKeyword.SCHEDULED, date = "2026-09-04")
+
+        assertEquals(
+            listOf(PhraseChange(PhraseChangedField.DATE, "2026-09-01", "2026-09-04")),
             phraseChanges(entry, said),
         )
     }
@@ -113,11 +167,17 @@ class PhraseChangesTest {
 
     @Test
     fun `a plain timestamp is not a planning line the phrase moved off`() {
+        // A date in the body is not a line the phrase can move: what is
+        // written is a planning line the entry did not have, and its date is
+        // one the entry gained rather than one that travelled.
         val entry = task(timestampType = TimestampType.PLAIN, date = "2026-09-01")
         val said = draft(keyword = PlanningKeyword.SCHEDULED, date = "2026-09-01")
 
         assertEquals(
-            listOf(PhraseChange(PhraseChangedField.PLANNING, null, "SCHEDULED")),
+            listOf(
+                PhraseChange(PhraseChangedField.PLANNING, null, "SCHEDULED"),
+                PhraseChange(PhraseChangedField.DATE, null, "2026-09-01"),
+            ),
             phraseChanges(entry, said),
         )
     }

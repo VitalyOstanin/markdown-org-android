@@ -273,7 +273,7 @@ fn a_phrase_that_says_what_the_entry_says_writes_nothing() {
 }
 
 #[test]
-fn a_deadline_said_outright_moves_the_date_onto_its_own_line() {
+fn a_deadline_said_outright_is_written_on_a_line_of_its_own() {
     let vault = vault(ENTRY);
 
     apply_phrase(
