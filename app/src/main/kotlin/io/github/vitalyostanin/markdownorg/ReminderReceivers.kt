@@ -10,6 +10,7 @@ import io.github.vitalyostanin.markdownorg.core.ReminderIntent
 import io.github.vitalyostanin.markdownorg.core.ReminderNotifications
 import io.github.vitalyostanin.markdownorg.core.ReminderScheduler
 import io.github.vitalyostanin.markdownorg.core.TimedReminder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,7 +30,9 @@ class ReminderReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         val reminder = ReminderIntent.unpack(intent)
 
-        inTheBackground(this, app) { scheduler ->
+        inTheBackground(this) {
+            val scheduler = ReminderScheduler.of(app)
+
             ReminderChannels.declare(app)
             when (reminder) {
                 is TimedReminder -> ReminderNotifications.showTimed(app, reminder)
@@ -69,8 +72,8 @@ class ReminderRestartReceiver : BroadcastReceiver() {
         val app = context.applicationContext
 
         ReminderChannels.declare(app)
-        inTheBackground(this, app) { scheduler ->
-            scheduler.replan()
+        inTheBackground(this) {
+            ReminderScheduler.of(app).replan()
                 .onFailure { failure -> Log.w(TAG, "the plan was not made again", failure) }
         }
     }
@@ -85,11 +88,7 @@ class ReminderRestartReceiver : BroadcastReceiver() {
  * plan. What is missed here is picked up by the next occasion — every launch
  * of the agenda plans again.
  */
-private fun inTheBackground(
-    receiver: BroadcastReceiver,
-    context: Context,
-    work: suspend (ReminderScheduler) -> Unit,
-) {
+internal fun inTheBackground(receiver: BroadcastReceiver, work: suspend () -> Unit) {
     val pending = receiver.goAsync()
 
     CoroutineScope(Dispatchers.IO).launch {
@@ -99,12 +98,7 @@ private fun inTheBackground(
             // that stopped arriving: without these two lines there is nothing
             // to tell a directory that could not be read from a budget that
             // ran out, days later when the question is asked.
-            val done = withTimeoutOrNull(BUDGET) {
-                runCatching { work(ReminderScheduler.of(context)) }
-                    .onFailure { failure -> Log.w(TAG, "the reminder work failed", failure) }
-            }
-
-            if (done == null) {
+            if (!withinTheBudget(work)) {
                 Log.w(TAG, "the reminder work outstayed its ${BUDGET / 1000} seconds")
             }
         } finally {
@@ -112,6 +106,26 @@ private fun inTheBackground(
         }
     }
 }
+
+/**
+ * Run [work] under the budget, saying whether it finished inside it.
+ *
+ * Held apart from the receiver so it can be tested: `goAsync` is the
+ * platform's and needs a device, while what is decided here — what counts as
+ * a failure, and what counts as the time running out — is decided the same
+ * way wherever it runs.
+ */
+internal suspend fun withinTheBudget(work: suspend () -> Unit): Boolean =
+    withTimeoutOrNull(BUDGET) {
+        val ran = runCatching { work() }
+
+        // `runCatching` catches the cancellation that ends the work as well.
+        // Left inside the result, the process going away would be written
+        // down as notes that could not be read, and the work would go on
+        // after the caller dropped it.
+        (ran.exceptionOrNull() as? CancellationException)?.let { throw it }
+        ran.onFailure { failure -> Log.w(TAG, "the reminder work failed", failure) }
+    } != null
 
 /** How long the work after `onReceive` is given. */
 private const val BUDGET = 9_000L

@@ -33,6 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the keyword and the timestamp, and for a move the pair of them around the
   arrow.
 
+- Answering a reminder no longer holds the main thread while the answer is
+  carried out. The receiver behind the buttons is declared in the manifest and
+  so runs on that thread, and putting an occurrence off reads the settings file
+  -- off the disk, when the broadcast is what started the process -- inside the
+  lock every replan waits on: a press landing while the plan is being replaced
+  waited behind sixty-five alarms. Only taking the notification down happens
+  there now; the rest goes to the pool the other receivers already use.
+
+- Reminder work dropped by the caller ends instead of being written down as
+  notes that could not be read. The work is run inside `runCatching`, which
+  catches the cancellation as well.
+
 - A `MOVED` line the reader of the notes refuses stays in the text of the
   entry, where it can be corrected. The line was recognised here by a second
   reading of the timestamp syntax, written beside the one already asked of the
@@ -50,6 +62,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SCHEDULED → DEADLINE, дата 01.09.2026 → 04.09.2026". A phrase naming the
   other planning line is now reported by what it wrote there, without the
   values of the line that stayed.
+
+- "Done" on a reminder closes the entry that was announced, and nothing else.
+  The entry was looked up by its note and its line alone, so a line written
+  above it -- by hand, or by a synchronisation arriving between the plan and
+  the press -- moved it down and left another entry standing where the
+  reminder pointed; that one was closed instead, and the reader was told the
+  closing had succeeded. The heading the reminder already carries is now
+  compared as well, and an entry that is not where it was announced is
+  reported as gone rather than acted on.
 
 - Moving an occurrence onto a day the series does not fall on is refused. The
   day before the arrow addresses an occurrence, and the core draws the day

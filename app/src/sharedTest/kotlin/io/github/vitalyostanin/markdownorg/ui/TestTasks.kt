@@ -28,6 +28,8 @@ internal fun task(
     /** The occurrence after this row's own day; only a dated row carries one. */
     nextAfter: String? = null,
     daysOffset: Long? = 0,
+    /** The day of the series a moved occurrence stands for. */
+    movedFrom: String? = null,
 ): Task = Task(
     file = file,
     root = root,
@@ -42,6 +44,7 @@ internal fun task(
     timestampNext = next,
     timestampNextAfter = nextAfter,
     daysOffset = daysOffset,
+    movedFrom = movedFrom,
 )
 
 internal fun day(

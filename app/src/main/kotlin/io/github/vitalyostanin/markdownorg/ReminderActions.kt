@@ -94,15 +94,26 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         val reminder = ReminderIntent.unpack(intent) as? TimedReminder ?: return
         val notification = ReminderActions.notificationOf(intent)
+        // Read here rather than below: "later" is a quarter of an hour from
+        // the press, not from whenever the pool gets to the work.
+        val answer = answerTo(intent.action, reminder, ZonedDateTime.now())
 
         NotificationManagerCompat.from(app).cancel(notification)
-        when (val answer = answerTo(intent.action, reminder, ZonedDateTime.now())) {
-            is ReminderAnswer.HoldAside ->
-                ReminderAlarms(app).holdAside(key = notification, reminder = answer.reminder)
+        // Everything after the notification goes off the main thread. This
+        // receiver is declared in the manifest and so runs on it, and holding
+        // an occurrence aside reads the settings file — off the disk, when
+        // the broadcast is what started the process -- inside the lock every
+        // replan in the application waits on. A press landing while the plan
+        // is being replaced queues the main thread behind sixty-five alarms.
+        inTheBackground(this) {
+            when (answer) {
+                is ReminderAnswer.HoldAside ->
+                    ReminderAlarms(app).holdAside(key = notification, reminder = answer.reminder)
 
-            is ReminderAnswer.Close -> ReminderCompletionService.close(app, answer.reminder)
+                is ReminderAnswer.Close -> ReminderCompletionService.close(app, answer.reminder)
 
-            null -> Unit
+                null -> Unit
+            }
         }
     }
 }
@@ -176,9 +187,10 @@ class ReminderCompletionService : Service() {
      * Find the entry where it was announced and close it there.
      *
      * The agenda is read again rather than trusted from the alarm: the entry
-     * may have been closed on another device, or moved, in the time between
-     * the plan and the press. An entry no longer where it was said to be is
-     * one this does nothing about — there is no screen here to ask.
+     * may have been closed on another device, renamed, or moved, in the time
+     * between the plan and the press. An entry no longer where it was said to
+     * be is one this does nothing about — there is no screen here to ask, and
+     * whatever now stands at that line is not what was announced.
      */
     private suspend fun complete(reminder: TimedReminder) {
         val scheduler = ReminderScheduler.of(this)

@@ -96,11 +96,26 @@ class ReminderAnswerTest {
         assertNull(holding.entryNamed(ENTRY))
     }
 
+    /**
+     * The line is not the entry: a note written to above it -- by hand, or by
+     * a synchronisation that arrived between the plan and the press -- leaves
+     * something else standing where the reminder was addressed. Closing that
+     * would close an entry the reader never saw announced, and would report
+     * success for it.
+     */
+    @Test
+    fun `another entry standing at the line is not the one announced`() {
+        val holding = day(scheduledTimed = listOf(named(heading = "Water the flowers")))
+
+        assertNull(holding.entryNamed(ENTRY))
+    }
+
     private fun named(
         root: String? = ENTRY.root,
         file: String = ENTRY.file,
         line: UInt = ENTRY.line,
-    ) = task(heading = ENTRY.heading, line = line, file = file, root = root, time = "15:00")
+        heading: String = ENTRY.heading,
+    ) = task(heading = heading, line = line, file = file, root = root, time = "15:00")
 
     private fun at(hour: Int, minute: Int): ZonedDateTime =
         LocalDate.of(2026, 9, 4).atTime(hour, minute).atZone(ZONE)

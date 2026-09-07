@@ -41,12 +41,23 @@ internal fun answerTo(
 /**
  * The task the entry names, wherever in the day it sits.
  *
- * By note and line rather than by heading, for the reason the reminder is
- * addressed that way: headings repeat, and a repeating entry repeats its own.
- * Nothing found is the entry closed or moved between the plan and the press,
- * which is a case the caller answers for -- there is no screen here to ask.
+ * Addressed by note and line rather than by heading, for the reason the
+ * reminder is addressed that way: headings repeat, and a repeating entry
+ * repeats its own. The heading is then compared as well, because the line is
+ * not the entry: a note written to above it -- by hand, or by a
+ * synchronisation arriving between the plan and the press -- moves the entry
+ * down and leaves something else standing at the line the reminder named.
+ * Both together name one entry as closely as this application can without a
+ * screen to ask at.
+ *
+ * Nothing found is the entry closed, renamed or moved between the plan and
+ * the press, which is a case the caller answers for -- it says so rather than
+ * closing whatever now stands there.
  */
 internal fun Day.entryNamed(entry: ReminderEntry): Task? =
     (overdue + scheduledTimed + scheduledNoTime + upcoming).firstOrNull { task ->
-        task.line == entry.line && task.file == entry.file && task.root == entry.root
+        task.line == entry.line &&
+            task.file == entry.file &&
+            task.root == entry.root &&
+            task.heading == entry.heading
     }
