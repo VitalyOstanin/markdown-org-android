@@ -89,7 +89,7 @@ class ReadmeTest {
     fun noAbiIsProposedThatTheApkDoesNotCarry() {
         val packaged = packagedAbis()
 
-        assertTrue("abiFilters names nothing?", packaged.isNotEmpty())
+        assertTrue("appAbis names nothing?", packaged.isNotEmpty())
         val proposed =
             ABIS
                 .findAll(readme)
@@ -205,13 +205,17 @@ class ReadmeTest {
         .sortedBy(File::getName)
         .flatMap { file -> EXPORTED.findAll(file.readText()).map { it.groupValues[1].camelCase() } }
 
-    /** The ABIs the APK packages, whatever the core was built for. */
-    private fun packagedAbis(): Set<String> = ABI_FILTERS
-        .find(root.resolve("app/build.gradle.kts").readText())
+    /**
+     * The ABIs the APK packages: gradle.properties holds the one list, the
+     * build filters the packaged libraries by it, and the scripts build and
+     * check against it.
+     */
+    private fun packagedAbis(): Set<String> = DECLARED_ABIS
+        .find(root.resolve("gradle.properties").readText())
         ?.groupValues
         ?.get(1)
         ?.split(",")
-        ?.map { it.trim().trim('"') }
+        ?.map(String::trim)
         ?.filter(String::isNotBlank)
         .orEmpty()
         .toSet()
@@ -254,6 +258,6 @@ class ReadmeTest {
         /** A directory the Gradle build adds to a source set of its own accord. */
         val ADDED_DIRECTORY = Regex("""directories\.add\("([^"]+)"\)""")
 
-        val ABI_FILTERS = Regex("""abiFilters \+= listOf\(([^)]*)\)""")
+        val DECLARED_ABIS = Regex("""(?m)^appAbis=(.*)$""")
     }
 }

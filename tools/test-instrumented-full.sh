@@ -12,13 +12,13 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# The emulator runs x86_64. arm64-v8a stays in the list because it is what a
-# phone needs, and dropping it here would make the next tools/build-app.sh
-# rebuild it.
+# The emulator runs x86_64, and a phone arm64-v8a; both are what
+# gradle.properties declares, so the default here is that list rather than one
+# written out again.
 # Exported rather than passed as a command prefix: a prefix assignment to a
 # readonly variable is an error, and build-core.sh reads it from the
 # environment anyway.
-ABIS="${ABIS:-arm64-v8a x86_64}"
+ABIS="${ABIS:-$(declared_abis)}"
 export ABIS
 readonly ABIS
 

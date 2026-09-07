@@ -249,9 +249,11 @@ jobs:
       - name: Build the core and the bindings
         # The same script the working copy uses, in its podman-less mode: the
         # order of build, binding generation and stripping is stated once.
+        # ABIS is left alone: the script builds what gradle.properties
+        # declares, which is what the APK carries and what the check of the
+        # built APK reads back.
         env:
           NATIVE: '1'
-          ABIS: arm64-v8a x86_64
         run: tools/build-core.sh
 
       - name: Setup Gradle
@@ -305,6 +307,27 @@ jobs:
             app/build/test-results/**
           if-no-files-found: ignore
           retention-days: 3
+
+      - name: Check the version code against the published one
+        if: steps.variant.outputs.name == 'release'
+        # gradle.properties holds the code a build from a working copy gets,
+        # and it is only of use while it is level with the latest release:
+        # Android refuses to install a lower code over a higher one, and once
+        # the application is not debuggable it refuses it with the downgrade
+        # flag too. The number is raised by hand, so it is read back here --
+        # the run that publishes is the one occasion on which the two can be
+        # compared at all.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          published=$(gh release list --limit 20 --json tagName \
+            --jq '[.[].tagName | capture("build\\.(?<n>\\d+)$").n | tonumber] | max // 0')
+          held=$(sed -n 's/^appVersionCode=//p' gradle.properties)
+          if [ "$held" -lt "$published" ]; then
+            echo "gradle.properties holds appVersionCode=$held while $published is published;" \
+              "raise it and run this again" >&2
+            exit 1
+          fi
 
       - name: Decode the signing key
         if: steps.variant.outputs.name == 'release'

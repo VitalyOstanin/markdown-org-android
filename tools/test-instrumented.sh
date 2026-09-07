@@ -30,14 +30,14 @@ fi
 
 export ANDROID_SERIAL
 
-# The core is built per ABI, and tools/build-core.sh builds arm64-v8a alone
-# unless told otherwise. Without the emulator's own ABI the tests that load
-# the library fail as NoClassDefFoundError on UniffiLib, which says nothing
-# about what is missing.
+# The core is built per ABI, and tools/build-core.sh builds every ABI
+# gradle.properties declares unless ABIS narrows it. Without the emulator's
+# own ABI the tests that load the library fail as NoClassDefFoundError on
+# UniffiLib, which says nothing about what is missing.
 abi="$(adb_cmd shell getprop ro.product.cpu.abi | tr -d '\r')"
 if [[ ! -f "${REPO_ROOT}/rust/jniLibs/${abi}/libmarkdown_org_ffi.so" ]]; then
     echo "error: the core is not built for ${abi}, which is what ${ANDROID_SERIAL} runs" >&2
-    echo "       ABIS=\"arm64-v8a ${abi}\" tools/build-core.sh" >&2
+    echo "       tools/build-core.sh" >&2
     exit 1
 fi
 

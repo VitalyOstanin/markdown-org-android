@@ -66,6 +66,24 @@ class ReleaseTest {
     }
 
     /**
+     * The code a build from a working copy gets is only of use while it is
+     * level with the published one, and it is raised by hand. The run that
+     * publishes is the one occasion on which the tree and the releases can be
+     * compared at all, so it is where the comparison stands.
+     */
+    @Test
+    fun theCodeInTheTreeIsCheckedAgainstThePublishedOne() {
+        assertTrue(
+            "nothing in the workflow reads $VERSION_CODE out of gradle.properties",
+            workflow.contains("$VERSION_CODE=//p' gradle.properties"),
+        )
+        assertTrue(
+            "the code is read but never compared against what is published",
+            workflow.contains("gh release list"),
+        )
+    }
+
+    /**
      * A lightweight tag has no author, no date and no message: it says which
      * commit was released but not when, by whom, or as what.
      */

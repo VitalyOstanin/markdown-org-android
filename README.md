@@ -821,12 +821,19 @@ Requires [podman](https://podman.io/) and nothing else; the first run builds
 the container image, which downloads around 700 MB of NDK.
 
 ```bash
-# Both ABIs the APK carries, release, stripped
-ABIS="arm64-v8a x86_64" tools/build-core.sh
+# Every ABI gradle.properties declares, release, stripped
+tools/build-core.sh
 
 # Just the one that matters for a device, keeping symbols for debugging
 ABIS=arm64-v8a STRIP=0 tools/build-core.sh
 ```
+
+Which ABIs those are is written once, as `appAbis` in `gradle.properties`: the
+APK filters its libraries by that list, this script builds it, and
+`tools/check-apk.sh` reads the built APK back for a core under each of them.
+Building fewer of them is for a working copy — an APK assembled over such a
+core declares an ABI it carries no core for, which is a build that installs
+and dies at the first call into the core, and the check refuses it.
 
 Output:
 
@@ -859,7 +866,7 @@ The core has to be built first: the APK packages the libraries and compiles
 the Kotlin the binding generator produced.
 
 ```bash
-ABIS="arm64-v8a x86_64" tools/build-core.sh
+tools/build-core.sh
 tools/build-app.sh                  # debug
 VARIANT=release tools/build-app.sh
 ```
@@ -1145,12 +1152,13 @@ separate commands stay the shorter way around an interactive session, where
 the emulator is already up and the core already built.
 
 The instrumented tests need the core built for the emulator's own ABI, which
-is `x86_64`, while `build-core.sh` builds `arm64-v8a` alone unless `ABIS` says
-otherwise — and it clears `rust/jniLibs` first, so a build for the phone
+is `x86_64`. It is one of the ABIs `gradle.properties` declares, so the plain
+command builds it; the trap is `ABIS` narrowed by hand, because
+`build-core.sh` clears `rust/jniLibs` first and a build for the phone alone
 removes what the emulator needs:
 
 ```bash
-ABIS="arm64-v8a x86_64" tools/build-core.sh
+tools/build-core.sh
 ```
 
 What a run leaves behind, for the failure the console line does not explain:

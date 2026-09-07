@@ -252,9 +252,9 @@ reasoning.
   image carries. Bumping the image means bumping that line.
 - Changing anything on the FFI surface means rebuilding the core before the
   instrumented tests: the bindings are generated from a built library, and the
-  library is built only for the ABIs named in `ABIS`. The emulator runs
-  `x86_64`, a device `arm64-v8a` — `ABIS="arm64-v8a x86_64" tools/build-core.sh`
-  covers both.
+  library is built for the ABIs `appAbis` in `gradle.properties` names —
+  `x86_64` for the emulator, `arm64-v8a` for a device — unless `ABIS` narrows
+  it. Plain `tools/build-core.sh` covers both.
 
 ## Working on the application
 

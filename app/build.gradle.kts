@@ -53,11 +53,19 @@ val guardedTrees: List<String> = listOf(
 // whoever ran the build. Android orders packages by the code alone — a
 // constant one makes every build look like a reinstall of the same one, and
 // every store refuses the second upload — so CI passes the number of the run
-// that produced the APK. A build from a working copy keeps the 1 below and is
-// not meant to be distributed.
+// that produced the APK. A build from a working copy takes the code
+// gradle.properties holds, which is the latest release's, and is not meant to
+// be distributed.
 val appVersionName: String = providers.gradleProperty("appVersionName").get()
-val appVersionCode: Int = providers.gradleProperty("appVersionCode").map(String::toInt).getOrElse(1)
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").get().toInt()
 val appCommit: String = providers.gradleProperty("appCommit").getOrElse("working copy")
+
+// The ABIs the core is shipped for; see gradle.properties, which the build
+// scripts read as well.
+val appAbis: List<String> = providers.gradleProperty("appAbis").get()
+    .split(",")
+    .map(String::trim)
+    .filter(String::isNotEmpty)
 
 android {
     namespace = "io.github.vitalyostanin.markdownorg"
@@ -88,13 +96,12 @@ android {
             // — mips, mips64, armeabi. Without this filter they ride along at
             // around 0.4 MB of dead weight.
             //
-            // The list matches what tools/build-core.sh actually builds:
-            // arm64-v8a for devices, x86_64 for the emulator. Listing an ABI
-            // the core is not built for is worse than leaving it out — the
-            // APK installs, JNA finds its own library, and the app dies on
-            // the first call into the core. 32-bit ARM would need the core
-            // built for it first.
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            // The list comes from gradle.properties, which is also what
+            // tools/build-core.sh builds and what tools/check-apk.sh reads
+            // the APK back for: an ABI declared here and not built is an APK
+            // that installs and dies at the first call into the core, and a
+            // list written down twice is one that drifts.
+            abiFilters += appAbis
         }
     }
 

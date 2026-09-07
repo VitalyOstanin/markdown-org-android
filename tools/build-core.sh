@@ -13,7 +13,11 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-readonly ABIS="${ABIS:-arm64-v8a}"
+# The default is the list gradle.properties holds, which is what the APK
+# declares and what tools/check-apk.sh reads it back for. Overriding ABIS
+# builds fewer targets and is for a working copy only: an APK assembled over a
+# core built for one ABI is refused by that check.
+readonly ABIS="${ABIS:-$(declared_abis)}"
 readonly PROFILE="${PROFILE:-release}"
 readonly NATIVE="${NATIVE:-0}"
 

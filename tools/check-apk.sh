@@ -18,6 +18,12 @@
 # the symbols the native library exports — a function and a method on the
 # index. A renamed or removed one of these means the APK is broken in the way
 # nothing else here would notice.
+#
+# The other half of the same failure is a declared ABI the core was not built
+# for: the APK installs, JNA finds its own library under lib/<abi>, and the
+# application dies at the first call into the core. So the libraries are read
+# back too, against the list gradle.properties holds — the list the APK
+# declares and tools/build-core.sh builds.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -60,3 +66,24 @@ if [[ "${status}" -ne 0 ]]; then
 fi
 
 echo "==> the path into the core survived the shrinking"
+
+echo "==> reading the core out of $(basename "${APK}")"
+held="$(unzip -Z1 "${APK}" 'lib/*/libmarkdown_org_ffi.so' 2>/dev/null || true)"
+
+for abi in $(declared_abis); do
+    if grep -qxF -- "lib/${abi}/libmarkdown_org_ffi.so" <<< "${held}"; then
+        echo "    ok      ${abi}"
+    else
+        echo "    MISSING ${abi}" >&2
+        status=1
+    fi
+done
+
+if [[ "${status}" -ne 0 ]]; then
+    echo "==> the APK declares an ABI it carries no core for" >&2
+    echo "    it installs and dies at the first call into the core:" >&2
+    echo "    ABIS=\"$(declared_abis)\" tools/build-core.sh, then build the APK again" >&2
+    exit 1
+fi
+
+echo "==> the core is there for every ABI the APK declares"

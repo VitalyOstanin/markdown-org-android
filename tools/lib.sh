@@ -10,6 +10,13 @@ readonly REPO_ROOT
 # shellcheck source=versions.env
 source "${REPO_ROOT}/tools/versions.env"
 
+# The ABIs the application ships the core for, as one space-separated line.
+# Held in gradle.properties so that the build, the core and the check of the
+# built APK all read one list; see the comment there.
+declared_abis() {
+    sed -n 's/^appAbis=//p' "${REPO_ROOT}/gradle.properties" | tr ',' ' '
+}
+
 # The tag carries the version the image was built for, so a bump to
 # versions.env asks for a new image instead of silently reusing the old one.
 readonly NDK_IMAGE="${NDK_IMAGE:-localhost/markdown-org-ndk:${NDK_RELEASE}-${CARGO_ABOUT_VERSION}-${CARGO_LLVM_COV_VERSION}}"
