@@ -1,5 +1,6 @@
 package io.github.vitalyostanin.markdownorg.ui
 
+import io.github.vitalyostanin.markdownorg.core.written
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PhraseField
 import uniffi.markdown_org_ffi.PlanningKeyword
@@ -41,6 +42,9 @@ enum class PhraseChangedField {
 
     /** The repeater inside the planning timestamp. */
     REPEATER,
+
+    /** The entry's own reminder lead time. */
+    REMINDER,
 }
 
 /**
@@ -99,6 +103,15 @@ fun phraseChanges(task: Task, draft: PhraseDraft): List<PhraseChange> {
             had(task.timestampRepeater),
             draft.repeater,
             PhraseField.REPEATER in cleared,
+        ),
+        // The lead time stands in a property of its own rather than in the
+        // planning line, so the other line the phrase may write says nothing
+        // about it and the entry's own value is always the "before".
+        change(
+            PhraseChangedField.REMINDER,
+            task.reminder?.written(),
+            draft.reminder?.written(),
+            PhraseField.REMINDER in cleared,
         ),
     )
 }

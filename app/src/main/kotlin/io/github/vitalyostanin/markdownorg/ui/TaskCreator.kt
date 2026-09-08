@@ -45,15 +45,18 @@ import io.github.vitalyostanin.markdownorg.core.CorePhraseRules
 import io.github.vitalyostanin.markdownorg.core.NotesCollection
 import io.github.vitalyostanin.markdownorg.core.PhraseRules
 import io.github.vitalyostanin.markdownorg.core.TaskDraft
+import io.github.vitalyostanin.markdownorg.core.written
 import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderUnit
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.WritePosition
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import uniffi.markdown_org_ffi.ReminderLead as EntryLead
 
 /**
  * What is being typed into the creation screen.
@@ -99,6 +102,16 @@ class NewTaskState(collectionId: String) {
     var repeater by mutableStateOf<String?>(null)
 
     /**
+     * How long before its date the entry asks to be reminded, `null` for one
+     * that takes the reader's own setting.
+     *
+     * Kept beside the hour rather than inside the timestamp: what carries it
+     * in the file is a property of the entry, and an entry planned for a whole
+     * day is reminded about as well.
+     */
+    var reminder by mutableStateOf<EntryLead?>(null)
+
+    /**
      * The fields a phrase reads, as the core holds them.
      *
      * What is currently on the screen rather than what the last phrase left:
@@ -117,6 +130,7 @@ class NewTaskState(collectionId: String) {
         date = day?.toString(),
         time = time?.format(DateTimeFormatter.ofPattern("HH:mm")),
         repeater = repeater,
+        reminder = reminder,
         // Neither belongs to a task being written: the keyword of a new one is
         // TODO whatever the phrase says, and a field of an entry that does not
         // exist yet cannot be emptied.
@@ -138,6 +152,7 @@ class NewTaskState(collectionId: String) {
         day = draft.date?.let(LocalDate::parse)
         time = draft.time?.let(LocalTime::parse)
         repeater = draft.repeater
+        reminder = draft.reminder
     }
 
     /** The draft as the writer takes it. */
@@ -150,6 +165,7 @@ class NewTaskState(collectionId: String) {
         date = day,
         time = time,
         repeater = repeater,
+        reminder = reminder,
     )
 
     companion object {
@@ -168,6 +184,11 @@ class NewTaskState(collectionId: String) {
                     "day" to state.day?.toEpochDay(),
                     "time" to state.time?.toSecondOfDay(),
                     "repeater" to state.repeater,
+                    // The count and the unit apart, as the pair is held:
+                    // spelling it out and reading it back would mean crossing
+                    // into the core to restore a screen.
+                    "lead" to state.reminder?.value?.toInt(),
+                    "leadUnit" to state.reminder?.unit?.name,
                 )
             },
             restore = { saved ->
@@ -182,6 +203,11 @@ class NewTaskState(collectionId: String) {
                     day = (saved["day"] as? Long)?.let(LocalDate::ofEpochDay)
                     time = (saved["time"] as? Int)?.toLong()?.let(LocalTime::ofSecondOfDay)
                     repeater = saved["repeater"] as? String
+                    reminder = (saved["lead"] as? Int)?.let { count ->
+                        (saved["leadUnit"] as? String)?.let { unit ->
+                            EntryLead(count.toUInt(), ReminderUnit.valueOf(unit))
+                        }
+                    }
                 }
             },
         )
@@ -574,6 +600,7 @@ private fun NewTaskDate(state: NewTaskState, weekStart: WeekStart, phrases: Phra
         }
 
         NewTaskRepeat(state, phrases)
+        NewTaskReminder(state, phrases)
     }
 
     if (picking) {
@@ -670,6 +697,156 @@ private fun NewTaskRepeat(state: NewTaskState, phrases: PhraseRules) {
         )
     }
 }
+
+/**
+ * How long before the date the entry asks to be reminded.
+ *
+ * Offered beside the repeater and for the same reason the hour is: what
+ * carries the reminder is the date, and an entry planned for no day has
+ * nothing for a lead time to count back from.
+ *
+ * The first chip is not the absence of a reminder but the absence of an answer
+ * from the entry: a note that says nothing is reminded about by the reader's
+ * own setting, which is what most entries want. The rest are the habits — a
+ * quarter of an hour to put the kettle on, a day to prepare — and Other…
+ * takes what the key can hold, including what a phrase set it to.
+ */
+@Composable
+private fun NewTaskReminder(state: NewTaskState, phrases: PhraseRules) {
+    var typing by rememberSaveable { mutableStateOf(false) }
+    val ready = LEADS.any { it.lead == state.reminder }
+
+    ChoiceHeading(
+        text = stringResource(R.string.create_reminder),
+        hint = stringResource(R.string.hint_create_reminder),
+    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        LEADS.forEach { offered ->
+            FilterChip(
+                selected = offered.lead == state.reminder,
+                onClick = { state.reminder = offered.lead },
+                label = { Text(stringResource(offered.label)) },
+                modifier = Modifier.testTag("create-reminder-${offered.tag}"),
+            )
+        }
+        FilterChip(
+            // The lead time itself once it is one of its own, as the notes
+            // spell it: a chip that keeps saying Other… says nothing about
+            // what a phrase left in the field.
+            selected = !ready,
+            onClick = { typing = true },
+            label = {
+                Text(
+                    text = state.reminder
+                        ?.takeUnless { ready }
+                        ?.written()
+                        ?: stringResource(R.string.create_reminder_custom),
+                )
+            },
+            modifier = Modifier.testTag("create-reminder-custom"),
+        )
+    }
+
+    if (typing) {
+        LeadChoice(
+            initial = state.reminder?.written().orEmpty(),
+            phrases = phrases,
+            onDismiss = { typing = false },
+            onPicked = { lead ->
+                typing = false
+                state.reminder = lead
+            },
+        )
+    }
+}
+
+/**
+ * A lead time typed by hand, answered while it is being typed.
+ *
+ * The core is asked what the field spells, for the reason it is asked about a
+ * repeater: the key is read back by the core, and a screen with its own idea
+ * of the grammar would write what the core then refuses to read.
+ */
+@Composable
+private fun LeadChoice(
+    initial: String,
+    phrases: PhraseRules,
+    onDismiss: () -> Unit,
+    onPicked: (EntryLead) -> Unit,
+) {
+    var typed by rememberSaveable { mutableStateOf(initial) }
+    // Remembered against what was typed, as the repeater's field is: the
+    // answer crosses into the core and changes only when the field does.
+    val lead = remember(typed) { phrases.lead(typed.trim()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.create_reminder_title)) },
+        text = {
+            OutlinedTextField(
+                value = typed,
+                onValueChange = { typed = it },
+                singleLine = true,
+                isError = typed.isNotBlank() && lead == null,
+                supportingText = {
+                    Text(
+                        stringResource(
+                            if (typed.isNotBlank() && lead == null) {
+                                R.string.create_reminder_invalid
+                            } else {
+                                R.string.create_reminder_support
+                            },
+                        ),
+                    )
+                },
+                // A lead time is a number and a lower-case unit, as a repeater
+                // is: what the keyboard would capitalise the field refuses.
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("create-reminder-field"),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { lead?.let(onPicked) },
+                enabled = lead != null,
+                modifier = Modifier.testTag("create-reminder-set"),
+            ) {
+                Text(stringResource(R.string.date_set))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("create-reminder-cancel")) {
+                Text(stringResource(R.string.date_cancel))
+            }
+        },
+        modifier = Modifier.testTag("create-reminder-dialog"),
+    )
+}
+
+/** One of the lead times the chips offer, and what it writes. */
+private class Lead(@param:StringRes val label: Int, val tag: String, val lead: EntryLead?)
+
+/**
+ * The lead times offered, in the order they are: the entry saying nothing,
+ * and then from the shortest to the longest.
+ */
+private val LEADS = listOf(
+    Lead(R.string.create_reminder_default, "default", null),
+    Lead(R.string.create_reminder_five, "five", EntryLead(5u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_fifteen, "fifteen", EntryLead(15u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_thirty, "thirty", EntryLead(30u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_hour, "hour", EntryLead(1u, ReminderUnit.HOUR)),
+    Lead(R.string.create_reminder_day, "day", EntryLead(1u, ReminderUnit.DAY)),
+)
 
 /**
  * A repeater typed by hand, answered while it is being typed.

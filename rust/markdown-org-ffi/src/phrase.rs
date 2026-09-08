@@ -27,11 +27,12 @@ use crate::document::Document;
 use crate::edit::{
     checked_priority, parse_date, with_priority, with_status, EditError, EditOutcome, EditTarget,
 };
+use crate::occurrence::{property_value, remove_property, set_property};
 use crate::planning::{
     holds_only, keyword_block_end, planning_line, planning_lines, rewrite_date, rewrite_repeater,
     rewrite_time, PlanningKeyword, StampTokens,
 };
-use crate::TaskType;
+use crate::{ReminderLead, TaskType};
 
 /// What the phrases said so far, in the shapes the screen holds them in.
 ///
@@ -59,6 +60,9 @@ pub struct PhraseDraft {
     /// anywhere to put. Named `status` rather than `keyword` because that
     /// name is taken here by the planning keyword above.
     pub status: Option<TaskType>,
+    /// How long before its hour the entry asks to be reminded, written into
+    /// the `REMINDER` property when the draft is applied.
+    pub reminder: Option<ReminderLead>,
     /// The fields a phrase said to empty, which is not the same as the fields
     /// it left unnamed: both come back as `None` above.
     pub cleared: Vec<PhraseField>,
@@ -75,6 +79,8 @@ pub enum PhraseField {
     Repeater,
     /// The priority cookie on the heading.
     Priority,
+    /// The lead time of the entry's own reminder.
+    Reminder,
 }
 
 /// Refine `draft` with one more `phrase`, as of `today`.
@@ -137,6 +143,7 @@ fn entry_of(draft: PhraseDraft) -> Result<PhraseEntry, EditError> {
             ),
         })?);
     }
+    entry.reminder = draft.reminder.map(markdown_org_extract::ReminderLead::from);
     entry.keyword = draft.status.map(|status| match status {
         TaskType::Todo => PhraseKeyword::Todo,
         TaskType::Done => PhraseKeyword::Done,
@@ -148,6 +155,7 @@ fn entry_of(draft: PhraseDraft) -> Result<PhraseEntry, EditError> {
             PhraseField::Time => entry.cleared.time = true,
             PhraseField::Repeater => entry.cleared.repeater = true,
             PhraseField::Priority => entry.cleared.priority = true,
+            PhraseField::Reminder => entry.cleared.reminder = true,
         }
     }
 
@@ -171,11 +179,13 @@ fn draft_of(entry: PhraseEntry) -> PhraseDraft {
             PhraseKeyword::Done => TaskType::Done,
             PhraseKeyword::Cancelled => TaskType::Cancelled,
         }),
+        reminder: entry.reminder.map(ReminderLead::from),
         cleared: [
             (entry.cleared.date, PhraseField::Date),
             (entry.cleared.time, PhraseField::Time),
             (entry.cleared.repeater, PhraseField::Repeater),
             (entry.cleared.priority, PhraseField::Priority),
+            (entry.cleared.reminder, PhraseField::Reminder),
         ]
         .into_iter()
         .filter_map(|(cleared, field)| cleared.then_some(field))
@@ -217,6 +227,7 @@ pub fn apply_phrase(target: EditTarget, draft: PhraseDraft) -> Result<EditOutcom
         && entry.date.is_none()
         && entry.time.is_none()
         && entry.repeater.is_none()
+        && entry.reminder.is_none()
         && cleared.is_empty()
     {
         return Err(EditError::Unsupported {
@@ -230,9 +241,10 @@ pub fn apply_phrase(target: EditTarget, draft: PhraseDraft) -> Result<EditOutcom
 
     let heading_changed = apply_to_heading(&mut document, index, &entry)?;
     let planning_changed = apply_to_planning(&mut document, index, &entry)?;
+    let properties_changed = apply_to_properties(&mut document, index, &entry);
 
     let line = document.at(index).to_string();
-    if !heading_changed && !planning_changed {
+    if !heading_changed && !planning_changed && !properties_changed {
         // Every field the phrase named already said what the entry says.
         // Reported as an edit that changed nothing rather than as a failure,
         // which is how every other operation answers the same case.
@@ -303,6 +315,30 @@ fn finish_heading(
     }
     document.set(index, line);
     Ok(true)
+}
+
+/// The entry's own lead time: written into the `REMINDER` property, or taken
+/// out of it.
+///
+/// Answers whether the file changed. A lead time already written the way the
+/// phrase says it changes nothing, which is how a phrase that repeats what the
+/// entry says is answered everywhere else here.
+fn apply_to_properties(document: &mut Document, index: usize, entry: &PhraseEntry) -> bool {
+    use markdown_org_extract::REMINDER_KEY;
+
+    if let Some(lead) = entry.reminder.as_ref() {
+        let written = lead.canonical();
+        if property_value(document, index, REMINDER_KEY).as_deref() == Some(written.as_str()) {
+            return false;
+        }
+        set_property(document, index, REMINDER_KEY, &written);
+        return true;
+    }
+    if entry.cleared.reminder {
+        return remove_property(document, index, REMINDER_KEY);
+    }
+
+    false
 }
 
 /// The planning line: emptied, rewritten, or written where there was none.

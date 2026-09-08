@@ -1,8 +1,10 @@
 package io.github.vitalyostanin.markdownorg.core
 
 import uniffi.markdown_org_ffi.PhraseDraft
+import uniffi.markdown_org_ffi.ReminderLead
 import uniffi.markdown_org_ffi.canonicalRepeater
 import uniffi.markdown_org_ffi.refinePhrase
+import uniffi.markdown_org_ffi.reminderLead
 import java.time.LocalDate
 
 /**
@@ -27,6 +29,15 @@ interface PhraseRules {
 
     /** How [typed] would be written as a repeater, `null` if it spells none. */
     fun repeater(typed: String): String?
+
+    /**
+     * The lead time [typed] spells, `null` if it spells none.
+     *
+     * Read here rather than by the screen for the reason a repeater is: what
+     * a note carries is the core's grammar, and a second reading of it on this
+     * side would be a second answer to the same question.
+     */
+    fun lead(typed: String): ReminderLead?
 }
 
 /** The rules as the core states them. */
@@ -36,6 +47,8 @@ internal object CorePhraseRules : PhraseRules {
         refinePhrase(draft, said, LOCALES, "$today")
 
     override fun repeater(typed: String): String? = canonicalRepeater(typed)
+
+    override fun lead(typed: String): ReminderLead? = reminderLead(typed)
 
     private const val LOCALES = "ru,en"
 }

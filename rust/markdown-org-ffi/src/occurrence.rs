@@ -618,7 +618,12 @@ fn property(document: &Document, section: Range<usize>, key: &str) -> Option<(us
 /// gets one under its planning lines — which is where the extractor's
 /// ADR-0020 puts it, and where it stays out of the body the entry editor
 /// hands over.
-fn set_property(document: &mut Document, index: usize, key: &str, value: &str) -> String {
+pub(crate) fn set_property(
+    document: &mut Document,
+    index: usize,
+    key: &str,
+    value: &str,
+) -> String {
     let section = section(document, index);
     let blocks = property_blocks(document, section.clone());
 
@@ -651,6 +656,44 @@ fn set_property(document: &mut Document, index: usize, key: &str, value: &str) -
         vec![format!("```{PROPERTIES}"), line.clone(), "```".to_string()],
     );
     line
+}
+
+/// What the entry at `index` holds under `key`, if anything.
+///
+/// For a caller that writes a property only when it would change the file: a
+/// key rewritten with the value it already carries is an edit that changed
+/// nothing, and this format answers such a phrase by saying so rather than by
+/// saving the same bytes again.
+pub(crate) fn property_value(document: &Document, index: usize, key: &str) -> Option<String> {
+    let section = section(document, index);
+
+    property(document, section, key).map(|(_, value)| value)
+}
+
+/// Take `key` out of the property block of the entry at `index`, and answer
+/// whether it was there.
+///
+/// A block left with nothing in it goes too: a fence around no properties is
+/// not something a person wrote, and an entry carrying it reads as one with a
+/// property block while carrying no property.
+pub(crate) fn remove_property(document: &mut Document, index: usize, key: &str) -> bool {
+    let section = section(document, index);
+    let Some((line_index, _)) = property(document, section.clone(), key) else {
+        return false;
+    };
+    let emptied = property_blocks(document, section)
+        .into_iter()
+        .find(|block| block.contains(&line_index))
+        .is_some_and(|block| block.end - block.start == 1);
+
+    if emptied {
+        // The fences stand on the lines either side of the one line left.
+        document.replace_lines(line_index - 1..line_index + 2, Vec::new());
+    } else {
+        document.remove(line_index);
+    }
+
+    true
 }
 
 /// The time the timestamp carries, as written — a range of hours included.

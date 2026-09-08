@@ -12,6 +12,7 @@ import uniffi.markdown_org_ffi.NewPlanning
 import uniffi.markdown_org_ffi.NewTask
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
 import uniffi.markdown_org_ffi.RevertOutcome
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
@@ -104,6 +105,15 @@ data class TaskDraft(
      * does, and is checked by the core rather than here.
      */
     val repeater: String? = null,
+    /**
+     * How long before its date the entry asks to be reminded, or `null` for
+     * one reminded about by the reader's own setting.
+     *
+     * Not part of the timestamp the three fields above belong to: the lead
+     * time is written as a property of the entry, which is where the core
+     * reads it back from (extractor's ADR-0041).
+     */
+    val reminder: ReminderLead? = null,
 )
 
 /**
@@ -580,6 +590,7 @@ class NotesEditor internal constructor(
                 repeater = repeater,
             )
         },
+        reminder = reminder,
     )
 
     private fun Task.target() = EditTarget(

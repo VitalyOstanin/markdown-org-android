@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.markdown_org_ffi.ReminderLead
+import uniffi.markdown_org_ffi.ReminderUnit
 import uniffi.markdown_org_ffi.TaskType
 import java.time.LocalDate
 import java.time.LocalTime
@@ -242,6 +244,71 @@ class ReminderPlanTest {
         assertEquals(1, timed.size)
         assertEquals(at("08:45"), timed.single().at)
         assertEquals(at("09:00"), timed.single().starts)
+    }
+
+    /**
+     * The entry's own lead time, which the `REMINDER` key of a note names
+     * (the core's ADR-0041).
+     */
+    @Test
+    fun `an entry that names its own lead time is announced by it`() {
+        val plan = planReminders(
+            days = listOf(
+                day(
+                    date = TODAY,
+                    scheduledTimed = listOf(
+                        task(time = "15:00", reminder = ReminderLead(1u, ReminderUnit.HOUR)),
+                    ),
+                ),
+            ),
+            choices = on(),
+            now = at("08:00"),
+        )
+
+        val timed = plan.filterIsInstance<TimedReminder>().single()
+
+        assertEquals(at("14:00"), timed.at)
+        assertEquals(at("15:00"), timed.starts)
+    }
+
+    @Test
+    fun `an entry saying nothing keeps the reader's setting`() {
+        val plan = planReminders(
+            days = listOf(day(date = TODAY, scheduledTimed = listOf(task(time = "15:00")))),
+            choices = on(),
+            now = at("08:00"),
+        )
+
+        assertEquals(at("14:45"), plan.filterIsInstance<TimedReminder>().single().at)
+    }
+
+    /**
+     * A month is subtracted by the calendar rather than as a number of days,
+     * which is the reason the core hands back a count and a unit instead of
+     * minutes: a month before the 31st of March is the 28th of February.
+     */
+    @Test
+    fun `a month of lead time is counted by the calendar`() {
+        val occurrence = ZonedDateTime.of(
+            LocalDate.of(2026, 3, 31),
+            LocalTime.of(15, 0),
+            ZONE,
+        )
+
+        assertEquals(
+            ZonedDateTime.of(LocalDate.of(2026, 2, 28), LocalTime.of(15, 0), ZONE),
+            occurrence.before(ReminderLead(1u, ReminderUnit.MONTH)),
+        )
+    }
+
+    @Test
+    fun `a lead time is written the way a note writes it`() {
+        assertEquals("30min", ReminderLead(30u, ReminderUnit.MINUTE).written())
+        assertEquals("1h", ReminderLead(1u, ReminderUnit.HOUR).written())
+        assertEquals("1m", ReminderLead(1u, ReminderUnit.MONTH).written())
+        assertEquals("2w", ReminderLead(2u, ReminderUnit.WEEK).written())
+        assertEquals("3d", ReminderLead(3u, ReminderUnit.DAY).written())
+        assertEquals("1y", ReminderLead(1u, ReminderUnit.YEAR).written())
     }
 
     private fun on(

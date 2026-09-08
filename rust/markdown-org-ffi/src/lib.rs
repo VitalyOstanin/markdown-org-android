@@ -241,6 +241,76 @@ pub struct Task {
     /// second time writes a second `MOVED` line beside the first, and
     /// cancelling it excludes a day the series does not fall on (ADR-0038).
     pub moved_from: Option<String>,
+    /// How long before its hour this entry asks to be reminded, when it says
+    /// so with the `REMINDER` key of its property block (extractor's
+    /// ADR-0041).
+    ///
+    /// A count and a unit rather than a number of minutes: a month and a year
+    /// have no fixed length, and the subtraction happens where the occurrence
+    /// and the reader's digest hour are known — in the planner, not here.
+    /// `None` for an entry that names none, which is reminded about by the
+    /// reader's own setting.
+    pub reminder: Option<ReminderLead>,
+}
+
+/// How far ahead of an occurrence a reminder is due, as the note writes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct ReminderLead {
+    /// How many units ahead. Zero is a reminder at the occurrence itself.
+    pub value: u32,
+    /// The unit those are counted in.
+    pub unit: ReminderUnit,
+}
+
+/// The unit a lead time is counted in.
+///
+/// The months and years are the reason this is not a number of minutes: both
+/// are subtracted by the calendar, and how long they are depends on the day
+/// they are subtracted from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ReminderUnit {
+    /// Minutes, written `min` in a note because `m` is a month.
+    Minute,
+    /// Hours, written `h`.
+    Hour,
+    /// Days, written `d`.
+    Day,
+    /// Weeks, written `w`.
+    Week,
+    /// Calendar months, written `m`.
+    Month,
+    /// Calendar years, written `y`.
+    Year,
+}
+
+/// The lead time `value` spells, or `None` where it spells none.
+///
+/// Offered to the interface for the reason [`canonical_repeater`] is: the
+/// creation screen takes one that is not among the few it offers as chips, and
+/// a field that only reports its mistake once the entry has been written
+/// reports it too late. The count and the unit come back apart, as everything
+/// about a lead time travels here.
+#[uniffi::export]
+pub fn reminder_lead(value: String) -> Option<ReminderLead> {
+    markdown_org_extract::parse_reminder_lead(&value).map(ReminderLead::from)
+}
+
+impl From<markdown_org_extract::ReminderLead> for ReminderLead {
+    fn from(lead: markdown_org_extract::ReminderLead) -> Self {
+        use markdown_org_extract::ReminderUnit as SourceUnit;
+
+        Self {
+            value: lead.value,
+            unit: match lead.unit {
+                SourceUnit::Minute => ReminderUnit::Minute,
+                SourceUnit::Hour => ReminderUnit::Hour,
+                SourceUnit::Day => ReminderUnit::Day,
+                SourceUnit::Week => ReminderUnit::Week,
+                SourceUnit::Month => ReminderUnit::Month,
+                SourceUnit::Year => ReminderUnit::Year,
+            },
+        }
+    }
 }
 
 impl From<markdown_org_extract::Task> for Task {
@@ -283,6 +353,25 @@ impl From<markdown_org_extract::Task> for Task {
                         .find(|moved| moved.to == drawn)
                         .map(|moved| moved.from.clone())
                 }),
+            reminder: task.reminder.map(ReminderLead::from),
+        }
+    }
+}
+
+impl From<ReminderLead> for markdown_org_extract::ReminderLead {
+    fn from(lead: ReminderLead) -> Self {
+        use markdown_org_extract::ReminderUnit as TargetUnit;
+
+        Self {
+            value: lead.value,
+            unit: match lead.unit {
+                ReminderUnit::Minute => TargetUnit::Minute,
+                ReminderUnit::Hour => TargetUnit::Hour,
+                ReminderUnit::Day => TargetUnit::Day,
+                ReminderUnit::Week => TargetUnit::Week,
+                ReminderUnit::Month => TargetUnit::Month,
+                ReminderUnit::Year => TargetUnit::Year,
+            },
         }
     }
 }

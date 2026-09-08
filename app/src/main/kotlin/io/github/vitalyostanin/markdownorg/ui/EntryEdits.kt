@@ -825,6 +825,7 @@ class EntryEdits(
             time = null,
             repeater = null,
             status = null,
+            reminder = null,
             cleared = emptyList(),
         )
 

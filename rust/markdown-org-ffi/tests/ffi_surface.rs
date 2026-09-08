@@ -8,7 +8,9 @@
 use std::fs;
 
 use markdown_org_ffi::{
-    scan, scan_agenda, AgendaQuery, ExtractError, Options, Scope, TaskType, TimestampType,
+    reminder_lead, scan, scan_agenda, AgendaQuery, ExtractError, Options, ReminderLead,
+    ReminderUnit, Scope,
+    TaskType, TimestampType,
 };
 
 fn options() -> Options {
@@ -628,4 +630,73 @@ fn a_moved_occurrence_carries_the_day_of_the_series_it_stands_for() {
 
     assert_eq!(row.timestamp_date.as_deref(), Some("2026-08-22"));
     assert_eq!(row.moved_from.as_deref(), Some("2026-08-20"));
+}
+
+#[test]
+fn a_reminder_lead_time_crosses_the_boundary_as_a_count_and_a_unit() {
+    // The entry says how long before its hour it wants to be told, and the
+    // planner subtracts that from the occurrence: a month is subtracted by the
+    // calendar, so the number and the unit stay apart (extractor's ADR-0041).
+    let vault = write_vault(&[(
+        "notes.md",
+        "# TODO Call the doctor\n\
+         `SCHEDULED: <2026-09-15 Tue 15:00>`\n\
+         ```org-properties\n\
+         REMINDER: 30min\n\
+         ```\n",
+    )]);
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+    let task = result.tasks.first().expect("the one task");
+
+    assert_eq!(
+        task.reminder,
+        Some(ReminderLead {
+            value: 30,
+            unit: ReminderUnit::Minute
+        })
+    );
+}
+
+#[test]
+fn an_entry_without_a_reminder_key_carries_none() {
+    let vault = write_vault(&[(
+        "notes.md",
+        "# TODO Call the doctor\n`SCHEDULED: <2026-09-15 Tue 15:00>`\n",
+    )]);
+
+    let result = scan(vault.path().display().to_string(), options()).expect("scan");
+
+    assert_eq!(result.tasks.first().expect("the one task").reminder, None);
+}
+
+#[test]
+fn a_lead_time_typed_by_hand_is_answered_before_it_is_written() {
+    // The creation screen offers a few of them as chips and takes the rest as
+    // text; what the core reads back is what the file would carry.
+    assert_eq!(
+        reminder_lead(" 2h ".to_string()),
+        Some(ReminderLead {
+            value: 2,
+            unit: ReminderUnit::Hour
+        })
+    );
+    assert_eq!(
+        reminder_lead("3d".to_string()),
+        Some(ReminderLead {
+            value: 3,
+            unit: ReminderUnit::Day
+        })
+    );
+}
+
+#[test]
+fn a_lead_time_that_spells_nothing_is_refused_rather_than_guessed_at() {
+    // The unit is the whole of the answer: a bare number could be minutes or
+    // days, and a screen that picked one for the user would write the wrong
+    // key without saying so.
+    assert_eq!(reminder_lead(String::new()), None);
+    assert_eq!(reminder_lead("30".to_string()), None);
+    assert_eq!(reminder_lead("half an hour".to_string()), None);
+    assert_eq!(reminder_lead("1h30min".to_string()), None);
 }

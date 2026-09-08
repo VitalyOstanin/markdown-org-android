@@ -5,6 +5,8 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PhraseField
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
+import uniffi.markdown_org_ffi.ReminderUnit
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.TimestampType
 
@@ -196,6 +198,44 @@ class PhraseChangesTest {
             phraseChanges(entry, said),
         )
     }
+
+    @Test
+    fun `a lead time the phrase named is listed the way the note writes it`() {
+        val entry = task(date = "2026-09-01", time = "15:00")
+        val said = draft(reminder = ReminderLead(30u, ReminderUnit.MINUTE))
+
+        assertEquals(
+            listOf(PhraseChange(PhraseChangedField.REMINDER, null, "30min")),
+            phraseChanges(entry, said),
+        )
+    }
+
+    @Test
+    fun `a lead time the phrase emptied is listed as gone`() {
+        val entry = task(
+            date = "2026-09-01",
+            time = "15:00",
+            reminder = ReminderLead(1u, ReminderUnit.HOUR),
+        )
+        val said = draft(cleared = listOf(PhraseField.REMINDER))
+
+        assertEquals(
+            listOf(PhraseChange(PhraseChangedField.REMINDER, "1h", null)),
+            phraseChanges(entry, said),
+        )
+    }
+
+    @Test
+    fun `a lead time the entry already carries is not a change`() {
+        val entry = task(
+            date = "2026-09-01",
+            time = "15:00",
+            reminder = ReminderLead(1u, ReminderUnit.HOUR),
+        )
+        val said = draft(reminder = ReminderLead(1u, ReminderUnit.HOUR))
+
+        assertEquals(emptyList<PhraseChange>(), phraseChanges(entry, said))
+    }
 }
 
 /** What the rules read a phrase into, with only the named fields set. */
@@ -207,6 +247,7 @@ private fun draft(
     time: String? = null,
     repeater: String? = null,
     status: TaskType? = null,
+    reminder: ReminderLead? = null,
     cleared: List<PhraseField> = emptyList(),
 ): PhraseDraft = PhraseDraft(
     heading = heading,
@@ -216,5 +257,6 @@ private fun draft(
     time = time,
     repeater = repeater,
     status = status,
+    reminder = reminder,
     cleared = cleared,
 )

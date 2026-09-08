@@ -25,6 +25,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
+import uniffi.markdown_org_ffi.ReminderUnit
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.WritePosition
 import java.time.LocalDate
@@ -341,6 +343,71 @@ class TaskCreatorTest {
 
         compose.onNodeWithTag("create-target").performScrollTo()
             .assertTextEquals(string(R.string.create_goes_to_end, "inbox.md"))
+    }
+
+    @Test
+    fun theLeadTimeIsOfferedOnlyOnceThereIsADay() {
+        show()
+
+        // Nothing to count back from: the lead time belongs to the date the
+        // same way the hour does.
+        compose.onNodeWithTag("create-reminder-hour").assertDoesNotExist()
+
+        pickToday()
+
+        compose.onNodeWithTag("create-reminder-hour").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun theLeadTimeChosenIsWhatTheEntryAsksFor() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Ring the dentist")
+        pickToday()
+        compose.onNodeWithTag("create-reminder-hour").performScrollTo().performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        // A count and a unit rather than a number of minutes: what goes into
+        // the note is the pair, and the calendar does the subtracting.
+        assertEquals(ReminderLead(1u, ReminderUnit.HOUR), created?.second?.reminder)
+    }
+
+    @Test
+    fun anEntryTakingTheSettingAsksForNoLeadTimeOfItsOwn() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Ring the dentist")
+        pickToday()
+        compose.onNodeWithTag("create-reminder-hour").performScrollTo().performClick()
+        compose.onNodeWithTag("create-reminder-default").performScrollTo().performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        // The first chip is the entry saying nothing, which is not a lead time
+        // of zero: the reader's own setting decides when it is announced.
+        assertNull(created?.second?.reminder)
+    }
+
+    @Test
+    fun aLeadTimeTypedByHandIsAnsweredWhileItIsBeingTyped() {
+        show()
+
+        compose.onNodeWithTag("create-title").performTextReplacement("Ring the dentist")
+        pickToday()
+        compose.onNodeWithTag("create-reminder-custom").performScrollTo().performClick()
+        compose.onNodeWithTag("create-reminder-dialog").assertIsDisplayed()
+        compose.onNodeWithTag("create-reminder-field").performTextReplacement("soon")
+
+        // A word is not a lead time, and a bare number does not say which unit
+        // it counts; both are refused before the task has been composed.
+        compose.onNodeWithTag("create-reminder-set").assertIsNotEnabled()
+        compose.onNodeWithTag("create-reminder-field").performTextReplacement("30")
+        compose.onNodeWithTag("create-reminder-set").assertIsNotEnabled()
+
+        compose.onNodeWithTag("create-reminder-field").performTextReplacement("3d")
+        compose.onNodeWithTag("create-reminder-set").assertIsEnabled().performClick()
+        compose.onNodeWithTag("create-save").performClick()
+
+        assertEquals(ReminderLead(3u, ReminderUnit.DAY), created?.second?.reminder)
     }
 
     private fun show(collections: List<NotesCollection> = PAIR) {

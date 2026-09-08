@@ -113,6 +113,7 @@ fn phrase_draft() -> PhraseDraft {
         time: None,
         repeater: None,
         status: None,
+        reminder: None,
         cleared: Vec::new(),
     }
 }

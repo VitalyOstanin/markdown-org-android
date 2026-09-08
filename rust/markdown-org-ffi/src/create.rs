@@ -20,16 +20,16 @@
 //! spells the ones it already has.
 
 use chrono::NaiveDateTime;
-use markdown_org_extract::parse_heading_line;
+use markdown_org_extract::{parse_heading_line, REMINDER_KEY};
 
 use crate::document::Document;
 use crate::edit::{checked_priority, keyword_of, parse_date, EditError, EditOutcome};
 use crate::entry::body_lines;
-use crate::occurrence::parse_time;
+use crate::occurrence::{parse_time, set_property};
 use crate::planning::{
     checked_repeater, created_line, planning_line, PlanningKeyword, StampTokens,
 };
-use crate::TaskType;
+use crate::{ReminderLead, TaskType};
 
 /// Where in the file that receives it an entry goes.
 ///
@@ -68,6 +68,10 @@ pub struct NewTask {
     pub priority: Option<String>,
     /// The date the task is planned for, if any.
     pub planning: Option<NewPlanning>,
+    /// How long before its date the entry wants to be reminded, `None` for one
+    /// that takes the reader's own setting. Written as a property, which is
+    /// where an entry carries it — see [`crate::phrase`].
+    pub reminder: Option<ReminderLead>,
     /// The moment the entry is being written at, `YYYY-MM-DDTHH:MM`, which is
     /// marked under the heading as org-mode's expiry convention has it.
     /// `None` writes no such line.
@@ -190,6 +194,15 @@ pub fn create_task(task: NewTask) -> Result<EditOutcome, EditError> {
         // line after the last blank one.
         let lines = std::iter::once(String::new()).chain(body).collect();
         document.replace_lines(under..under, lines);
+    }
+
+    // Written last and placed by the property writer itself, which knows where
+    // a block goes: under the lines that say what the entry is, above what it
+    // says. Counting the three lines it writes here would mean knowing whether
+    // it opened a block or added to one.
+    if let Some(lead) = task.reminder {
+        let written = markdown_org_extract::ReminderLead::from(lead).canonical();
+        set_property(&mut document, index, REMINDER_KEY, &written);
     }
 
     let rollback = document.saved(before)?;

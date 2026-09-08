@@ -2,6 +2,7 @@ package io.github.vitalyostanin.markdownorg.ui
 
 import uniffi.markdown_org_ffi.AgendaResult
 import uniffi.markdown_org_ffi.Day
+import uniffi.markdown_org_ffi.ReminderLead
 import uniffi.markdown_org_ffi.ScanStats
 import uniffi.markdown_org_ffi.Task
 import uniffi.markdown_org_ffi.TaskType
@@ -30,6 +31,8 @@ internal fun task(
     daysOffset: Long? = 0,
     /** The day of the series a moved occurrence stands for. */
     movedFrom: String? = null,
+    /** The entry's own reminder lead time, for the entries that name one. */
+    reminder: ReminderLead? = null,
 ): Task = Task(
     file = file,
     root = root,
@@ -45,6 +48,7 @@ internal fun task(
     timestampNextAfter = nextAfter,
     daysOffset = daysOffset,
     movedFrom = movedFrom,
+    reminder = reminder,
 )
 
 internal fun day(

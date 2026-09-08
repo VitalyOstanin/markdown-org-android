@@ -422,6 +422,7 @@ private val PhraseChangedField.wording: Int
         PhraseChangedField.DATE -> R.string.phrase_change_date
         PhraseChangedField.TIME -> R.string.phrase_change_time
         PhraseChangedField.REPEATER -> R.string.phrase_change_repeater
+        PhraseChangedField.REMINDER -> R.string.phrase_change_reminder
     }
 
 /**

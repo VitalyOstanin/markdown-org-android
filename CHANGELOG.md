@@ -107,6 +107,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An entry says how long before its hour it wants to be told, and the reminder
+  for it arrives then rather than at the quarter of an hour the settings hold.
+  The lead time is the `REMINDER` key of the entry's property block -- a count
+  and a unit, `30min`, `2h`, `3d` -- read by the extractor and subtracted here
+  by the calendar, so a month before a date lands on the same day of the month.
+  An entry that says nothing is announced by the setting as before.
+  It is written three ways: by the row of chips on the creation screen, which
+  offers the usual few and takes any lead time under Other...; by saying so to
+  an entry that exists ("напомнить за час", "remind me a day before", and
+  "убрать напоминание" to take it off); and by hand in the note.
+
 - The README opens with what the application looks like: the day, the week and
   the month, in the light theme and the dark one, of the sample notes written
   on first run. A reader arriving at the repository had a description of the

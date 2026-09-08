@@ -81,6 +81,7 @@
     <string name="phrase_change_date">date %1$s</string>
     <string name="phrase_change_time">time %1$s</string>
     <string name="phrase_change_repeater">repeat %1$s</string>
+    <string name="phrase_change_reminder">reminder %1$s</string>
     <!-- The two values of one field: what it said, and what it says now. -->
     <string name="phrase_change_from_to">%1$s → %2$s</string>
     <!-- The field had nothing in it before, or has nothing in it now. -->
@@ -577,8 +578,20 @@
     <string name="create_repeat_title">Repeater</string>
     <string name="create_repeat_support">+1w steps once from the date written; ++1w steps until it passes today; .+1w counts from the day it was done. The unit is d, w, m, y or wd for working days.</string>
     <string name="create_repeat_invalid">Not a repeater: those are written +1d, ++2w, .+1m, +1wd</string>
+    <string name="create_reminder">Reminder</string>
+    <string name="create_reminder_default">As set</string>
+    <string name="create_reminder_five">5 min</string>
+    <string name="create_reminder_fifteen">15 min</string>
+    <string name="create_reminder_thirty">30 min</string>
+    <string name="create_reminder_hour">1 h</string>
+    <string name="create_reminder_day">1 d</string>
+    <string name="create_reminder_custom">Other…</string>
+    <string name="create_reminder_title">Lead time</string>
+    <string name="create_reminder_support">A count and a unit: 30min for minutes, 2h, 3d, 1w, 1m for a month, 1y.</string>
+    <string name="create_reminder_invalid">Not a lead time: those are written 30min, 2h, 3d</string>
     <string name="hint_create_time">The hour the entry is held at, written into the timestamp after the day. Without one the entry takes the whole day and the agenda draws it above the hours. Offered once a day has been chosen: there is no hour to be held at on a task that is not planned for a day.</string>
     <string name="hint_create_repeat">What makes the date a series rather than one occurrence. The ready answers are written ++1d, ++1w, ++1m and ++1y: completing an overdue task moves it to the next occurrence ahead of today rather than one step from the date in the file. Every… takes any repeater the format has.</string>
+    <string name="hint_create_reminder">How long before the date the entry asks to be told, written into its own REMINDER key. As set leaves the key out, and the reader’s own setting decides when the entry is announced. Other… takes a count and a unit, as 30min or 3d.</string>
     <string name="sync_commit_and_retry">Commit and sync again</string>
     <string name="open_externally_failed">No application on this device opens markdown files.</string>
     <string name="action_shift_forward">A day later</string>

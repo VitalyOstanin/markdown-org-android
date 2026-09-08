@@ -8,7 +8,9 @@
 //! The phrases are read against a fixed day, so what "на пятницу" resolves to
 //! is a date these assertions can name.
 
-use markdown_org_ffi::{apply_phrase, refine_phrase, EditError, PhraseDraft, PhraseField};
+use markdown_org_ffi::{
+    apply_phrase, refine_phrase, EditError, PhraseDraft, PhraseField, ReminderLead, ReminderUnit,
+};
 
 mod common;
 
@@ -34,6 +36,7 @@ fn empty() -> PhraseDraft {
         time: None,
         repeater: None,
         status: None,
+        reminder: None,
         cleared: Vec::new(),
     }
 }
@@ -328,4 +331,152 @@ fn a_repeater_is_written_beside_a_step_whose_unit_the_format_does_not_read() {
         body(vault.path()),
         "# TODO Позвонить врачу\n`SCHEDULED: <2026-09-01 Вт 15:00 +1w +1н>`\n"
     );
+}
+
+#[test]
+fn a_lead_time_said_in_words_is_written_into_the_property_block() {
+    // The entry asks to be told an hour before its own hour, and that is
+    // written where the core reads it (extractor's ADR-0041): the `REMINDER`
+    // key of the entry's property block, which is created where the entry has
+    // none.
+    let vault = vault(ENTRY);
+
+    apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("напомни за час до"),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "\
+# TODO [#B] Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00 +1w>`
+```org-properties
+REMINDER: 1h
+```
+
+# TODO Полить цветы
+"
+    );
+}
+
+/// An entry already carrying a property block, for the cases about the key
+/// inside it.
+const WITH_PROPERTIES: &str = "\
+# TODO Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00>`
+```org-properties
+ID: call-1
+REMINDER: 1h
+```
+";
+
+#[test]
+fn a_lead_time_said_again_rewrites_the_key_it_is_already_on() {
+    let vault = vault(WITH_PROPERTIES);
+
+    apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("напомни за 15 минут"),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "\
+# TODO Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00>`
+```org-properties
+ID: call-1
+REMINDER: 15min
+```
+"
+    );
+}
+
+#[test]
+fn emptying_the_lead_time_takes_the_key_out_and_leaves_the_others() {
+    let vault = vault(WITH_PROPERTIES);
+
+    apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("убрать напоминание"),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "\
+# TODO Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00>`
+```org-properties
+ID: call-1
+```
+"
+    );
+}
+
+#[test]
+fn emptying_the_only_property_takes_the_block_with_it() {
+    // A fenced block with nothing in it is not something a person wrote, and
+    // the entry reads as one carrying properties while carrying none.
+    let vault = vault(
+        "\
+# TODO Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00>`
+```org-properties
+REMINDER: 1h
+```
+",
+    );
+
+    apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("убрать напоминание"),
+    )
+    .expect("edit");
+
+    assert_eq!(
+        body(vault.path()),
+        "\
+# TODO Позвонить врачу
+`SCHEDULED: <2026-09-01 Вт 15:00>`
+"
+    );
+}
+
+#[test]
+fn a_lead_time_the_entry_already_carries_is_written_again_by_nobody() {
+    // The same answer every other field gives to a phrase that repeats what
+    // the entry says: an edit that changed nothing, not the same bytes saved
+    // a second time.
+    let vault = vault(WITH_PROPERTIES);
+
+    let outcome = apply_phrase(
+        target(vault.path(), 1, "Позвонить врачу"),
+        said("напомни за час до"),
+    )
+    .expect("edit");
+
+    assert!(outcome.rollback.is_none(), "nothing was written");
+    assert_eq!(body(vault.path()), WITH_PROPERTIES);
+}
+
+#[test]
+fn the_lead_time_travels_back_in_the_draft() {
+    let draft = said("напомни за полчаса до");
+
+    assert_eq!(
+        draft.reminder,
+        Some(ReminderLead {
+            value: 30,
+            unit: ReminderUnit::Minute
+        })
+    );
+
+    let cleared = said("убрать напоминание");
+
+    assert_eq!(cleared.cleared, vec![PhraseField::Reminder]);
+    assert!(cleared.reminder.is_none());
 }

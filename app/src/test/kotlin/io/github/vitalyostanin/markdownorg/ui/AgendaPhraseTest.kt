@@ -19,6 +19,7 @@ import org.junit.Test
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PhraseField
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
 import uniffi.markdown_org_ffi.TaskType
 import java.io.File
 import java.time.LocalDate
@@ -246,6 +247,8 @@ class AgendaPhraseTest {
         }
 
         override fun repeater(typed: String): String? = null
+
+        override fun lead(typed: String): ReminderLead? = null
     }
 
     /** One reading, as the rules were asked for it. */
@@ -286,6 +289,7 @@ class AgendaPhraseTest {
             time = time,
             repeater = repeater,
             status = status,
+            reminder = null,
             cleared = cleared,
         )
     }

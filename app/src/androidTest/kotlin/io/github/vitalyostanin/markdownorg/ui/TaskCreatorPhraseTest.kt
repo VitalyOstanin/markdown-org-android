@@ -15,11 +15,13 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
+import uniffi.markdown_org_ffi.ReminderUnit
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * A task composed by saying it rather than by filling nine controls.
+ * A task composed by saying it rather than by filling ten controls.
  *
  * What is asserted is the draft that leaves the screen: the phrase is read
  * into the fields, the fields are what is written, and nothing reaches the
@@ -158,6 +160,18 @@ class TaskCreatorPhraseTest {
         say("позвонить врачу завтра в 15:00")
 
         assertNull(created)
+    }
+
+    @Test
+    fun aLeadTimeSaidInThePhraseIsWhatTheEntryAsksFor() {
+        // The one sentence carries it too: what a phrase named is a field of
+        // the draft like the day and the hour, and the chips show it back.
+        show()
+
+        say("позвонить врачу завтра в 15:00, напомнить за час")
+        create()
+
+        assertEquals(ReminderLead(1u, ReminderUnit.HOUR), created?.second?.reminder)
     }
 
     private fun say(phrase: String) {

@@ -11,11 +11,10 @@ import java.time.ZonedDateTime
 /**
  * What the reader asked to be told about.
  *
- * On the device rather than in the notes: a lead time written into a note
- * would have to be read by the core and would mean the same in the editor
- * extension, and neither is worth deciding before it is known whether one
- * lead time for everything is enough. A key such as `REMINDER: 30m` can be
- * added over this later, and these become the defaults it overrides.
+ * These are the reader's own, and they hold for every entry that does not
+ * speak for itself. An entry that does -- one carrying the `REMINDER` key the
+ * core reads (its ADR-0041) -- is announced by what it says, and these stay
+ * the defaults behind it.
  */
 data class ReminderChoices(
     val enabled: Boolean = false,
@@ -140,7 +139,10 @@ private fun signals(
         line = task.line,
         heading = task.heading,
     )
-    val lead = starts.minusMinutes(choices.leadMinutes.toLong())
+    // The entry's own lead time wins over the reader's setting: it was
+    // written about this entry, and the setting is about the rest.
+    val lead = task.reminder?.let { starts.before(it) }
+        ?: starts.minusMinutes(choices.leadMinutes.toLong())
     val moments = if (choices.alsoAtStart) listOf(lead, starts) else listOf(lead)
 
     return moments.map { TimedReminder(at = it, starts = starts, entry = entry) }

@@ -294,7 +294,12 @@ A task that is not in the notes yet is written by one more call:
 - `canonicalRepeater(value)` — what repeater a string spells, written the way
   it would go into the file, or nothing where it spells none. It is how a
   repeater typed by hand is answered while it is being typed rather than after
-  the task has been composed.
+  the task has been composed;
+- `reminderLead(value)` — what lead time a string spells, as a count and a
+  unit, or nothing where it spells none. The creation screen offers a few of
+  them as chips and takes the rest as text, and this is what answers the text
+  while it is being typed. See
+  [Telling the reader what is coming](#telling-the-reader-what-is-coming).
 
 A task can be composed out of a sentence rather than field by field:
 
@@ -459,6 +464,18 @@ settings changed, a fetch landed, an entry was edited here, an alarm fired, the
 phone restarted, the application was replaced, the clock or the time zone was
 set, or the exact-alarm access changed.
 
+How long before its hour an entry is announced is the reader's setting, and an
+entry may answer for itself: `REMINDER: 1h` in its property block asks for an
+hour rather than the quarter the settings say. The key holds a count and a
+unit — `min` for minutes, `h`, `d`, `w`, `m` for a calendar month, `y` — and
+the extractor reads it (its
+[ADR-0041](https://github.com/VitalyOstanin/markdown-org-extract/blob/master/docs/adr/0041-a-reminder-lead-time-is-a-property.md)).
+The entry's own answer wins because it was written about this entry, while the
+setting is about the rest of them. It is written by the creation screen, by
+saying so to an entry that exists ("remind me an hour before"), and by hand in
+the note; a value the extractor cannot read is ignored rather than guessed at,
+and the setting decides as before.
+
 Two accesses stand behind a reminder, and the settings say where the switch is
 which of them the platform is withholding:
 
@@ -569,11 +586,11 @@ application sends nothing to them and reads nothing back.
 
 ## Saying a task in one phrase
 
-The creation screen asks for nine things, and a person adding a task knows all
+The creation screen asks for ten things, and a person adding a task knows all
 of them at once. The field at the head of it takes that sentence: "позвонить
-врачу завтра в 15:00, каждую неделю" fills the heading, the day, the hour and
-the repeater, and what is filled in is shown in the ordinary fields, which stay
-editable by hand.
+врачу завтра в 15:00, каждую неделю, напомнить за час" fills the heading, the
+day, the hour, the repeater and the lead time, and what is filled in is shown
+in the ordinary fields, which stay editable by hand.
 
 | № | What                       | How it behaves                                                                                        |
 |---|----------------------------|-----------------------------------------------------------------------------------------------------|
@@ -620,7 +637,7 @@ is one tap and needs no sentence.
 |---|-------------------------------|---------------------------------------------------------------------------------------------|
 | 1 | Who reads the phrase          | The core, through `applyPhrase`, so the phone and the editor extension read one the same way |
 | 2 | The keyword                   | Said in the phrase as well: "отметь выполненной", "в работу"                                 |
-| 3 | Emptying a field              | "убрать дату", "убрать время", "без повтора", "без приоритета"                               |
+| 3 | Emptying a field              | "убрать дату", "убрать время", "без повтора", "без приоритета", "убрать напоминание"          |
 | 4 | How much is written           | One write, one commit and one line of undo for the whole sentence                            |
 | 5 | What the rules did not read   | Nothing is changed and the leftover is named: applying half of a sentence moves a field nobody meant to name |
 | 6 | A phrase naming no field      | Named the same way, and so is an hour with no day to stand on                                 |

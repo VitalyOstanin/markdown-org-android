@@ -9,7 +9,8 @@
 use std::fs;
 
 use markdown_org_ffi::{
-    create_task, revert_files, NewPlanning, NewTask, PlanningKeyword, TaskType, WritePosition,
+    create_task, revert_files, NewPlanning, NewTask, PlanningKeyword, ReminderLead, ReminderUnit,
+    TaskType, WritePosition,
 };
 
 mod common;
@@ -32,6 +33,7 @@ fn task(dir: &tempfile::TempDir, title: &str) -> NewTask {
         status: Some(TaskType::Todo),
         priority: None,
         planning: None,
+        reminder: None,
         created: None,
     }
 }
@@ -606,4 +608,65 @@ fn a_creation_moment_that_is_not_one_writes_nothing() {
     assert!(outcome.is_err());
     assert!(dateless.is_err());
     assert_eq!(body(vault.path()), "# Notes\n\n## TODO Write the report\n");
+}
+
+/// A lead time is written as a property, under the planning line the entry
+/// was given: the block belongs to the entry as a whole, and the timestamp
+/// carries no room for it.
+#[test]
+fn the_lead_time_is_written_as_a_property() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n");
+
+    create_task(NewTask {
+        planning: Some(planning(PlanningKeyword::Scheduled, "2026-08-21")),
+        reminder: Some(ReminderLead {
+            value: 1,
+            unit: ReminderUnit::Hour,
+        }),
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "# Notes\n\n## TODO Write the report\n\n\
+         ## TODO Ring the dentist\n`SCHEDULED: <2026-08-21 Fri>`\n\
+         ```org-properties\nREMINDER: 1h\n```\n"
+    );
+}
+
+/// The block stands above the body, where a reader of the file finds what the
+/// entry is before what it says.
+#[test]
+fn the_lead_time_stands_above_the_body() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n");
+
+    create_task(NewTask {
+        body: "Ask about the tooth.".to_string(),
+        planning: Some(planning(PlanningKeyword::Scheduled, "2026-08-21")),
+        reminder: Some(ReminderLead {
+            value: 30,
+            unit: ReminderUnit::Minute,
+        }),
+        ..task(&vault, "Ring the dentist")
+    })
+    .expect("create");
+
+    assert_eq!(
+        body(vault.path()),
+        "# Notes\n\n## TODO Write the report\n\n\
+         ## TODO Ring the dentist\n`SCHEDULED: <2026-08-21 Fri>`\n\
+         ```org-properties\nREMINDER: 30min\n```\n\nAsk about the tooth.\n"
+    );
+}
+
+/// A task written without one carries no property block at all: an empty
+/// block is a line of noise in a file people read.
+#[test]
+fn a_task_with_no_lead_time_gets_no_property_block() {
+    let vault = vault("# Notes\n\n## TODO Write the report\n");
+
+    create_task(task(&vault, "Ring the dentist")).expect("create");
+
+    assert!(!body(vault.path()).contains("org-properties"));
 }
