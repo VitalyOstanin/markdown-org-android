@@ -9,8 +9,7 @@ use std::fs;
 
 use markdown_org_ffi::{
     reminder_lead, scan, scan_agenda, AgendaQuery, ExtractError, Options, ReminderLead,
-    ReminderUnit, Scope,
-    TaskType, TimestampType,
+    ReminderUnit, Scope, TaskType, TimestampType,
 };
 
 fn options() -> Options {
