@@ -35,6 +35,31 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
+# The crate that carries each vendored project, named as the lock file records
+# it: libgit2-sys-0.18.8+1.9.7. Read out of the lock rather than found in the
+# registry cache, which keeps every version it has ever downloaded — a cache
+# that still holds the previous libgit2-sys makes the notices name the previous
+# libgit2 while the build links the current one, and CI, whose cache holds one
+# version, then disagrees with a laptop.
+locked_crate() {
+    local crate
+    crate="$(awk -v pkg="$1" '
+        $0 == "name = \"" pkg "\"" { found = 1; next }
+        found && $1 == "version" { gsub(/"/, "", $3); print pkg "-" $3; exit }
+    ' "${REPO_ROOT}/rust/Cargo.lock")"
+
+    if [[ -z "${crate}" ]]; then
+        echo "==> $1 is not in rust/Cargo.lock" >&2
+        exit 1
+    fi
+
+    echo "${crate}"
+}
+
+LIBGIT2_SYS="$(locked_crate libgit2-sys)"
+OPENSSL_SRC="$(locked_crate openssl-src)"
+readonly LIBGIT2_SYS OPENSSL_SRC
+
 # The FFI crate alone, not the workspace: the binding generator beside it runs
 # on the machine doing the building and is not in the APK, and it drags in clap
 # and a template engine of its own. The vendored sources are read from the same
@@ -44,10 +69,9 @@ readonly COLLECT='
     set -euo pipefail
     cargo about generate --format json --locked --fail \
         --manifest-path markdown-org-ffi/Cargo.toml -o "${OUT}/crates.json"
-    cp "$(ls -d "${REGISTRY}"/src/*/libgit2-sys-*/libgit2 | head -1)/COPYING" "${OUT}/libgit2.txt"
-    cp "$(ls -d "${REGISTRY}"/src/*/openssl-src-*/openssl/LICENSE.txt | head -1)" "${OUT}/openssl.txt"
-    ls -d "${REGISTRY}"/src/*/libgit2-sys-* "${REGISTRY}"/src/*/openssl-src-* \
-        | sed "s|.*/||" > "${OUT}/vendored.txt"
+    cp "$(ls -d "${REGISTRY}"/src/*/"${LIBGIT2_SYS}"/libgit2 | head -1)/COPYING" "${OUT}/libgit2.txt"
+    cp "$(ls -d "${REGISTRY}"/src/*/"${OPENSSL_SRC}"/openssl/LICENSE.txt | head -1)" "${OUT}/openssl.txt"
+    printf "%s\n%s\n" "${LIBGIT2_SYS}" "${OPENSSL_SRC}" > "${OUT}/vendored.txt"
 '
 
 echo "==> cargo about"
@@ -57,6 +81,7 @@ if [[ "${NATIVE:-0}" == "1" ]]; then
     (
         cd "${REPO_ROOT}/rust"
         OUT="${work}" REGISTRY="${CARGO_HOME:-${HOME}/.cargo}/registry" \
+            LIBGIT2_SYS="${LIBGIT2_SYS}" OPENSSL_SRC="${OPENSSL_SRC}" \
             timeout "${TIMEOUT}" bash -c "${COLLECT}"
     )
 else
@@ -65,12 +90,13 @@ else
         -v "${REPO_ROOT}/rust:/src:z" -v "${CACHE_VOLUME}:/usr/local/cargo/registry" \
         -v "${work}:/out:z" -w /src \
         -e OUT=/out -e REGISTRY=/usr/local/cargo/registry \
+        -e LIBGIT2_SYS="${LIBGIT2_SYS}" -e OPENSSL_SRC="${OPENSSL_SRC}" \
         "${NDK_IMAGE}" \
         bash -c "${COLLECT}"
 fi
 
-# The version of each vendored project, as the crate that carries it names it:
-# libgit2-sys-0.18.7+1.9.6 vendors libgit2 1.9.6.
+# The version of the vendored project itself, out of the name of the crate
+# that carries it: libgit2-sys-0.18.8+1.9.7 vendors libgit2 1.9.7.
 vendored_version() {
     grep "^$1-" "${work}/vendored.txt" | head -1 | sed 's/.*+//'
 }

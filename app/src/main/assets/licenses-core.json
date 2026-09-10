@@ -608,7 +608,7 @@
     "usedBy": [
       {
         "name": "libgit2",
-        "version": "1.9.6",
+        "version": "1.9.7",
         "url": "https://github.com/libgit2/libgit2"
       }
     ]
