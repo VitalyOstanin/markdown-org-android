@@ -103,8 +103,8 @@ data class RemindersUi(
     val enabled: Boolean = false,
     val onEnabledChange: (Boolean) -> Unit = {},
     /** How long before a timed entry it is announced. */
-    val lead: ReminderLead = ReminderLead.FIFTEEN,
-    val onLeadChange: (ReminderLead) -> Unit = {},
+    val lead: DefaultLead = DefaultLead.FIFTEEN,
+    val onLeadChange: (DefaultLead) -> Unit = {},
     /** Whether the moment itself is announced as well as the lead time. */
     val alsoAtStart: Boolean = false,
     val onAlsoAtStartChange: (Boolean) -> Unit = {},

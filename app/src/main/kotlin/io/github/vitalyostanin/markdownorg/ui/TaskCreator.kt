@@ -50,13 +50,13 @@ import io.github.vitalyostanin.markdownorg.ui.theme.Sizes
 import io.github.vitalyostanin.markdownorg.ui.theme.Spacing
 import uniffi.markdown_org_ffi.PhraseDraft
 import uniffi.markdown_org_ffi.PlanningKeyword
+import uniffi.markdown_org_ffi.ReminderLead
 import uniffi.markdown_org_ffi.ReminderUnit
 import uniffi.markdown_org_ffi.TaskType
 import uniffi.markdown_org_ffi.WritePosition
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import uniffi.markdown_org_ffi.ReminderLead as EntryLead
 
 /**
  * What is being typed into the creation screen.
@@ -109,7 +109,7 @@ class NewTaskState(collectionId: String) {
      * in the file is a property of the entry, and an entry planned for a whole
      * day is reminded about as well.
      */
-    var reminder by mutableStateOf<EntryLead?>(null)
+    var reminder by mutableStateOf<ReminderLead?>(null)
 
     /**
      * The fields a phrase reads, as the core holds them.
@@ -205,7 +205,7 @@ class NewTaskState(collectionId: String) {
                     repeater = saved["repeater"] as? String
                     reminder = (saved["lead"] as? Int)?.let { count ->
                         (saved["leadUnit"] as? String)?.let { unit ->
-                            EntryLead(count.toUInt(), ReminderUnit.valueOf(unit))
+                            ReminderLead(count.toUInt(), ReminderUnit.valueOf(unit))
                         }
                     }
                 }
@@ -776,7 +776,7 @@ private fun LeadChoice(
     initial: String,
     phrases: PhraseRules,
     onDismiss: () -> Unit,
-    onPicked: (EntryLead) -> Unit,
+    onPicked: (ReminderLead) -> Unit,
 ) {
     var typed by rememberSaveable { mutableStateOf(initial) }
     // Remembered against what was typed, as the repeater's field is: the
@@ -833,7 +833,7 @@ private fun LeadChoice(
 }
 
 /** One of the lead times the chips offer, and what it writes. */
-private class Lead(@param:StringRes val label: Int, val tag: String, val lead: EntryLead?)
+private class Lead(@param:StringRes val label: Int, val tag: String, val lead: ReminderLead?)
 
 /**
  * The lead times offered, in the order they are: the entry saying nothing,
@@ -841,11 +841,11 @@ private class Lead(@param:StringRes val label: Int, val tag: String, val lead: E
  */
 private val LEADS = listOf(
     Lead(R.string.create_reminder_default, "default", null),
-    Lead(R.string.create_reminder_five, "five", EntryLead(5u, ReminderUnit.MINUTE)),
-    Lead(R.string.create_reminder_fifteen, "fifteen", EntryLead(15u, ReminderUnit.MINUTE)),
-    Lead(R.string.create_reminder_thirty, "thirty", EntryLead(30u, ReminderUnit.MINUTE)),
-    Lead(R.string.create_reminder_hour, "hour", EntryLead(1u, ReminderUnit.HOUR)),
-    Lead(R.string.create_reminder_day, "day", EntryLead(1u, ReminderUnit.DAY)),
+    Lead(R.string.create_reminder_five, "five", ReminderLead(5u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_fifteen, "fifteen", ReminderLead(15u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_thirty, "thirty", ReminderLead(30u, ReminderUnit.MINUTE)),
+    Lead(R.string.create_reminder_hour, "hour", ReminderLead(1u, ReminderUnit.HOUR)),
+    Lead(R.string.create_reminder_day, "day", ReminderLead(1u, ReminderUnit.DAY)),
 )
 
 /**

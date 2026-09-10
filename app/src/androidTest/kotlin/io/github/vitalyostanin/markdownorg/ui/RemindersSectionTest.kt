@@ -54,13 +54,13 @@ class RemindersSectionTest {
      */
     @Test
     fun theChosenLeadTimeIsReportedAsTheEntryThatWasPressed() {
-        var chosen: ReminderLead? = null
+        var chosen: DefaultLead? = null
         show(RemindersUi(enabled = true, onLeadChange = { chosen = it }))
 
         compose.onNodeWithTag("settings-reminders-lead").performScrollTo().performClick()
-        compose.onNodeWithTag(ReminderLead.HOUR.testTag).performClick()
+        compose.onNodeWithTag(DefaultLead.HOUR.testTag).performClick()
 
-        assertEquals(ReminderLead.HOUR, chosen)
+        assertEquals(DefaultLead.HOUR, chosen)
     }
 
     /**

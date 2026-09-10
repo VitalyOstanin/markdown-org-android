@@ -37,7 +37,7 @@ internal fun rememberRemindersUi(replan: () -> Unit): RemindersUi {
     val settings = remember(context) { ReminderSettings(context) }
 
     var enabled by remember { mutableStateOf(settings.enabled) }
-    var lead by remember { mutableStateOf(ReminderLead.of(settings.leadMinutes)) }
+    var lead by remember { mutableStateOf(DefaultLead.of(settings.leadMinutes)) }
     var alsoAtStart by remember { mutableStateOf(settings.alsoAtStart) }
     var digestAt by remember { mutableStateOf(settings.digestAt) }
     var allowed by remember { mutableStateOf(ReminderAccess.notificationsAllowed(context)) }

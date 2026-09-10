@@ -15,8 +15,14 @@ import io.github.vitalyostanin.markdownorg.R
  * The stored value is the number of minutes, so a set widened later reads back
  * whatever was stored; a value no chip carries falls to the nearest one below
  * it rather than to nothing.
+ *
+ * Named for what it is rather than for what it measures, because the core has
+ * a lead time of its own: `uniffi.markdown_org_ffi.ReminderLead` is the count
+ * and unit an entry carries in its `REMINDER` key, and it wins over this one
+ * wherever an entry names it. Both were called `ReminderLead` and had to be
+ * told apart by an import alias in every file that touched the two.
  */
-enum class ReminderLead(val minutes: Int) {
+enum class DefaultLead(val minutes: Int) {
     NONE(0),
     FIVE(5),
     FIFTEEN(15),
@@ -27,20 +33,20 @@ enum class ReminderLead(val minutes: Int) {
     companion object {
 
         /** The chip a stored number of minutes belongs to. */
-        fun of(minutes: Int): ReminderLead = entries.lastOrNull { it.minutes <= minutes } ?: NONE
+        fun of(minutes: Int): DefaultLead = entries.lastOrNull { it.minutes <= minutes } ?: NONE
     }
 }
 
 /** What the choice is called where it is made. */
 @get:StringRes
-internal val ReminderLead.labelRes: Int
+internal val DefaultLead.labelRes: Int
     get() = when (this) {
-        ReminderLead.NONE -> R.string.settings_reminders_lead_none
-        ReminderLead.FIVE -> R.string.settings_reminders_lead_five
-        ReminderLead.FIFTEEN -> R.string.settings_reminders_lead_fifteen
-        ReminderLead.THIRTY -> R.string.settings_reminders_lead_thirty
-        ReminderLead.HOUR -> R.string.settings_reminders_lead_hour
+        DefaultLead.NONE -> R.string.settings_reminders_lead_none
+        DefaultLead.FIVE -> R.string.settings_reminders_lead_five
+        DefaultLead.FIFTEEN -> R.string.settings_reminders_lead_fifteen
+        DefaultLead.THIRTY -> R.string.settings_reminders_lead_thirty
+        DefaultLead.HOUR -> R.string.settings_reminders_lead_hour
     }
 
 /** Handle for the instrumented tests, as the week switch has one. */
-internal val ReminderLead.testTag: String get() = "settings-reminders-lead-$name"
+internal val DefaultLead.testTag: String get() = "settings-reminders-lead-$name"

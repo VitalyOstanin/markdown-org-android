@@ -55,7 +55,7 @@ class RemindersSectionSizeTest(private val screen: Screen) {
 
         compose.onNodeWithTag("settings-reminders-lead").performClick()
 
-        for (lead in ReminderLead.entries) {
+        for (lead in DefaultLead.entries) {
             compose.onNodeWithTag(lead.testTag).assertIsDisplayed()
         }
     }
@@ -83,7 +83,7 @@ class RemindersSectionSizeTest(private val screen: Screen) {
                         // push them off a box this short for reasons of their
                         // own.
                         Box(modifier = Modifier.size(screen.size)) {
-                            LeadChoice(current = ReminderLead.NONE, onChange = {})
+                            LeadChoice(current = DefaultLead.NONE, onChange = {})
                         }
                     }
                 }

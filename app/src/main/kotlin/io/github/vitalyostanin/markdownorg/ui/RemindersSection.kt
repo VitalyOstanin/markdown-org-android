@@ -104,10 +104,10 @@ internal fun RemindersSection(reminders: RemindersUi) {
  * screen that already runs to five of them.
  */
 @Composable
-internal fun LeadChoice(current: ReminderLead, onChange: (ReminderLead) -> Unit) {
+internal fun LeadChoice(current: DefaultLead, onChange: (DefaultLead) -> Unit) {
     SettingChoice(
         current = current,
-        options = ReminderLead.entries,
+        options = DefaultLead.entries,
         onChange = onChange,
         tag = "settings-reminders-lead",
         label = stringResource(R.string.settings_reminders_lead),
