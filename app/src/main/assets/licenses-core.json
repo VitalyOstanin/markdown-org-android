@@ -91,12 +91,12 @@
       },
       {
         "name": "thiserror",
-        "version": "2.0.19",
+        "version": "2.0.20",
         "url": "https://github.com/dtolnay/thiserror"
       },
       {
         "name": "thiserror-impl",
-        "version": "2.0.19",
+        "version": "2.0.20",
         "url": "https://github.com/dtolnay/thiserror"
       },
       {
@@ -325,7 +325,7 @@
       },
       {
         "name": "libgit2-sys",
-        "version": "0.18.7+1.9.6",
+        "version": "0.18.8+1.9.7",
         "url": "https://github.com/rust-lang/git2-rs"
       },
       {
@@ -512,7 +512,7 @@
     "usedBy": [
       {
         "name": "getrandom",
-        "version": "0.3.4",
+        "version": "0.4.3",
         "url": "https://github.com/rust-random/getrandom"
       }
     ]
