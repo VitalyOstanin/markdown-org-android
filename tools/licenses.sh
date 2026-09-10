@@ -58,7 +58,7 @@ locked_crate() {
 
 LIBGIT2_SYS="$(locked_crate libgit2-sys)"
 OPENSSL_SRC="$(locked_crate openssl-src)"
-readonly LIBGIT2_SYS OPENSSL_SRC
+export LIBGIT2_SYS OPENSSL_SRC
 
 # The FFI crate alone, not the workspace: the binding generator beside it runs
 # on the machine doing the building and is not in the APK, and it drags in clap
@@ -81,7 +81,6 @@ if [[ "${NATIVE:-0}" == "1" ]]; then
     (
         cd "${REPO_ROOT}/rust"
         OUT="${work}" REGISTRY="${CARGO_HOME:-${HOME}/.cargo}/registry" \
-            LIBGIT2_SYS="${LIBGIT2_SYS}" OPENSSL_SRC="${OPENSSL_SRC}" \
             timeout "${TIMEOUT}" bash -c "${COLLECT}"
     )
 else
