@@ -314,9 +314,9 @@ jobs:
         # and it is only of use while it is level with the latest release:
         # Android refuses to install a lower code over a higher one, and once
         # the application is not debuggable it refuses it with the downgrade
-        # flag too. The number is raised by hand, so it is read back here --
-        # the run that publishes is the one occasion on which the two can be
-        # compared at all.
+        # flag too. The publishing job raises the number, so this reads it
+        # back rather than trusting that it did -- a raise it could not push
+        # says so here instead of on a phone that refuses the APK.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -325,7 +325,7 @@ jobs:
           held=$(sed -n 's/^appVersionCode=//p' gradle.properties)
           if [ "$held" -lt "$published" ]; then
             echo "gradle.properties holds appVersionCode=$held while $published is published;" \
-              "raise it and run this again" >&2
+              "the run that published it could not raise it -- raise it and run this again" >&2
             exit 1
           fi
 
@@ -636,3 +636,45 @@ jobs:
               "${assets[@]}"
           fi
           echo "released as $tag" >> "$GITHUB_STEP_SUMMARY"
+
+      # gradle.properties holds the code a build from a working copy gets, and
+      # the step in `build` refuses a run whose file has fallen behind the
+      # latest release. Every run that publishes raises the published number,
+      # so the file can only be kept level by whoever publishes it: raised by
+      # hand it was a run behind from the moment the release appeared, and the
+      # next push was red for a reason nobody introduced.
+      #
+      # The push cannot loop. A push made with GITHUB_TOKEN starts no run of
+      # its own: with the exception of workflow_dispatch and
+      # repository_dispatch, GITHUB_TOKEN-triggered events create no workflow
+      # runs at all.
+      - name: Raise the fallback version code
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          # A tag run is checked out detached, so the branch to move is asked
+          # for by name rather than taken from HEAD.
+          for attempt in 1 2 3; do
+            git fetch --quiet origin master
+            git checkout --quiet -B publish-version-code origin/master
+            held=$(sed -n 's/^appVersionCode=//p' gradle.properties)
+            if [ "$held" -ge "$RUN_NUMBER" ]; then
+              echo "gradle.properties already holds $held" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sed -i "s/^appVersionCode=.*/appVersionCode=${RUN_NUMBER}/" gradle.properties
+            git -c user.name='github-actions[bot]' \
+                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                commit --quiet -m "chore: the fallback version code follows build.${RUN_NUMBER}" \
+                gradle.properties
+            if git push --quiet origin HEAD:master; then
+              echo "gradle.properties raised to $RUN_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            # master moved while this ran. The next attempt starts from where
+            # it moved to rather than replaying this commit onto it.
+            echo "master moved, attempt $attempt of 3"
+          done
+          # The release is out and nothing about it is wrong; a file one run
+          # behind is what the gate in `build` reports on the next push.
+          echo "::warning::gradle.properties was left behind at $RUN_NUMBER"

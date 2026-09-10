@@ -976,7 +976,7 @@ message. A release cut by hand is tagged the same way (`git tag -a v0.1.0 -m
 | № | Where                             | What it says                                                     |
 |---|-----------------------------------|-------------------------------------------------------------------|
 | 1 | `appVersionName` in `gradle.properties` | the version being worked towards, raised by hand when one is cut |
-| 2 | `-PappVersionCode`, from the run number | what Android orders builds by; every published APK gets its own, and `gradle.properties` holds what a build without it falls back to |
+| 2 | `-PappVersionCode`, from the run number | what Android orders builds by; every published APK gets its own, and `gradle.properties` holds what a build without it falls back to, raised by the run that publishes |
 | 3 | `-PappCommit`, the short sha      | which commit an installed build was made from                     |
 | 4 | [`CHANGELOG.md`](CHANGELOG.md)    | what changed, in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form |
 
@@ -988,6 +988,13 @@ downgrade flag, once the app is not debuggable — so a build from the tree
 could not otherwise land on a phone carrying a published release. Equal codes
 install either way round. All three are shown at the bottom of the settings
 screen, so a build can be named without reaching for `adb`.
+
+The run that publishes a release raises that line itself, in a commit of its
+own on `master`, and the build job reads it back before building — a raise that
+could not be pushed is reported there rather than on a phone that refuses the
+APK. Kept by hand the number was behind again the moment a release appeared,
+because a release is published on every push, and every run after that one was
+red for a reason nobody introduced.
 
 `tools/release-notes.sh` prints the section CHANGELOG.md holds for a version,
 which is what the notes of a release are made of. A prerelease has no section
