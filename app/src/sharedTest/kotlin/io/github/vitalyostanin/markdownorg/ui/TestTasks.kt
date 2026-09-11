@@ -31,6 +31,8 @@ internal fun task(
     daysOffset: Long? = 0,
     /** The day of the series a moved occurrence stands for. */
     movedFrom: String? = null,
+    /** The same day, as the entry of the older shape names it (ADR-0031). */
+    replacedOccurrence: String? = null,
     /** The entry's own reminder lead time, for the entries that name one. */
     reminder: ReminderLead? = null,
 ): Task = Task(
@@ -48,6 +50,7 @@ internal fun task(
     timestampNextAfter = nextAfter,
     daysOffset = daysOffset,
     movedFrom = movedFrom,
+    replacedOccurrence = replacedOccurrence,
     reminder = reminder,
 )
 

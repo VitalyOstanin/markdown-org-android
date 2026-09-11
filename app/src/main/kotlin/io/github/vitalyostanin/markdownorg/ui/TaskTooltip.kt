@@ -147,6 +147,16 @@ private fun repeatLine(
     }
 }
 
+/**
+ * The day of the series the row is held instead of, where it is held instead
+ * of one.
+ *
+ * Takes the date formatter for the reason [tooltipKind] does: the reader's
+ * locale lives in the composition and this decision is made outside it.
+ */
+internal fun Task.tooltipMoved(date: (String) -> String): TooltipLine? =
+    movedOccurrence()?.let { TooltipLine(R.string.tooltip_moved_from, listOf(date(it))) }
+
 /** The letter, with the ends of the A–C scale named; `null` for no cookie. */
 internal fun Task.tooltipPriority(): TooltipLine? {
     val letter = priority?.uppercase()?.takeIf(String::isNotEmpty) ?: return null
@@ -193,11 +203,31 @@ internal fun taskKindLine(task: Task, occurrence: Occurrence = Occurrence.NEXT):
 internal fun taskDateLine(task: Task): String? =
     taskKindLine(task, Occurrence.THIS)?.let { stringResource(it.text, *it.args.toTypedArray()) }
 
+/**
+ * The same line as finished text, for the sheet the row opens.
+ *
+ * The sheet offers what to do with the entry, and for an entry held instead of
+ * an occurrence the series is the thing the reader has to know is there: every
+ * date action below writes into this entry and leaves the series repeating.
+ */
+@Composable
+internal fun taskMovedLine(task: Task): String? {
+    val locale = LocalLocale.current.platformLocale
+
+    return task.tooltipMoved { statedDateLabel(it, locale) }
+        ?.let { stringResource(it.text, *it.args.toTypedArray()) }
+}
+
 /** The whole tooltip: the heading in full, then what the row could not say. */
 @Composable
 internal fun taskTooltipText(task: Task, collection: CollectionLabel? = null): String {
+    val locale = LocalLocale.current.platformLocale
     val lines = listOfNotNull(
         taskKindLine(task),
+        // Under the date the row is held on, which is what the line above
+        // states: the day the series would have drawn it on answers the
+        // question that date raises rather than standing in for it.
+        task.tooltipMoved { statedDateLabel(it, locale) },
         task.tooltipPriority(),
         // The dot at the head of the row is six points across — too small to
         // aim a press at, and it is inside the row's own tooltip anyway. The

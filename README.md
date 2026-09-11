@@ -267,6 +267,16 @@ and [ADR-0043](docs/adr/0043-a-move-is-a-line-of-the-series.md), in the form
   ADR-0040). Cancelling such a day is not refused — the `EXDATE` it leaves
   suppresses nothing.
 
+A row held instead of an occurrence says so on the agenda: an arrow beside the
+glyph for what the entry is, with the day the series would have drawn it on
+spoken by the mark and spelled out by the tooltip and the sheet. Both shapes of
+a move are marked the same way, because a reader tells them apart by nothing —
+the series' own copy drawn on the day a `MOVED` line sent it to, and the
+separate entry the older shape wrote, which carries `SERIES_ID` and
+`RECURRENCE_ID` and is read for display alone. Without the mark that second
+shape reads as an ordinary entry, with nothing on it about the series it came
+from.
+
 There is no whole-file write and no editor for one: a file is handed to
 whatever editor the device has, which is what [ADR-0028](docs/adr/0028-a-note-is-handed-to-an-editor-rather-than-opened-here.md)
 and [ADR-0029](docs/adr/0029-an-entry-is-edited-here-a-file-is-not.md) set out.

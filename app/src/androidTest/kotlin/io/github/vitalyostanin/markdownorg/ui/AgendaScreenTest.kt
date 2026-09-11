@@ -422,6 +422,59 @@ class AgendaScreenTest {
     }
 
     /**
+     * An entry held instead of an occurrence of a series is drawn as an
+     * ordinary entry, and the mark beside its glyph is the only thing on the
+     * row that says otherwise. Asserted through the spoken name rather than
+     * the arrow itself: a row merges the semantics of everything in it, so
+     * this is what both a screen reader and a test reach it by.
+     */
+    @Test
+    fun aRowHeldInsteadOfAnOccurrenceCarriesTheDayItLeft() {
+        val moved = agenda(
+            day(
+                scheduledNoTime = listOf(
+                    // The two shapes a move is written in, which read alike to
+                    // whoever is looking at the day.
+                    task(heading = "English", line = 1u, replacedOccurrence = "2026-07-20"),
+                    task(
+                        heading = "Standup",
+                        line = 2u,
+                        repeater = "+1w",
+                        movedFrom = "2026-07-21",
+                    ),
+                    task(heading = "Pay the tax", line = 3u),
+                ),
+            ),
+        ).toSections()
+
+        showAgenda(AgendaLayout.LIST, sections = moved)
+
+        compose.onNodeWithContentDescription(movedFrom("2026-07-20")).assertIsDisplayed()
+        compose.onNodeWithContentDescription(movedFrom("2026-07-21")).assertIsDisplayed()
+    }
+
+    /** The same mark in the other layout: both of them draw the same agenda. */
+    @Test
+    fun theTimeLayoutCarriesTheMarkOfAMoveAsWell() {
+        val moved = agenda(
+            day(
+                scheduledTimed = listOf(
+                    task(
+                        heading = "English",
+                        date = "2026-07-28",
+                        time = "18:00",
+                        replacedOccurrence = "2026-07-20",
+                    ),
+                ),
+            ),
+        ).toSections()
+
+        showAgenda(AgendaLayout.TIME, sections = moved)
+
+        compose.onNodeWithContentDescription(movedFrom("2026-07-20")).assertIsDisplayed()
+    }
+
+    /**
      * `03.07` is the third of July in Russian and the seventh of March in
      * English, and the column gives no clue which is meant. The order of the
      * two parts has to come from the locale the screen is drawn in.
@@ -918,6 +971,12 @@ class AgendaScreenTest {
 
     private fun string(id: Int, vararg formatArgs: Any): String =
         compose.activity.getString(id, *formatArgs)
+
+    /** What the mark of a move is spoken as, in the language of the device. */
+    private fun movedFrom(day: String): String = string(
+        R.string.tooltip_moved_from,
+        statedDateLabel(day, compose.activity.resources.configuration.locales[0]),
+    )
 
     /** How the row words its age, in the plural form the count asks for. */
     private fun daysOverdue(days: Int): String = compose.activity.resources

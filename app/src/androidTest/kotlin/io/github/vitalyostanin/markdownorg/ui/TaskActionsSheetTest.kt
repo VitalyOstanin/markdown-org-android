@@ -117,6 +117,29 @@ class TaskActionsSheetTest {
             )
     }
 
+    // Every date action in the sheet writes into this entry and leaves the
+    // series repeating, so which occurrence the entry stands in for is part of
+    // what the sheet has to state before any of them is pressed.
+    @Test
+    fun theSheetNamesTheOccurrenceTheEntryStandsInFor() {
+        show(task(date = "2026-08-22", replacedOccurrence = "2026-08-20"))
+
+        compose.onNodeWithTag("action-moved")
+            .assertTextEquals(
+                string(
+                    R.string.tooltip_moved_from,
+                    statedDateLabel("2026-08-20", Locale.getDefault()),
+                ),
+            )
+    }
+
+    @Test
+    fun anEntryOnItsOwnDayNamesNoOccurrenceItReplaces() {
+        show(task(date = "2026-08-22"))
+
+        compose.onNodeWithTag("action-moved").assertDoesNotExist()
+    }
+
     @Test
     fun anEntryWithNoDateStatesNone() {
         show(task(timestampType = null, date = null))

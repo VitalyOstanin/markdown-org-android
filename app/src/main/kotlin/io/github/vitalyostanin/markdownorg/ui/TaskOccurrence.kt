@@ -123,3 +123,18 @@ internal fun Task.occurrence(): LocalDate? {
 
 /** The hour the entry is held at, where it names one. */
 internal fun Task.startTime(): LocalTime? = statedTime(timestampTime)
+
+/**
+ * The day of the series this row is held instead of, whichever way the file
+ * says so; `null` for a row that stands for no occurrence but its own.
+ *
+ * Two shapes answer this and a reader tells them apart by nothing: the series'
+ * own copy drawn on the day a `MOVED` line sent it to (ADR-0043), and the
+ * separate entry ADR-0031 wrote a move as, which carries `SERIES_ID` and
+ * `RECURRENCE_ID` and is still read because files and other tools hold it.
+ * Either way the row is held on a day the series did not put it on, and saying
+ * so is the whole of what the reader is owed here — without it the second
+ * shape reads as an ordinary entry, with nothing on it about the series it
+ * came from.
+ */
+internal fun Task.movedOccurrence(): String? = movedFrom ?: replacedOccurrence

@@ -248,12 +248,11 @@ reader looks for it.
 | 2 | `cancel_occurrence` and `move_occurrence` on the boundary   | done: `rust/markdown-org-ffi/src/occurrence.rs`, with the property block kept out of the entry editor |
 | 3 | The actions on the task sheet                               | done: "Just this occurrence" under the date actions — move it, which asks for the day and then the hour, or cancel it |
 | 4 | The pin on the extractor                                    | done: `rust/markdown-org-ffi/Cargo.toml` is on 0.23, which reads both shapes and steps the series over what they hold |
-| 5 | Saying that an entry replaces an occurrence                 | to do: a row standing in for one occurrence in the ADR-0031 shape reads as an ordinary entry, and nothing on it says which series it came from |
+| 5 | Saying that an entry replaces an occurrence                 | done: an arrow beside the glyph, spoken as the day the series would have drawn the row on, and that day spelled out by the tooltip and the sheet |
 
-What is left is the reading side of the older shape: an entry that replaces an
-occurrence is drawn as an ordinary entry, with nothing saying which series it
-came from. A move this application writes is a line of the series and does not
-have the question.
+Both shapes of a move are marked the same way, because a reader tells them
+apart by nothing: the series' own copy drawn on the day a `MOVED` line sent it
+to, and the separate entry of the older shape. Nothing here is left to do.
 
 ## Publishing to the app stores
 

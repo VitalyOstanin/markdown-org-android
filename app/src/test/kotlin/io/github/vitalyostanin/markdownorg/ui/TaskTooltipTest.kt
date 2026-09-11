@@ -188,6 +188,35 @@ class TaskTooltipTest {
         )
         assertNull(task(priority = null).tooltipPriority())
     }
+
+    @Test
+    fun `an entry standing in for an occurrence names the day it left`() {
+        // The older shape of a move (ADR-0031): a separate entry carrying
+        // SERIES_ID and RECURRENCE_ID, which the row would otherwise draw as
+        // an ordinary one-off entry.
+        val line = task(date = "2026-08-22", replacedOccurrence = "2026-08-20").moved()
+
+        assertEquals(TooltipLine(R.string.tooltip_moved_from, listOf("<2026-08-20>")), line)
+    }
+
+    @Test
+    fun `the copy of a series drawn on the day a move sent it names the same`() {
+        // The current shape: a MOVED line of the series itself, resolved by the
+        // core onto the copy it draws on the day the occurrence is held.
+        val line = task(
+            date = "2026-08-22",
+            repeater = "+1w",
+            movedFrom = "2026-08-20",
+        ).moved()
+
+        assertEquals(TooltipLine(R.string.tooltip_moved_from, listOf("<2026-08-20>")), line)
+    }
+
+    @Test
+    fun `a row standing for no occurrence but its own says nothing of a move`() {
+        assertNull(task(date = "2026-08-22").moved())
+        assertNull(task(date = "2026-08-22", repeater = "+1w", next = "2026-08-29").moved())
+    }
 }
 
 /**
@@ -196,3 +225,6 @@ class TaskTooltipTest {
  */
 private fun Task.line(occurrence: Occurrence = Occurrence.NEXT): TooltipLine? =
     tooltipKind(date = { "<$it>" }, time = { "[$it]" }, occurrence = occurrence)
+
+/** The moved line with the date formatter replaced the same way. */
+private fun Task.moved(): TooltipLine? = tooltipMoved(date = { "<$it>" })

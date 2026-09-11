@@ -221,6 +221,7 @@
     <string name="tooltip_repeating">Повторяется%1$s</string>
     <string name="tooltip_repeating_next">Повторяется%1$s — следующее %2$s</string>
     <string name="tooltip_repeating_on">Повторяется%1$s — дата %2$s</string>
+    <string name="tooltip_moved_from">Перенос с %1$s</string>
     <string name="tooltip_priority">Приоритет %1$s</string>
     <string name="tooltip_priority_highest">Приоритет %1$s (высший)</string>
     <string name="tooltip_priority_lowest">Приоритет %1$s (низший)</string>

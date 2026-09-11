@@ -241,6 +241,20 @@ pub struct Task {
     /// second time writes a second `MOVED` line beside the first, and
     /// cancelling it excludes a day the series does not fall on (ADR-0038).
     pub moved_from: Option<String>,
+    /// The occurrence this entry stands in for, where it is the second entry
+    /// ADR-0031 wrote a move as, as `YYYY-MM-DD`.
+    ///
+    /// The day half of `RECURRENCE_ID`, and only where `SERIES_ID` names a
+    /// series beside it: the key is meaningless alone. Read for the display
+    /// side alone — this shape is not written any more, and a move made here
+    /// is a `MOVED` line of the series (ADR-0043).
+    ///
+    /// Held apart from [`moved_from`](Self::moved_from) rather than folded
+    /// into it, because the two are read off different entries: that one is
+    /// the series' own copy drawn on the day a move sent it to, this one a
+    /// separate entry that replaces an occurrence. What they mean to a reader
+    /// is the same, and the row says the same thing for both.
+    pub replaced_occurrence: Option<String>,
     /// How long before its hour this entry asks to be reminded, when it says
     /// so with the `REMINDER` key of its property block (extractor's
     /// ADR-0041).
@@ -353,6 +367,15 @@ impl From<markdown_org_extract::Task> for Task {
                         .find(|moved| moved.to == drawn)
                         .map(|moved| moved.from.clone())
                 }),
+            // The pair is one fact in two keys, and the date is the half a row
+            // can say something with; the series' own identifier names nothing
+            // the reader would recognise.
+            replaced_occurrence: task
+                .series_id
+                .as_ref()
+                .and(task.recurrence_id.as_deref())
+                .and_then(|occurrence| occurrence.split_whitespace().next())
+                .map(str::to_owned),
             reminder: task.reminder.map(ReminderLead::from),
         }
     }

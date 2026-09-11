@@ -247,6 +247,14 @@ private fun SheetHeader(task: Task) {
             modifier = Modifier.testTag("action-date"),
         )
     }
+    taskMovedLine(task)?.let { line ->
+        Text(
+            text = line,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("action-moved"),
+        )
+    }
     HintTooltip(stringResource(R.string.hint_action_where)) {
         Text(
             text = "${task.file}:${task.line}",

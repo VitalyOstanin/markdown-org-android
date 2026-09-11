@@ -171,6 +171,7 @@ fun RowScope.TaskRowHead(
         style = MaterialTheme.typography.labelLarge,
         color = glyph,
     )
+    MovedMark(task, glyph)
     Spacer(Modifier.width(Spacing.sm))
     task.priority?.let { priority ->
         PriorityBadge(priority, onDenseFill = onDenseFill)
@@ -185,6 +186,39 @@ fun RowScope.TaskRowHead(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(1f),
+    )
+}
+
+/**
+ * The arrow a row carries when it is held instead of an occurrence of a
+ * series, beside the glyph for what the entry is.
+ *
+ * On the row rather than in its tooltip alone: a day is read by scrolling it,
+ * and an entry standing in for an occurrence is otherwise drawn exactly as an
+ * entry of its own — the reader has no way to tell that it belongs to a series
+ * at all, which is what a press would have to be aimed at to find out.
+ *
+ * The arrow is the notation the notes themselves use: a `MOVED` line is
+ * written `[the day it left] -> <where it is held>`, so the mark reads as that
+ * line does. One character wide, which is what the heading can spare; the day
+ * it came from is said by the spoken name and spelled out by the tooltip and
+ * the sheet, both of which have the room for a date.
+ */
+@Composable
+private fun MovedMark(task: Task, tone: Color) {
+    val moved = task.movedOccurrence() ?: return
+    val locale = LocalLocale.current.platformLocale
+    val spoken = stringResource(R.string.tooltip_moved_from, statedDateLabel(moved, locale))
+
+    Spacer(Modifier.width(Spacing.xs))
+    Text(
+        text = MOVED_GLYPH,
+        style = MaterialTheme.typography.labelLarge,
+        color = tone,
+        // The row merges the semantics of everything inside it, so this is
+        // what a test and a screen reader find the mark by; a tag on the text
+        // would not survive the merge.
+        modifier = Modifier.semantics { contentDescription = spoken },
     )
 }
 
@@ -364,6 +398,9 @@ internal fun SectionLabel(
         trailing()
     }
 }
+
+/** The arrow of a `MOVED` line, as one character. */
+private const val MOVED_GLYPH = "→"
 
 private const val FOLDED_MARK = "▸"
 private const val UNFOLDED_MARK = "▾"

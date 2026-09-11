@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A row held instead of an occurrence of a series says so: an arrow beside the
+  glyph for what the entry is, the day the series would have drawn it on spoken
+  by the mark, and that day spelled out by the tooltip and by the sheet the row
+  opens. Both shapes of a move carry the mark -- the series' own copy drawn on
+  the day a `MOVED` line sent it to, and the separate entry the older shape
+  wrote with `SERIES_ID` and `RECURRENCE_ID`, which until now was drawn as an
+  ordinary entry with nothing on it about the series it came from.
+
 ## [0.2.1] - 2026-09-11
 
 ### Fixed
