@@ -16,7 +16,7 @@ coroutines = "1.11.0"
 # graph — Compose pulls it in — and this adds the JSON half.
 serialization = "1.11.0"
 junit = "4.13.2"
-kover = "0.9.9"
+kover = "0.9.11"
 # Reads the licences out of the dependency graph and bundles the list into the
 # APK, so what the application shows is what it actually carries.
 licensee = "1.14.1"
