@@ -219,7 +219,7 @@ jobs:
           rustup target add --toolchain "$version" aarch64-linux-android x86_64-linux-android
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@b874e25ea559687bec77e281e9b271aa1367b624 # v1.23.0
+        uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
 
       - name: Install cargo-ndk
         # A prebuilt binary rather than `cargo install`: building it here costs
