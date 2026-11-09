@@ -341,7 +341,13 @@ class ReminderNotificationsTest {
 
     private companion object {
         val ZONE: ZoneId = ZoneId.systemDefault()
-        val DAY: LocalDate = LocalDate.of(2026, 9, 5)
+
+        // Today rather than a fixed date: since Android 15 QPR1 the platform
+        // drops a notification whose `when` is more than about two weeks old
+        // ("Ignored enqueue for old" in the log), and the timed reminder's
+        // `when` is the hour of its entry. A date written into the test
+        // passed for a fortnight and then failed every timed case for good.
+        val DAY: LocalDate = LocalDate.now(ZONE)
         val STARTS: ZonedDateTime = DAY.atTime(15, 0).atZone(ZONE)
 
         /** How long a notification is waited for, and how long an absent one is. */
