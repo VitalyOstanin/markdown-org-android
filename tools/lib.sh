@@ -21,7 +21,13 @@ declared_abis() {
 # versions.env asks for a new image instead of silently reusing the old one.
 readonly NDK_IMAGE="${NDK_IMAGE:-localhost/markdown-org-ndk:${NDK_RELEASE}-${CARGO_ABOUT_VERSION}-${CARGO_LLVM_COV_VERSION}}"
 readonly SDK_IMAGE="${SDK_IMAGE:-localhost/markdown-org-sdk:${ANDROID_COMPILE_SDK}}"
-readonly EMULATOR_IMAGE="${EMULATOR_IMAGE:-localhost/markdown-org-emulator:${ANDROID_EMULATOR_API}}"
+# The emulator tag also carries a digest of the files the image is built from:
+# its packages and entry point change without any version moving, and an image
+# that already exists is never rebuilt.
+emulator_digest="$(cat "${REPO_ROOT}/tools/Containerfile.emulator" \
+    "${REPO_ROOT}/tools/emulator-entrypoint.sh" | sha256sum | cut -c1-12)"
+readonly EMULATOR_IMAGE="${EMULATOR_IMAGE:-localhost/markdown-org-emulator:${ANDROID_EMULATOR_API}-${emulator_digest}}"
+unset emulator_digest
 
 # A proxy listening on the host loopback is unreachable from a container on
 # its own network, which is why every run and every build below shares the

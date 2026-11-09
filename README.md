@@ -131,6 +131,7 @@ markdown-org-android/
 │   ├── Containerfile.ndk     # Rust + Android NDK + cargo-ndk
 │   ├── Containerfile.sdk     # JDK + Android SDK + Gradle, for the APK
 │   ├── Containerfile.emulator   # adds the emulator and a system image
+│   ├── emulator-entrypoint.sh   # picks the GPU or the CPU renderer, starts the emulator
 │   ├── build-core.sh         # build for the ABIs, then generate the bindings
 │   ├── test-core.sh          # the Rust tests, in the NDK image
 │   ├── check-core.sh         # cargo fmt --check and clippy, in the same image
@@ -935,6 +936,14 @@ The container shares the host network, so the host's `adb` reaches the
 emulator without going inside. `/dev/kvm` is passed through — without it qemu
 falls back to software emulation and the boot takes tens of minutes.
 
+`/dev/dri` is passed through as well, and the emulator renders on the GPU
+(`-gpu host`) when it can open a render node; otherwise it renders on the CPU
+with `swiftshader_indirect`. Opening the node needs membership in the `render`
+group. Even without a window `-gpu host` wants an X display, so the image
+starts a headless weston with Xwayland for it. On an AMD Renoir integrated
+GPU the instrumented tests took 10 minutes instead of 15, at half the CPU
+load. `EMULATOR_GPU=swiftshader_indirect` forces the CPU renderer.
+
 An emulator is x86_64; how fast the core parses on ARM has to be measured on
 a device.
 
@@ -1270,12 +1279,13 @@ in `tools/versions.env`.
 | 7 | `ANDROID_SERIAL` | `test-instrumented.sh`, `run-app.sh`, `gradle.sh` | the booted emulator, from `adb devices` |
 | 8 | `NAME`           | `run-emulator.sh`                               | `markdown-org-emulator`                   |
 | 9 | `BOOT_TIMEOUT`   | `run-emulator.sh`                               | `300` seconds                             |
-| 10 | `NDK_IMAGE`, `SDK_IMAGE`, `EMULATOR_IMAGE` | `tools/lib.sh`       | `localhost/markdown-org-*` tagged by version |
+| 10 | `NDK_IMAGE`, `SDK_IMAGE`, `EMULATOR_IMAGE` | `tools/lib.sh`       | `localhost/markdown-org-*` tagged by version; the emulator tag also by a digest of its files |
 | 11 | `CACHE_VOLUME`   | `gradle.sh`, `test-core.sh`, `check-core.sh`    | `markdown-org-gradle` / `markdown-org-cargo` |
 | 12 | `KEY_VOLUME`     | `gradle.sh`                                     | `markdown-org-android-home`, the debug signing key |
 | 13 | `JOBS`, `MEMORY` | `tools/lib.sh` — every container                | `8` cores and `8g`; also `cargo -j`       |
 | 14 | `TEST_THREADS`   | `test-core.sh`                                  | `8`                                       |
 | 15 | `TIMEOUT`        | every script that runs tests                    | `20m` JVM, `30m` core, `40m` instrumented |
+| 16 | `EMULATOR_GPU`   | `run-emulator.sh`                               | `host` (the GPU, via `/dev/dri`) when a render node opens, else `swiftshader_indirect` |
 
 The container limits are deliberate: left alone a cargo build takes every
 core on the machine, and the vendored libgit2 and OpenSSL are a lot of C to

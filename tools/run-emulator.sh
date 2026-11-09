@@ -39,8 +39,21 @@ echo "==> starting ${NAME}"
 # so the device stays out of reach inside the container. Only crun implements
 # the option; runc accepts and ignores it, which is why it is passed
 # unconditionally.
+#
+# /dev/dri lets the emulator render on the host GPU; the image falls back to
+# rendering on the CPU when the node is missing or not accessible, which on
+# most hosts means the user is not in the render group. EMULATOR_GPU forces
+# one or the other: host, or swiftshader_indirect.
+gpu_args=()
+if [[ -d /dev/dri ]]; then
+    gpu_args+=(--device /dev/dri)
+fi
+if [[ -n "${EMULATOR_GPU:-}" ]]; then
+    gpu_args+=(-e "EMULATOR_GPU=${EMULATOR_GPU}")
+fi
 podman run -d --rm --name "${NAME}" --network host \
-    --group-add keep-groups --device /dev/kvm "${EMULATOR_IMAGE}" > /dev/null
+    --group-add keep-groups --device /dev/kvm "${gpu_args[@]}" \
+    "${EMULATOR_IMAGE}" > /dev/null
 
 echo "==> waiting for boot (up to ${BOOT_TIMEOUT}s)"
 deadline=$((SECONDS + BOOT_TIMEOUT))
@@ -51,6 +64,7 @@ adb_cmd start-server > /dev/null 2>&1 || true
 while (( SECONDS < deadline )); do
     if [[ "$(adb_cmd -e shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
         echo "==> booted after $((SECONDS))s"
+        podman logs "${NAME}" 2>&1 | grep -m1 '^emulator-entrypoint: -gpu' || true
         adb_cmd devices
         exit 0
     fi
