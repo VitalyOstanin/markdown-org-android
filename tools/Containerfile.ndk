@@ -10,7 +10,7 @@
 # Pinned by digest as well as by tag: the tag moves, and the compiler that
 # builds a released APK should not change underfoot. Dependabot watches the
 # digest and opens a pull request when the tag moves on.
-FROM docker.io/library/rust:1.98-trixie@sha256:bf5a9aa29062a6cb03c49bd59a46eb55e3cc770caf598a221a7866e500be3082
+FROM docker.io/library/rust:1.99-trixie@sha256:8a4e90c7946b74626488b1446f712c0fe0ed1a596cbd3d871684bc9c5433ae07
 
 ARG NDK_RELEASE
 ARG NDK_SHA256
